@@ -5,10 +5,10 @@ setup(
     version='0.1.0',
     install_requires=[
         "pymongo==2.3",
-        "makerpy==0.1.0"
+        "maker-py==0.1.0"
     ],
     dependency_links=[
-        "https://github.com/mongolab/makerpy/zipball/master#egg=makerpy-0.1.0"
+        "https://github.com/objectlabs/maker-py/zipball/master#egg=makerpy-0.1.0"
     ]
 
 
