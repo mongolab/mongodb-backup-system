@@ -1,6 +1,8 @@
 __author__ = 'abdul'
 
 from makerpy.object_collection import ObjectCollection
+from makerpy.maker import resolve_class
+
 from utils import read_config_json, mongo_connect
 from backup import Backup
 from plan import BackupPlan
@@ -19,10 +21,10 @@ MBS_CONFIG = "~/.mbs/mbs.config"
 class MBSCore(object):
 
     ###########################################################################
-    def __init__(self, config_file):
+    def __init__(self, config):
 
         # init config and database
-        self._init_config(config_file)
+        self._config = config
         self._database = mongo_connect(self._get_database_uri())
 
         # init object collections
@@ -43,10 +45,6 @@ class MBSCore(object):
 
         self._audit_collection = ac
 
-
-    ###########################################################################
-    def _init_config(self, config_file):
-        self._config = read_config_json("mbs", config_file)
 
     ###########################################################################
     def _get_type_bindings(self):
@@ -78,7 +76,13 @@ mbs_core = None
 def get_mbs_core():
     global mbs_core
     if not mbs_core:
-        mbs_core = MBSCore(MBS_CONFIG)
+        mbs_config = read_config_json("mbs", MBS_CONFIG)
+        core_type = mbs_config.get("coreType")
+        core_class = MBSCore
+        if core_type:
+            core_class = resolve_class(core_type)
+
+        mbs_core = core_class(mbs_config)
     return mbs_core
 
 
