@@ -1,0 +1,10 @@
+*~
+*.pyc
+
+#
+# IntelliJ IDEA
+#
+*.ipr
+*.iml
+*.iws
+.DS_Store
