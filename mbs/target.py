@@ -1,8 +1,11 @@
 __author__ = 'abdul'
 
+import traceback
+
 import mbs_logging
 from boto.s3.connection import S3Connection
 from boto.s3.key import Key
+import os
 
 from utils import document_pretty_string
 
@@ -50,7 +53,7 @@ class S3BucketTarget(BackupTarget):
 
             logger.info("S3BucketTarget: Uploading %s to s3 bucket %s" %
                         (file_path, self.bucket_name))
-            conn = S3Connection(self._access_key(), self._secret_key())
+            conn = S3Connection(self.access_key, self.secret_key)
             bucket = conn.get_bucket(self.bucket_name)
 
             k = Key(bucket)
@@ -62,9 +65,9 @@ class S3BucketTarget(BackupTarget):
             logger.info("S3BucketTarget: Uploading to s3 bucket %s completed"
                         " successfully!!" % self.bucket_name)
         except Exception, e:
-            logger.error("S3BucketTarget: Error while trying to upload '%s'"
-                         " to s3 bucket %s. Cause: %s" %
-                         (file_path, self.bucket_name, e))
+            raise Exception("S3BucketTarget: Error while trying to upload '%s'"
+                            " to s3 bucket %s. Cause: %s" %
+                            (file_path, self.bucket_name, e))
 
     ###########################################################################
     @property
