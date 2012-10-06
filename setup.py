@@ -8,7 +8,7 @@ setup(
         "maker-py==0.1.0"
     ],
     dependency_links=[
-        "https://github.com/objectlabs/maker-py/zipball/master#egg=makerpy-0.1.0"
+        "git+ssh://git@github.com/objectlabs/maker-py.git#egg=maker-py-0.1.0"
     ]
 
 
