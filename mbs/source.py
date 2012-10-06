@@ -49,11 +49,11 @@ class ServerSource(BackupSource):
     ###########################################################################
     @property
     def address(self):
-        return self._source_document["address"]
+        return self._address
 
     @address.setter
     def address(self, address):
-        self._source_document["address"] = address
+        self._address = address
 
     ###########################################################################
     @property
