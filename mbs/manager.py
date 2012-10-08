@@ -187,7 +187,6 @@ class PlanManager(Thread):
         backup.target = plan.target
         backup.plan_occurrence = plan.next_occurrence
         backup.change_state(STATE_SCHEDULED)
-        backup.timestamp = date_now()
         self._set_plan_next_occurrence(plan)
         backup.plan = plan
         backup_doc = backup.to_document()

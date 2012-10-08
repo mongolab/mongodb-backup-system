@@ -23,7 +23,6 @@ class Backup(object):
         self._target = None
         self._plan = None
         self._plan_occurrence = None
-        self._timestamp = None
         self._engine_id = None
         self._logs = []
 
@@ -93,19 +92,10 @@ class Backup(object):
 
     ###########################################################################
     @property
-    def timestamp(self):
-        return self._timestamp
-
-    @timestamp.setter
-    def timestamp(self, timestamp):
-        self._timestamp = timestamp
-
-    ###########################################################################
-    @property
     def engine_id(self):
         return self._engine_id
 
-    @timestamp.setter
+    @engine_id.setter
     def engine_id(self, engine_id):
         self._engine_id = engine_id
 
@@ -138,8 +128,7 @@ class Backup(object):
             "source": self.source.to_document(),
             "target": self.target.to_document(),
             "plan": self.plan.to_document(),
-            "planOccurrence": self.timestamp,
-            "timestamp": self.timestamp,
+            "planOccurrence": self.plan_occurrence,
             "engineId": self.engine_id,
             "logs": self.export_logs()
         }
