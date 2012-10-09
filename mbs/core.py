@@ -6,7 +6,7 @@ from makerpy.maker import resolve_class
 from utils import read_config_json, mongo_connect
 from backup import Backup
 from plan import BackupPlan
-from audit import AuditEntry, GlobalAuditor, PlanAuditor
+from audit import AuditReport, GlobalAuditor, PlanAuditor
 from engine import BackupEngine
 from manager import PlanManager
 
@@ -42,7 +42,7 @@ class MBSCore(object):
         self._plan_collection = pc
 
         ac = ObjectCollection(self._database["audits"],
-                              clazz=AuditEntry,
+                              clazz=AuditReport,
                               type_bindings=type_bindings)
 
         # init plan manager

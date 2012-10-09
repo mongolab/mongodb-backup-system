@@ -57,7 +57,7 @@ def yesterday_date():
 
 ###############################################################################
 def today_date():
-    return date_now().replace(hour=0, minute=0, second=0)
+    return date_now().replace(hour=0, minute=0, second=0, microsecond=0)
 
 ###############################################################################
 # sub-processing functions
