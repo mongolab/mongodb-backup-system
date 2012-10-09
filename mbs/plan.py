@@ -77,30 +77,43 @@ class BackupPlan(object):
                                               schedule.frequency))
 
     ###########################################################################
-    def natural_occurrences_yesterday(self):
-        occurrences = []
-        last_occurrence = self.last_natural_occurrence()
-        yesterday = yesterday_date()
-        today = today_date()
-        delta = timedelta(seconds=self.schedule.frequency)
+    def last_natural_occurrence_as_of(self, date):
+        schedule = self.schedule
+        date_seconds = date_to_seconds(date)
+        offset_seconds = date_to_seconds(self.schedule.offset)
 
-        while last_occurrence >= yesterday:
-            if last_occurrence < today:
-                occurrences.append(last_occurrence)
-            last_occurrence = last_occurrence - delta
+        return seconds_to_date(date_seconds -
+                               ((date_seconds - offset_seconds) %
+                                schedule.frequency))
+
+    ###########################################################################
+    def natural_occurrences_as_of(self, date):
+        occurrences = []
+        last_occurrence = self.last_natural_occurrence_as_of(date)
+
+        delta = timedelta(seconds=self.schedule.frequency)
+        next_date = date + timedelta(days=1)
+        while last_occurrence < next_date:
+            occurrences.append(last_occurrence)
+
+            last_occurrence = last_occurrence + delta
 
         return occurrences
 
     ###########################################################################
     def to_document(self):
-        return {
-            "_id": self.id,
+        doc = {
             "_type": "Plan",
             "source": self.source.to_document(),
             "target": self.target.to_document(),
             "schedule": self.schedule.to_document(),
             "nextOccurrence": self.next_occurrence
         }
+
+        if self.id:
+            doc["_id"] = self.id
+
+        return doc
 
     ###########################################################################
     def __str__(self):

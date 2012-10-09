@@ -6,7 +6,9 @@ from makerpy.maker import resolve_class
 from utils import read_config_json, mongo_connect
 from backup import Backup
 from plan import BackupPlan
-from audit import AuditEntry
+from audit import AuditEntry, GlobalAuditor, PlanAuditor
+from engine import BackupEngine
+from manager import PlanManager
 
 #package_coll = ObjectCollection(database['packages'],
  #   clazz=Package,
@@ -43,8 +45,17 @@ class MBSCore(object):
                               clazz=AuditEntry,
                               type_bindings=type_bindings)
 
+        # init plan manager
+        self._plan_manager = PlanManager(self.plan_collection,
+                                         self.backup_collection)
         self._audit_collection = ac
 
+        # init global editor
+        self._global_auditor = GlobalAuditor(self._audit_collection)
+        plan_auditor = PlanAuditor(self._plan_collection,
+                                   self._backup_collection)
+
+        self._global_auditor.register_auditor(plan_auditor)
 
     ###########################################################################
     def _get_type_bindings(self):
@@ -67,6 +78,20 @@ class MBSCore(object):
     @property
     def plan_collection(self):
         return self._plan_collection
+
+    ###########################################################################
+    def create_backup_engine(self, engine_id):
+        return BackupEngine(engine_id, self.backup_collection)
+
+    ###########################################################################
+    @property
+    def plan_manager(self):
+        return self._plan_manager
+
+    ###########################################################################
+    @property
+    def global_auditor(self):
+        return self._global_auditor
 
 ###############################################################################
 # MBS Core Singleton

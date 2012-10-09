@@ -1,127 +1,203 @@
 __author__ = 'abdul'
 
+from mbs.backup import STATE_SUCCEEDED
+
+from mbs.utils import yesterday_date, document_pretty_string
 
 ###############################################################################
-##############################                #################################
-############################## Backup Auditor #################################
-##############################                #################################
+##############################                 #################################
+############################## Backup Auditors #################################
+##############################                 #################################
 ###############################################################################
+
+TYPE_PLAN_AUDIT = "PLAN_AUDIT"
 
 ###############################################################################
 # BackupAuditor
-# Creates audit entries about backups taken yesterday. Those are of two types
-# A- Auditing backups pertaining all account subscriptions
-# B- Auditing backup plans
-###############################################################################
-TYPE_ACCOUNT_AUDIT = "ACCOUNT_AUDIT"
-TYPE_PLAN_AUDIT = "PLAN_AUDIT"
-
+# Creates an audit report about backups taken as of a specific day.
+#
 class BackupAuditor(object):
+
     ###########################################################################
-    def __init__(self, audit_collection,
-                 account_collection,
+    def __init__(self, audit_type):
+        self._audit_type = audit_type
+
+    ###########################################################################
+    def daily_audit_reports(self, audit_date):
+        pass
+
+    ###########################################################################
+    def yesterday_audit_reports_as_of(self):
+        return self.daily_audit_report(yesterday_date())
+
+
+    ###########################################################################
+    @property
+    def audit_type(self):
+        return self._audit_type
+
+###############################################################################
+# AuditReport
+###############################################################################
+class AuditReport(object):
+    ###########################################################################
+    def __init__(self):
+        self._id = None
+        self._audit_type = None
+        self._audit_date = None
+        self._audit_entries = []
+
+    ###########################################################################
+    @property
+    def id(self):
+        return self._id
+
+    @id.setter
+    def id(self, id):
+        self._id = str(id)
+
+    ###########################################################################
+    @property
+    def audit_type(self):
+        return self._audit_type
+
+
+    @audit_type.setter
+    def audit_type(self, audit_type):
+        self._audit_type = audit_type
+
+    ###########################################################################
+    @property
+    def audit_date(self):
+        return self._audit_date
+
+
+    @audit_date.setter
+    def audit_date(self, audit_date):
+        self._audit_date = audit_date
+
+    ###########################################################################
+    @property
+    def audit_entries(self):
+        return self._audit_entries
+
+
+    @audit_entries.setter
+    def audit_entries(self, audit_entries):
+        self._audit_entries = audit_entries
+
+    ###########################################################################
+    def to_document(self):
+        doc = {
+            "_type": "AuditReport",
+            "auditType": self.audit_type,
+            "auditDate": self.audit_date,
+            "auditEntries": self._export_audit_entries(),
+            }
+
+        if self.id:
+            doc["_id"] = self.id
+
+        return doc
+
+    ###########################################################################
+    def _export_audit_entries(self):
+        return map(lambda entry: entry.to_document(), self.audit_entries)
+
+    ###########################################################################
+    def __str__(self):
+        return document_pretty_string(self.to_document())
+
+###############################################################################
+# AuditEntry
+###############################################################################
+class AuditEntry(object):
+
+    ###########################################################################
+    def __init__(self):
+        self._is_backed_up = None
+        self._backup_record = None
+
+    ###########################################################################
+    @property
+    def is_backed_up(self):
+        return self._is_backed_up
+
+    @is_backed_up.setter
+    def is_backed_up(self, is_backed_up):
+        self._is_backed_up = is_backed_up
+
+    ###########################################################################
+    @property
+    def backup_record(self):
+        return self._backup_record
+
+    ###########################################################################
+    @backup_record.setter
+    def backup_record(self, backup):
+        self._backup_record = backup
+    ###########################################################################
+    def to_document(self):
+        pass
+
+    ###########################################################################
+    def __str__(self):
+        return document_pretty_string(self.to_document())
+
+###############################################################################
+# PlanBackupAuditor
+# Creates an audit report about backup plans taken yesterday.
+
+class PlanAuditor(BackupAuditor):
+    ###########################################################################
+    def __init__(self,
                  plan_collection,
                  backup_collection):
 
-        self._audit_collection = audit_collection
-        self._accounts_collection = account_collection
+        BackupAuditor.__init__(self, TYPE_PLAN_AUDIT)
+
         self._plan_collection = plan_collection
         self._backup_collection = backup_collection
 
-    ###########################################################################
-    def run(self):
-        self._audit_account_backups()
-        self._audit_plans()
 
     ###########################################################################
-    # account auditing
+    # plan auditing
     ###########################################################################
-    def _audit_account_backups(self):
-        for account in self._accounts_collection.find():
-            subscriptions = account.get("subscriptions") or []
-            for subscription in subscriptions:
-                self._audit_subscription(account, subscription)
+    def daily_audit_reports(self, audit_date):
 
-    ###########################################################################
-    def _audit_subscription(self, account, subscription):
-        resource_type = subscription["resource"]["_type"]
-        resource_id = subscription["resource"]["id"]
-        if resource_type == "db":
-            self._audit_hosted_db(account, resource_id)
+        reports = []
 
-        elif resource_type == "server":
-            self._audit_server(account, resource_id)
+        for plan in self._plan_collection.find():
+            report = PlanAuditReport()
+            report.audit_type = self.audit_type
+            report.audit_date = audit_date
+            report.plan = plan
+            report.audit_entries = self._audit_plan(plan, audit_date)
+            reports.append(report)
 
-        elif resource_type == "cluster":
-            self._audit_cluster(account, resource_id)
+        return reports
 
     ###########################################################################
-    def _audit_hosted_db(self, account, hosted_db_id):
-        cluster_id = get_hosted_db_cluster_id(hosted_db_id)
-        backup_record = self._lookup_cluster_backup(cluster_id)
-        resource = {"_type": "db",
-                    "_id": hosted_db_id}
+    def _audit_plan(self, plan, audit_date):
+        audit_entries = []
 
-        self._create_audit_entry(audit_type=TYPE_ACCOUNT_AUDIT,
-            backup_record=backup_record,
-            account_id=account["_id"],
-            resource=resource)
+        for plan_occurrence in plan.natural_occurrences_as_of(audit_date):
+            audit_entry = self._audit_plan_occurrence(plan, plan_occurrence)
+            audit_entries.append(audit_entry)
+
+        return audit_entries
 
     ###########################################################################
-    def _audit_server(self, account, server_id):
-        backup_record = self._lookup_server_backup(server_id)
-        resource = {"_type": "server",
-                    "_id": server_id}
-        self._create_audit_entry(audit_type=TYPE_ACCOUNT_AUDIT,
-            backup_record=backup_record,
-            account_id=account["_id"],
-            resource=resource)
+    def _audit_plan_occurrence(self, plan, plan_occurrence):
+        backup_record = self._lookup_backup_by_plan_occurrence(plan,
+                                                               plan_occurrence)
 
-    ###########################################################################
-    def _audit_cluster(self, account, cluster_id):
-        backup_record = self._lookup_cluster_backup(cluster_id)
-        resource = {"_type": "cluster",
-                    "_id": cluster_id}
-        self._create_audit_entry(audit_type=TYPE_ACCOUNT_AUDIT,
-            backup_record=backup_record,
-            account_id=account["_id"],
-            resource=resource)
+        audit_entry = PlanAuditEntry()
+        audit_entry.backup_record = backup_record
+        audit_entry.is_backed_up = backup_record is not None
+        audit_entry.plan_occurrence = plan_occurrence
 
-    ###########################################################################
-    def _lookup_server_backup(self, server_id):
-
-        source= {
-            "_type": "backup.backup_new.MongoLabServerSource",
-            "serverId": server_id,
-            }
-
-        return self._lookup_backup_by_source(source)
-
-    ###########################################################################
-    def _lookup_cluster_backup(self, cluster_id):
-        source= {
-            "_type": "backup.backup_new.MongoLabClusterSource",
-            "clusterId": cluster_id,
-            }
-
-        return self._lookup_backup_by_source(source)
-
-    ###########################################################################
-    def _lookup_backup_by_source(self, source):
-        date_start = yesterday_date()
-        date_end = today_date()
-
-        q = {
-            "state": STATE_SUCCEEDED,
-            "timestamp":{"$gte": date_start, "$lt": date_end},
-            "source": source
-        }
-
-        c = self._backup_collection
-        results = c.find(q).sort("timestamp", -1).limit(1)
-
-        if results is not None and results.count(True) > 0:
-            return new_backup(results[0])
+        return audit_entry
 
     ###########################################################################
     def _lookup_backup_by_plan_occurrence(self, plan, plan_occurrence):
@@ -135,133 +211,83 @@ class BackupAuditor(object):
 
         return c.find_one(q)
 
-    ###########################################################################
-    def _create_audit_entry(self, audit_type, backup_record,
-                            account_id=None, resource=None,
-                            plan=None, plan_occurrence=None):
-
-        yesterday = yesterday_date()
-        audit_date = (plan_occurrence if audit_type == TYPE_PLAN_AUDIT
-                      else yesterday)
-
-        audit_entry = AuditEntry()
-        audit_entry.audited_date = audit_date
-        audit_entry.audit_type = audit_type
-        audit_entry.backup_record = backup_record
-        audit_entry.is_backed_up = backup_record is not None
-        audit_entry.account_id = account_id
-        audit_entry.resource = resource
-        audit_entry.plan = plan
-        audit_entry.plan_occurrence = plan_occurrence
-        self._audit_collection.save(audit_entry._entry_document)
-
-    ###########################################################################
-    # plan auditing
-    ###########################################################################
-    def _audit_plans(self):
-        for plan_doc in self._plan_collection.find():
-            plan = new_plan(plan_doc)
-            self._audit_plan(plan)
-
-    ###########################################################################
-    def _audit_plan(self, plan):
-        for plan_occurrence in plan.natural_occurrences_yesterday():
-            self._audit_plan_occurrence(plan, plan_occurrence)
-
-    ###########################################################################
-    def _audit_plan_occurrence(self, plan, plan_occurrence):
-        backup_record = self._lookup_backup_by_plan_occurrence(plan,
-            plan_occurrence)
-        self._create_audit_entry(audit_type=TYPE_PLAN_AUDIT,
-            plan=plan,
-            plan_occurrence=plan_occurrence,
-            backup_record=backup_record)
 
 ###############################################################################
-# AuditEntry
+# PlanAuditEntry
 ###############################################################################
-class AuditEntry(object):
-    def __init__(self, entry_doc=None):
-        self._entry_document = entry_doc or {}
+class PlanAuditReport(AuditReport):
 
     ###########################################################################
-    @property
-    def _id(self):
-        return str(self._entry_document['_id'])
-
-    ###########################################################################
-    @property
-    def audited_date(self):
-        return self._entry_document['auditedDate']
-
-
-    @audited_date.setter
-    def audited_date(self, value):
-        self._entry_document['auditedDate'] = value
-
-    ###########################################################################
-    @property
-    def audit_type(self):
-        return self._entry_document['auditType']
-
-
-    @audit_type.setter
-    def audit_type(self, value):
-        self._entry_document['auditType'] = value
-
-    ###########################################################################
-    @property
-    def account_id(self):
-        return self._entry_document['accountId']
-
-    @account_id.setter
-    def account_id(self, value):
-        self._entry_document['accountId'] = value
-
-    ###########################################################################
-    @property
-    def resource(self):
-        return self._entry_document['resource']
-
-    @resource.setter
-    def resource(self, value):
-        self._entry_document['resource'] = value
-
-    ###########################################################################
-    @property
-    def is_backed_up(self):
-        return self._entry_document['isBackedup']
-
-    @is_backed_up.setter
-    def is_backed_up(self, value):
-        self._entry_document['isBackedup'] = value
-
-    ###########################################################################
-    @property
-    def backup_record(self):
-        return self._entry_document['backupRecord']
-
-    ###########################################################################
-    @backup_record.setter
-    def backup_record(self, backup):
-        if backup:
-            self._entry_document['backupRecord'] = backup._backup_document
+    def __init__(self):
+        AuditReport.__init__(self)
+        self._plan = None
 
     ###########################################################################
     @property
     def plan(self):
-        return self._entry_document['plan']
+        return self._plan
 
     @plan.setter
     def plan(self, plan):
-        if plan:
-            self._entry_document['plan'] = plan.plan_document
+        self._plan = plan
+
+    ###########################################################################
+    def to_document(self):
+        doc = super(PlanAuditReport, self).to_document()
+        doc["plan"] = self.plan.to_document()
+        return doc
+
+###############################################################################
+# PlanAuditEntry
+###############################################################################
+class PlanAuditEntry(AuditEntry):
+
+    ###########################################################################
+    def __init__(self):
+        AuditEntry.__init__(self)
+        self._plan_occurrence = None
 
     ###########################################################################
     @property
     def plan_occurrence(self):
-        return self._entry_document['planOccurrence']
+        return self._plan_occurrence
 
     @plan_occurrence.setter
-    def plan_occurrence(self, value):
-        self._entry_document['planOccurrence'] = value
+    def plan_occurrence(self, plan_occurrence):
+        self._plan_occurrence = plan_occurrence
+
+    ###########################################################################
+    def to_document(self):
+        backup_doc = (self.backup_record.to_document() if self._backup_record
+                      else None)
+        return {
+            "_type": "PlanAuditEntry",
+            "backupRecord": backup_doc,
+            "isBackedUp": self.is_backed_up,
+            "planOccurrence": self.plan_occurrence
+        }
+
+###############################################################################
+class GlobalAuditor():
+
+    ###########################################################################
+    def __init__(self, audit_collection):
+        self._auditors = []
+        self._audit_collection = audit_collection
+
+    ###########################################################################
+    def register_auditor(self, auditor):
+        self._auditors.append(auditor)
+
+    ###########################################################################
+    def generate_daily_audit_reports(self, date):
+        for auditor in self._auditors:
+            reports = auditor.daily_audit_reports(date)
+            for report in reports:
+                self._audit_collection.save_document(report.to_document())
+
+    ###########################################################################
+    def generate_yesterday_audit_reports(self):
+        self.generate_daily_audit_reports(yesterday_date())
+
+    ###########################################################################
