@@ -46,6 +46,9 @@ class AuditReport(object):
         self._audit_type = None
         self._audit_date = None
         self._audit_entries = []
+        self._total_audits = 0
+        self._total_success = 0
+        self._total_failures = 0
 
     ###########################################################################
     @property
@@ -87,12 +90,57 @@ class AuditReport(object):
         self._audit_entries = audit_entries
 
     ###########################################################################
+    @property
+    def total_audits(self):
+        return self._total_audits
+
+
+    @total_audits.setter
+    def total_audits(self, total_audits):
+        self._total_audits = total_audits
+
+    ###########################################################################
+    @property
+    def total_success(self):
+        return self._total_success
+
+
+    @total_success.setter
+    def total_success(self, total_success):
+        self._total_success = total_success
+
+    ###########################################################################
+    @property
+    def total_failures(self):
+        return self._total_failures
+
+
+    @total_failures.setter
+    def total_failures(self, total_failures):
+        self._total_failures = total_failures
+
+    ###########################################################################
+    def calculate_totals(self):
+        entries = self.audit_entries
+        total_success = 0
+        for entry in entries:
+            if entry.is_backed_up:
+                total_success += 1
+
+        self.total_audits = len(entries)
+        self.total_success = total_success
+        self.total_failures = self.total_audits - self.total_success
+
+    ###########################################################################
     def to_document(self):
         doc = {
             "_type": "AuditReport",
             "auditType": self.audit_type,
             "auditDate": self.audit_date,
             "auditEntries": self._export_audit_entries(),
+            "totalAudits": self.total_audits,
+            "totalSuccess": self.total_success,
+            "totalFailures": self.total_failures,
             }
 
         if self.id:
@@ -285,6 +333,8 @@ class GlobalAuditor():
         for auditor in self._auditors:
             reports = auditor.daily_audit_reports(date)
             for report in reports:
+                # calculate report totals then save
+                report.calculate_totals()
                 self._audit_collection.save_document(report.to_document())
 
     ###########################################################################
