@@ -235,6 +235,7 @@ class PlanAuditReport(AuditReport):
     def to_document(self):
         doc = super(PlanAuditReport, self).to_document()
         doc["plan"] = self.plan.to_document()
+        doc["_type"] = "PlanAuditReport"
         return doc
 
 ###############################################################################
