@@ -52,8 +52,8 @@ class MBSCore(object):
 
         # init global editor
         self._global_auditor = GlobalAuditor(self._audit_collection)
-        plan_auditor = PlanAuditor(self._plan_collection,
-                                   self._backup_collection)
+        plan_auditor = PlanAuditor(self.plan_collection,
+                                   self.backup_collection)
 
         self._global_auditor.register_auditor(plan_auditor)
 
