@@ -299,28 +299,6 @@ class PlanAuditor(BackupAuditor):
 
         return c.find_one(q)
 
-
-###############################################################################
-# AllPlansAuditReport
-###############################################################################
-class AllPlansAuditReport(AuditReport):
-
-    ###########################################################################
-    def __init__(self):
-        AuditReport.__init__(self)
-
-    ###########################################################################
-    def to_document(self):
-        return {
-            "_type": "AuditReport",
-            "auditType": self.audit_type,
-            "auditDate": self.audit_date,
-            "totalNoPlans": self.total_audits,
-            "totalSuccess": self.total_success,
-            "TotalPlansFailedAtLeastOnce": self.total_failures,
-            "failures": self._export_failures()
-            }
-
 ###############################################################################
 # PlanAuditReport
 ###############################################################################
