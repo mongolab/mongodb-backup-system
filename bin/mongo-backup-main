@@ -1,0 +1,102 @@
+__author__ = 'abdul'
+
+import sys
+import traceback
+from dargparse import dargparse
+
+from mbs.core import get_mbs_core
+
+###############################################################################
+# MAIN
+###############################################################################
+def main(args):
+    parser = dargparse.build_parser(PARSER_DEF)
+
+    if len(args) < 1:
+        parser.print_help()
+        return
+
+    # Parse the arguments and call the function of the selected cmd
+    parsed_args = parser.parse_args(args)
+    # get the function to call from the parser framework
+    command_function = parsed_args.func
+
+    return command_function(parsed_args)
+
+###############################################################################
+# Commands
+###############################################################################
+def start_engine(parsed_args):
+    engine_id = parsed_args.engineId
+    backup_engine = get_mbs_core().create_backup_engine(engine_id)
+    backup_engine.start()
+
+###############################################################################
+def start_plan_manager(parsed_args):
+    manager = get_mbs_core().plan_manager
+    manager.start()
+
+###############################################################################
+def generate_audit_reports(parsed_args):
+    global_auditor = get_mbs_core().global_auditor
+    global_auditor.generate_yesterday_audit_reports()
+
+###############################################################################
+# command parser
+###############################################################################
+PARSER_DEF = {
+    "prog": "mongo-backup-main",
+    "usage": "Usage: mongo-backup-main [<options>] <command> [<command-args>]",
+    "description" : "contains commands for the mongodb-backup-system",
+    "children":[
+        #### start-engine ####
+            {
+            "prog": "start-engine",
+            "shortDescription" : "starts a backup engine",
+            "description" : "starts a backup engine",
+            "function": start_engine,
+            "args": [
+                    {
+                    "name": "engineId",
+                    "type" : "positional",
+                    "nargs": 1,
+                    "displayName": "ENGINE_ID",
+                    "help": "An engine id"
+                }
+            ]
+        },
+
+            {
+            "prog": "start-plan-manager",
+            "shortDescription" : "starts the plan manager",
+            "description" : "starts the plan manager",
+            "function": start_plan_manager
+        },
+
+            {
+            "prog": "generate-audit-reports",
+            "shortDescription" : "generates audit reports as of yesterday",
+            "description" : "generates audit reports as of yesterday",
+            "function": generate_audit_reports
+        }
+    ]
+}
+
+###############################################################################
+########################                   ####################################
+########################     BOOTSTRAP     ####################################
+########################                   ####################################
+###############################################################################
+
+
+if __name__ == '__main__':
+    try:
+
+        main(sys.argv[1:])
+    except (SystemExit, KeyboardInterrupt) , e:
+        if e.code == 0:
+            pass
+        else:
+            raise
+    except:
+        traceback.print_exc()

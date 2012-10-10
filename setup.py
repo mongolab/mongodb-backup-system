@@ -3,7 +3,10 @@ from setuptools import setup
 setup(
     name='mbs',
     version='0.1.0',
+    scripts=['bin/mongoctl'],
+    packages=['mbs'],
     install_requires=[
+        "dargparse",
         "pymongo==2.3",
         "maker-py==0.1.0"
     ],
