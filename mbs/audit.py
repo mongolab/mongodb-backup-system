@@ -1,6 +1,6 @@
 __author__ = 'abdul'
 
-from mbs.backup import STATE_SUCCEEDED
+from mbs.backup import STATE_SUCCEEDED, STATE_FAILED
 
 from mbs.utils import yesterday_date, document_pretty_string
 
@@ -11,6 +11,7 @@ from mbs.utils import yesterday_date, document_pretty_string
 ###############################################################################
 
 TYPE_PLAN_AUDIT = "PLAN_AUDIT"
+TYPE_SINGLE_PLAN_AUDIT = "SINGLE_PLAN_AUDIT"
 
 ###############################################################################
 # BackupAuditor
@@ -19,22 +20,17 @@ TYPE_PLAN_AUDIT = "PLAN_AUDIT"
 class BackupAuditor(object):
 
     ###########################################################################
-    def __init__(self, audit_type):
-        self._audit_type = audit_type
+    def __init__(self):
+        pass
 
     ###########################################################################
-    def daily_audit_reports(self, audit_date):
+    def daily_audit_report(self, audit_date):
         pass
 
     ###########################################################################
     def yesterday_audit_reports_as_of(self):
         return self.daily_audit_report(yesterday_date())
 
-
-    ###########################################################################
-    @property
-    def audit_type(self):
-        return self._audit_type
 
 ###############################################################################
 # AuditReport
@@ -45,7 +41,7 @@ class AuditReport(object):
         self._id = None
         self._audit_type = None
         self._audit_date = None
-        self._audit_entries = []
+        self._failed_audits = []
         self._total_audits = 0
         self._total_success = 0
         self._total_failures = 0
@@ -81,13 +77,17 @@ class AuditReport(object):
 
     ###########################################################################
     @property
-    def audit_entries(self):
-        return self._audit_entries
+    def failed_audits(self):
+        return self._failed_audits
 
 
-    @audit_entries.setter
-    def audit_entries(self, audit_entries):
-        self._audit_entries = audit_entries
+    @failed_audits.setter
+    def failed_audits(self, failed_audits):
+        self._failed_audits = failed_audits
+
+    ###########################################################################
+    def has_failures(self):
+        return self.failed_audits is not None and self.failed_audits
 
     ###########################################################################
     @property
@@ -119,38 +119,23 @@ class AuditReport(object):
     def total_failures(self, total_failures):
         self._total_failures = total_failures
 
-    ###########################################################################
-    def calculate_totals(self):
-        entries = self.audit_entries
-        total_success = 0
-        for entry in entries:
-            if entry.is_backed_up:
-                total_success += 1
-
-        self.total_audits = len(entries)
-        self.total_success = total_success
-        self.total_failures = self.total_audits - self.total_success
 
     ###########################################################################
     def to_document(self):
-        doc = {
+        return {
             "_type": "AuditReport",
             "auditType": self.audit_type,
             "auditDate": self.audit_date,
-            "auditEntries": self._export_audit_entries(),
+            "failures": self._export_failures(),
             "totalAudits": self.total_audits,
             "totalSuccess": self.total_success,
             "totalFailures": self.total_failures,
             }
 
-        if self.id:
-            doc["_id"] = self.id
-
-        return doc
-
     ###########################################################################
-    def _export_audit_entries(self):
-        return map(lambda entry: entry.to_document(), self.audit_entries)
+    def _export_failures(self):
+        return map(lambda entry: entry.to_document(),
+                   self.failed_audits)
 
     ###########################################################################
     def __str__(self):
@@ -159,34 +144,51 @@ class AuditReport(object):
 ###############################################################################
 # AuditEntry
 ###############################################################################
+
 class AuditEntry(object):
 
     ###########################################################################
     def __init__(self):
-        self._is_backed_up = None
-        self._backup_record = None
+        self._state = None
+        self._backup = None
 
     ###########################################################################
     @property
-    def is_backed_up(self):
-        return self._is_backed_up
+    def state(self):
+        return self._state
 
-    @is_backed_up.setter
-    def is_backed_up(self, is_backed_up):
-        self._is_backed_up = is_backed_up
+    @state.setter
+    def state(self, state):
+        self._state = state
+
+    ###########################################################################
+    def failed(self):
+        return not self.succeeded()
+
+    ###########################################################################
+    def succeeded(self):
+        return self.state == STATE_SUCCEEDED
 
     ###########################################################################
     @property
-    def backup_record(self):
-        return self._backup_record
+    def backup(self):
+        return self._backup
 
     ###########################################################################
-    @backup_record.setter
-    def backup_record(self, backup):
-        self._backup_record = backup
+    @backup.setter
+    def backup(self, backup):
+        self._backup = backup
+
     ###########################################################################
     def to_document(self):
-        pass
+        doc =  {
+            "state": self.state,
+        }
+
+        if self.backup:
+            doc["backup"] = self.backup.to_document()
+
+        return doc
 
     ###########################################################################
     def __str__(self):
@@ -202,7 +204,7 @@ class PlanAuditor(BackupAuditor):
                  plan_collection,
                  backup_collection):
 
-        BackupAuditor.__init__(self, TYPE_PLAN_AUDIT)
+        BackupAuditor.__init__(self)
 
         self._plan_collection = plan_collection
         self._backup_collection = backup_collection
@@ -211,38 +213,77 @@ class PlanAuditor(BackupAuditor):
     ###########################################################################
     # plan auditing
     ###########################################################################
-    def daily_audit_reports(self, audit_date):
+    def daily_audit_report(self, audit_date):
 
-        reports = []
+        all_plans_report = AuditReport()
+        all_plans_report.audit_date = audit_date
+        all_plans_report.audit_type = TYPE_PLAN_AUDIT
 
+        total_plans = 0
+        failed_plan_reports = []
         for plan in self._plan_collection.find():
-            report = PlanAuditReport()
-            report.audit_type = self.audit_type
-            report.audit_date = audit_date
-            report.plan = plan
-            report.audit_entries = self._audit_plan(plan, audit_date)
-            reports.append(report)
+            plan_report = self._create_plan_audit_report(plan, audit_date)
 
-        return reports
+            if plan_report.has_failures():
+                failed_plan_reports.append(plan_report)
+
+            total_plans += 1
+
+        total_failures = len(failed_plan_reports)
+
+        if failed_plan_reports:
+            all_plans_report.failed_audits = failed_plan_reports
+
+        all_plans_report.total_audits = total_plans
+        all_plans_report.total_failures = total_failures
+        all_plans_report.total_success = total_plans - total_failures
+
+        return all_plans_report
 
     ###########################################################################
-    def _audit_plan(self, plan, audit_date):
-        audit_entries = []
+    def _create_plan_audit_report(self, plan, audit_date):
+
+        plan_report = PlanAuditReport()
+        plan_report.plan = plan
+        plan_report.audit_date = audit_date
+        plan_report.audit_type = TYPE_SINGLE_PLAN_AUDIT
+
+        failed_audits = []
+
+        total_audits = 0
 
         for plan_occurrence in plan.natural_occurrences_as_of(audit_date):
             audit_entry = self._audit_plan_occurrence(plan, plan_occurrence)
-            audit_entries.append(audit_entry)
+            if audit_entry.failed():
+                failed_audits.append(audit_entry)
 
-        return audit_entries
+            total_audits += 1
+
+        total_failures = len(failed_audits)
+
+        if failed_audits:
+            plan_report.failed_audits = failed_audits
+
+        plan_report.total_failures = total_failures
+        plan_report.total_audits = total_audits
+        plan_report.total_success = total_audits - total_failures
+
+        return plan_report
 
     ###########################################################################
     def _audit_plan_occurrence(self, plan, plan_occurrence):
-        backup_record = self._lookup_backup_by_plan_occurrence(plan,
-                                                               plan_occurrence)
+        backup = self._lookup_backup_by_plan_occurrence(plan,
+                                                        plan_occurrence)
 
         audit_entry = PlanAuditEntry()
-        audit_entry.backup_record = backup_record
-        audit_entry.is_backed_up = backup_record is not None
+
+        if backup:
+            audit_entry.backup = backup
+            audit_entry.state = backup.state
+        else:
+            audit_entry.state = "NEVER SCHEDULED"
+
+
         audit_entry.plan_occurrence = plan_occurrence
 
         return audit_entry
@@ -251,7 +292,6 @@ class PlanAuditor(BackupAuditor):
     def _lookup_backup_by_plan_occurrence(self, plan, plan_occurrence):
 
         q = {
-            "state": STATE_SUCCEEDED,
             "plan._id": plan._id,
             "planOccurrence":plan_occurrence,
             }
@@ -261,7 +301,28 @@ class PlanAuditor(BackupAuditor):
 
 
 ###############################################################################
-# PlanAuditEntry
+# AllPlansAuditReport
+###############################################################################
+class AllPlansAuditReport(AuditReport):
+
+    ###########################################################################
+    def __init__(self):
+        AuditReport.__init__(self)
+
+    ###########################################################################
+    def to_document(self):
+        return {
+            "_type": "AuditReport",
+            "auditType": self.audit_type,
+            "auditDate": self.audit_date,
+            "totalNoPlans": self.total_audits,
+            "totalSuccess": self.total_success,
+            "TotalPlansFailedAtLeastOnce": self.total_failures,
+            "failures": self._export_failures()
+            }
+
+###############################################################################
+# PlanAuditReport
 ###############################################################################
 class PlanAuditReport(AuditReport):
 
@@ -307,14 +368,10 @@ class PlanAuditEntry(AuditEntry):
 
     ###########################################################################
     def to_document(self):
-        backup_doc = (self.backup_record.to_document() if self._backup_record
-                      else None)
-        return {
-            "_type": "PlanAuditEntry",
-            "backupRecord": backup_doc,
-            "isBackedUp": self.is_backed_up,
-            "planOccurrence": self.plan_occurrence
-        }
+        doc = super(PlanAuditEntry, self).to_document()
+        doc["planOccurrence"] = self.plan_occurrence
+
+        return doc
 
 ###############################################################################
 class GlobalAuditor():
@@ -331,11 +388,8 @@ class GlobalAuditor():
     ###########################################################################
     def generate_daily_audit_reports(self, date):
         for auditor in self._auditors:
-            reports = auditor.daily_audit_reports(date)
-            for report in reports:
-                # calculate report totals then save
-                report.calculate_totals()
-                self._audit_collection.save_document(report.to_document())
+            report = auditor.daily_audit_report(date)
+            self._audit_collection.save_document(report.to_document())
 
     ###########################################################################
     def generate_yesterday_audit_reports(self):
