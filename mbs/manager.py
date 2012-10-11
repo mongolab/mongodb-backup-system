@@ -28,10 +28,14 @@ logger = mbs_logging.logger
 class PlanManager(Thread):
     ###########################################################################
     def __init__(self, plan_collection, backup_collection, sleep_time=10):
+
         Thread.__init__(self)
         self._plan_collection = plan_collection
         self._backup_collection = backup_collection
         self._sleep_time = sleep_time
+
+        self._registered_plan_generators = []
+        self._tick_ring = 0
 
     ###########################################################################
     def run(self):
@@ -42,10 +46,15 @@ class PlanManager(Thread):
 
     ###########################################################################
     def _tick(self):
-        #self.info("tick")
+
+        # increase _generators_tick_counter
+        self._tick_ring = (self._tick_ring + 1) % 10
 
         self._process_failed_backups()
         self._process_plans_considered_now()
+
+        if True or self._tick_ring == 0:
+            self._run_plan_generators()
 
     ###########################################################################
     def _process_plans_considered_now(self):
@@ -204,10 +213,23 @@ class PlanManager(Thread):
 
 
     ###########################################################################
+    # plan generators methods a
+    ###########################################################################
+    def register_plan_generator(self, generator):
+        self._registered_plan_generators.append(generator)
+
+    ###########################################################################
+    def _run_plan_generators(self):
+        for generator in self._registered_plan_generators:
+            generator.run()
+
+
+    ###########################################################################
+    # logging
+    ###########################################################################
     def info(self, msg):
         logger.info("PlanManager: %s" % msg)
 
     ###########################################################################
     def error(self, msg):
         logger.error("PlanManager: %s" % msg)
-
