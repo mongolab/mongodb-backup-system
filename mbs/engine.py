@@ -182,7 +182,7 @@ class BackupWorker(Thread):
             trace = traceback.format_exc()
             self.error(trace)
             self.engine.log_backup_event(backup,"Backup failure. Cause %s"
-                                                "\nTrace:" % (e,trace))
+                                                "\nTrace:\n%s" % (e,trace))
 
             self.engine.backup_fail(backup)
         finally:
