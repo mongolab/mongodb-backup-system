@@ -94,13 +94,15 @@ class BackupEngine(Thread):
     def read_next_backup(self):
         q = {"state" : STATE_SCHEDULED}
         u = {"$set" : { "state" : STATE_IN_PROGRESS,
-                        "engine_id": self._engine_id}}
+                        "engineId": self.engine_id}}
 
         c = self._backup_collection
         backup = None
         while backup is None:
             time.sleep(self._sleep_time)
             backup = c.find_and_modify(query=q, update=u)
+
+        backup.engine_id = self.engine_id
 
         return backup
 
