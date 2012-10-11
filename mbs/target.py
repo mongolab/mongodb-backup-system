@@ -78,7 +78,7 @@ class S3BucketTarget(BackupTarget):
 
     @bucket_name.setter
     def bucket_name(self, bucket_name):
-        self._bucket_name = bucket_name
+        self._bucket_name = str(bucket_name)
 
     ###########################################################################
     @property
@@ -87,7 +87,7 @@ class S3BucketTarget(BackupTarget):
 
     @access_key.setter
     def access_key(self, access_key):
-        self._access_key = access_key
+        self._access_key = str(access_key)
 
     ###########################################################################
     @property
@@ -96,7 +96,7 @@ class S3BucketTarget(BackupTarget):
 
     @secret_key.setter
     def secret_key(self, secret_key):
-        self._secret_key = secret_key
+        self._secret_key = str(secret_key)
 
     def to_document(self):
         return {
