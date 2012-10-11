@@ -10,6 +10,7 @@ import pymongo
 
 from bson import json_util
 from datetime import datetime, timedelta
+from pymongo import uri_parser, errors
 
 ###############################################################################
 ##################################         ####################################
@@ -162,6 +163,29 @@ def mongo_connect(uri):
         raise Exception("Could not establish a database connection to "
                         "%s: %s" % (uri, e))
 
+
+###############################################################################
+def is_cluster_mongo_uri(mongo_uri):
+    return len(parse_mongo_uri(mongo_uri)["nodelist"]) > 1
+
+###############################################################################
+def parse_mongo_uri(uri):
+    try:
+        uri_obj = uri_parser.parse_uri(uri)
+        # validate uri
+        nodes = uri_obj["nodelist"]
+        for node in nodes:
+            host = node[0]
+            if not host:
+                raise Exception("URI '%s' is missing a host." % uri)
+
+        return uri_obj
+    except errors.ConfigurationError, e:
+        raise Exception("Malformed URI '%s'. %s" % (uri, e))
+
+    except Exception, e:
+        raise Exception("Unable to parse mongo uri '%s'."
+                                " Cause: %s" % (e, uri))
 
 ###############################################################################
 def resolve_path(path):

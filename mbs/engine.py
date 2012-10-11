@@ -178,9 +178,11 @@ class BackupWorker(Thread):
 
         except Exception, e:
             # fail
-            traceback.print_exc()
             self.error("Backup failed. Cause %s" % e)
-            self.engine.log_backup_event(backup,"Backup failure. Cause %s" % e)
+            trace = traceback.format_exc()
+            self.error(trace)
+            self.engine.log_backup_event(backup,"Backup failure. Cause %s"
+                                                "\nTrace:" % (e,trace))
 
             self.engine.backup_fail(backup)
         finally:
@@ -212,10 +214,10 @@ class BackupWorker(Thread):
         if source.password:
             dump_cmd.extend(["-p", source.password])
 
-        # if the source hosted database ==> then always use
-        # TODO --use-best-secondary
-        #if type(source) in [HostedDatabaseSource, MongoLabClusterSource]:
-         #   dump_cmd.append("--use-best-secondary")
+        # if the source is a cluster source then
+
+        if source.is_cluster_source():
+            dump_cmd.append("--use-best-secondary")
 
         cmd_display =  dump_cmd[:]
         # mask password

@@ -1,6 +1,6 @@
 __author__ = 'abdul'
 
-from utils import document_pretty_string
+from utils import document_pretty_string, is_cluster_mongo_uri
 
 ###############################################################################
 # Backup Source Classes
@@ -25,6 +25,10 @@ class BackupSource(object):
     @property
     def password(self):
         pass
+
+    ###########################################################################
+    def is_cluster_source(self):
+        return False
 
     ###########################################################################
     def to_document(self):
@@ -120,11 +124,16 @@ class DatabaseSource(BackupSource):
     def source_uri(self):
         return self.database_uri
 
+    ###########################################################################
     def to_document(self):
         return {
             "_type": "DatabaseSource",
             "databaseUri": self.database_uri
         }
+
+    ###########################################################################
+    def is_cluster_source(self):
+        return is_cluster_mongo_uri(self.database_uri)
 
 
 

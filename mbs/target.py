@@ -65,9 +65,10 @@ class S3BucketTarget(BackupTarget):
             logger.info("S3BucketTarget: Uploading to s3 bucket %s completed"
                         " successfully!!" % self.bucket_name)
         except Exception, e:
-            raise Exception("S3BucketTarget: Error while trying to upload '%s'"
-                            " to s3 bucket %s. Cause: %s" %
-                            (file_path, self.bucket_name, e))
+            msg = ("S3BucketTarget: Error while trying to upload '%s'"
+                   " to s3 bucket %s. Cause: %s" %
+                   (file_path, self.bucket_name, e))
+            raise Exception(msg, e)
 
     ###########################################################################
     @property
