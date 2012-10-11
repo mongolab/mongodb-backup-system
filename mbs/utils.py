@@ -48,6 +48,10 @@ def timestamp_to_str(timestamp):
     return timestamp.strftime('%Y-%m-%d %H:%M:%S')
 
 ###############################################################################
+def date_to_str(date):
+    return date.strftime('%m/%d/%Y')
+
+###############################################################################
 def timestamp_to_dir_str(timestamp):
     return timestamp.strftime('%Y_%m_%d__%H_%M_%S')
 

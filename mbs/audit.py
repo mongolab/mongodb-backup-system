@@ -1,8 +1,13 @@
 __author__ = 'abdul'
 
 from mbs.backup import STATE_SUCCEEDED, STATE_FAILED
+import mbs_logging
+from mbs.utils import yesterday_date, document_pretty_string, date_to_str
 
-from mbs.utils import yesterday_date, document_pretty_string
+###############################################################################
+# LOGGER
+###############################################################################
+logger = mbs_logging.logger
 
 ###############################################################################
 ##############################                 #################################
@@ -215,6 +220,8 @@ class PlanAuditor(BackupAuditor):
     ###########################################################################
     def daily_audit_report(self, audit_date):
 
+        logger.info("PlanAuditor: Generating %s audit report "
+                    "for '%s'" % (TYPE_PLAN_AUDIT, date_to_str(audit_date)))
         all_plans_report = AuditReport()
         all_plans_report.audit_date = audit_date
         all_plans_report.audit_type = TYPE_PLAN_AUDIT
@@ -237,6 +244,8 @@ class PlanAuditor(BackupAuditor):
         all_plans_report.total_audits = total_plans
         all_plans_report.total_failures = total_failures
         all_plans_report.total_success = total_plans - total_failures
+
+        logger.info("PlanAuditor: Generated report:\n%s " % all_plans_report)
 
         return all_plans_report
 
@@ -367,6 +376,7 @@ class GlobalAuditor():
     def generate_daily_audit_reports(self, date):
         for auditor in self._auditors:
             report = auditor.daily_audit_report(date)
+            logger.info("GlobalAuditor: Saving audit report: \n%s" % report)
             self._audit_collection.save_document(report.to_document())
 
     ###########################################################################
