@@ -10,10 +10,6 @@ from audit import AuditReport, GlobalAuditor, PlanAuditor
 from engine import BackupEngine
 from manager import PlanManager
 
-#package_coll = ObjectCollection(database['packages'],
- #   clazz=Package,
-  #  type_bindings=type_bindings)
-
 ###############################################################################
 MBS_CONFIG = "~/.mbs/mbs.config"
 

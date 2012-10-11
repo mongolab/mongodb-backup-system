@@ -53,7 +53,7 @@ class PlanManager(Thread):
         self._process_failed_backups()
         self._process_plans_considered_now()
 
-        if True or self._tick_ring == 0:
+        if self._tick_ring == 0:
             self._run_plan_generators()
 
     ###########################################################################
