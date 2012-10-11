@@ -115,6 +115,7 @@ class PlanManager(Thread):
         now = date_now()
         q = {"$or": [
                 {"nextOccurrence": {"$exists": False}},
+                {"nextOccurrence": None},
                 {"nextOccurrence": {"$lte": now}}
         ]
         }
