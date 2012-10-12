@@ -1,8 +1,8 @@
 __author__ = 'abdul'
 
 from datetime import timedelta
-from utils import (today_date, seconds_now, seconds_to_date, date_to_seconds,
-                   date_plus_seconds, yesterday_date, document_pretty_string)
+from utils import (seconds_to_date, date_to_seconds, date_plus_seconds,
+                   date_now, document_pretty_string, epoch_date)
 
 
 ###############################################################################
@@ -70,17 +70,14 @@ class BackupPlan(object):
 
     ###########################################################################
     def last_natural_occurrence(self):
-        schedule = self.schedule
-        now_seconds = seconds_now()
-        offset_seconds = date_to_seconds(self.schedule.offset)
-        return seconds_to_date(now_seconds - ((now_seconds - offset_seconds) %
-                                              schedule.frequency))
+        return self.last_natural_occurrence_as_of(date_now())
 
     ###########################################################################
     def last_natural_occurrence_as_of(self, date):
         schedule = self.schedule
         date_seconds = date_to_seconds(date)
-        offset_seconds = date_to_seconds(self.schedule.offset)
+        offset = schedule.offset if schedule.offset else epoch_date()
+        offset_seconds = date_to_seconds(offset)
 
         return seconds_to_date(date_seconds -
                                ((date_seconds - offset_seconds) %
@@ -88,13 +85,19 @@ class BackupPlan(object):
 
     ###########################################################################
     def natural_occurrences_as_of(self, date):
+        next_date = date + timedelta(days=1)
+        return self.natural_occurrences_between(date, next_date)
+
+    ###########################################################################
+    def natural_occurrences_between(self, start_date, end_date):
         occurrences = []
-        last_occurrence = self.last_natural_occurrence_as_of(date)
+        last_occurrence = self.last_natural_occurrence_as_of(start_date)
 
         delta = timedelta(seconds=self.schedule.frequency)
-        next_date = date + timedelta(days=1)
-        while last_occurrence < next_date:
-            occurrences.append(last_occurrence)
+
+        while last_occurrence < end_date:
+            if last_occurrence >= start_date:
+                occurrences.append(last_occurrence)
 
             last_occurrence = last_occurrence + delta
 

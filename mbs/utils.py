@@ -31,10 +31,11 @@ def seconds_now():
 
 ###############################################################################
 def date_to_seconds(date):
-    if date:
-        return time.mktime(date.timetuple())
-    else:
-        return 0
+    return time.mktime(date.timetuple())
+
+###############################################################################
+def epoch_date():
+    return datetime(1970, 1, 1)
 
 ###############################################################################
 def seconds_to_date(seconds):
