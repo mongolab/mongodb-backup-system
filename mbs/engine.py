@@ -224,9 +224,9 @@ class BackupWorker(Thread):
         if source.password:
             cmd_display[cmd_display.index("-p") + 1] =  "****"
 
-        self.info("Running command: %s" % " ".join(cmd_display))
+        self.info("Running dump command: %s" % " ".join(cmd_display))
 
-        execute_command(dump_cmd, call=True)
+        execute_command(dump_cmd)
 
     ###########################################################################
     def _tar_dir(self, path, filename):
@@ -237,8 +237,8 @@ class BackupWorker(Thread):
 
         tar_cmd = [tar_exe,
                    "-cvzf", filename, target_dirname]
-        self.info("Running command: %s" % " ".join(tar_cmd))
-        execute_command(tar_cmd, cwd=working_dir, call=True)
+        self.info("Running tar command: %s" % " ".join(tar_cmd))
+        execute_command(tar_cmd, cwd=working_dir)
         return os.path.join(BACKUP_TEMP_DIR_ROOT, filename)
 
     ###########################################################################
