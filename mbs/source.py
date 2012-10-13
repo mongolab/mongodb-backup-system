@@ -1,6 +1,7 @@
 __author__ = 'abdul'
 
-from utils import document_pretty_string, is_cluster_mongo_uri
+from utils import document_pretty_string, is_cluster_mongo_uri, parse_mongo_uri
+from errors import ConfigurationError
 
 ###############################################################################
 # Backup Source Classes
@@ -32,6 +33,10 @@ class BackupSource(object):
 
     ###########################################################################
     def to_document(self):
+        pass
+
+    ###########################################################################
+    def validate(self):
         pass
 
     ###########################################################################
@@ -100,6 +105,18 @@ class ServerSource(BackupSource):
             "adminUsername": self.admin_username,
             "adminPassword": self.admin_password
         }
+
+    ###########################################################################
+    def validate(self):
+        if not self.address:
+            raise ConfigurationError("Missing 'address' property")
+
+        if not self.admin_username:
+            raise ConfigurationError("Missing 'adminUsername' property")
+
+        if not self.password:
+            raise ConfigurationError("Missing 'password' property")
+
 ###############################################################################
 # Database Source
 ###############################################################################
@@ -136,4 +153,12 @@ class DatabaseSource(BackupSource):
         return is_cluster_mongo_uri(self.database_uri)
 
 
+    ###########################################################################
+    def validate(self):
+        if not self.database_uri:
+            raise ConfigurationError("Missing 'databaseUri' property")
 
+        try:
+            parse_mongo_uri(self.database_uri)
+        except Exception, e:
+            raise ConfigurationError("Invalid 'databaseUri'.%s" % e)

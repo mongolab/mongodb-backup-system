@@ -2,8 +2,10 @@ __author__ = 'abdul'
 
 from datetime import timedelta
 from utils import (seconds_to_date, date_to_seconds, date_plus_seconds,
-                   date_now, document_pretty_string, epoch_date)
+                   date_now, document_pretty_string, epoch_date,
+                   is_date_value)
 
+from errors import ConfigurationError
 
 ###############################################################################
 # BackupPlan
@@ -121,6 +123,34 @@ class BackupPlan(object):
     ###########################################################################
     def __str__(self):
         return document_pretty_string(self.to_document())
+
+    ###########################################################################
+    def validate(self):
+        #  id
+        if not self.id:
+            raise ConfigurationError("Missing plan '_id'")
+
+        #  schedule
+        if not self.schedule:
+            raise ConfigurationError("Missing plan 'schedule'")
+
+        #  frequency
+        if not self.schedule.frequency:
+            raise ConfigurationError("Plan schedule is missing 'frequency'")
+
+        # offset
+        if self.schedule.offset and not is_date_value(self.schedule.offset):
+            raise ConfigurationError("Invalid plan schedule offset '%s'. "
+                                     "offset has to be a date" %
+                                     self.schedule.offset)
+
+        # validate source
+        if not self.source:
+            raise ConfigurationError("Missing plan 'source'")
+
+        self.source.validate()
+
+        # TODO validate target
 
 ###############################################################################
 # Schedule

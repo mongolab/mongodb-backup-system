@@ -212,6 +212,24 @@ class PlanManager(Thread):
         plan.next_occurrence = plan.next_natural_occurrence()
         self._plan_collection.save_document(plan.to_document())
 
+    ###########################################################################
+    def save_plan(self, plan):
+        try:
+
+            self.info("Validating plan....")
+            plan.validate()
+            self.info("Saving plan: \n%s" % plan)
+
+            self._plan_collection.save_document(plan.to_document())
+
+            self.info("Plan saved successfully")
+        except Exception, e:
+            self.error("Error while saving plan '%s'. %s" % e)
+
+    ###########################################################################
+    def remove_plan(self, plan):
+        logger.info("Removing plan '%s' " % plan.id)
+        self._plan_collection.remove_by_id(plan.id)
 
     ###########################################################################
     # plan generators methods a
@@ -222,8 +240,20 @@ class PlanManager(Thread):
     ###########################################################################
     def _run_plan_generators(self):
         for generator in self._registered_plan_generators:
-            generator.run()
+                self._run_generator(generator)
 
+    ###########################################################################
+    def _run_generator(self, generator):
+
+        # save new plans
+        for plan in generator.get_new_plans():
+            self.info("Getting newly generated plan:\n%s " % plan)
+            self.save_plan(plan)
+
+        # remove expired plans
+        for plan in generator.get_expired_plans():
+            self.info("Removing expired plan '%s' " % plan.id)
+            self.remove_plan(plan)
 
     ###########################################################################
     # logging

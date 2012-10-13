@@ -9,7 +9,7 @@ import time
 import pymongo
 
 from bson import json_util
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from pymongo import uri_parser, errors
 
 ###############################################################################
@@ -64,6 +64,10 @@ def yesterday_date():
 ###############################################################################
 def today_date():
     return date_now().replace(hour=0, minute=0, second=0, microsecond=0)
+
+###############################################################################
+def is_date_value(value):
+    return type(value) in [datetime, date]
 
 ###############################################################################
 # sub-processing functions
