@@ -37,7 +37,7 @@ class BackupSource(object):
 
     ###########################################################################
     def validate(self):
-        pass
+        return []
 
     ###########################################################################
     def __str__(self):
@@ -108,14 +108,17 @@ class ServerSource(BackupSource):
 
     ###########################################################################
     def validate(self):
+        errors = []
         if not self.address:
-            raise ConfigurationError("Missing 'address' property")
+            errors.append("Missing 'address' property")
 
         if not self.admin_username:
-            raise ConfigurationError("Missing 'adminUsername' property")
+            errors.append("Missing 'adminUsername' property")
 
         if not self.password:
-            raise ConfigurationError("Missing 'password' property")
+            errors.append("Missing 'password' property")
+
+        return errors
 
 ###############################################################################
 # Database Source
@@ -155,10 +158,13 @@ class DatabaseSource(BackupSource):
 
     ###########################################################################
     def validate(self):
+        errors = []
         if not self.database_uri:
-            raise ConfigurationError("Missing 'databaseUri' property")
+            errors.append("Missing 'databaseUri' property")
 
         try:
             parse_mongo_uri(self.database_uri)
         except Exception, e:
-            raise ConfigurationError("Invalid 'databaseUri'.%s" % e)
+            errors.append("Invalid 'databaseUri'.%s" % e)
+
+        return errors

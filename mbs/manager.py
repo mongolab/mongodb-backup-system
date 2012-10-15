@@ -67,6 +67,20 @@ class PlanManager(Thread):
         Schedule the plan if the following conditions apply
         """
         self.info("Processing plan '%s'" % plan._id)
+        # validate plan first
+        self.debug("Validating plan '%s'" % plan._id)
+
+        errors = plan.validate()
+        if errors:
+            errors_str = "\n".join(errors)
+            err_msg = ("Plan '%s' is invalid and will be Deactivated."
+                   "Please correct the following errors and then set active"
+                   " to true.\n%s" % (plan.id, errors_str))
+            self.error(err_msg)
+            plan.errors = errors
+            self._deactivate_plan(plan)
+            return
+
         now = date_now()
         next_natural_occurrence = plan.next_natural_occurrence()
 
@@ -113,12 +127,20 @@ class PlanManager(Thread):
 
         """
         now = date_now()
-        q = {"$or": [
-                {"nextOccurrence": {"$exists": False}},
-                {"nextOccurrence": None},
-                {"nextOccurrence": {"$lte": now}}
-        ]
-        }
+        q = {"$and": [
+                {"$or": [
+                    {"active": {"$exists": False}},
+                    {"active": True}
+                ]},
+                {"$or": [
+                    {"nextOccurrence": {"$exists": False}},
+                    {"nextOccurrence": None},
+                    {"nextOccurrence": {"$lte": now}}
+                ]}
+
+        ]}
+
+
         return self._plan_collection.find(q)
 
     ###########################################################################
@@ -213,6 +235,21 @@ class PlanManager(Thread):
         self._plan_collection.save_document(plan.to_document())
 
     ###########################################################################
+    def _deactivate_plan(self, plan):
+        try:
+
+            self.info("Deactivating plan '%s' Setting plan.active to false" %
+                      plan.id)
+            plan.active = False
+
+
+            self._plan_collection.save_document(plan.to_document())
+            self.info("Plan deactivated successfully")
+        except Exception, e:
+            self.error("Error while deactivating plan '%s'. %s" % (plan.id, e))
+
+
+    ###########################################################################
     def save_plan(self, plan):
         try:
 
@@ -224,7 +261,7 @@ class PlanManager(Thread):
 
             self.info("Plan saved successfully")
         except Exception, e:
-            self.error("Error while saving plan '%s'. %s" % e)
+            self.error("Error while saving plan '%s'. %s" % (plan.id, e))
 
     ###########################################################################
     def remove_plan(self, plan):
@@ -264,3 +301,7 @@ class PlanManager(Thread):
     ###########################################################################
     def error(self, msg):
         logger.error("PlanManager: %s" % msg)
+
+    ###########################################################################
+    def debug(self, msg):
+        logger.debug("PlanManager: %s" % msg)

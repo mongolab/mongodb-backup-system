@@ -13,10 +13,12 @@ from errors import ConfigurationError
 class BackupPlan(object):
     def __init__(self):
         self._id = None
+        self._active = True
         self._source = None
         self._target = None
         self._schedule = None
         self._next_occurrence = None
+        self._errors = None
 
     ###########################################################################
     @property
@@ -26,6 +28,16 @@ class BackupPlan(object):
     @id.setter
     def id(self, id):
         self._id = str(id)
+
+    ###########################################################################
+    @property
+    def active(self):
+        return self._active
+
+    @active.setter
+    def active(self, active):
+        self._active = active
+
     ###########################################################################
     @property
     def source(self):
@@ -62,6 +74,15 @@ class BackupPlan(object):
     @next_occurrence.setter
     def next_occurrence(self, next_occurrence):
         self._next_occurrence = next_occurrence
+
+    ###########################################################################
+    @property
+    def errors(self):
+        return self._errors
+
+    @errors.setter
+    def errors(self, errors):
+        self._errors = errors
 
     ###########################################################################
     def next_natural_occurrence(self):
@@ -112,11 +133,15 @@ class BackupPlan(object):
             "source": self.source.to_document(),
             "target": self.target.to_document(),
             "schedule": self.schedule.to_document(),
-            "nextOccurrence": self.next_occurrence
+            "nextOccurrence": self.next_occurrence,
+            "active": self.active
         }
 
         if self.id:
             doc["_id"] = self.id
+
+        if self.errors:
+            doc["errors"] = self.errors
 
         return doc
 
@@ -126,29 +151,32 @@ class BackupPlan(object):
 
     ###########################################################################
     def validate(self):
+        errors = []
         #  id
         if not self.id:
-            raise ConfigurationError("Missing plan '_id'")
+            errors.append("Missing plan '_id'")
 
         #  schedule
         if not self.schedule:
-            raise ConfigurationError("Missing plan 'schedule'")
+            errors.append("Missing plan 'schedule'")
 
         #  frequency
         if not self.schedule.frequency:
-            raise ConfigurationError("Plan schedule is missing 'frequency'")
+            errors.append("Plan schedule is missing 'frequency'")
 
         # offset
         if self.schedule.offset and not is_date_value(self.schedule.offset):
-            raise ConfigurationError("Invalid plan schedule offset '%s'. "
+            errors.append("Invalid plan schedule offset '%s'. "
                                      "offset has to be a date" %
                                      self.schedule.offset)
 
         # validate source
         if not self.source:
-            raise ConfigurationError("Missing plan 'source'")
+            errors.append("Missing plan 'source'")
+        else:
+            errors.extend(self.source.validate())
 
-        self.source.validate()
+        return errors
 
         # TODO validate target
 
