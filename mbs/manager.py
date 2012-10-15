@@ -1,14 +1,11 @@
 __author__ = 'abdul'
 
-import sys
-import os
-import logging
 import time
 import mbs_logging
 
 from threading import Thread
 
-from utils import date_now
+from utils import date_now, document_pretty_string
 from backup import (Backup, STATE_SCHEDULED, STATE_IN_PROGRESS, STATE_FAILED,
                     STATE_SUCCEEDED, STATE_CANCELED)
 ###############################################################################
@@ -72,10 +69,9 @@ class PlanManager(Thread):
 
         errors = plan.validate()
         if errors:
-            errors_str = "\n".join(errors)
             err_msg = ("Plan '%s' is invalid and will be Deactivated."
                    "Please correct the following errors and then set active"
-                   " to true.\n%s" % (plan.id, errors_str))
+                   " to true.\n%s" % (plan.id, errors))
             self.error(err_msg)
             plan.errors = errors
             self._deactivate_plan(plan)

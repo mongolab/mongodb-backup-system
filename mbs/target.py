@@ -35,6 +35,22 @@ class BackupTarget(object):
     def __str__(self):
         return document_pretty_string(self.to_document())
 
+    ###########################################################################
+    def is_valid(self):
+        errors = self.validate()
+        if errors:
+            return False
+        else:
+            return True
+
+    ###########################################################################
+    def validate(self):
+        """
+         Returns an array containing validation messages (if any). Empty if no
+         validation errors
+        """
+        return []
+
 ###############################################################################
 # S3BucketTarget
 ###############################################################################
@@ -98,6 +114,7 @@ class S3BucketTarget(BackupTarget):
     def secret_key(self, secret_key):
         self._secret_key = str(secret_key)
 
+    ###########################################################################
     def to_document(self):
         return {
             "_type": "S3BucketTarget",
@@ -105,3 +122,18 @@ class S3BucketTarget(BackupTarget):
             "accessKey": self.access_key,
             "secretKey": self.secret_key
         }
+
+    ###########################################################################
+    def validate(self):
+        errors = []
+
+        if not self.bucket_name:
+            errors.append("Missing 'bucketName' property")
+
+        if not self.access_key:
+            errors.append("Missing 'accessKey' property")
+
+        if not self.secret_key:
+            errors.append("Missing 'secretKey' property")
+
+        return errors

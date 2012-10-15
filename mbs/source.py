@@ -36,7 +36,19 @@ class BackupSource(object):
         pass
 
     ###########################################################################
+    def is_valid(self):
+        errors = self.validate()
+        if errors:
+            return False
+        else:
+            return True
+
+    ###########################################################################
     def validate(self):
+        """
+         Returns an array containing validation messages (if any). Empty if no
+         validation errors
+        """
         return []
 
     ###########################################################################

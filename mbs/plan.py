@@ -150,7 +150,19 @@ class BackupPlan(object):
         return document_pretty_string(self.to_document())
 
     ###########################################################################
+    def is_valid(self):
+        errors = self.validate()
+        if errors:
+            return False
+        else:
+            return True
+
+    ###########################################################################
     def validate(self):
+        """
+         Returns an array containing validation messages (if any). Empty if no
+         validation errors
+        """
         errors = []
         #  id
         if not self.id:
@@ -159,26 +171,36 @@ class BackupPlan(object):
         #  schedule
         if not self.schedule:
             errors.append("Missing plan 'schedule'")
-
-        #  frequency
-        if not self.schedule.frequency:
-            errors.append("Plan schedule is missing 'frequency'")
-
-        # offset
-        if self.schedule.offset and not is_date_value(self.schedule.offset):
-            errors.append("Invalid plan schedule offset '%s'. "
-                                     "offset has to be a date" %
-                                     self.schedule.offset)
+        else:
+            #  frequency
+            if not self.schedule.frequency:
+                errors.append("Plan schedule is missing 'frequency'")
+            # offset
+            if (self.schedule.offset and
+                not is_date_value(self.schedule.offset)):
+                errors.append("Invalid plan schedule offset '%s'. "
+                                         "offset has to be a date" %
+                                         self.schedule.offset)
 
         # validate source
         if not self.source:
             errors.append("Missing plan 'source'")
         else:
-            errors.extend(self.source.validate())
+            source_errors = self.source.validate()
+            if source_errors:
+                errors.append("Invalid 'source'")
+                errors.extend(source_errors)
+
+        # validate target
+        if not self.target:
+            errors.append("Missing plan 'target'")
+        else:
+            target_errors = self.target.validate()
+            if target_errors:
+                errors.append("Invalid 'target'")
+                errors.extend(target_errors)
 
         return errors
-
-        # TODO validate target
 
 ###############################################################################
 # Schedule
