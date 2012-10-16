@@ -6,6 +6,8 @@ import mbs_logging
 from threading import Thread
 
 from utils import date_now, document_pretty_string
+from errors import MBSException
+
 from backup import (Backup, STATE_SCHEDULED, STATE_IN_PROGRESS, STATE_FAILED,
                     STATE_SUCCEEDED, STATE_CANCELED)
 ###############################################################################
@@ -211,6 +213,7 @@ class PlanManager(Thread):
         self.info("Scheduling plan '%s'" % plan._id)
 
         backup = Backup()
+        backup.strategy = plan.strategy
         backup.source = plan.source
         backup.target = plan.target
         backup.plan_occurrence = plan.next_occurrence
@@ -249,15 +252,23 @@ class PlanManager(Thread):
     def save_plan(self, plan):
         try:
 
-            self.info("Validating plan....")
-            plan.validate()
+            self.debug("Validating plan '%s'" % plan._id)
+            errors = plan.validate()
+            if errors:
+                err_msg = ("Plan '%s' is invalid."
+                           "Please correct the following errors and then "
+                           "set active to true.\n%s" % (plan.id, errors))
+
+                raise PlanManagerException(err_msg)
+
             self.info("Saving plan: \n%s" % plan)
 
             self._plan_collection.save_document(plan.to_document())
 
             self.info("Plan saved successfully")
         except Exception, e:
-            self.error("Error while saving plan '%s'. %s" % (plan.id, e))
+            raise PlanManagerException("Error while saving plan '%s'. %s" %
+                                       (plan.id, e))
 
     ###########################################################################
     def remove_plan(self, plan):
@@ -301,3 +312,13 @@ class PlanManager(Thread):
     ###########################################################################
     def debug(self, msg):
         logger.debug("PlanManager: %s" % msg)
+
+
+###############################################################################
+# PlanManagerException
+###############################################################################
+class PlanManagerException(MBSException):
+
+    ###########################################################################
+    def __init__(self, message, cause=None):
+        MBSException.__init__(message, cause=cause)

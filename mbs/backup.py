@@ -19,6 +19,7 @@ class Backup(object):
         # init fields
         self._id = None
         self._state = None
+        self._strategy = None
         self._source = None
         self._target = None
         self._plan = None
@@ -52,6 +53,15 @@ class Backup(object):
     @state.setter
     def state(self, state):
         self._state = state
+
+    ###########################################################################
+    @property
+    def strategy(self):
+        return self._strategy
+
+    @strategy.setter
+    def strategy(self, strategy):
+        self._strategy = strategy
 
     ###########################################################################
     @property
@@ -125,6 +135,7 @@ class Backup(object):
         doc = {
             "_type": "Backup",
             "state": self.state,
+            "strategy": self.strategy,
             "source": self.source.to_document(),
             "target": self.target.to_document(),
             "plan": self.plan.to_document(),

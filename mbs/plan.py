@@ -5,7 +5,15 @@ from utils import (seconds_to_date, date_to_seconds, date_plus_seconds,
                    date_now, document_pretty_string, epoch_date,
                    is_date_value)
 
-from errors import ConfigurationError
+###############################################################################
+# CONSTANTS
+###############################################################################
+
+STRATEGY_DUMP = "DUMP"
+STRATEGY_EBS_SNAPSHOT = "EBS_SNAPSHOT"
+STRATEGY_DB_FILES = "DB_FILES"
+
+ALL_STRATEGIES = [STRATEGY_DUMP, STRATEGY_EBS_SNAPSHOT, STRATEGY_DB_FILES]
 
 ###############################################################################
 # BackupPlan
@@ -19,6 +27,7 @@ class BackupPlan(object):
         self._schedule = None
         self._next_occurrence = None
         self._errors = None
+        self._strategy = None
 
     ###########################################################################
     @property
@@ -74,6 +83,15 @@ class BackupPlan(object):
     @next_occurrence.setter
     def next_occurrence(self, next_occurrence):
         self._next_occurrence = next_occurrence
+
+    ###########################################################################
+    @property
+    def strategy(self):
+        return self._strategy
+
+    @strategy.setter
+    def strategy(self, strategy):
+        self._strategy = strategy
 
     ###########################################################################
     @property
@@ -134,7 +152,8 @@ class BackupPlan(object):
             "target": self.target.to_document(),
             "schedule": self.schedule.to_document(),
             "nextOccurrence": self.next_occurrence,
-            "active": self.active
+            "active": self.active,
+            "strategy": self.strategy
         }
 
         if self.id:
@@ -199,6 +218,12 @@ class BackupPlan(object):
             if target_errors:
                 errors.append("Invalid 'target'")
                 errors.extend(target_errors)
+
+        # validate strategy
+        if not self.strategy:
+            errors.append("Missing plan 'strategy'")
+        elif self.strategy not in ALL_STRATEGIES:
+            errors.append("Unknown plan strategy '%s'" % self.strategy)
 
         return errors
 
