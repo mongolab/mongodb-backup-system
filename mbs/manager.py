@@ -71,13 +71,10 @@ class PlanManager(Thread):
 
         errors = plan.validate()
         if errors:
-            err_msg = ("Plan '%s' is invalid and will be Deactivated."
-                   "Please correct the following errors and then set active"
-                   " to true.\n%s" % (plan.id, errors))
+            err_msg = ("Plan '%s' is invalid.Please correct the following"
+                       " errors.\n%s" % (plan.id, errors))
             self.error(err_msg)
-            plan.errors = errors
-            self._deactivate_plan(plan)
-            return
+            # TODO disable plan ???
 
         now = date_now()
         next_natural_occurrence = plan.next_natural_occurrence()
@@ -125,18 +122,12 @@ class PlanManager(Thread):
 
         """
         now = date_now()
-        q = {"$and": [
-                {"$or": [
-                    {"active": {"$exists": False}},
-                    {"active": True}
-                ]},
-                {"$or": [
-                    {"nextOccurrence": {"$exists": False}},
-                    {"nextOccurrence": None},
-                    {"nextOccurrence": {"$lte": now}}
-                ]}
-
-        ]}
+        q = {"$or": [
+                {"nextOccurrence": {"$exists": False}},
+                {"nextOccurrence": None},
+                {"nextOccurrence": {"$lte": now}}
+            ]
+        }
 
 
         return self._plan_collection.find(q)
@@ -234,21 +225,6 @@ class PlanManager(Thread):
         self._plan_collection.save_document(plan.to_document())
 
     ###########################################################################
-    def _deactivate_plan(self, plan):
-        try:
-
-            self.info("Deactivating plan '%s' Setting plan.active to false" %
-                      plan.id)
-            plan.active = False
-
-
-            self._plan_collection.save_document(plan.to_document())
-            self.info("Plan deactivated successfully")
-        except Exception, e:
-            self.error("Error while deactivating plan '%s'. %s" % (plan.id, e))
-
-
-    ###########################################################################
     def save_plan(self, plan):
         try:
 
@@ -256,8 +232,8 @@ class PlanManager(Thread):
             errors = plan.validate()
             if errors:
                 err_msg = ("Plan '%s' is invalid."
-                           "Please correct the following errors and then "
-                           "set active to true.\n%s" % (plan.id, errors))
+                           "Please correct the following errors and then try"
+                           " saving again.\n%s" % (plan.id, errors))
 
                 raise PlanManagerException(err_msg)
 

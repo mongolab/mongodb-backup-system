@@ -21,12 +21,10 @@ ALL_STRATEGIES = [STRATEGY_DUMP, STRATEGY_EBS_SNAPSHOT, STRATEGY_DB_FILES]
 class BackupPlan(object):
     def __init__(self):
         self._id = None
-        self._active = True
         self._source = None
         self._target = None
         self._schedule = None
         self._next_occurrence = None
-        self._errors = None
         self._strategy = None
 
     ###########################################################################
@@ -37,15 +35,6 @@ class BackupPlan(object):
     @id.setter
     def id(self, id):
         self._id = str(id)
-
-    ###########################################################################
-    @property
-    def active(self):
-        return self._active
-
-    @active.setter
-    def active(self, active):
-        self._active = active
 
     ###########################################################################
     @property
@@ -92,15 +81,6 @@ class BackupPlan(object):
     @strategy.setter
     def strategy(self, strategy):
         self._strategy = strategy
-
-    ###########################################################################
-    @property
-    def errors(self):
-        return self._errors
-
-    @errors.setter
-    def errors(self, errors):
-        self._errors = errors
 
     ###########################################################################
     def next_natural_occurrence(self):
@@ -152,15 +132,11 @@ class BackupPlan(object):
             "target": self.target.to_document(),
             "schedule": self.schedule.to_document(),
             "nextOccurrence": self.next_occurrence,
-            "active": self.active,
             "strategy": self.strategy
         }
 
         if self.id:
             doc["_id"] = self.id
-
-        if self.errors:
-            doc["errors"] = self.errors
 
         return doc
 
