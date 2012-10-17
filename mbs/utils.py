@@ -202,3 +202,22 @@ def resolve_path(path):
     # Turn relative paths to absolute
     path = os.path.abspath(path)
     return path
+
+
+###############################################################################
+def wait_for(predicate, timeout=None, sleep_duration=2, log_func=None):
+    start_time = seconds_now()
+
+    def default_log_func():
+        print("--waiting--")
+
+    log_func = log_func or default_log_func
+    while (timeout is None) or (seconds_now() - start_time < timeout):
+
+        if predicate():
+            return True
+        else:
+            log_func()
+            time.sleep(sleep_duration)
+
+    return False

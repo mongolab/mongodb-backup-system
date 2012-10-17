@@ -9,10 +9,18 @@ import mbs_logging
 import shutil
 
 from threading import Thread
-from utils import which, ensure_dir, execute_command, timestamp_to_dir_str
+from errors import MBSException
+
+from utils import (which, ensure_dir, execute_command, timestamp_to_dir_str,
+                   wait_for)
+
+from plan import STRATEGY_DUMP, STRATEGY_DB_FILES, STRATEGY_EBS_SNAPSHOT
 
 from backup import (Backup, STATE_SCHEDULED, STATE_IN_PROGRESS, STATE_FAILED,
                     STATE_SUCCEEDED, STATE_CANCELED)
+
+from target import EbsSnapshotReference
+
 ###############################################################################
 # CONSTANTS
 ###############################################################################
@@ -81,6 +89,10 @@ class BackupEngine(Thread):
         self.update_backup_state(backup, STATE_FAILED)
 
     ###########################################################################
+    def backup_cancel(self, backup):
+        self.update_backup_state(backup, STATE_CANCELED)
+
+    ###########################################################################
     def update_backup_state(self, backup, state):
         backup.change_state(state)
         self._backup_collection.save_document(backup.to_document())
@@ -139,13 +151,39 @@ class BackupWorker(Thread):
 
     ###########################################################################
     def run(self):
+        backup = self.backup
+        self.info("Running %s backup %s" % (backup.strategy, backup._id))
+        backup.change_state(STATE_IN_PROGRESS)
+
+        try:
+
+            if backup.strategy == STRATEGY_DUMP:
+                self._run_dump_backup(backup)
+            elif backup.strategy == STRATEGY_EBS_SNAPSHOT:
+                self._run_ebs_snapshot_backup(backup)
+            else:
+                raise BackupEngineException("Unsupported backup strategy '%s'" %
+                                            backup.strategy)
+
+            # success!
+            self.engine.backup_success(backup)
+        except Exception, e:
+            # fail
+            self.error("Backup failed. Cause %s" % e)
+            trace = traceback.format_exc()
+            self.error(trace)
+            self.engine.log_backup_event(backup,"Backup failure. Cause %s"
+                                                "\nTrace:\n%s" % (e,trace))
+
+            self.engine.backup_fail(backup)
+    ###########################################################################
+    # DUMP Strategy
+    ###########################################################################
+    def _run_dump_backup(self, backup):
         temp_dir = None
         tar_file_path = None
 
         try:
-            backup = self.backup
-            self.info("Running backup %s" % backup._id)
-            backup.change_state(STATE_IN_PROGRESS)
 
             self.engine.log_backup_event(backup, "Creating temp dir")
 
@@ -170,21 +208,14 @@ class BackupWorker(Thread):
             self.info("Uploading %s to target" % tar_file_path)
             self.engine.log_backup_event(backup, "Upload tar to target")
 
-            backup.target.put_file(tar_file_path)
+            # set the target reference and it will be saved by the next
+            # log event call
+            target_reference = backup.target.put_file(tar_file_path)
+            backup.target_reference = target_reference
+
             self.engine.log_backup_event(backup, "Upload completed")
 
-            # success!
-            self.engine.backup_success(backup)
 
-        except Exception, e:
-            # fail
-            self.error("Backup failed. Cause %s" % e)
-            trace = traceback.format_exc()
-            self.error(trace)
-            self.engine.log_backup_event(backup,"Backup failure. Cause %s"
-                                                "\nTrace:\n%s" % (e,trace))
-
-            self.engine.backup_fail(backup)
         finally:
             # cleanup
             # delete the temp dir
@@ -198,10 +229,10 @@ class BackupWorker(Thread):
                 if tar_file_path and os.path.exists(tar_file_path):
                     os.remove(tar_file_path)
                 else:
-                    self.info("tar file %s does not exists!!!" %
+                    self.error("tar file %s does not exists!" %
                               tar_file_path)
             else:
-                self.info("temp dir %s does not exists!!!" % temp_dir)
+                self.error("temp dir %s does not exist!" % temp_dir)
 
     ###########################################################################
     def _dump_source(self, source, dest):
@@ -260,6 +291,63 @@ class BackupWorker(Thread):
 
 
     ###########################################################################
+    # EBS Snapshot Strategy
+    ###########################################################################
+    def _run_ebs_snapshot_backup(self, backup):
+
+
+        ebs_volume_source = backup.source
+        self.info("Getting backup source volume '%s'" %
+                  ebs_volume_source.volume_id)
+
+        self.engine.log_backup_event(backup,
+                                     "Getting volume '%s'" %
+                                      ebs_volume_source.volume_id)
+
+        volume = ebs_volume_source.get_volume()
+
+        self.info("Kicking off ebs snapshot for backup '%s' volumeId '%s'" %
+                  (backup.id, ebs_volume_source.volume_id))
+
+        self.engine.log_backup_event(backup, "Kicking off snapshot")
+
+        snapshot_desc = self.backup_dir_name(backup)
+        if not volume.create_snapshot(snapshot_desc):
+            raise BackupEngineException("Failed to create snapshot from backup"
+                                        " source :\n%s" % ebs_volume_source)
+        else:
+            # get the snapshot id and put it as a target reference
+            snapshot = ebs_volume_source.get_snapshot_by_desc(snapshot_desc)
+            self.info("Snapshot kicked off successfully. Snapshot id '%s'." %
+                      snapshot.id)
+
+            msg = ("Snapshot kicked off successfully. Snapshot id '%s'. "
+                   "Waiting for snapshot to complete..." % snapshot.id)
+            self.engine.log_backup_event(backup, msg)
+
+            def log_func():
+                self.info("Waiting for snapshot '%s' status to be completed" %
+                          snapshot.id)
+
+            def is_completed():
+                snapshot = ebs_volume_source.get_snapshot_by_desc(snapshot_desc)
+                return snapshot.status == 'completed'
+
+            # log a waiting msg
+            log_func() # :)
+             # wait until complete
+            wait_for(is_completed, timeout=300, log_func=log_func )
+
+            if is_completed():
+                self.info("Snapshot '%s' completed successfully!." %
+                          snapshot.id)
+                backup.target_reference = EbsSnapshotReference(snapshot.id)
+            else:
+                raise BackupEngineException("Snapshot Timeout error")
+
+
+
+    ###########################################################################
     def info(self, msg):
         self._engine.info("Worker-%s: %s" % (self._id, msg))
 
@@ -267,3 +355,11 @@ class BackupWorker(Thread):
     def error(self, msg):
         self._engine.error("Worker-%s: %s" % (self._id, msg))
 
+###############################################################################
+# BackupEngineException
+###############################################################################
+class BackupEngineException(MBSException):
+
+    ###########################################################################
+    def __init__(self, message, cause=None):
+        MBSException.__init__(message, cause=cause)

@@ -22,6 +22,7 @@ class Backup(object):
         self._strategy = None
         self._source = None
         self._target = None
+        self._target_reference = None
         self._plan = None
         self._plan_occurrence = None
         self._engine_id = None
@@ -81,6 +82,16 @@ class Backup(object):
     @target.setter
     def target(self, target):
         self._target = target
+
+    ###########################################################################
+    @property
+    def target_reference(self):
+        return self._target_reference
+
+
+    @target_reference.setter
+    def target_reference(self, target_reference):
+        self._target_reference = target_reference
 
     ###########################################################################
     @property
@@ -147,6 +158,9 @@ class Backup(object):
         if self.id:
             doc["_id"] = self.id
 
+        if self.target_reference:
+            doc["targetReference"] = self.target_reference.to_document()
+
         return doc
 
     ###########################################################################
@@ -166,6 +180,8 @@ class Backup(object):
 # BackupLogEntry
 ###############################################################################
 class BackupLogEntry(object):
+
+    ###########################################################################
     def __init__(self):
         self._date = None
         self._state = None
@@ -188,7 +204,6 @@ class BackupLogEntry(object):
     @state.setter
     def state(self, value):
         self._state = value
-
 
     ###########################################################################
     @property
