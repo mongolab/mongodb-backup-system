@@ -143,7 +143,7 @@ class PlanManager(Thread):
     ###########################################################################
     def _process_failed_backups(self):
         self._cancel_failed_backups_not_within_current_cycle()
-        self._reschedule_failed_backups_within_current_cycle()
+        #self._reschedule_failed_backups_within_current_cycle()
 
     ###########################################################################
     def _cancel_failed_backups_not_within_current_cycle(self):
