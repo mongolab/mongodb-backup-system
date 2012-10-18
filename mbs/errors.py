@@ -14,7 +14,7 @@ class MBSException(Exception):
 
     ###########################################################################
     def __init__(self, message, cause=None):
-        Exception.__init__(message)
+        Exception.__init__(self, message)
         self._cause = cause
 
     ###########################################################################
@@ -33,4 +33,4 @@ class ConfigurationError(MBSException):
 
     ###########################################################################
     def __init__(self, message, cause=None):
-        MBSException.__init__(message, cause=cause)
+        MBSException.__init__(self, message, cause=cause)
