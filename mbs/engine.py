@@ -44,7 +44,7 @@ logger = mbs_logging.logger
 class BackupEngine(Thread):
 
     ###########################################################################
-    def __init__(self, engine_id, backup_collection, max_workers=100,
+    def __init__(self, engine_id, backup_collection, max_workers=10,
                        sleep_time=10):
         Thread.__init__(self)
         self._engine_id = engine_id
