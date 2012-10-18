@@ -44,13 +44,14 @@ logger = mbs_logging.logger
 class BackupEngine(Thread):
 
     ###########################################################################
-    def __init__(self, engine_id, backup_collection):
+    def __init__(self, engine_id, backup_collection, max_workers=100,
+                       sleep_time=10):
         Thread.__init__(self)
         self._engine_id = engine_id
         self._backup_collection = backup_collection
-        self._sleep_time = 1
+        self._sleep_time = sleep_time
         self._worker_count = 0
-
+        self._max_workers = max_workers
         ensure_dir(BACKUP_TEMP_DIR_ROOT)
 
     ###########################################################################
@@ -64,9 +65,19 @@ class BackupEngine(Thread):
         return self._backup_collection
 
     ###########################################################################
+    @property
+    def max_workers(self):
+        return self._max_workers
+
+    ###########################################################################
     def run(self):
         self.info("Starting up... ")
         while True:
+            # if max workers are reached then sleep
+            if self._worker_count >= self.max_workers:
+                time.sleep(self._sleep_time)
+                continue
+
             self.info("Reading next scheduled backup...")
             backup = self.read_next_backup()
             self.info("Received  backup %s" % backup)
@@ -81,16 +92,9 @@ class BackupEngine(Thread):
         return self._worker_count
 
     ###########################################################################
-    def backup_success(self, backup):
-        self.update_backup_state(backup, STATE_SUCCEEDED)
-
-    ###########################################################################
-    def backup_fail(self, backup):
-        self.update_backup_state(backup, STATE_FAILED)
-
-    ###########################################################################
-    def backup_cancel(self, backup):
-        self.update_backup_state(backup, STATE_CANCELED)
+    def worker_finished(self, worker, state):
+        self._worker_count -= 1
+        self.update_backup_state(worker.backup, state)
 
     ###########################################################################
     def update_backup_state(self, backup, state):
@@ -166,7 +170,7 @@ class BackupWorker(Thread):
                                             backup.strategy)
 
             # success!
-            self.engine.backup_success(backup)
+            self.engine.worker_finished(self, STATE_SUCCEEDED)
         except Exception, e:
             # fail
             self.error("Backup failed. Cause %s" % e)
@@ -175,7 +179,8 @@ class BackupWorker(Thread):
             self.engine.log_backup_event(backup,"Backup failure. Cause %s"
                                                 "\nTrace:\n%s" % (e,trace))
 
-            self.engine.backup_fail(backup)
+            self.engine.worker_finished(self, STATE_FAILED)
+
     ###########################################################################
     # DUMP Strategy
     ###########################################################################
