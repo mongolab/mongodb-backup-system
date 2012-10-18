@@ -362,4 +362,4 @@ class BackupEngineException(MBSException):
 
     ###########################################################################
     def __init__(self, message, cause=None):
-        MBSException.__init__(message, cause=cause)
+        MBSException.__init__(self, message, cause=cause)
