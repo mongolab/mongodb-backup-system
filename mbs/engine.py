@@ -1,14 +1,16 @@
 __author__ = 'abdul'
 
-import sys
+
 import traceback
 import os
-import logging
+
 import time
 import mbs_logging
 import shutil
 
 from threading import Thread
+from subprocess import CalledProcessError
+
 from errors import MBSException
 
 from utils import (which, ensure_dir, execute_command, timestamp_to_dir_str,
@@ -280,20 +282,34 @@ class BackupWorker(Thread):
 
         self.info("Running dump command: %s" % " ".join(cmd_display))
 
-        execute_command(dump_cmd)
+        try:
+            execute_command(dump_cmd)
+        except CalledProcessError, e:
+            msg = ("Failed to dump. Dump command '%s' returned a non-zero exit"
+                   " status %s. Command output:\n%s" %
+                   (cmd_display, e.returncode, e.output))
+            raise BackupEngineException(msg)
 
     ###########################################################################
     def _tar_dir(self, path, filename):
 
-        tar_exe = which("tar")
-        working_dir = os.path.dirname(path)
-        target_dirname = os.path.basename(path)
+        try:
+            tar_exe = which("tar")
+            working_dir = os.path.dirname(path)
+            target_dirname = os.path.basename(path)
 
-        tar_cmd = [tar_exe,
-                   "-cvzf", filename, target_dirname]
-        self.info("Running tar command: %s" % " ".join(tar_cmd))
-        execute_command(tar_cmd, cwd=working_dir)
-        return os.path.join(BACKUP_TEMP_DIR_ROOT, filename)
+            tar_cmd = [tar_exe, "-cvzf", filename, target_dirname]
+            cmd_display = " ".join(tar_cmd)
+
+            self.info("Running tar command: %s" % cmd_display)
+            execute_command(tar_cmd, cwd=working_dir)
+
+            return os.path.join(BACKUP_TEMP_DIR_ROOT, filename)
+        except CalledProcessError, e:
+            msg = ("Failed to tar. Tar command '%s' returned a non-zero exit"
+                   " status %s. Command output:\n%s" %
+                   (cmd_display, e.returncode, e.output))
+            raise BackupEngineException(msg)
 
     ###########################################################################
     def _create_temp_dir(self, backup):
