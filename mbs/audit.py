@@ -364,9 +364,10 @@ class PlanAuditEntry(AuditEntry):
 class GlobalAuditor():
 
     ###########################################################################
-    def __init__(self, audit_collection):
+    def __init__(self, audit_collection, notification_handler=None):
         self._auditors = []
         self._audit_collection = audit_collection
+        self._notification_handler = notification_handler
 
     ###########################################################################
     def register_auditor(self, auditor):
@@ -374,13 +375,24 @@ class GlobalAuditor():
 
     ###########################################################################
     def generate_daily_audit_reports(self, date):
+        reports = []
         for auditor in self._auditors:
             report = auditor.daily_audit_report(date)
             logger.info("GlobalAuditor: Saving audit report: \n%s" % report)
             self._audit_collection.save_document(report.to_document())
+            reports.append(report)
+
+        # send notification if specified
+        if self._notification_handler:
+            self._send_notification(date, reports)
 
     ###########################################################################
     def generate_yesterday_audit_reports(self):
         self.generate_daily_audit_reports(yesterday_date())
 
     ###########################################################################
+    def _send_notification(self, date, reports):
+        subject = "Backup Audit Reports for %s" % date_to_str(date)
+        reports_str = map(str, reports)
+        message = "\n\n\n".join(reports_str)
+        self._notification_handler.send_notification(subject, message)

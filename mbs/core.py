@@ -1,7 +1,7 @@
 __author__ = 'abdul'
 
 from makerpy.object_collection import ObjectCollection
-from makerpy.maker import resolve_class
+from makerpy.maker import resolve_class, Maker
 
 from utils import read_config_json, mongo_connect
 from backup import Backup
@@ -24,9 +24,15 @@ class MBSCore(object):
         # init config and database
         self._config = config
         self._database = mongo_connect(self._get_database_uri())
+        type_bindings = self._get_type_bindings()
+
+        # make the maker
+        self._maker =  Maker(type_bindings=type_bindings)
+
+        # init notification handler
+        self._notification_handler = self.get_notification_handler()
 
         # init object collections
-        type_bindings = self._get_type_bindings()
         bc = ObjectCollection(self._database["backups"],
                               clazz=Backup,
                               type_bindings=type_bindings)
@@ -41,13 +47,18 @@ class MBSCore(object):
                               clazz=AuditReport,
                               type_bindings=type_bindings)
 
+
         # init plan manager
         self._plan_manager = PlanManager(self.plan_collection,
-                                         self.backup_collection)
+                                         self.backup_collection,
+                                          notification_handler=
+                                           self._notification_handler)
         self._audit_collection = ac
 
         # init global editor
-        self._global_auditor = GlobalAuditor(self._audit_collection)
+        self._global_auditor = GlobalAuditor(self._audit_collection,
+                                             notification_handler=
+                                              self._notification_handler)
         plan_auditor = PlanAuditor(self.plan_collection,
                                    self.backup_collection)
 
@@ -77,7 +88,8 @@ class MBSCore(object):
 
     ###########################################################################
     def create_backup_engine(self, engine_id):
-        return BackupEngine(engine_id, self.backup_collection)
+        return BackupEngine(engine_id, self.backup_collection,
+                            notification_handler=self._notification_handler)
 
     ###########################################################################
     @property
@@ -88,6 +100,12 @@ class MBSCore(object):
     @property
     def global_auditor(self):
         return self._global_auditor
+
+    ###########################################################################
+    def get_notification_handler(self):
+        handler_conf = self._get_config_value("notificationHandler")
+        if handler_conf:
+            return self._maker.make(handler_conf)
 
 ###############################################################################
 # MBS Core Singleton

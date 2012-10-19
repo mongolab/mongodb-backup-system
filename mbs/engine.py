@@ -45,13 +45,15 @@ class BackupEngine(Thread):
 
     ###########################################################################
     def __init__(self, engine_id, backup_collection, max_workers=10,
-                       sleep_time=10):
+                       sleep_time=10,
+                       notification_handler=None):
         Thread.__init__(self)
         self._engine_id = engine_id
         self._backup_collection = backup_collection
         self._sleep_time = sleep_time
         self._worker_count = 0
         self._max_workers = max_workers
+        self._notification_handler = notification_handler
         ensure_dir(BACKUP_TEMP_DIR_ROOT)
 
     ###########################################################################
@@ -90,6 +92,22 @@ class BackupEngine(Thread):
     def next_worker_id(self):
         self._worker_count+= 1
         return self._worker_count
+
+    ###########################################################################
+    def worker_fail(self, worker, exception):
+        self.worker_finished(worker, STATE_FAILED)
+        backup = worker.backup
+        if self._notification_handler:
+            subject = "Backup '%s' failed" % backup.id
+            message = ("Backup '%s' failed.\n%s\n\nStack Trace:\n%s" %
+                       (backup.id, backup, traceback.format_exc()))
+
+            self._notification_handler.send_notification(subject, message)
+
+
+    ###########################################################################
+    def worker_success(self, worker):
+        self.worker_finished(worker, STATE_SUCCEEDED)
 
     ###########################################################################
     def worker_finished(self, worker, state):
@@ -170,7 +188,7 @@ class BackupWorker(Thread):
                                             backup.strategy)
 
             # success!
-            self.engine.worker_finished(self, STATE_SUCCEEDED)
+            self.engine.worker_success(self)
         except Exception, e:
             # fail
             self.error("Backup failed. Cause %s" % e)
@@ -179,7 +197,7 @@ class BackupWorker(Thread):
             self.engine.log_backup_event(backup,"Backup failure. Cause %s"
                                                 "\nTrace:\n%s" % (e,trace))
 
-            self.engine.worker_finished(self, STATE_FAILED)
+            self.engine.worker_fail(self, e)
 
     ###########################################################################
     # DUMP Strategy

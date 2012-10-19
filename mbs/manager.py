@@ -2,7 +2,7 @@ __author__ = 'abdul'
 
 import time
 import mbs_logging
-
+import traceback
 from threading import Thread
 
 from utils import date_now, document_pretty_string
@@ -26,7 +26,8 @@ logger = mbs_logging.logger
 ###############################################################################
 class PlanManager(Thread):
     ###########################################################################
-    def __init__(self, plan_collection, backup_collection, sleep_time=10):
+    def __init__(self, plan_collection, backup_collection,
+                       sleep_time=10, notification_handler=None):
 
         Thread.__init__(self)
         self._plan_collection = plan_collection
@@ -36,12 +37,20 @@ class PlanManager(Thread):
         self._registered_plan_generators = []
         self._tick_ring = 0
 
+        self._notification_handler = notification_handler
+
     ###########################################################################
     def run(self):
         self.info("Starting up... ")
         while True:
-            self._tick()
-            time.sleep(self._sleep_time)
+            try:
+                self._tick()
+                time.sleep(self._sleep_time)
+            except Exception, e:
+                self.error("Caught an error: '%s'.\nStack Trace:\n%s" %
+                           traceback.format_exc())
+                self._notify__error(e)
+
 
     ###########################################################################
     def _tick(self):
@@ -275,6 +284,15 @@ class PlanManager(Thread):
         for plan in generator.get_expired_plans():
             self.info("Removing expired plan '%s' " % plan.id)
             self.remove_plan(plan)
+
+    ###########################################################################
+    def _notify_error(self, exception):
+        if self._notification_handler:
+            subject = "PlanManager Error"
+            message = ("PlanManager Error!.\n\nStack Trace:\n%s" %
+                       traceback.format_exc())
+
+            self._notification_handler.send_notification(subject, message)
 
     ###########################################################################
     # logging
