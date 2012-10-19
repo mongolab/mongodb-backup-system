@@ -30,7 +30,13 @@ def main(args):
 ###############################################################################
 def start_engine(parsed_args):
     engine_id = parsed_args.engineId
-    backup_engine = get_mbs_core().create_backup_engine(engine_id)
+    kwargs = {}
+    if parsed_args.maxWorkers:
+        kwargs["max_workers"] = parsed_args.maxWorkers
+    if parsed_args.tempDir:
+        kwargs["temp_dir"] = parsed_args.tempDir
+
+    backup_engine = get_mbs_core().create_backup_engine(engine_id, **kwargs)
     backup_engine.start()
 
 ###############################################################################
@@ -64,7 +70,21 @@ PARSER_DEF = {
                     "nargs": 1,
                     "displayName": "ENGINE_ID",
                     "help": "An engine id"
-                }
+                },
+                    {
+                    "name": "maxWorkers",
+                    "type" : "optional",
+                    "cmd_arg":  "--max-workers",
+                    "nargs": 1,
+                    "help": "max number of simultaneous workers"
+                },
+                    {
+                    "name": "tempDir",
+                    "type" : "optional",
+                    "cmd_arg":  "--temp-dir",
+                    "nargs": 1,
+                    "help": "temporary backup directory"
+                },
             ]
         },
 

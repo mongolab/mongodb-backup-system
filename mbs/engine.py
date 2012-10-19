@@ -14,7 +14,7 @@ from subprocess import CalledProcessError
 from errors import MBSException
 
 from utils import (which, ensure_dir, execute_command, timestamp_to_dir_str,
-                   wait_for)
+                   wait_for, resolve_path)
 
 from plan import STRATEGY_DUMP, STRATEGY_DB_FILES, STRATEGY_EBS_SNAPSHOT
 
@@ -27,7 +27,7 @@ from target import EbsSnapshotReference
 # CONSTANTS
 ###############################################################################
 
-BACKUP_TEMP_DIR_ROOT = os.path.expanduser("~/backup_temp")
+DEFAULT_BACKUP_TEMP_DIR_ROOT = "~/backup_temp"
 
 ###############################################################################
 # LOGGER
@@ -48,6 +48,7 @@ class BackupEngine(Thread):
     ###########################################################################
     def __init__(self, engine_id, backup_collection, max_workers=10,
                        sleep_time=10,
+                       temp_dir=None,
                        notification_handler=None):
         Thread.__init__(self)
         self._engine_id = engine_id
@@ -55,8 +56,9 @@ class BackupEngine(Thread):
         self._sleep_time = sleep_time
         self._worker_count = 0
         self._max_workers = max_workers
+        self._temp_dir = resolve_path(temp_dir or DEFAULT_BACKUP_TEMP_DIR_ROOT)
         self._notification_handler = notification_handler
-        ensure_dir(BACKUP_TEMP_DIR_ROOT)
+        ensure_dir(self._temp_dir)
 
     ###########################################################################
     @property
@@ -74,8 +76,15 @@ class BackupEngine(Thread):
         return self._max_workers
 
     ###########################################################################
+    @property
+    def temp_dir(self):
+        return self._temp_dir
+
+    ###########################################################################
     def run(self):
         self.info("Starting up... ")
+        self.info("TEMP DIR is '%s'" % self.temp_dir)
+
         while True:
             # if max workers are reached then sleep
             if self._worker_count >= self.max_workers:
@@ -304,7 +313,7 @@ class BackupWorker(Thread):
             self.info("Running tar command: %s" % cmd_display)
             execute_command(tar_cmd, cwd=working_dir)
 
-            return os.path.join(BACKUP_TEMP_DIR_ROOT, filename)
+            return os.path.join(self.engine.temp_dir, filename)
         except CalledProcessError, e:
             msg = ("Failed to tar. Tar command '%s' returned a non-zero exit"
                    " status %s. Command output:\n%s" %
@@ -313,7 +322,7 @@ class BackupWorker(Thread):
 
     ###########################################################################
     def _create_temp_dir(self, backup):
-        temp_dir = os.path.join(BACKUP_TEMP_DIR_ROOT,
+        temp_dir = os.path.join(self.engine.temp_dir,
             self.backup_dir_name(backup))
         if not os.path.exists(temp_dir):
             self.info("Creating temp dir '%s' for backup %s" %

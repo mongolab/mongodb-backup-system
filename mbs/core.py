@@ -87,9 +87,10 @@ class MBSCore(object):
         return self._plan_collection
 
     ###########################################################################
-    def create_backup_engine(self, engine_id):
+    def create_backup_engine(self, engine_id, **kwargs):
         return BackupEngine(engine_id, self.backup_collection,
-                            notification_handler=self._notification_handler)
+                            notification_handler=self._notification_handler,
+                            **kwargs)
 
     ###########################################################################
     @property
