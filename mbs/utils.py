@@ -21,7 +21,7 @@ from pymongo import uri_parser, errors
 def document_pretty_string(document):
     def handler(obj):
         if isinstance(obj, datetime):
-            return timestamp_to_str(obj)
+            return {"$date": obj.isoformat()}
         else:
             json_util.default(obj)
 
