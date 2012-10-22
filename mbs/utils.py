@@ -19,7 +19,13 @@ from pymongo import uri_parser, errors
 ###############################################################################
 
 def document_pretty_string(document):
-    return json.dumps(document, indent=4, default=json_util.default)
+    def handler(obj):
+        if isinstance(obj, datetime):
+            return timestamp_to_str(obj)
+        else:
+            json_util.default(obj)
+
+    return json.dumps(document, indent=4, default=handler)
 
 ###############################################################################
 def date_now():
