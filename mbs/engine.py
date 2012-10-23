@@ -280,7 +280,7 @@ class BackupWorker(Thread):
 
             temp_dir = self._ensure_temp_dir(backup)
             tar_filename = "%s.tgz" % self.backup_dir_name(backup)
-            tar_file_path = os.path.join(temp_dir, tar_filename)
+            tar_file_path = os.path.join(self.engine.temp_dir, tar_filename)
 
             # run mongoctl dump
             if not backup.is_event_logged(EVENT_END_EXTRACT):
