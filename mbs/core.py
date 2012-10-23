@@ -57,9 +57,10 @@ class MBSCore(object):
         self._audit_collection = ac
 
         # init global editor
+        audit_notif_handler = self.get_auditor_notification_handler()
         self._global_auditor = GlobalAuditor(self._audit_collection,
                                              notification_handler=
-                                              self._notification_handler)
+                                              audit_notif_handler)
         plan_auditor = PlanAuditor(self.plan_collection,
                                    self.backup_collection)
 
@@ -106,8 +107,12 @@ class MBSCore(object):
     ###########################################################################
     def get_notification_handler(self):
         handler_conf = self._get_config_value("notificationHandler")
-        if handler_conf:
-            return self._maker.make(handler_conf)
+        return self._maker.make(handler_conf)
+
+    ###########################################################################
+    def get_auditor_notification_handler(self):
+        handler_conf = self._get_config_value("auditorNotificationHandler")
+        return self._maker.make(handler_conf)
 
 ###############################################################################
 # MBS Core Singleton
