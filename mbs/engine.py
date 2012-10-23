@@ -307,7 +307,6 @@ class BackupWorker(Thread):
                                              name=EVENT_END_ARCHIVE,
                                              message="Taring completed")
 
-                #time.sleep(20)
             # upload back file to the target
             if not backup.is_event_logged(EVENT_END_UPLOAD):
                 self.info("Uploading %s to target" % tar_file_path)
