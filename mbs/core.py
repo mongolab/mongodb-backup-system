@@ -2,6 +2,7 @@ __author__ = 'abdul'
 
 from makerpy.object_collection import ObjectCollection
 from makerpy.maker import resolve_class, Maker
+from type_bindings import TYPE_BINDINGS
 
 from utils import read_config_json, mongo_connect
 from backup import Backup
@@ -66,7 +67,7 @@ class MBSCore(object):
 
     ###########################################################################
     def _get_type_bindings(self):
-        return self._get_config_value("typeBindings")
+        return TYPE_BINDINGS
 
     ###########################################################################
     def _get_config_value(self, name):
