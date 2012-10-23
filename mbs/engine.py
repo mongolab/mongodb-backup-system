@@ -29,6 +29,13 @@ from target import EbsSnapshotReference
 
 DEFAULT_BACKUP_TEMP_DIR_ROOT = "~/backup_temp"
 
+EVENT_START_EXTRACT = "START_EXTRACT"
+EVENT_END_EXTRACT = "END_EXTRACT"
+EVENT_START_ARCHIVE = "START_ARCHIVE"
+EVENT_END_ARCHIVE = "END_ARCHIVE"
+EVENT_START_UPLOAD = "START_UPLOAD"
+EVENT_END_UPLOAD = "END_UPLOAD"
+
 ###############################################################################
 # LOGGER
 ###############################################################################
@@ -58,7 +65,6 @@ class BackupEngine(Thread):
         self._max_workers = max_workers
         self._temp_dir = resolve_path(temp_dir or DEFAULT_BACKUP_TEMP_DIR_ROOT)
         self._notification_handler = notification_handler
-        ensure_dir(self._temp_dir)
 
     ###########################################################################
     @property
@@ -84,6 +90,8 @@ class BackupEngine(Thread):
     def run(self):
         self.info("Starting up... ")
         self.info("TEMP DIR is '%s'" % self.temp_dir)
+        ensure_dir(self._temp_dir)
+        self._recover()
 
         while True:
             # if max workers are reached then sleep
@@ -105,35 +113,87 @@ class BackupEngine(Thread):
         return self._worker_count
 
     ###########################################################################
-    def worker_fail(self, worker, exception):
-        self.worker_finished(worker, STATE_FAILED)
+    def worker_fail(self, worker, exception, trace=None):
+        log_msg = "Failure! Cause %s\nTrace:\n%s" % (exception,trace)
+        self.worker_finished(worker, STATE_FAILED, message=log_msg)
+
         backup = worker.backup
         if self._notification_handler:
             subject = "Backup '%s' failed" % backup.id
-            message = ("Backup '%s' failed.\n%s\n\nStack Trace:\n%s" %
-                       (backup.id, backup, traceback.format_exc()))
+            message = ("Backup '%s' failed.\n%s\n\nCause: \n%s\nStack Trace:"
+                       "\n%s" % (backup.id, backup, exception, trace))
 
             self._notification_handler.send_notification(subject, message)
 
 
     ###########################################################################
     def worker_success(self, worker):
-        self.worker_finished(worker, STATE_SUCCEEDED)
+        self.worker_finished(worker, STATE_SUCCEEDED,
+                             message="Backup completed successfully!")
 
     ###########################################################################
-    def worker_finished(self, worker, state):
+    def worker_finished(self, worker, state, message):
         self._worker_count -= 1
-        self.update_backup_state(worker.backup, state)
+        self.update_backup_state(worker.backup, state, message=message)
 
     ###########################################################################
-    def update_backup_state(self, backup, state):
-        backup.change_state(state)
+    def update_backup_state(self, backup, state, message=None):
+        backup.change_state(state, message)
         self._backup_collection.save_document(backup.to_document())
 
     ###########################################################################
-    def log_backup_event(self, backup, message):
-        backup.log_event(message)
+    def log_backup_event(self, backup, name, message=None):
+        backup.log_event(name, message=message)
         self._backup_collection.save_document(backup.to_document())
+
+
+    ###########################################################################
+    def _recover(self):
+        """
+        Does necessary recovery work on crashes.
+         1- Recover recoverable in-progress backups associated with this engine
+         otherwise Reschedule if possible
+         2- Wipes the temp dir
+        """
+        self.info("Running recovery..")
+
+        # 1- Recover recoverable backups
+        q = {
+            "state": STATE_IN_PROGRESS,
+            "engineId": self.engine_id
+        }
+
+        total_recovered = 0
+        total_failed = 0
+        for backup in self._backup_collection.find(q):
+            if self._is_backup_recoverable(backup):
+                self._recover_backup(backup)
+                total_recovered += 1
+            else:
+                # fail backup
+                self.info("Recovery: Failing backup %s" % backup._id)
+                self.update_backup_state(backup, STATE_FAILED)
+                total_failed += 1
+
+
+        total_crashed = total_recovered + total_failed
+
+        self.info("Recovery complete! Total Crashed backups:%s,"
+                  " Total scheduled for recovery=%s, Total failed=%s" %
+                  (total_crashed, total_recovered, total_failed))
+
+    ###########################################################################
+    def _recover_backup(self, backup):
+        self.info("Scheduling backup '%s' for recovery." % backup.id)
+        self.update_backup_state(backup,
+                                 STATE_SCHEDULED,
+                                 message="Scheduling for recovery")
+
+    ###########################################################################
+    def _is_backup_recoverable(self, backup):
+        return backup.is_event_logged([EVENT_END_EXTRACT,
+                                       EVENT_END_ARCHIVE,
+                                       EVENT_END_UPLOAD])
 
     ###########################################################################
     def read_next_backup(self):
@@ -205,56 +265,73 @@ class BackupWorker(Thread):
             self.error("Backup failed. Cause %s" % e)
             trace = traceback.format_exc()
             self.error(trace)
-            self.engine.log_backup_event(backup,"Backup failure. Cause %s"
-                                                "\nTrace:\n%s" % (e,trace))
 
-            self.engine.worker_fail(self, e)
+            self.engine.worker_fail(self, exception=e, trace=trace)
 
     ###########################################################################
     # DUMP Strategy
     ###########################################################################
     def _run_dump_backup(self, backup):
         temp_dir = None
+        tar_filename = None
         tar_file_path = None
 
         try:
 
-            self.engine.log_backup_event(backup, "Creating temp dir")
-
-            temp_dir = self._create_temp_dir(backup)
+            temp_dir = self._ensure_temp_dir(backup)
+            tar_filename = "%s.tgz" % self.backup_dir_name(backup)
+            tar_file_path = os.path.join(temp_dir, tar_filename)
 
             # run mongoctl dump
-            self.info("Dumping source %s " % backup.source)
-            self.engine.log_backup_event(backup, "Dumping source")
+            if not backup.is_event_logged(EVENT_END_EXTRACT):
+                self.info("Dumping source %s " % backup.source)
+                self.engine.log_backup_event(backup,
+                                             name=EVENT_START_EXTRACT,
+                                             message="Dumping source")
 
-            self._dump_source(backup.source, temp_dir)
-            self.engine.log_backup_event(backup, "Dump completed")
+                self._dump_source(backup.source, temp_dir)
+                self.engine.log_backup_event(backup,
+                                             name=EVENT_END_EXTRACT,
+                                             message="Dump completed")
 
             # tar the dump
-            tar_filename = "%s.tgz" % self.backup_dir_name(backup)
-            self.info("Taring dump %s to %s" % (temp_dir, tar_filename))
-            self.engine.log_backup_event(backup, "Taring dump")
+            if not backup.is_event_logged(EVENT_END_ARCHIVE):
+                self.info("Taring dump %s to %s" % (temp_dir, tar_filename))
+                self.engine.log_backup_event(backup,
+                                             name=EVENT_START_ARCHIVE,
+                                             message="Taring dump")
 
-            tar_file_path = self._tar_dir(temp_dir, tar_filename)
-            self.engine.log_backup_event(backup, "Taring completed")
+                self._tar_dir(temp_dir, tar_filename)
 
+                self.engine.log_backup_event(backup,
+                                             name=EVENT_END_ARCHIVE,
+                                             message="Taring completed")
+
+                #time.sleep(20)
             # upload back file to the target
-            self.info("Uploading %s to target" % tar_file_path)
-            self.engine.log_backup_event(backup, "Upload tar to target")
+            if not backup.is_event_logged(EVENT_END_UPLOAD):
+                self.info("Uploading %s to target" % tar_file_path)
+                self.engine.log_backup_event(backup,
+                                             name=EVENT_START_UPLOAD,
+                                             message="Upload tar to target")
 
-            # set the target reference and it will be saved by the next
-            # log event call
-            target_reference = backup.target.put_file(tar_file_path)
-            backup.target_reference = target_reference
+                # set the target reference and it will be saved by the next
+                # log event call
+                target_reference = backup.target.put_file(tar_file_path)
+                backup.target_reference = target_reference
 
-            self.engine.log_backup_event(backup, "Upload completed")
+                self.engine.log_backup_event(backup,
+                                             name=EVENT_END_UPLOAD,
+                                             message="Upload completed!")
 
 
         finally:
             # cleanup
             # delete the temp dir
             self.info("Cleanup: deleting temp dir %s" % temp_dir)
-            self.engine.log_backup_event(backup, "Running cleanup")
+            self.engine.log_backup_event(backup,
+                                         name="CLEANUP",
+                                         message="Running cleanup")
 
             if temp_dir:
                 shutil.rmtree(temp_dir)
@@ -313,7 +390,6 @@ class BackupWorker(Thread):
             self.info("Running tar command: %s" % cmd_display)
             execute_command(tar_cmd, cwd=working_dir)
 
-            return os.path.join(self.engine.temp_dir, filename)
         except CalledProcessError, e:
             msg = ("Failed to tar. Tar command '%s' returned a non-zero exit"
                    " status %s. Command output:\n%s" %
@@ -321,7 +397,7 @@ class BackupWorker(Thread):
             raise BackupEngineException(msg)
 
     ###########################################################################
-    def _create_temp_dir(self, backup):
+    def _ensure_temp_dir(self, backup):
         temp_dir = os.path.join(self.engine.temp_dir,
             self.backup_dir_name(backup))
         if not os.path.exists(temp_dir):
@@ -349,15 +425,18 @@ class BackupWorker(Thread):
                   ebs_volume_source.volume_id)
 
         self.engine.log_backup_event(backup,
-                                     "Getting volume '%s'" %
-                                      ebs_volume_source.volume_id)
+                                     name="GET_EBS_VOLUME",
+                                     message="Getting volume '%s'" %
+                                             ebs_volume_source.volume_id)
 
         volume = ebs_volume_source.get_volume()
 
         self.info("Kicking off ebs snapshot for backup '%s' volumeId '%s'" %
                   (backup.id, ebs_volume_source.volume_id))
 
-        self.engine.log_backup_event(backup, "Kicking off snapshot")
+        self.engine.log_backup_event(backup,
+                                     name="START_EBS_SNAPSHOT",
+                                     message="Kicking off snapshot")
 
         snapshot_desc = self.backup_dir_name(backup)
         if not volume.create_snapshot(snapshot_desc):
@@ -371,7 +450,10 @@ class BackupWorker(Thread):
 
             msg = ("Snapshot kicked off successfully. Snapshot id '%s'. "
                    "Waiting for snapshot to complete..." % snapshot.id)
-            self.engine.log_backup_event(backup, msg)
+
+            self.engine.log_backup_event(backup,
+                                         name="EBS_START_SUCCESS",
+                                         message=msg)
 
             def log_func():
                 self.info("Waiting for snapshot '%s' status to be completed" %

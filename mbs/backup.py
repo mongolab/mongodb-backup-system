@@ -11,6 +11,8 @@ STATE_FAILED = "FAILED"
 STATE_CANCELED = "CANCELED"
 STATE_SUCCEEDED = "SUCCEEDED"
 
+EVENT_STATE_CHANGE = "STATE_CHANGE"
+
 ###############################################################################
 # Backup
 ###############################################################################
@@ -38,13 +40,13 @@ class Backup(object):
         self._id = str(id)
 
     ###########################################################################
-    def change_state(self, state):
+    def change_state(self, state, message=None):
         """
         Updates the state and logs a state change event
         """
         if state != self.state:
             self.state = state
-            self.log_event("STATE_CHANGE")
+            self.log_event(EVENT_STATE_CHANGE, message=message)
 
     ###########################################################################
     @property
@@ -130,16 +132,31 @@ class Backup(object):
         self._logs = logs
 
     ###########################################################################
-    def log_event(self, message):
+    def log_event(self, name, message=None):
         logs = self.logs
 
         log_entry = BackupLogEntry()
+        log_entry.name = name
         log_entry.date = date_now()
         log_entry.state = self.state
         log_entry.message = message
 
         logs.append(log_entry)
         self.logs = logs
+
+    ###########################################################################
+    def is_event_logged(self, event_name):
+        """
+            Accepts an event name or a list of event names
+            Returns true if logs contain an event with the specified
+            event_name
+
+        """
+        if not isinstance(event_name, list):
+            event_name = [event_name]
+
+        logs = filter(lambda entry: entry.name in event_name, self.logs)
+        return len(logs) > 0
 
     ###########################################################################
     def to_document(self):
@@ -183,9 +200,19 @@ class BackupLogEntry(object):
 
     ###########################################################################
     def __init__(self):
+        self._name = None
         self._date = None
         self._state = None
         self._message = None
+
+    ###########################################################################
+    @property
+    def name(self):
+        return self._name
+
+    @name.setter
+    def name(self, name):
+        self._name = name
 
     ###########################################################################
     @property
@@ -218,6 +245,7 @@ class BackupLogEntry(object):
     def to_document(self):
         return {
             "_type": "BackupLogEntry",
+            "name": self.name,
             "date": self.date,
             "state": self.state,
             "message": self.message
