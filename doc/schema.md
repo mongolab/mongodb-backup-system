@@ -53,18 +53,10 @@
 * Properties differ depending on type
 
 ```
-// ServerSource
+// MongoDBSource
 {
-    "_type": "backup.backup_new.ServerSource",
-    "address": <string>, // "host:port"
-    "adminUsername": <string>,
-    "adminPassword": <string>
-}
-
-// MongoLabServerSource
-{
-    "_type": "backup.backup_new.MongoLabServerSource",
-    "serverId": <string>
+    "_type": "backup.backup_new.MongoDBSource",
+    "uri": <string>, // supports server or db uris
 }
 
 // MongoLabClusterSource
@@ -73,18 +65,18 @@
     "clusterId": <string>
 }
 
-// Database Source
 
+// MongoLabServerSource
 {
-    "_type": "backup.backup_new.DatabaseSource",
-    "databaseURI": <string> // mongodb uri
+    "_type": "backup.backup_new.MongoLabServerSource",
+    "serverId": <string>
 }
 
 // Hosted Database Source
 
 {
-    "_type": "backup.backup_new.HostedDatabaseSource",
-    "hostedDatabaseId": <string>
+    "_type": "backup.backup_new.MongoLabDatabaseSource",
+    "databaseId": <string>
 }
 
 ```
