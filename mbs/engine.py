@@ -414,9 +414,7 @@ class BackupWorker(Thread):
 
     ###########################################################################
     def backup_dir_name(self, backup):
-        return "%s_%s_%s" % (backup.plan._id,
-                             backup._id,
-                             timestamp_to_dir_str(backup.plan_occurrence))
+        return "%s" % backup.id
 
 
     ###########################################################################
