@@ -265,7 +265,7 @@ class BackupWorker(Thread):
 
             # success!
             self.engine.worker_success(self)
-            self.error("Backup '%s' completed successfully" % backup.id)
+            self.info("Backup '%s' completed successfully" % backup.id)
         except Exception, e:
             # fail
             self.error("Backup failed. Cause %s" % e)
