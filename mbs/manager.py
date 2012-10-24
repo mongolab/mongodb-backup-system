@@ -48,7 +48,7 @@ class PlanManager(Thread):
                 time.sleep(self._sleep_time)
             except Exception, e:
                 self.error("Caught an error: '%s'.\nStack Trace:\n%s" %
-                           traceback.format_exc())
+                           (e, traceback.format_exc()))
                 self._notify__error(e)
 
 
@@ -238,12 +238,12 @@ class PlanManager(Thread):
     def save_plan(self, plan):
         try:
 
-            self.debug("Validating plan '%s'" % plan._id)
+            self.debug("Validating plan %s" % plan)
             errors = plan.validate()
             if errors:
-                err_msg = ("Plan '%s' is invalid."
+                err_msg = ("Plan %s is invalid."
                            "Please correct the following errors and then try"
-                           " saving again.\n%s" % (plan.id, errors))
+                           " saving again.\n%s" % (plan, errors))
 
                 raise PlanManagerException(err_msg)
 
@@ -253,8 +253,8 @@ class PlanManager(Thread):
 
             self.info("Plan saved successfully")
         except Exception, e:
-            raise PlanManagerException("Error while saving plan '%s'. %s" %
-                                       (plan.id, e))
+            raise PlanManagerException("Error while saving plan %s. %s" %
+                                       (plan, e))
 
     ###########################################################################
     def remove_plan(self, plan):
@@ -316,4 +316,4 @@ class PlanManagerException(MBSException):
 
     ###########################################################################
     def __init__(self, message, cause=None):
-        MBSException.__init__(message, cause=cause)
+        MBSException.__init__(self, message, cause=cause)

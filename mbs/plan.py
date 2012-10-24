@@ -21,11 +21,13 @@ ALL_STRATEGIES = [STRATEGY_DUMP, STRATEGY_EBS_SNAPSHOT, STRATEGY_DB_FILES]
 class BackupPlan(object):
     def __init__(self):
         self._id = None
+        self._description = None
         self._source = None
         self._target = None
         self._schedule = None
         self._next_occurrence = None
         self._strategy = None
+        self._generator = None
 
     ###########################################################################
     @property
@@ -34,7 +36,16 @@ class BackupPlan(object):
 
     @id.setter
     def id(self, id):
-        self._id = str(id)
+        self._id = id
+
+    ###########################################################################
+    @property
+    def description(self):
+        return self._description
+
+    @description.setter
+    def description(self, description):
+        self._description = description
 
     ###########################################################################
     @property
@@ -83,6 +94,15 @@ class BackupPlan(object):
         self._strategy = strategy
 
     ###########################################################################
+    @property
+    def generator(self):
+        return self._generator
+
+    @generator.setter
+    def generator(self, generator):
+        self._generator = generator
+
+    ###########################################################################
     def next_natural_occurrence(self):
 
         last_natural_occurrence = self.last_natural_occurrence()
@@ -128,6 +148,7 @@ class BackupPlan(object):
     def to_document(self):
         doc = {
             "_type": "Plan",
+            "description": self.description,
             "source": self.source.to_document(),
             "target": self.target.to_document(),
             "schedule": self.schedule.to_document(),
@@ -137,6 +158,9 @@ class BackupPlan(object):
 
         if self.id:
             doc["_id"] = self.id
+
+        if self.generator:
+            doc["generator"] = self.generator
 
         return doc
 
@@ -159,9 +183,6 @@ class BackupPlan(object):
          validation errors
         """
         errors = []
-        #  id
-        if not self.id:
-            errors.append("Missing plan '_id'")
 
         #  schedule
         if not self.schedule:
