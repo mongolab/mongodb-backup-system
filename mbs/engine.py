@@ -354,7 +354,9 @@ class BackupWorker(Thread):
     def _dump_source(self, source, dest):
         dump_cmd = ["/usr/local/bin/mongoctl",
                     "dump", source.source_uri,
-                    "-o",dest]
+                    "-o",dest,
+                    "--oplog",
+                    "--forceTableScan"]
 
         if source.username:
             dump_cmd.extend(["-u", source.username])
