@@ -94,18 +94,21 @@ class BackupEngine(Thread):
         self._recover()
 
         while True:
-            # if max workers are reached then sleep
-            if self._worker_count >= self.max_workers:
-                time.sleep(self._sleep_time)
-                continue
-
             self.info("Reading next scheduled backup...")
             backup = self.read_next_backup()
-            self.info("Received  backup %s" % backup)
-            worker_id = self.next_worker_id()
-            self.info("Starting BackupWorker %s for backup %s" %
-                      (worker_id, backup._id))
-            BackupWorker(worker_id, backup, self).start()
+            self._start_backup(backup)
+
+    ###########################################################################
+    def _start_backup(self, backup):
+        # if max workers are reached then sleep
+        while self._worker_count >= self.max_workers:
+            time.sleep(self._sleep_time)
+
+        self.info("Received  backup %s" % backup)
+        worker_id = self.next_worker_id()
+        self.info("Starting backup %s, BackupWorker %s" %
+                  (backup._id, worker_id))
+        BackupWorker(worker_id, backup, self).start()
 
     ###########################################################################
     def next_worker_id(self):
@@ -184,10 +187,12 @@ class BackupEngine(Thread):
 
     ###########################################################################
     def _recover_backup(self, backup):
-        self.info("Scheduling backup '%s' for recovery." % backup.id)
-        self.update_backup_state(backup,
-                                 STATE_SCHEDULED,
-                                 message="Scheduling for recovery")
+        self.info("Recovery: Resuming backup '%s'" % backup.id)
+        self.log_backup_event(backup,
+                              name="RECOVERY",
+                              message="Resuming backup")
+
+        self._start_backup(backup)
 
     ###########################################################################
     def _is_backup_recoverable(self, backup):
@@ -260,6 +265,7 @@ class BackupWorker(Thread):
 
             # success!
             self.engine.worker_success(self)
+            self.error("Backup '%s' completed successfully" % backup.id)
         except Exception, e:
             # fail
             self.error("Backup failed. Cause %s" % e)

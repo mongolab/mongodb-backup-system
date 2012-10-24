@@ -14,7 +14,7 @@ TYPE_BINDINGS = {
     "EbsVolumeSource": "mbs.source.EbsVolumeSource",
     "S3BucketTarget": "mbs.target.S3BucketTarget",
     "EbsSnapshotTarget": "mbs.target.EbsSnapshotTarget",
-    "FileTargetReference": "mbs.target.FileTargetReference",
+    "FileReference": "mbs.target.FileReference",
     "EbsSnapshotReference": "mbs.target.EbsSnapshotReference",
     "AuditReport": "mbs.audit.AuditReport",
     "AuditEntry": "mbs.audit.AuditEntry",
