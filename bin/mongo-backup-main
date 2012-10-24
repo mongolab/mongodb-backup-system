@@ -4,9 +4,12 @@ __author__ = 'abdul'
 
 import sys
 import traceback
-from dargparse import dargparse
+import os
 
+from dargparse import dargparse
+from pymongo.objectid import ObjectId
 from mbs.core import get_mbs_core
+from mbs.backup import STATE_SUCCEEDED
 
 ###############################################################################
 # MAIN
@@ -48,6 +51,26 @@ def start_plan_manager(parsed_args):
 def generate_audit_reports(parsed_args):
     global_auditor = get_mbs_core().global_auditor
     global_auditor.generate_yesterday_audit_reports()
+
+###############################################################################
+def download_backup(parsed_args):
+    backup_id = parsed_args.backupId
+    backup = get_mbs_core().backup_collection.find_one({"_id": ObjectId(backup_id)})
+
+    try:
+        if backup:
+            if backup.state == STATE_SUCCEEDED:
+                backup.target.get_file(backup.target_reference, os.getcwd())
+            else:
+                print ("Cannot download backup '%s' because it was"
+                       " not successful" % backup_id)
+                exit(1)
+        else:
+            print "No such backup '%s'" % backup_id
+            exit(1)
+    except Exception, e:
+        print "%s" % e
+        exit(1)
 
 ###############################################################################
 # command parser
@@ -100,6 +123,23 @@ PARSER_DEF = {
             "shortDescription" : "generates audit reports as of yesterday",
             "description" : "generates audit reports as of yesterday",
             "function": generate_audit_reports
+        },
+
+            {
+            "prog": "download-backup",
+            "shortDescription" : "Downloads backup file from target to "
+                                 "current working directory",
+            "description" : "Downloads backup file from target to "
+                            "current working directory",
+            "args": [
+                {
+                "name": "backupId",
+                "type" : "positional",
+                "nargs": 1,
+                "displayName": "BACKUP_ID",
+                "help": "Backup id"
+            }],
+            "function": download_backup
         }
     ]
 }

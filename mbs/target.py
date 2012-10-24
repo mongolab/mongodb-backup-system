@@ -2,6 +2,7 @@ __author__ = 'abdul'
 
 import traceback
 import os
+import sys
 
 import mbs_logging
 from utils import document_pretty_string
@@ -26,6 +27,10 @@ class BackupTarget(object):
 
     ###########################################################################
     def put_file(self, file_path):
+        pass
+
+    ###########################################################################
+    def get_file(self, file_name, destination):
         pass
 
     ###########################################################################
@@ -70,9 +75,9 @@ class S3BucketTarget(BackupTarget):
 
             logger.info("S3BucketTarget: Uploading %s to s3 bucket %s" %
                         (file_path, self.bucket_name))
-            conn = S3Connection(self.access_key, self.secret_key)
-            bucket = conn.get_bucket(self.bucket_name)
 
+
+            bucket = self._get_bucket()
             k = Key(bucket)
             file_key = os.path.basename(file_path)
             k.key = file_key
@@ -91,6 +96,40 @@ class S3BucketTarget(BackupTarget):
             raise Exception(msg, e)
 
     ###########################################################################
+    def get_file(self, file_reference, destination):
+        try:
+
+            file_name = file_reference.file_name
+            print("Downloading '%s' from s3 bucket '%s'" %
+                        (file_name, self.bucket_name))
+
+            bucket = self._get_bucket()
+            key = bucket.get_key(file_name)
+
+            if not key:
+                raise Exception("No such file '%s' in bucket '%s'" %
+                                (file_name, self.bucket_name))
+            file_obj = open(os.path.join(destination, file_name), mode="w")
+
+            def download_progress(bytes_downloaded, total):
+                percentage = (float(bytes_downloaded)/float(total)) * 100
+                sys.stdout.write("\rDownloaded %s bytes of %s. %%%i completed" %
+                                 (bytes_downloaded, total, percentage))
+                sys.stdout.flush()
+
+            num_call_backs = key.size / 1000
+            key.get_contents_to_file(file_obj, cb=download_progress,
+                                     num_cb=num_call_backs)
+
+            print("Download completed successfully!!")
+
+        except Exception, e:
+            msg = ("S3BucketTarget: Error while trying to download '%s'"
+                   " from s3 bucket %s. Cause: %s" %
+                   (file_name, self.bucket_name, e))
+            raise Exception(msg, e)
+
+    ###########################################################################
     @property
     def bucket_name(self):
         return self._bucket_name
@@ -98,6 +137,11 @@ class S3BucketTarget(BackupTarget):
     @bucket_name.setter
     def bucket_name(self, bucket_name):
         self._bucket_name = str(bucket_name)
+
+    ###########################################################################
+    def _get_bucket(self):
+        conn = S3Connection(self.access_key, self.secret_key)
+        return conn.get_bucket(self.bucket_name)
 
     ###########################################################################
     @property
