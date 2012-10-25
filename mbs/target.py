@@ -6,7 +6,6 @@ import sys
 
 import mbs_logging
 from base import MBSObject
-from utils import document_pretty_string
 
 from boto.s3.connection import S3Connection
 from boto.s3.key import Key

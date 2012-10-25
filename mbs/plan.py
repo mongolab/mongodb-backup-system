@@ -3,8 +3,7 @@ __author__ = 'abdul'
 from base import MBSObject
 from datetime import timedelta
 from utils import (seconds_to_date, date_to_seconds, date_plus_seconds,
-                   date_now, document_pretty_string, epoch_date,
-                   is_date_value)
+                   date_now, epoch_date, is_date_value)
 
 ###############################################################################
 # CONSTANTS

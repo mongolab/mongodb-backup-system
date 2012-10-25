@@ -5,11 +5,11 @@ import mbs_logging
 import traceback
 from threading import Thread
 
-from utils import date_now, document_pretty_string
+from utils import date_now
 from errors import MBSException
 
 from backup import (Backup, STATE_SCHEDULED, STATE_IN_PROGRESS, STATE_FAILED,
-                    STATE_SUCCEEDED, STATE_CANCELED)
+                    STATE_CANCELED)
 ###############################################################################
 ########################                                #######################
 ######################## Plan Management and Scheduling #######################

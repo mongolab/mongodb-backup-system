@@ -13,13 +13,13 @@ from subprocess import CalledProcessError
 
 from errors import MBSException
 
-from utils import (which, ensure_dir, execute_command, timestamp_to_dir_str,
+from utils import (which, ensure_dir, execute_command,
                    wait_for, resolve_path)
 
-from plan import STRATEGY_DUMP, STRATEGY_DB_FILES, STRATEGY_EBS_SNAPSHOT
+from plan import STRATEGY_DUMP, STRATEGY_EBS_SNAPSHOT
 
-from backup import (Backup, STATE_SCHEDULED, STATE_IN_PROGRESS, STATE_FAILED,
-                    STATE_SUCCEEDED, STATE_CANCELED)
+from backup import (STATE_SCHEDULED, STATE_IN_PROGRESS, STATE_FAILED,
+                    STATE_SUCCEEDED)
 
 from target import EbsSnapshotReference
 

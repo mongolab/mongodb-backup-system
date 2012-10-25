@@ -1,6 +1,6 @@
 __author__ = 'abdul'
 
-from utils import document_pretty_string, date_now
+from utils import date_now
 from base import MBSObject
 ###############################################################################
 # CONSTANTS
