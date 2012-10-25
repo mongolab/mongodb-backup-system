@@ -4,7 +4,9 @@ from makerpy.object_collection import ObjectCollection
 from makerpy.maker import resolve_class, Maker
 from type_bindings import TYPE_BINDINGS
 
-from utils import read_config_json, mongo_connect
+from utils import read_config_json
+from mongo_utils import mongo_connect
+
 from backup import Backup
 from plan import BackupPlan
 from audit import AuditReport, GlobalAuditor, PlanAuditor

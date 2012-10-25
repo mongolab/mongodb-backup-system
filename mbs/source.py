@@ -1,7 +1,8 @@
 __author__ = 'abdul'
 
 from base import MBSObject
-from utils import document_pretty_string, is_cluster_mongo_uri, is_mongo_uri
+from mongo_utils import (get_best_source_member, is_cluster_mongo_uri,
+                         is_mongo_uri, MongoServer)
 
 from boto.ec2.connection import EC2Connection
 
@@ -55,17 +56,17 @@ class SourceStats(MBSObject):
 
     ###########################################################################
     def __init__(self):
-        self._last_optime = None
+        self._optime = None
         self._repl_lag = None
 
     ###########################################################################
     @property
-    def last_optime(self):
-        return self._last_optime
+    def optime(self):
+        return self._optime
 
-    @last_optime.setter
-    def last_optime(self, last_optime):
-        self._last_optime = last_optime
+    @optime.setter
+    def optime(self, optime):
+        self._optime = optime
 
     ###########################################################################
     @property
@@ -78,16 +79,13 @@ class SourceStats(MBSObject):
 
     ###########################################################################
     def to_document(self):
-        doc = {
-            "_type": "SourceStats"
+        return {
+            "_type": "SourceStats",
+            "optime": self.optime,
+            "replLag": self.repl_lag
+
         }
-        if self.last_optime:
-            doc["lastOptime"] = self.last_optime
 
-        if self.repl_lag:
-            doc["replLag"] = self.repl_lag
-
-        return doc
 
 ###############################################################################
 # Database Source
@@ -111,7 +109,11 @@ class MongoSource(BackupSource):
     ###########################################################################
     @property
     def source_address(self):
-        return self.database_address
+        if self.is_cluster_source():
+            mongo_server = self._get_source_mongo_server()
+            return mongo_server.uri
+        else:
+            return self.database_address
 
     ###########################################################################
     def to_document(self):
@@ -134,6 +136,21 @@ class MongoSource(BackupSource):
             errors.append("Invalid 'databaseAddress'.%s" % e)
 
         return errors
+
+    ###########################################################################
+    def get_current_stats(self):
+        mongo_server = self._get_source_mongo_server()
+        stats = SourceStats()
+        stats.repl_lag = mongo_server.lag
+        stats.optime = mongo_server.optime
+        return stats
+
+    ###########################################################################
+    def _get_source_mongo_server(self):
+        if self.is_cluster_source():
+            return get_best_source_member(self.source_address)
+        else:
+            return MongoServer(self.source_address)
 
 ###############################################################################
 # EbsVolumeSource

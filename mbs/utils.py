@@ -6,11 +6,10 @@ import subprocess
 import json
 import time
 
-import pymongo
+
 
 from bson import json_util
 from datetime import datetime, timedelta, date
-from pymongo import uri_parser, errors
 
 ###############################################################################
 ##################################         ####################################
@@ -69,6 +68,13 @@ def today_date():
 def is_date_value(value):
     return type(value) in [datetime, date]
 
+###############################################################################
+def timedelta_total_seconds(td):
+    """
+    Equivalent python 2.7+ timedelta.total_seconds()
+     This was added for python 2.6 compatibilty
+    """
+    return (td.microseconds + (td.seconds + td.days * 24 * 3600) * 1e6) / 1e6
 ###############################################################################
 # sub-processing functions
 ###############################################################################
@@ -156,59 +162,6 @@ def read_json_string(path, validate_exists=True):
                                 path)
     else:
         return None
-
-
-
-###############################################################################
-def mongo_connect(uri):
-    try:
-        dbname = pymongo.uri_parser.parse_uri(uri)['database']
-        if not dbname:
-            dbname = "admin"
-            if uri.endswith("/"):
-                uri += "admin"
-            else:
-                uri += "/admin"
-
-        return pymongo.Connection(uri)[dbname]
-    except Exception, e:
-        raise Exception("Could not establish a database connection to "
-                        "%s: %s" % (uri, e))
-
-
-###############################################################################
-def is_mongo_uri(value):
-    try:
-        parse_mongo_uri(value)
-        return True
-    except Exception,e:
-        return False
-
-###############################################################################
-def is_cluster_mongo_uri(mongo_uri):
-    """
-        Returns true if the specified mongo uri is a cluster connection
-    """
-    return len(parse_mongo_uri(mongo_uri)["nodelist"]) > 1
-
-###############################################################################
-def parse_mongo_uri(uri):
-    try:
-        uri_obj = uri_parser.parse_uri(uri)
-        # validate uri
-        nodes = uri_obj["nodelist"]
-        for node in nodes:
-            host = node[0]
-            if not host:
-                raise Exception("URI '%s' is missing a host." % uri)
-
-        return uri_obj
-    except errors.ConfigurationError, e:
-        raise Exception("Malformed URI '%s'. %s" % (uri, e))
-
-    except Exception, e:
-        raise Exception("Unable to parse mongo uri '%s'."
-                                " Cause: %s" % (e, uri))
 
 ###############################################################################
 def resolve_path(path):
