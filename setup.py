@@ -3,7 +3,7 @@ from setuptools import setup
 setup(
     name='mbs',
     version='0.1.0',
-    scripts=['bin/mongo-backup-main'],
+    scripts=['bin/mbs'],
     packages=['mbs'],
     install_requires=[
         "dargparse",
