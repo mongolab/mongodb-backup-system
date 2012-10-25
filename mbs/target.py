@@ -5,6 +5,7 @@ import os
 import sys
 
 import mbs_logging
+from base import MBSObject
 from utils import document_pretty_string
 
 from boto.s3.connection import S3Connection
@@ -19,7 +20,7 @@ logger = mbs_logging.logger
 ###############################################################################
 # Target Classes
 ###############################################################################
-class BackupTarget(object):
+class BackupTarget(MBSObject):
 
     ###########################################################################
     def __init__(self):
@@ -32,14 +33,6 @@ class BackupTarget(object):
     ###########################################################################
     def get_file(self, file_name, destination):
         pass
-
-    ###########################################################################
-    def to_document(self):
-        pass
-
-    ###########################################################################
-    def __str__(self):
-        return document_pretty_string(self.to_document())
 
     ###########################################################################
     def is_valid(self):
@@ -252,6 +245,7 @@ class EbsSnapshotTarget(BackupTarget):
             "accessKey": self.access_key,
             "secretKey": self.secret_key
         }
+
     ###########################################################################
     def validate(self):
         errors = []
@@ -268,19 +262,11 @@ class EbsSnapshotTarget(BackupTarget):
 # Target Reference Classes
 ###############################################################################
 
-class TargetReference(object):
+class TargetReference(MBSObject):
 
     ###########################################################################
     def __init__(self):
         pass
-
-    ###########################################################################
-    def to_document(self):
-        pass
-
-    ###########################################################################
-    def __str__(self):
-        return document_pretty_string(self.to_document())
 
 ###############################################################################
 # FileReference

@@ -19,9 +19,9 @@ class PlanGenerator(object):
         self._plan_collection = plan_collection
 
     ###########################################################################
-    def get_new_plans(self):
+    def get_plans_to_save(self):
         return []
 
     ###########################################################################
-    def get_expired_plans(self):
+    def get_plans_to_remove(self):
         return []

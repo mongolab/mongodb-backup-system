@@ -1,5 +1,6 @@
 __author__ = 'abdul'
 
+from base import MBSObject
 from datetime import timedelta
 from utils import (seconds_to_date, date_to_seconds, date_plus_seconds,
                    date_now, document_pretty_string, epoch_date,
@@ -18,7 +19,7 @@ ALL_STRATEGIES = [STRATEGY_DUMP, STRATEGY_EBS_SNAPSHOT, STRATEGY_DB_FILES]
 ###############################################################################
 # BackupPlan
 ###############################################################################
-class BackupPlan(object):
+class BackupPlan(MBSObject):
     def __init__(self):
         self._id = None
         self._description = None
@@ -165,10 +166,6 @@ class BackupPlan(object):
         return doc
 
     ###########################################################################
-    def __str__(self):
-        return document_pretty_string(self.to_document())
-
-    ###########################################################################
     def is_valid(self):
         errors = self.validate()
         if errors:
@@ -227,7 +224,7 @@ class BackupPlan(object):
 ###############################################################################
 # Schedule
 ###############################################################################
-class Schedule(object):
+class Schedule(MBSObject):
     def __init__(self):
         self._frequency = None
         self._offset = None
@@ -257,6 +254,3 @@ class Schedule(object):
             "frequency": self.frequency,
             "offset": self.offset
         }
-    ###########################################################################
-    def __str__(self):
-        return document_pretty_string(self.to_document())

@@ -1,6 +1,7 @@
 __author__ = 'abdul'
 
-from utils import document_pretty_string, is_cluster_mongo_uri, parse_mongo_uri
+from base import MBSObject
+from utils import document_pretty_string, is_cluster_mongo_uri, is_mongo_uri
 
 from boto.ec2.connection import EC2Connection
 
@@ -8,7 +9,7 @@ from boto.ec2.connection import EC2Connection
 ###############################################################################
 # Backup Source Classes
 ###############################################################################
-class BackupSource(object):
+class BackupSource(MBSObject):
 
     ###########################################################################
     def __init__(self):
@@ -20,13 +21,7 @@ class BackupSource(object):
         pass
 
     ###########################################################################
-    @property
-    def username(self):
-        pass
-
-    ###########################################################################
-    @property
-    def password(self):
+    def get_current_stats(self):
         pass
 
     ###########################################################################
@@ -53,133 +48,90 @@ class BackupSource(object):
         """
         return []
 
-    ###########################################################################
-    def __str__(self):
-        return document_pretty_string(self.to_document())
-
 ###############################################################################
-# ServerSource
+# SourceStats
 ###############################################################################
-class ServerSource(BackupSource):
+class SourceStats(MBSObject):
 
     ###########################################################################
     def __init__(self):
-        BackupSource.__init__(self)
-        self._address = None
-        self._admin_username = None
-        self._admin_password = None
+        self._last_optime = None
+        self._repl_lag = None
 
     ###########################################################################
     @property
-    def address(self):
-        return self._address
+    def last_optime(self):
+        return self._last_optime
 
-    @address.setter
-    def address(self, address):
-        self._address = address
-
-    ###########################################################################
-    @property
-    def username(self):
-        return self.admin_username
+    @last_optime.setter
+    def last_optime(self, last_optime):
+        self._last_optime = last_optime
 
     ###########################################################################
     @property
-    def password(self):
-        return self.admin_password
+    def repl_lag(self):
+        return self._repl_lag
 
-    ###########################################################################
-    @property
-    def admin_username(self):
-        return self._admin_username
-
-    @admin_username.setter
-    def admin_username(self, admin_username):
-        self._admin_username = admin_username
-
-    ###########################################################################
-    @property
-    def admin_password(self):
-        return self._admin_password
-
-    @admin_password.setter
-    def admin_password(self, admin_password):
-        self._admin_password = admin_password
-
-    ###########################################################################
-    @property
-    def source_uri(self):
-        return "mongodb://%s" % self.address
+    @repl_lag.setter
+    def repl_lag(self, repl_lag):
+        self._repl_lag = repl_lag
 
     ###########################################################################
     def to_document(self):
-        return {
-            "_type": "ServerSource",
-            "address": self.address,
-            "adminUsername": self.admin_username,
-            "adminPassword": self.admin_password
+        doc = {
+            "_type": "SourceStats"
         }
+        if self.last_optime:
+            doc["lastOptime"] = self.last_optime
 
-    ###########################################################################
-    def validate(self):
-        errors = []
-        if not self.address:
-            errors.append("Missing 'address' property")
+        if self.repl_lag:
+            doc["replLag"] = self.repl_lag
 
-        if not self.admin_username:
-            errors.append("Missing 'adminUsername' property")
-
-        if not self.password:
-            errors.append("Missing 'password' property")
-
-        return errors
+        return doc
 
 ###############################################################################
 # Database Source
 ###############################################################################
-class DatabaseSource(BackupSource):
+class MongoSource(BackupSource):
 
     ###########################################################################
     def __init__(self):
         BackupSource.__init__(self)
-        self._database_uri = None
+        self._database_address = None
 
     ###########################################################################
     @property
-    def database_uri(self):
-        return self._database_uri
+    def database_address(self):
+        return self._database_address
 
-    @database_uri.setter
-    def  database_uri(self, database_uri):
-        self._database_uri = database_uri
+    @database_address.setter
+    def database_address(self, address):
+        self._database_address = address
 
     ###########################################################################
     @property
     def source_uri(self):
-        return self.database_uri
+        return self.database_address
 
     ###########################################################################
     def to_document(self):
         return {
-            "_type": "DatabaseSource",
-            "databaseUri": self.database_uri
+            "_type": "MongoSource",
+            "databaseAddress": self.database_address
         }
 
     ###########################################################################
     def is_cluster_source(self):
-        return is_cluster_mongo_uri(self.database_uri)
+        return is_cluster_mongo_uri(self.source_uri)
 
 
     ###########################################################################
     def validate(self):
         errors = []
-        if not self.database_uri:
-            errors.append("Missing 'databaseUri' property")
-
-        try:
-            parse_mongo_uri(self.database_uri)
-        except Exception, e:
-            errors.append("Invalid 'databaseUri'.%s" % e)
+        if not self.database_address:
+            errors.append("Missing 'databaseAddress' property")
+        elif not is_mongo_uri(self.database_address):
+            errors.append("Invalid 'databaseAddress'.%s" % e)
 
         return errors
 

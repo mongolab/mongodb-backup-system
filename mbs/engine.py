@@ -295,6 +295,9 @@ class BackupWorker(Thread):
                                              name=EVENT_START_EXTRACT,
                                              message="Dumping source")
 
+                # record source stats
+                backup.source_stats = backup.source.get_current_stats()
+
                 self._dump_source(backup.source, temp_dir)
                 self.engine.log_backup_event(backup,
                                              name=EVENT_END_EXTRACT,
@@ -358,22 +361,12 @@ class BackupWorker(Thread):
                     "--oplog",
                     "--forceTableScan"]
 
-        if source.username:
-            dump_cmd.extend(["-u", source.username])
-        if source.password:
-            dump_cmd.extend(["-p", source.password])
-
         # if the source is a cluster source then
 
         if source.is_cluster_source():
             dump_cmd.append("--use-best-secondary")
 
-        cmd_display =  dump_cmd[:]
-        # mask password
-        if source.password:
-            cmd_display[cmd_display.index("-p") + 1] =  "****"
-
-        self.info("Running dump command: %s" % " ".join(cmd_display))
+        self.info("Running dump command: %s" % " ".join(dump_cmd))
 
         try:
             execute_command(dump_cmd)

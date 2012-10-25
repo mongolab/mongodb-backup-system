@@ -1,7 +1,7 @@
 __author__ = 'abdul'
 
 from utils import document_pretty_string, date_now
-
+from base import MBSObject
 ###############################################################################
 # CONSTANTS
 ###############################################################################
@@ -16,13 +16,14 @@ EVENT_STATE_CHANGE = "STATE_CHANGE"
 ###############################################################################
 # Backup
 ###############################################################################
-class Backup(object):
+class Backup(MBSObject):
     def __init__(self):
         # init fields
         self._id = None
         self._state = None
         self._strategy = None
         self._source = None
+        self._source_stats = None
         self._target = None
         self._target_reference = None
         self._plan = None
@@ -74,6 +75,15 @@ class Backup(object):
     @source.setter
     def source(self, source):
         self._source = source
+
+    ###########################################################################
+    @property
+    def source_stats(self):
+        return self._source_stats
+
+    @source_stats.setter
+    def source_stats(self, source_stats):
+        self._source_stats = source_stats
 
     ###########################################################################
     @property
@@ -178,6 +188,9 @@ class Backup(object):
         if self.target_reference:
             doc["targetReference"] = self.target_reference.to_document()
 
+        if self.source_stats:
+            doc["sourceStats"] = self.source_stats.to_document()
+
         return doc
 
     ###########################################################################
@@ -188,15 +201,11 @@ class Backup(object):
 
         return result
 
-    ###########################################################################
-    def __str__(self):
-        return document_pretty_string(self.to_document())
-
 
 ###############################################################################
 # BackupLogEntry
 ###############################################################################
-class BackupLogEntry(object):
+class BackupLogEntry(MBSObject):
 
     ###########################################################################
     def __init__(self):
@@ -250,7 +259,3 @@ class BackupLogEntry(object):
             "state": self.state,
             "message": self.message
         }
-
-    ###########################################################################
-    def __str__(self):
-        return document_pretty_string(self.to_document())

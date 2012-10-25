@@ -83,6 +83,7 @@ class PlanManager(Thread):
             err_msg = ("Plan '%s' is invalid.Please correct the following"
                        " errors.\n%s" % (plan.id, errors))
             self.error(err_msg)
+            return
             # TODO disable plan ???
 
         now = date_now()
@@ -247,7 +248,10 @@ class PlanManager(Thread):
 
                 raise PlanManagerException(err_msg)
 
-            self.info("Saving plan: \n%s" % plan)
+            if plan.id:
+                self.info("Updating plan: \n%s" % plan)
+            else:
+                self.info("Saving new plan: \n%s" % plan)
 
             self._plan_collection.save_document(plan.to_document())
 
@@ -276,13 +280,11 @@ class PlanManager(Thread):
     def _run_generator(self, generator):
 
         # save new plans
-        for plan in generator.get_new_plans():
-            self.info("Getting newly generated plan:\n%s " % plan)
+        for plan in generator.get_plans_to_save():
             self.save_plan(plan)
 
         # remove expired plans
-        for plan in generator.get_expired_plans():
-            self.info("Removing expired plan '%s' " % plan.id)
+        for plan in generator.get_plans_to_remove():
             self.remove_plan(plan)
 
     ###########################################################################

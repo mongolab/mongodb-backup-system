@@ -1,5 +1,6 @@
 __author__ = 'abdul'
 
+from base import MBSObject
 from mbs.backup import STATE_SUCCEEDED, STATE_FAILED
 import mbs_logging
 from mbs.utils import yesterday_date, document_pretty_string, date_to_str
@@ -40,7 +41,7 @@ class BackupAuditor(object):
 ###############################################################################
 # AuditReport
 ###############################################################################
-class AuditReport(object):
+class AuditReport(MBSObject):
     ###########################################################################
     def __init__(self):
         self._id = None
@@ -142,15 +143,12 @@ class AuditReport(object):
         return map(lambda entry: entry.to_document(),
                    self.failed_audits)
 
-    ###########################################################################
-    def __str__(self):
-        return document_pretty_string(self.to_document())
 
 ###############################################################################
 # AuditEntry
 ###############################################################################
 
-class AuditEntry(object):
+class AuditEntry(MBSObject):
 
     ###########################################################################
     def __init__(self):
@@ -194,10 +192,6 @@ class AuditEntry(object):
             doc["backup"] = self.backup.to_document()
 
         return doc
-
-    ###########################################################################
-    def __str__(self):
-        return document_pretty_string(self.to_document())
 
 ###############################################################################
 # PlanBackupAuditor

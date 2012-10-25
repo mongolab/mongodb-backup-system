@@ -170,6 +170,14 @@ def mongo_connect(uri):
 
 
 ###############################################################################
+def is_mongo_uri(value):
+    try:
+        parse_mongo_uri(value)
+        return True
+    except Exception,e:
+        return False
+
+###############################################################################
 def is_cluster_mongo_uri(mongo_uri):
     return len(parse_mongo_uri(mongo_uri)["nodelist"]) > 1
 
