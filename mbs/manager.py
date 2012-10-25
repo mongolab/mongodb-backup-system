@@ -279,13 +279,13 @@ class PlanManager(Thread):
     ###########################################################################
     def _run_generator(self, generator):
 
-        # save new plans
-        for plan in generator.get_plans_to_save():
-            self.save_plan(plan)
-
         # remove expired plans
         for plan in generator.get_plans_to_remove():
             self.remove_plan(plan)
+
+        # save new plans
+        for plan in generator.get_plans_to_save():
+            self.save_plan(plan)
 
     ###########################################################################
     def _notify_error(self, exception):
