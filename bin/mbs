@@ -7,8 +7,8 @@ import traceback
 import os
 
 from dargparse import dargparse
-from pymongo.objectid import ObjectId
-from mbs.core import get_mbs_core
+from bson.objectid import ObjectId
+from mbs.mbs import get_mbs
 from mbs.backup import STATE_SUCCEEDED
 
 ###############################################################################
@@ -39,23 +39,23 @@ def start_engine(parsed_args):
     if parsed_args.tempDir:
         kwargs["temp_dir"] = parsed_args.tempDir
 
-    backup_engine = get_mbs_core().create_backup_engine(engine_id, **kwargs)
+    backup_engine = get_mbs().create_backup_engine(engine_id, **kwargs)
     backup_engine.start()
 
 ###############################################################################
 def start_plan_manager(parsed_args):
-    manager = get_mbs_core().plan_manager
+    manager = get_mbs().plan_manager
     manager.start()
 
 ###############################################################################
 def generate_audit_reports(parsed_args):
-    global_auditor = get_mbs_core().global_auditor
+    global_auditor = get_mbs().global_auditor
     global_auditor.generate_yesterday_audit_reports()
 
 ###############################################################################
 def download_backup(parsed_args):
     backup_id = parsed_args.backupId
-    backup = get_mbs_core().backup_collection.find_one({"_id": ObjectId(backup_id)})
+    backup = get_mbs().backup_collection.find_one({"_id": ObjectId(backup_id)})
 
     try:
         if backup:
@@ -76,8 +76,8 @@ def download_backup(parsed_args):
 # command parser
 ###############################################################################
 PARSER_DEF = {
-    "prog": "mongo-backup-main",
-    "usage": "Usage: mongo-backup-main [<options>] <command> [<command-args>]",
+    "prog": "mbs",
+    "usage": "Usage: mbs [<options>] <command> [<command-args>]",
     "description" : "contains commands for the mongodb-backup-system",
     "children":[
         #### start-engine ####

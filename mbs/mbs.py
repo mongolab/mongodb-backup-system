@@ -17,9 +17,9 @@ from manager import PlanManager
 MBS_CONFIG = "~/.mbs/mbs.config"
 
 ###############################################################################
-# MBSCore
+# MBS
 ###############################################################################
-class MBSCore(object):
+class MBS(object):
 
     ###########################################################################
     def __init__(self, config):
@@ -117,20 +117,20 @@ class MBSCore(object):
         return self._maker.make(handler_conf)
 
 ###############################################################################
-# MBS Core Singleton
+# MBS Singleton
 ###############################################################################
-mbs_core = None
+mbs_singleton = None
 
-def get_mbs_core():
-    global mbs_core
-    if not mbs_core:
+def get_mbs():
+    global mbs_singleton
+    if not mbs_singleton:
         mbs_config = read_config_json("mbs", MBS_CONFIG)
-        core_type = mbs_config.get("coreType")
-        core_class = MBSCore
-        if core_type:
-            core_class = resolve_class(core_type)
+        mbs_type = mbs_config.get("_type")
+        mbs_class = MBS
+        if mbs_type:
+            mbs_class = resolve_class(mbs_type)
 
-        mbs_core = core_class(mbs_config)
-    return mbs_core
+        mbs_singleton = mbs_class(mbs_config)
+    return mbs_singleton
 
 

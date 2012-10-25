@@ -1,9 +1,9 @@
 __author__ = 'abdul'
 
 from base import MBSObject
-from mbs.backup import STATE_SUCCEEDED, STATE_FAILED
+from backup import STATE_SUCCEEDED
 import mbs_logging
-from mbs.utils import yesterday_date, document_pretty_string, date_to_str
+from utils import yesterday_date, date_to_str
 
 ###############################################################################
 # LOGGER
