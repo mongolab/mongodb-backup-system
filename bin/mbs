@@ -54,10 +54,11 @@ def generate_audit_reports(parsed_args):
 
 ###############################################################################
 def download_backup(parsed_args):
-    backup_id = parsed_args.backupId
-    backup = get_mbs().backup_collection.find_one({"_id": ObjectId(backup_id)})
 
     try:
+        backup_id = parsed_args.backupId
+        bc = get_mbs().backup_collection
+        backup = bc.find_one({"_id": ObjectId(backup_id)})
         if backup:
             if backup.state == STATE_SUCCEEDED:
                 backup.target.get_file(backup.target_reference, os.getcwd())
