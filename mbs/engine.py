@@ -356,7 +356,7 @@ class BackupWorker(Thread):
     ###########################################################################
     def _dump_source(self, source, dest):
         dump_cmd = ["/usr/local/bin/mongoctl",
-                    "dump", source.source_uri,
+                    "dump", source.source_address,
                     "-o",dest,
                     "--oplog",
                     "--forceTableScan"]

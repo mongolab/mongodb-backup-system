@@ -17,7 +17,7 @@ class BackupSource(MBSObject):
 
     ###########################################################################
     @property
-    def source_uri(self):
+    def source_address(self):
         pass
 
     ###########################################################################
@@ -110,7 +110,7 @@ class MongoSource(BackupSource):
 
     ###########################################################################
     @property
-    def source_uri(self):
+    def source_address(self):
         return self.database_address
 
     ###########################################################################
@@ -122,7 +122,7 @@ class MongoSource(BackupSource):
 
     ###########################################################################
     def is_cluster_source(self):
-        return is_cluster_mongo_uri(self.source_uri)
+        return is_cluster_mongo_uri(self.source_address)
 
 
     ###########################################################################

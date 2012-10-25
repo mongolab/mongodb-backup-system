@@ -163,6 +163,13 @@ def read_json_string(path, validate_exists=True):
 def mongo_connect(uri):
     try:
         dbname = pymongo.uri_parser.parse_uri(uri)['database']
+        if not dbname:
+            dbname = "admin"
+            if uri.endswith("/"):
+                uri += "admin"
+            else:
+                uri += "/admin"
+
         return pymongo.Connection(uri)[dbname]
     except Exception, e:
         raise Exception("Could not establish a database connection to "
@@ -179,6 +186,9 @@ def is_mongo_uri(value):
 
 ###############################################################################
 def is_cluster_mongo_uri(mongo_uri):
+    """
+        Returns true if the specified mongo uri is a cluster connection
+    """
     return len(parse_mongo_uri(mongo_uri)["nodelist"]) > 1
 
 ###############################################################################
