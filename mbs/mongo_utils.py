@@ -215,6 +215,34 @@ class MongoServer(object):
         return master_result and master_result.get("secondary")
 
     ###########################################################################
+    @property
+    def database_total_stats(self):
+        """
+            Returns true if the member is secondary
+        """
+        total_stats = {
+            "collections": 0,
+            "objects": 0,
+            "dataSize": 0,
+            "storageSize": 0,
+            "indexes": 0,
+            "indexSize": 0,
+            "fileSize": 0,
+            "nsSizeMB": 0
+        }
+        database_names = self._admin_db.connection.database_names()
+        for dbname in database_names:
+            db_stats = self._get_database_stats(dbname)
+            for key in total_stats.keys():
+                    total_stats[key] += db_stats.get(key) or 0
+
+        return total_stats
+
+    ###########################################################################
+    def _get_database_stats(self, dbname):
+        return self._admin_db.connection[dbname].command({"dbstats":1})
+
+    ###########################################################################
     def _get_rs_status(self):
         try:
             rs_status_cmd = SON([('replSetGetStatus', 1)])
