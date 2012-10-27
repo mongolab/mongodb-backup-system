@@ -125,11 +125,12 @@ def get_cluster_members(cluster_uri):
     members = []
     for node in nodes:
         address = "%s:%s" % (node[0], node[1])
-        database = uri_obj["database"] or ""
+        database = "/%s" % uri_obj["database"] if uri_obj["database"] else ""
+
         username = uri_obj["username"]
         password = uri_obj["password"]
         creds = "%s:%s@" % (username, password) if username else ""
-        member_uri = "mongodb://%s%s/%s" % (creds, address, database)
+        member_uri = "mongodb://%s%s%s" % (creds, address, database)
         members.append(MongoServer(member_uri))
 
     return members

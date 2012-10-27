@@ -189,7 +189,7 @@ class Backup(MBSObject):
             doc["targetReference"] = self.target_reference.to_document()
 
         if self.source_stats:
-            doc["sourceStats"] = self.source_stats.to_document()
+            doc["sourceStats"] = self.source_stats
 
         return doc
 

@@ -357,14 +357,15 @@ class BackupWorker(Thread):
     def _dump_source(self, source, dest):
         dump_cmd = ["/usr/local/bin/mongoctl",
                     "dump", source.source_address,
-                    "-o",dest,
-                    "--oplog",
-                    "--forceTableScan"]
+                    "-o",dest]
 
-        # if the source is a cluster source then
+        # if its a server level backup then add forceTableScan and oplog
+        if not source.database_name:
+            dump_cmd.extend([
+                "--oplog",
+                "--forceTableScan"]
+            )
 
-        if source.is_cluster_source():
-            dump_cmd.append("--use-best-secondary")
 
         self.info("Running dump command: %s" % " ".join(dump_cmd))
 
@@ -373,7 +374,7 @@ class BackupWorker(Thread):
         except CalledProcessError, e:
             msg = ("Failed to dump. Dump command '%s' returned a non-zero exit"
                    " status %s. Command output:\n%s" %
-                   (cmd_display, e.returncode, e.output))
+                   (dump_cmd, e.returncode, e.output))
             raise BackupEngineException(msg)
 
     ###########################################################################
