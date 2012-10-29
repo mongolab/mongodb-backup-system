@@ -175,6 +175,8 @@ class BackupEngine(Thread):
         total_failed = 0
         for backup in self._backup_collection.find(q):
             if self._is_backup_recoverable(backup):
+                # wait until we have workers available
+                self._wait_for_workers_availability()
                 self._recover_backup(backup)
                 total_recovered += 1
             else:
