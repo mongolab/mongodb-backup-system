@@ -94,21 +94,26 @@ class BackupEngine(Thread):
         self._recover()
 
         while True:
+            # wait until we have workers available
+            self._wait_for_workers_availability()
+            # Now that we have workers available ==> read next backup
             self.info("Reading next scheduled backup...")
             backup = self.read_next_backup()
             self._start_backup(backup)
 
     ###########################################################################
     def _start_backup(self, backup):
-        # if max workers are reached then sleep
-        while self._worker_count >= self.max_workers:
-            time.sleep(self._sleep_time)
-
         self.info("Received  backup %s" % backup)
         worker_id = self.next_worker_id()
         self.info("Starting backup %s, BackupWorker %s" %
                   (backup._id, worker_id))
         BackupWorker(worker_id, backup, self).start()
+
+    ###########################################################################
+    def _wait_for_workers_availability(self):
+    # if max workers are reached then sleep
+        while self._worker_count >= self.max_workers:
+            time.sleep(self._sleep_time)
 
     ###########################################################################
     def next_worker_id(self):
