@@ -236,7 +236,23 @@ class MongoServer(object):
             for key in total_stats.keys():
                     total_stats[key] += db_stats.get(key) or 0
 
-        return total_stats
+        # convert size to GB
+        def to_gb(bytes):
+            gb = 1024 * 1024 * 1024
+            return float(bytes) / gb
+
+        total_stats_gb = {
+            "collections": total_stats["collections"],
+            "objects": total_stats["objects"],
+            "dataSizeInGB": to_gb(total_stats["dataSize"]),
+            "storageSizeInGB": to_gb(total_stats["storageSize"]),
+            "indexes": total_stats["indexes"],
+            "indexSizeInGB": to_gb(total_stats["indexSize"]),
+            "fileSizeInGB": to_gb(total_stats["fileSize"]),
+            "nsSizeMB": total_stats["nsSizeMB"]
+        }
+
+        return total_stats_gb
 
     ###########################################################################
     def _get_database_stats(self, dbname):

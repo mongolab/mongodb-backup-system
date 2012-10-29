@@ -30,6 +30,7 @@ class Backup(MBSObject):
         self._plan_occurrence = None
         self._engine_id = None
         self._logs = []
+        self._backup_rate = None
 
     ###########################################################################
     @property
@@ -141,6 +142,25 @@ class Backup(MBSObject):
     def logs(self, logs):
         self._logs = logs
 
+
+    ###########################################################################
+    @property
+    def backup_rate(self):
+        return self._backup_rate
+
+    @backup_rate.setter
+    def backup_rate(self, backup_rate):
+        self._backup_rate = backup_rate
+
+    ###########################################################################
+    @property
+    def start_date(self):
+        """
+            Returns the date the backup was started
+            (i.e. date of 'IN PROGRESS' state)
+        """
+        return self._get_state_set_date(STATE_IN_PROGRESS)
+
     ###########################################################################
     def log_event(self, name, message=None):
         logs = self.logs
@@ -169,6 +189,17 @@ class Backup(MBSObject):
         return len(logs) > 0
 
     ###########################################################################
+    def _get_state_set_date(self, state):
+        """
+           Returns the date of when the backup was set to the specified state.
+           None if state was never set
+        """
+
+        state_logs = filter(lambda entry: entry.state == state, self.logs)
+        if state_logs:
+            return state_logs[0].date
+
+    ###########################################################################
     def to_document(self):
         doc = {
             "_type": "Backup",
@@ -190,6 +221,9 @@ class Backup(MBSObject):
 
         if self.source_stats:
             doc["sourceStats"] = self.source_stats
+
+        if self.backup_rate:
+            doc["backupRate"] = self.backup_rate
 
         return doc
 

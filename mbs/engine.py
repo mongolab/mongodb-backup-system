@@ -14,7 +14,7 @@ from subprocess import CalledProcessError
 from errors import MBSException
 
 from utils import (which, ensure_dir, execute_command,
-                   wait_for, resolve_path)
+                   wait_for, resolve_path, timedelta_total_seconds, date_now)
 
 from plan import STRATEGY_DUMP, STRATEGY_EBS_SNAPSHOT
 
@@ -279,7 +279,6 @@ class BackupWorker(Thread):
     ###########################################################################
     def _run_dump_backup(self, backup):
         temp_dir = None
-        tar_filename = None
         tar_file_path = None
 
         try:
@@ -332,7 +331,8 @@ class BackupWorker(Thread):
                                              name=EVENT_END_UPLOAD,
                                              message="Upload completed!")
 
-
+            # calculate backup rate
+            self._calculate_backup_rate(backup)
         finally:
             # cleanup
             # delete the temp dir
@@ -412,6 +412,13 @@ class BackupWorker(Thread):
     def backup_dir_name(self, backup):
         return "%s" % backup.id
 
+
+    def _calculate_backup_rate(self, backup):
+        duration = timedelta_total_seconds(date_now() - backup.start_date)
+        if backup.source_stats and backup.source_stats.get("fileSizeInGB"):
+            size = backup.source_stats["fileSizeInGB"]
+            rate = size/duration
+            backup.backup_rate = rate
 
     ###########################################################################
     # EBS Snapshot Strategy
