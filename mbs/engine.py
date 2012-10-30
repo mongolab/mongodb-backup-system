@@ -425,7 +425,7 @@ class BackupWorker(Thread):
         if backup.source_stats and backup.source_stats.get("fileSizeInGB"):
             size = backup.source_stats["fileSizeInGB"]
             rate = size/duration
-            backup.backup_rate = rate
+            backup.backup_rate = round(rate, 2)
 
     ###########################################################################
     # EBS Snapshot Strategy

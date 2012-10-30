@@ -238,8 +238,8 @@ class MongoServer(object):
 
         # convert size to GB
         def to_gb(bytes):
-            gb = 1024 * 1024 * 1024
-            return float(bytes) / gb
+            gbs = bytes/(1024 * 1024 * 1024)
+            return round(gbs, 2)
 
         total_stats_gb = {
             "collections": total_stats["collections"],
