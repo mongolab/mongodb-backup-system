@@ -54,7 +54,7 @@ class BackupEngine(Thread):
 
     ###########################################################################
     def __init__(self, engine_id, backup_collection, max_workers=10,
-                       sleep_time=10,
+                       sleep_time=1,
                        temp_dir=None,
                        notification_handler=None):
         Thread.__init__(self)
