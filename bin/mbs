@@ -42,6 +42,10 @@ def start_engine(parsed_args):
     backup_engine = get_mbs().create_backup_engine(engine_id, **kwargs)
     backup_engine.start()
 
+def stop_engine(parsed_args):
+    engine_id = parsed_args.engineId
+    print get_mbs().stop_backup_engine(engine_id)
+
 ###############################################################################
 def start_plan_manager(parsed_args):
     manager = get_mbs().plan_manager
@@ -112,6 +116,22 @@ PARSER_DEF = {
             ]
         },
 
+        #### stop-engine ####
+            {
+            "prog": "stop-engine",
+            "shortDescription" : "stops a backup engine",
+            "description" : "stops a backup engine",
+            "function": stop_engine,
+            "args": [
+                    {
+                    "name": "engineId",
+                    "type" : "positional",
+                    "nargs": 1,
+                    "displayName": "ENGINE_ID",
+                    "help": "An engine id"
+                }
+            ]
+        },
             {
             "prog": "start-plan-manager",
             "shortDescription" : "starts the plan manager",

@@ -7,6 +7,8 @@ import os
 import time
 import mbs_logging
 import shutil
+from flask import Flask, abort, jsonify, redirect, url_for
+from flask.globals import request
 
 from threading import Thread
 from subprocess import CalledProcessError
@@ -56,7 +58,8 @@ class BackupEngine(Thread):
     def __init__(self, engine_id, backup_collection, max_workers=10,
                        sleep_time=1,
                        temp_dir=None,
-                       notification_handler=None):
+                       notification_handler=None,
+                       command_port=8888):
         Thread.__init__(self)
         self._engine_id = engine_id
         self._backup_collection = backup_collection
@@ -65,6 +68,9 @@ class BackupEngine(Thread):
         self._max_workers = max_workers
         self._temp_dir = resolve_path(temp_dir or DEFAULT_BACKUP_TEMP_DIR_ROOT)
         self._notification_handler = notification_handler
+        self._stopped = False
+        self._command_port = command_port
+        self._command_server = EngineCommandServer(self)
 
     ###########################################################################
     @property
@@ -91,15 +97,20 @@ class BackupEngine(Thread):
         self.info("Starting up... ")
         self.info("TEMP DIR is '%s'" % self.temp_dir)
         ensure_dir(self._temp_dir)
+        # Start the command server
+        self._start_command_server()
         self._recover()
 
-        while True:
+        while not self._stopped:
             # wait until we have workers available
             self._wait_for_workers_availability()
             # Now that we have workers available ==> read next backup
             self.info("Reading next scheduled backup...")
             backup = self.read_next_backup()
-            self._start_backup(backup)
+            if backup:
+                self._start_backup(backup)
+
+        self.info("Exited main loop")
 
     ###########################################################################
     def _start_backup(self, backup):
@@ -215,14 +226,40 @@ class BackupEngine(Thread):
 
         c = self._backup_collection
         backup = None
-        while backup is None:
+        while not self._stopped and backup is None:
             time.sleep(self._sleep_time)
             backup = c.find_and_modify(query=q, update=u)
 
-        backup.engine_id = self.engine_id
-
+        if backup:
+            backup.engine_id = self.engine_id
         return backup
 
+    ###########################################################################
+    # Engine stopping
+    ###########################################################################
+    def stop(self):
+        self.info("Stopping engine gracefully. Waiting for %s workers"
+                  " to finish" % self._worker_count)
+
+        self._stopped = True
+        self._stop_command_server()
+
+    ###########################################################################
+    # Command Server
+    ###########################################################################
+
+    def _start_command_server(self):
+        self.info("Starting command server at port %s" % self._command_port)
+
+        self._command_server.start()
+        self.info("Command Server started successfully!")
+
+    ###########################################################################
+    def _stop_command_server(self):
+        self._command_server.stop()
+
+    ###########################################################################
+    # Logging methods
     ###########################################################################
     def info(self, msg):
         logger.info("<BackupEngine-%s>: %s" % (self.engine_id, msg))
@@ -497,6 +534,48 @@ class BackupWorker(Thread):
     ###########################################################################
     def error(self, msg):
         self._engine.error("Worker-%s: %s" % (self._id, msg))
+
+
+###############################################################################
+# EngineCommandServer
+###############################################################################
+class EngineCommandServer(Thread):
+
+    ###########################################################################
+    def __init__(self, engine):
+        Thread.__init__(self)
+        self._engine = engine
+        self._flask_server = self._build_flask_server()
+
+    ###########################################################################
+    def _build_flask_server(self):
+        flask_server = Flask(__name__)
+        engine = self._engine
+        @flask_server.route('/stop', methods=['GET'])
+        def stop_engine():
+            logger.info("Command Server: Received a stop command")
+            engine.stop()
+            return "Engine stopped successfully"
+
+        return flask_server
+
+    ###########################################################################
+    def run(self):
+        logger.info("EngineCommandServer: Running flask server ")
+        self._flask_server.run(host="0.0.0.0", port=self._engine._command_port,
+                               threaded=True)
+    ###########################################################################
+    def stop(self):
+        """
+            Stops the flask server
+            http://flask.pocoo.org/snippets/67/
+        """
+        logger.info("EngineCommandServer: Stopping flask server ")
+        shutdown = request.environ.get('werkzeug.server.shutdown')
+        if shutdown is None:
+            raise RuntimeError('Not running with the Werkzeug Server')
+        shutdown()
+        logger.info("EngineCommandServer: Flask server stopped successfully")
 
 ###############################################################################
 # BackupEngineException

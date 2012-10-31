@@ -1,8 +1,11 @@
 __author__ = 'abdul'
 
+import urllib
+
 from makerpy.object_collection import ObjectCollection
 from makerpy.maker import resolve_class, Maker
 from type_bindings import TYPE_BINDINGS
+from errors import MBSException
 
 from utils import read_config_json
 from mongo_utils import mongo_connect
@@ -95,6 +98,17 @@ class MBS(object):
         return BackupEngine(engine_id, self.backup_collection,
                             notification_handler=self._notification_handler,
                             **kwargs)
+
+    def stop_backup_engine(self, engine_id):
+        engine_port = 8888
+        url = "http://0.0.0.0:%s/stop" % engine_port
+        response = urllib.urlopen(url)
+        if response.getcode() == 200:
+            return response.read().strip()
+        else:
+            raise MBSException("Error while trying to stop engine '%s'"
+                                " URL (Response code %)" %
+                                (engine_id, url, response.getcode()))
 
     ###########################################################################
     @property
