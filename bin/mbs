@@ -35,7 +35,7 @@ def start_engine(parsed_args):
     engine_id = parsed_args.engineId
     kwargs = {}
     if parsed_args.maxWorkers:
-        kwargs["max_workers"] = parsed_args.maxWorkers
+        kwargs["max_workers"] = int(parsed_args.maxWorkers)
     if parsed_args.tempDir:
         kwargs["temp_dir"] = parsed_args.tempDir
 

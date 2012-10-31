@@ -65,7 +65,7 @@ class BackupEngine(Thread):
         self._backup_collection = backup_collection
         self._sleep_time = sleep_time
         self._worker_count = 0
-        self._max_workers = max_workers
+        self._max_workers = int(max_workers)
         self._temp_dir = resolve_path(temp_dir or DEFAULT_BACKUP_TEMP_DIR_ROOT)
         self._notification_handler = notification_handler
         self._stopped = False
