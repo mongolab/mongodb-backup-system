@@ -99,6 +99,7 @@ class MBS(object):
                             notification_handler=self._notification_handler,
                             **kwargs)
 
+    ###########################################################################
     def stop_backup_engine(self, engine_id):
         engine_port = 8888
         url = "http://0.0.0.0:%s/stop" % engine_port
@@ -107,8 +108,20 @@ class MBS(object):
             return response.read().strip()
         else:
             raise MBSException("Error while trying to stop engine '%s'"
-                                " URL (Response code %)" %
+                                " URL %s (Response code %)" %
                                 (engine_id, url, response.getcode()))
+
+    ###########################################################################
+    def stop_plan_manager(self):
+        manager_port = 9999
+        url = "http://0.0.0.0:%s/stop" % manager_port
+        response = urllib.urlopen(url)
+        if response.getcode() == 200:
+            return response.read().strip()
+        else:
+            raise MBSException("Error while trying to stop plan manager."
+                               " URL %s (Response code %)" %
+                               (url, response.getcode()))
 
     ###########################################################################
     @property

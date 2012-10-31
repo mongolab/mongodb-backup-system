@@ -5,6 +5,9 @@ import mbs_logging
 import traceback
 from threading import Thread
 
+from flask import Flask
+from flask.globals import request
+
 from utils import date_now
 from errors import MBSException
 
@@ -27,7 +30,8 @@ logger = mbs_logging.logger
 class PlanManager(Thread):
     ###########################################################################
     def __init__(self, plan_collection, backup_collection,
-                       sleep_time=10, notification_handler=None):
+                       sleep_time=10, notification_handler=None,
+                       command_port=9999):
 
         Thread.__init__(self)
         self._plan_collection = plan_collection
@@ -36,13 +40,18 @@ class PlanManager(Thread):
 
         self._registered_plan_generators = []
         self._tick_ring = 0
-
         self._notification_handler = notification_handler
+        self._stopped = False
+        self._command_port = command_port
+        self._command_server = ManagerCommandServer(self)
 
     ###########################################################################
     def run(self):
         self.info("Starting up... ")
-        while True:
+        # Start the command server
+        self._start_command_server()
+
+        while not self._stopped:
             try:
                 self._tick()
                 time.sleep(self._sleep_time)
@@ -51,6 +60,7 @@ class PlanManager(Thread):
                            (e, traceback.format_exc()))
                 self._notify__error(e)
 
+        self.info("Exited main loop")
 
     ###########################################################################
     def _tick(self):
@@ -297,6 +307,34 @@ class PlanManager(Thread):
             self._notification_handler.send_notification(subject, message)
 
     ###########################################################################
+    # Manager stopping
+    ###########################################################################
+    def stop(self):
+        """
+            Stops the manager gracefully by waiting for the current tick to
+             finish
+        """
+        self.info("Stopping manager gracefully. Waiting current tick"
+                  " to finish")
+
+        self._stopped = True
+        self._stop_command_server()
+
+    ###########################################################################
+    # Command Server
+    ###########################################################################
+
+    def _start_command_server(self):
+        self.info("Starting command server at port %s" % self._command_port)
+
+        self._command_server.start()
+        self.info("Command Server started successfully!")
+
+    ###########################################################################
+    def _stop_command_server(self):
+        self._command_server.stop()
+
+    ###########################################################################
     # logging
     ###########################################################################
     def info(self, msg):
@@ -310,6 +348,51 @@ class PlanManager(Thread):
     def debug(self, msg):
         logger.debug("PlanManager: %s" % msg)
 
+
+###############################################################################
+# ManagerCommandServer
+###############################################################################
+class ManagerCommandServer(Thread):
+
+    ###########################################################################
+    def __init__(self, manager):
+        Thread.__init__(self)
+        self._manager = manager
+        self._flask_server = self._build_flask_server()
+
+    ###########################################################################
+    def _build_flask_server(self):
+        flask_server = Flask(__name__)
+        manager = self._manager
+        @flask_server.route('/stop', methods=['GET'])
+        def stop_engine():
+            logger.info("Command Server: Received a stop command")
+            try:
+                manager.stop()
+                return "Manager stopped successfully"
+            except Exception, e:
+                return "Error while trying to stop manager: %s" % e
+
+        return flask_server
+
+    ###########################################################################
+    def run(self):
+        logger.info("ManagerCommandServer: Running flask server ")
+        self._flask_server.run(host="0.0.0.0",
+                               port=self._manager._command_port,
+                               threaded=True)
+        ###########################################################################
+    def stop(self):
+        """
+            Stops the flask server
+            http://flask.pocoo.org/snippets/67/
+        """
+        logger.info("EngineCommandServer: Stopping flask server ")
+        shutdown = request.environ.get('werkzeug.server.shutdown')
+        if shutdown is None:
+            raise RuntimeError('Not running with the Werkzeug Server')
+        shutdown()
+        logger.info("EngineCommandServer: Flask server stopped successfully")
 
 ###############################################################################
 # PlanManagerException

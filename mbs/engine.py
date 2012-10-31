@@ -7,7 +7,7 @@ import os
 import time
 import mbs_logging
 import shutil
-from flask import Flask, abort, jsonify, redirect, url_for
+from flask import Flask
 from flask.globals import request
 
 from threading import Thread
@@ -238,11 +238,17 @@ class BackupEngine(Thread):
     # Engine stopping
     ###########################################################################
     def stop(self):
+        """
+            Stops the engine gracefully by waiting for all workers to finish
+            and not starting any new workers.
+            Returns true if it will stop immediately (i.e. no workers running)
+        """
         self.info("Stopping engine gracefully. Waiting for %s workers"
                   " to finish" % self._worker_count)
 
         self._stopped = True
         self._stop_command_server()
+        return self._worker_count == 0
 
     ###########################################################################
     # Command Server
@@ -560,8 +566,15 @@ class EngineCommandServer(Thread):
         @flask_server.route('/stop', methods=['GET'])
         def stop_engine():
             logger.info("Command Server: Received a stop command")
-            engine.stop()
-            return "Engine stopped successfully"
+            try:
+                if engine.stop():
+                    return "Engine stopped successfully"
+                else:
+                    return ("Stop command received. Engine has %s workers "
+                            "running and will stop when all workers finish" %
+                            engine._worker_count)
+            except Exception, e:
+                return "Error while trying to stop engine: %s" % e
 
         return flask_server
 

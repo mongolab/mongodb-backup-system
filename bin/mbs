@@ -42,6 +42,7 @@ def start_engine(parsed_args):
     backup_engine = get_mbs().create_backup_engine(engine_id, **kwargs)
     backup_engine.start()
 
+###############################################################################
 def stop_engine(parsed_args):
     engine_id = parsed_args.engineId
     print get_mbs().stop_backup_engine(engine_id)
@@ -50,6 +51,10 @@ def stop_engine(parsed_args):
 def start_plan_manager(parsed_args):
     manager = get_mbs().plan_manager
     manager.start()
+
+###############################################################################
+def stop_plan_manager(parsed_args):
+    print get_mbs().stop_plan_manager()
 
 ###############################################################################
 def generate_audit_reports(parsed_args):
@@ -139,6 +144,13 @@ PARSER_DEF = {
             "function": start_plan_manager
         },
 
+        #### stop-plan-manager ####
+            {
+            "prog": "stop-plan-manager",
+            "shortDescription" : "stops the plan manager",
+            "description" : "stops the plan manager",
+            "function": stop_plan_manager
+        },
             {
             "prog": "generate-audit-reports",
             "shortDescription" : "generates audit reports as of yesterday",
