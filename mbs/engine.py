@@ -341,6 +341,12 @@ class BackupWorker(Thread):
                 # record source stats
                 backup.source_stats = backup.source.get_current_stats()
 
+                # save source stats if present
+                if backup.source_stats:
+                    self.engine.log_backup_event(backup,
+                        name="COMPUTED_SOURCE_STATS",
+                        message="Computed source stats")
+
                 self._dump_source(backup.source, temp_dir)
                 self.engine.log_backup_event(backup,
                                              name=EVENT_END_EXTRACT,
