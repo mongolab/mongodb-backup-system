@@ -75,6 +75,7 @@ def timedelta_total_seconds(td):
      This was added for python 2.6 compatibilty
     """
     return (td.microseconds + (td.seconds + td.days * 24 * 3600) * 1e6) / 1e6
+
 ###############################################################################
 # sub-processing functions
 ###############################################################################
