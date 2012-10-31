@@ -78,19 +78,16 @@ def timedelta_total_seconds(td):
 ###############################################################################
 # sub-processing functions
 ###############################################################################
-def execute_command(command, call=False, cwd=None):
-    if call:
-        return subprocess.check_call(command, cwd=cwd)
+def execute_command(command, **popen_kwargs):
     # Python 2.7+ : Use the new method because i think its better
-    elif  hasattr(subprocess, 'check_output'):
+    if  hasattr(subprocess, 'check_output'):
         return subprocess.check_output(command,
-            stderr=subprocess.STDOUT,
-            cwd=cwd)
+            stderr=subprocess.STDOUT, **popen_kwargs)
     else: # Python 2.6 compatible, check_output is not available in 2.6
         return subprocess.Popen(command,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
-            cwd=cwd).communicate()[0]
+            **popen_kwargs).communicate()[0]
 
 ###############################################################################
 def log_info(msg):
