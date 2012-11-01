@@ -58,7 +58,7 @@ class PlanManager(Thread):
             except Exception, e:
                 self.error("Caught an error: '%s'.\nStack Trace:\n%s" %
                            (e, traceback.format_exc()))
-                self._notify__error(e)
+                self._notify_error(e)
 
         self.info("Exited main loop")
 
