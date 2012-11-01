@@ -152,6 +152,9 @@ class BackupEngine(Thread):
 
     ###########################################################################
     def worker_finished(self, worker, state, message):
+        # set end date
+        worker.backup.end_date = date_now()
+        # decrease worker count and update state
         self._worker_count -= 1
         self.update_backup_state(worker.backup, state, message=message)
 
@@ -301,6 +304,9 @@ class BackupWorker(Thread):
     def run(self):
         backup = self.backup
         self.info("Running %s backup %s" % (backup.strategy, backup._id))
+        # set start date
+        backup.start_date = date_now()
+        # set state to be in progress
         backup.change_state(STATE_IN_PROGRESS)
 
         try:

@@ -31,6 +31,8 @@ class Backup(MBSObject):
         self._engine_id = None
         self._logs = []
         self._backup_rate = None
+        self._start_date = None
+        self._end_date = None
 
     ###########################################################################
     @property
@@ -155,11 +157,20 @@ class Backup(MBSObject):
     ###########################################################################
     @property
     def start_date(self):
-        """
-            Returns the date the backup was started
-            (i.e. date of 'IN PROGRESS' state)
-        """
-        return self._get_state_set_date(STATE_IN_PROGRESS)
+        return self._start_date
+
+    @start_date.setter
+    def start_date(self, start_date):
+        self._start_date = start_date
+
+    ###########################################################################
+    @property
+    def end_date(self):
+        return self._end_date
+
+    @end_date.setter
+    def end_date(self, end_date):
+        self._end_date = end_date
 
     ###########################################################################
     def log_event(self, name, message=None):
@@ -224,6 +235,12 @@ class Backup(MBSObject):
 
         if self.backup_rate:
             doc["backupRate"] = self.backup_rate
+
+        if self.start_date:
+            doc["startDate"] = self.start_date
+
+        if self.end_date:
+            doc["endDate"] = self.end_date
 
         return doc
 
