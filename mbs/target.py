@@ -30,9 +30,16 @@ class BackupTarget(MBSObject):
         pass
 
     ###########################################################################
-    def get_file(self, file_name, destination):
-        pass
+    def get_file(self, file_reference, destination):
+        """
+            Gets the file references and writes it to the specified destination
+        """
 
+    ###########################################################################
+    def delete_file(self, file_reference):
+        """
+            Deletes the specified f file reference
+        """
     ###########################################################################
     def is_valid(self):
         errors = self.validate()
@@ -117,6 +124,23 @@ class S3BucketTarget(BackupTarget):
 
         except Exception, e:
             msg = ("S3BucketTarget: Error while trying to download '%s'"
+                   " from s3 bucket %s. Cause: %s" %
+                   (file_name, self.bucket_name, e))
+            raise Exception(msg, e)
+
+    ###########################################################################
+    def delete_file(self, file_reference):
+        try:
+
+            file_name = file_reference.file_name
+            print("Deleting '%s' from s3 bucket '%s'" %
+                  (file_name, self.bucket_name))
+
+            bucket = self._get_bucket()
+            key = bucket.get_key(file_name)
+            bucket.delete_key(key)
+        except Exception, e:
+            msg = ("S3BucketTarget: Error while trying to delete '%s'"
                    " from s3 bucket %s. Cause: %s" %
                    (file_name, self.bucket_name, e))
             raise Exception(msg, e)
