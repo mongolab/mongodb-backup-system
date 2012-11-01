@@ -79,6 +79,16 @@ def timedelta_total_seconds(td):
 ###############################################################################
 # sub-processing functions
 ###############################################################################
+def call_command(command, bubble_exit_code=False, **popen_kwargs):
+    try:
+        return subprocess.check_call(command, **popen_kwargs)
+    except subprocess.CalledProcessError, e:
+        if bubble_exit_code:
+            exit(e.returncode)
+        else:
+            raise e
+
+###############################################################################
 def execute_command(command, **popen_kwargs):
     # Python 2.7+ : Use the new method because i think its better
     if  hasattr(subprocess, 'check_output'):
@@ -89,10 +99,6 @@ def execute_command(command, **popen_kwargs):
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             **popen_kwargs).communicate()[0]
-
-###############################################################################
-def log_info(msg):
-    print >>sys.stderr, msg
 
 ###############################################################################
 def which(program):
@@ -108,7 +114,7 @@ def which(program):
                 return exe_file
     return None
 
-
+###############################################################################
 def is_exe(fpath):
     return os.path.isfile(fpath) and os.access(fpath, os.X_OK)
 

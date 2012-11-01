@@ -15,7 +15,7 @@ from subprocess import CalledProcessError
 
 from errors import MBSException
 
-from utils import (which, ensure_dir, execute_command,
+from utils import (which, ensure_dir, execute_command, call_command,
                    wait_for, resolve_path, timedelta_total_seconds, date_now)
 
 from plan import STRATEGY_DUMP, STRATEGY_EBS_SNAPSHOT
@@ -426,11 +426,16 @@ class BackupWorker(Thread):
         self.info("Running dump command: %s" % " ".join(dump_cmd))
 
         try:
-            execute_command(dump_cmd)
+            # execute dump command and redirect stdout and stderr to log file
+            ensure_dir(dest)
+            dump_log_path = os.path.join(dest, 'dump.log')
+            dump_log_file = open(dump_log_path, 'w')
+            call_command(dump_cmd, stdout=dump_log_file,
+                                   stderr=dump_log_file)
         except CalledProcessError, e:
             msg = ("Failed to dump. Dump command '%s' returned a non-zero exit"
-                   " status %s. Command output:\n%s" %
-                   (dump_cmd, e.returncode, e.output))
+                   " status %s. Check dump log file '%s'" %
+                   (dump_cmd, e.returncode, dump_log_path))
             raise BackupEngineException(msg)
 
     ###########################################################################
