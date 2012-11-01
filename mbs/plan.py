@@ -27,6 +27,7 @@ class BackupPlan(MBSObject):
         self._schedule = None
         self._next_occurrence = None
         self._strategy = None
+        self._retention_policy = None
         self._generator = None
 
     ###########################################################################
@@ -95,6 +96,15 @@ class BackupPlan(MBSObject):
 
     ###########################################################################
     @property
+    def retention_policy(self):
+        return self._retention_policy
+
+    @retention_policy.setter
+    def retention_policy(self, retention_policy):
+        self._retention_policy = retention_policy
+
+    ###########################################################################
+    @property
     def generator(self):
         return self._generator
 
@@ -158,6 +168,9 @@ class BackupPlan(MBSObject):
 
         if self.id:
             doc["_id"] = self.id
+
+        if self.retention_policy:
+            doc["retentionPolicy"] = self.retention_policy.to_document()
 
         if self.generator:
             doc["generator"] = self.generator

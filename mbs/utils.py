@@ -45,6 +45,10 @@ def date_plus_seconds(date, seconds):
     return seconds_to_date(date_to_seconds(date) + seconds)
 
 ###############################################################################
+def date_minus_seconds(date, seconds):
+    return seconds_to_date(date_to_seconds(date) - seconds)
+
+###############################################################################
 def timestamp_to_str(timestamp):
     return timestamp.strftime('%Y-%m-%d %H:%M:%S')
 

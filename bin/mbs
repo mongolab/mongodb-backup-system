@@ -68,12 +68,20 @@ def download_backup(parsed_args):
         backup_id = parsed_args.backupId
         bc = get_mbs().backup_collection
         backup = bc.find_one({"_id": ObjectId(backup_id)})
+
         if backup:
             if backup.state == STATE_SUCCEEDED:
-                backup.target.get_file(backup.target_reference, os.getcwd())
+                if not backup.target_reference.expired:
+                    backup.target.get_file(backup.target_reference, os.getcwd())
+                else:
+                    print ("Failed to download. Backup '%s' is expired." %
+                           backup_id)
+                    exit(1)
+
+
             else:
-                print ("Cannot download backup '%s' because it was"
-                       " not successful" % backup_id)
+                print ("Failed to download. Backup '%s' never succeeded."
+                       % backup_id)
                 exit(1)
         else:
             print "No such backup '%s'" % backup_id

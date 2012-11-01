@@ -133,12 +133,14 @@ class S3BucketTarget(BackupTarget):
         try:
 
             file_name = file_reference.file_name
-            print("Deleting '%s' from s3 bucket '%s'" %
-                  (file_name, self.bucket_name))
+            logger.info("S3BucketTarget: Deleting '%s' from s3 bucket '%s'" %
+                        (file_name, self.bucket_name))
 
             bucket = self._get_bucket()
             key = bucket.get_key(file_name)
             bucket.delete_key(key)
+            logger.info("S3BucketTarget: Successfully deleted'%s' from s3"
+                        " bucket '%s'" % (file_name, self.bucket_name))
         except Exception, e:
             msg = ("S3BucketTarget: Error while trying to delete '%s'"
                    " from s3 bucket %s. Cause: %s" %
@@ -286,10 +288,27 @@ class EbsSnapshotTarget(BackupTarget):
 ###############################################################################
 
 class TargetReference(MBSObject):
-
+    """
+        Represents a reference to the file that gets uploaded to target
+    """
     ###########################################################################
     def __init__(self):
-        pass
+        self._expired = False
+
+    ###########################################################################
+    @property
+    def expired(self):
+        """
+            Indicates if the reference file expired.
+
+        """
+        return self._expired
+
+
+    @expired.setter
+    def expired(self, expired):
+        self._expired = expired
+
 
 ###############################################################################
 # FileReference
@@ -298,6 +317,7 @@ class FileReference(TargetReference):
 
     ###########################################################################
     def __init__(self, file_name=None):
+        TargetReference.__init__(self)
         self.file_name = file_name
 
     ###########################################################################
@@ -312,10 +332,13 @@ class FileReference(TargetReference):
 
     ###########################################################################
     def to_document(self):
-        return {
+        doc = {
             "_type": "FileReference",
             "fileName": self.file_name
         }
+        if self.expired:
+            doc["expired"] = self.expired
+        return doc
 
 ###############################################################################
 # EbsSnapshotReference
@@ -324,6 +347,7 @@ class EbsSnapshotReference(TargetReference):
 
     ###########################################################################
     def __init__(self, snapshot_id):
+        TargetReference.__init__(self)
         self._snapshot_id = snapshot_id
 
     ###########################################################################
@@ -337,7 +361,11 @@ class EbsSnapshotReference(TargetReference):
 
     ###########################################################################
     def to_document(self):
-        return {
+        doc = {
             "_type": "EbsSnapshotReference",
-            "snapshotId": self.snapshot_id
+            "snapshotId": self.snapshot_id,
+            "expired": self.expired
         }
+        if self.expired:
+            doc["expired"] = self.expired
+        return doc

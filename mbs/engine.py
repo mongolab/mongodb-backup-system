@@ -306,6 +306,10 @@ class BackupWorker(Thread):
         self.info("Running %s backup %s" % (backup.strategy, backup._id))
         # set start date
         backup.start_date = date_now()
+        # apply the retention policy
+        # TODO Probably should be called somewhere else
+        self._apply_retention_policy(backup.plan)
+
         # set state to be in progress
         backup.change_state(STATE_IN_PROGRESS)
 
@@ -329,6 +333,10 @@ class BackupWorker(Thread):
             self.error(trace)
 
             self.engine.worker_fail(self, exception=e, trace=trace)
+        finally:
+            # apply the retention policy
+            # TODO Probably should be called somewhere else
+            self._apply_retention_policy(backup.plan)
 
     ###########################################################################
     # DUMP Strategy
@@ -549,6 +557,12 @@ class BackupWorker(Thread):
                 raise BackupEngineException("Snapshot Timeout error")
 
 
+
+    ###########################################################################
+    def _apply_retention_policy(self, plan):
+        # apply the plans retention policy
+        if plan.retention_policy:
+            plan.retention_policy.apply_policy(plan)
 
     ###########################################################################
     def info(self, msg):
