@@ -209,17 +209,6 @@ class PlanManager(Thread):
             backup.change_state(STATE_SCHEDULED)
             self._backup_collection.save_document(backup.to_document())
 
-
-    ###########################################################################
-    def _last_backup(self, plan):
-        backup_coll = self._backup_collection
-        results = (backup_coll.find(query={"plan.$id": plan._id},
-                                    sort=("timestamp", -1),
-                                    limit=1))
-
-        if results is not None and results.count(True) > 0:
-            return results[0]
-
     ###########################################################################
     def _schedule_new_backup(self, plan):
         self.info("Scheduling plan '%s'" % plan._id)
