@@ -428,6 +428,7 @@ class BackupWorker(Thread):
     ###########################################################################
     def _dump_source(self, source, dest):
         dump_cmd = ["/usr/local/bin/mongoctl",
+                    "--noninteractive", # always run with noninteractive
                     "dump", source.source_address,
                     "-o",dest]
 
