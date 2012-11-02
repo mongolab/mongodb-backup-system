@@ -6,10 +6,9 @@ import subprocess
 import json
 import time
 
-
-
+from date_utils import (datetime_to_bson, is_date_value, seconds_now,
+                        utc_str_to_dateime)
 from bson import json_util
-from datetime import datetime, timedelta, date
 
 ###############################################################################
 ##################################         ####################################
@@ -18,67 +17,14 @@ from datetime import datetime, timedelta, date
 ###############################################################################
 
 def document_pretty_string(document):
-    return json.dumps(document, indent=4, default=json_util.default)
+    return json.dumps(document, indent=4, default=_custom_json_default)
 
 ###############################################################################
-def date_now():
-    return datetime.now()
-
-###############################################################################
-def seconds_now():
-    return date_to_seconds(date_now())
-
-###############################################################################
-def date_to_seconds(date):
-    return time.mktime(date.timetuple())
-
-###############################################################################
-def epoch_date():
-    return datetime(1970, 1, 1)
-
-###############################################################################
-def seconds_to_date(seconds):
-    return datetime.fromtimestamp(seconds)
-
-###############################################################################
-def date_plus_seconds(date, seconds):
-    return seconds_to_date(date_to_seconds(date) + seconds)
-
-###############################################################################
-def date_minus_seconds(date, seconds):
-    return seconds_to_date(date_to_seconds(date) - seconds)
-
-###############################################################################
-def timestamp_to_str(timestamp):
-    return timestamp.strftime('%Y-%m-%d %H:%M:%S')
-
-###############################################################################
-def date_to_str(date):
-    return date.strftime('%m/%d/%Y')
-
-###############################################################################
-def timestamp_to_dir_str(timestamp):
-    return timestamp.strftime('%Y_%m_%d__%H_%M_%S')
-
-###############################################################################
-def yesterday_date():
-    return today_date() - timedelta(days=1)
-
-###############################################################################
-def today_date():
-    return date_now().replace(hour=0, minute=0, second=0, microsecond=0)
-
-###############################################################################
-def is_date_value(value):
-    return type(value) in [datetime, date]
-
-###############################################################################
-def timedelta_total_seconds(td):
-    """
-    Equivalent python 2.7+ timedelta.total_seconds()
-     This was added for python 2.6 compatibilty
-    """
-    return (td.microseconds + (td.seconds + td.days * 24 * 3600) * 1e6) / 1e6
+def _custom_json_default(obj):
+    if is_date_value(obj):
+        return datetime_to_bson(obj)
+    else:
+        return json_util.default(obj)
 
 ###############################################################################
 # sub-processing functions
@@ -148,13 +94,20 @@ def read_config_json(name, path):
     # minify the json/remove comments and sh*t
     #json_str = minify_json.json_minify(json_str)
     json_val =json.loads(json_str,
-        object_hook=json_util.object_hook)
+        object_hook=_custom_json_object_hook)
 
     if not json_val and not isinstance(json_val,list): # b/c [] is not True
         raise Exception("Unable to load %s config file: %s" %
                         (name, path))
     else:
         return json_val
+
+###############################################################################
+def _custom_json_object_hook(dct):
+    if "$date" in dct:
+        return utc_str_to_dateime(dct["$date"])
+    else:
+        return json_util.object_hook(dct)
 
 ###############################################################################
 def read_json_string(path, validate_exists=True):

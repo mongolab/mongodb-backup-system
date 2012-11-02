@@ -5,7 +5,8 @@ import mbs_logging
 from mbs import get_mbs
 from base import MBSObject
 from backup import STATE_SUCCEEDED
-from utils import date_now, date_minus_seconds
+from date_utils import date_now, date_minus_seconds
+
 ###############################################################################
 # Contains Backup Retention Policies
 ###############################################################################

@@ -3,7 +3,7 @@ __author__ = 'abdul'
 from base import MBSObject
 from backup import STATE_SUCCEEDED
 import mbs_logging
-from utils import yesterday_date, date_to_str
+from date_utils import yesterday_date, datetime_to_string
 
 ###############################################################################
 # LOGGER
@@ -214,8 +214,8 @@ class PlanAuditor(BackupAuditor):
     ###########################################################################
     def daily_audit_report(self, audit_date):
 
-        logger.info("PlanAuditor: Generating %s audit report "
-                    "for '%s'" % (TYPE_PLAN_AUDIT, date_to_str(audit_date)))
+        logger.info("PlanAuditor: Generating %s audit report for '%s'" %
+                    (TYPE_PLAN_AUDIT,  datetime_to_string(audit_date)))
         all_plans_report = AuditReport()
         all_plans_report.audit_date = audit_date
         all_plans_report.audit_type = TYPE_PLAN_AUDIT
@@ -386,7 +386,7 @@ class GlobalAuditor():
 
     ###########################################################################
     def _send_notification(self, date, reports):
-        subject = "Backup Audit Reports for %s" % date_to_str(date)
+        subject = "Backup Audit Reports for %s" % datetime_to_string(date)
         reports_str = map(str, reports)
         message = "\n\n\n".join(reports_str)
         self._notification_handler.send_notification(subject, message)

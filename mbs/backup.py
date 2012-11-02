@@ -1,6 +1,6 @@
 __author__ = 'abdul'
 
-from utils import date_now
+from date_utils import date_now
 from base import MBSObject
 ###############################################################################
 # CONSTANTS

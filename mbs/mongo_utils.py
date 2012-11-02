@@ -5,7 +5,7 @@ import pymongo
 from pymongo import uri_parser, errors
 from bson.son import SON
 
-from utils import timedelta_total_seconds
+from date_utils import timedelta_total_seconds
 import mbs_logging
 
 ###############################################################################

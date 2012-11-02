@@ -16,7 +16,9 @@ from subprocess import CalledProcessError
 from errors import MBSException
 
 from utils import (which, ensure_dir, execute_command, call_command,
-                   wait_for, resolve_path, timedelta_total_seconds, date_now)
+                   wait_for, resolve_path)
+
+from date_utils import  timedelta_total_seconds, date_now
 
 from plan import STRATEGY_DUMP, STRATEGY_EBS_SNAPSHOT
 

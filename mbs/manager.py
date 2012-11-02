@@ -8,7 +8,7 @@ from threading import Thread
 from flask import Flask
 from flask.globals import request
 
-from utils import date_now
+from date_utils import date_now
 from errors import MBSException
 
 from backup import (Backup, STATE_SCHEDULED, STATE_IN_PROGRESS, STATE_FAILED,
