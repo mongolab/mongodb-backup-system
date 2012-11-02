@@ -1,10 +1,9 @@
 import calendar
 from datetime import datetime, timedelta, date
-from dateutil.tz import tzutc
 
 ###############################################################################
 def date_now():
-    return datetime.utcnow().replace(tzinfo=tzutc())
+    return datetime.utcnow()
 
 ###############################################################################
 def seconds_now():
@@ -12,7 +11,7 @@ def seconds_now():
 
 ###############################################################################
 def epoch_date():
-    return datetime(1970, 1, 1, tzinfo=tzutc())
+    return datetime(1970, 1, 1)
 
 ###############################################################################
 def date_to_seconds(date):
@@ -20,7 +19,7 @@ def date_to_seconds(date):
 
 ###############################################################################
 def seconds_to_date(seconds):
-    return datetime.utcfromtimestamp(seconds).replace(tzinfo=tzutc())
+    return datetime.utcfromtimestamp(seconds)
 
 ###############################################################################
 def date_plus_seconds(date, seconds):
@@ -58,7 +57,7 @@ def days_in_month(date):
 
 ###############################################################################
 def string_to_datetime( date_str ):
-    return datetime( *map( int, date_str.split('.') ), tzinfo=tzutc() )
+    return datetime( *map( int, date_str.split('.') ))
 
 ###############################################################################
 def datetime_to_day_string(ts):
