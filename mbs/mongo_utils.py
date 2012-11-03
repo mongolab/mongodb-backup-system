@@ -192,7 +192,7 @@ class MongoServer(object):
                                 " member '%s'" % self)
 
         lag_in_seconds = abs(timedelta_total_seconds(
-            my_status['optimeDate'] -
+            master_status['optimeDate'] -
             my_status['optimeDate']))
 
         self._lag = lag_in_seconds
