@@ -403,7 +403,8 @@ class ManagerCommandServer(Thread):
         self._flask_server.run(host="0.0.0.0",
                                port=self._manager._command_port,
                                threaded=True)
-        ###########################################################################
+
+    ###########################################################################
     def stop(self):
         """
             Stops the flask server
