@@ -8,7 +8,7 @@ from threading import Thread
 from flask import Flask
 from flask.globals import request
 
-from date_utils import date_now
+from date_utils import date_now, date_minus_seconds
 from errors import MBSException
 
 from backup import (Backup, STATE_SCHEDULED, STATE_IN_PROGRESS, STATE_FAILED,
@@ -23,6 +23,12 @@ from backup import (Backup, STATE_SCHEDULED, STATE_IN_PROGRESS, STATE_FAILED,
 # LOGGER
 ###############################################################################
 logger = mbs_logging.logger
+
+###############################################################################
+# Constants
+###############################################################################
+# maximum backup wait time in seconds: default to five hours
+MAX_BACKUP_WAIT_TIME = 5 * 60 * 60
 
 ###############################################################################
 # PlanManager
@@ -73,6 +79,7 @@ class PlanManager(Thread):
 
         if self._tick_ring == 0:
             self._run_plan_generators()
+            self._check_starving_scheduled_backups()
 
     ###########################################################################
     def _process_plans_considered_now(self):
@@ -285,6 +292,32 @@ class PlanManager(Thread):
         # save new plans
         for plan in generator.get_plans_to_save():
             self.save_plan(plan)
+
+    ###########################################################################
+    def _check_starving_scheduled_backups(self):
+        """
+            Send notifications for jobs that has been scheduled for a long
+            time and have not been picked up by an engine yet
+        """
+        # query for backups whose scheduled date is before current date minus
+        # than max starvation time
+        starve_date = date_minus_seconds(date_now(), MAX_BACKUP_WAIT_TIME)
+        q = {
+            "state": STATE_SCHEDULED,
+            "logs.0.date": {"$lt": starve_date}
+        }
+        starving_backups = self._backup_collection.find(q)
+
+        if starving_backups:
+            msg = ("You have %s scheduled backups that has past the maximum "
+                   "waiting time (%s seconds)." %
+                   (len(starving_backups), MAX_BACKUP_WAIT_TIME))
+            self.info(msg)
+
+            if self._notification_handler:
+                self.info("Sending a notification...")
+                sbj = "Past due scheduled backups"
+                self._notification_handler.send_notification(sbj, msg)
 
     ###########################################################################
     def _notify_error(self, exception):
