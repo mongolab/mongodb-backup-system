@@ -111,7 +111,7 @@ class BackupEngine(Thread):
 
     @temp_dir.setter
     def temp_dir(self, temp_dir):
-        self._temp_dir = temp_dir
+        self._temp_dir = resolve_path(temp_dir)
 
     ###########################################################################
     @property
