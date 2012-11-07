@@ -74,6 +74,8 @@ def create_default_config():
     os.chown(MBS_CONF, owner_uid, owner_gid)
     os.chmod(MBS_CONF, 00644)
 
+    print "Successfully created configuration '%s'!" % MBS_CONF
+
 ### execute this block after setup "install" command is complete
 if "install" in sys.argv:
     try:
