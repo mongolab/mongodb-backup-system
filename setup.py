@@ -1,5 +1,4 @@
 import sys
-import inspect
 import os
 import pwd
 
@@ -26,12 +25,6 @@ setup(
 
 
 )
-
-###############################################################################
-def get_sample_mbs_config_path():
-    this_dir = os.path.dirname(
-        inspect.getfile(inspect.currentframe()))
-    return os.path.join(this_dir, "sample_conf/mbs.config")
 
 ###############################################################################
 def create_default_config():
