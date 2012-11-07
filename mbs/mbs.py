@@ -59,6 +59,10 @@ class MBS(object):
                                          self.backup_collection,
                                           notification_handler=
                                            self._notification_handler)
+
+        # init engines
+        self._engines = self._read_engines()
+
         self._audit_collection = ac
 
         # init global editor
@@ -90,26 +94,43 @@ class MBS(object):
 
     ###########################################################################
     @property
+    def engines(self):
+        return self._engines
+
+    ###########################################################################
+    def get_default_engine(self):
+        return self.engines[0]
+
+    ###########################################################################
+    def _read_engines(self):
+        engines_conf = self._get_config_value("engines")
+        if not engines_conf:
+            raise MBSException("No 'engines' configured")
+
+        engines = self._maker.make(engines_conf)
+        for engine in engines:
+            engine.backup_collection = self.backup_collection
+            engine.notification_handler = self._notification_handler
+
+        return engines
+
+    ###########################################################################
+    @property
     def plan_collection(self):
         return self._plan_collection
 
     ###########################################################################
-    def create_backup_engine(self, engine_id, **kwargs):
-        return BackupEngine(engine_id, self.backup_collection,
-                            notification_handler=self._notification_handler,
-                            **kwargs)
+    def get_engine(self, engine_id):
+        engine = filter(lambda eng: eng.engine_id == engine_id, self.engines)
+        if engine:
+            return engine[0]
+        else:
+            raise MBSException("No such engine '%s'" % engine_id)
 
     ###########################################################################
     def stop_backup_engine(self, engine_id):
-        engine_port = 8888
-        url = "http://0.0.0.0:%s/stop" % engine_port
-        response = urllib.urlopen(url)
-        if response.getcode() == 200:
-            return response.read().strip()
-        else:
-            raise MBSException("Error while trying to stop engine '%s'"
-                                " URL %s (Response code %)" %
-                                (engine_id, url, response.getcode()))
+        engine = self.get_engine(engine_id)
+        engine.stop()
 
     ###########################################################################
     def stop_plan_manager(self):

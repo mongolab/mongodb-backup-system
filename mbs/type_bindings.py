@@ -2,6 +2,7 @@ __author__ = 'abdul'
 
 TYPE_BINDINGS = {
     "Backup": "mbs.backup.Backup",
+    "BackupEngine": "mbs.engine.BackupEngine",
     "BackupLogEntry": "mbs.backup.BackupLogEntry",
     "Plan": "mbs.plan.BackupPlan",
     "Schedule": "mbs.plan.Schedule",

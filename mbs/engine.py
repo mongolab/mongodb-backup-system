@@ -7,6 +7,8 @@ import os
 import time
 import mbs_logging
 import shutil
+import urllib
+
 from flask import Flask
 from flask.globals import request
 
@@ -57,7 +59,7 @@ logger = mbs_logging.logger
 class BackupEngine(Thread):
 
     ###########################################################################
-    def __init__(self, engine_id, backup_collection, max_workers=10,
+    def __init__(self, engine_id=None, backup_collection=None, max_workers=10,
                        sleep_time=1,
                        temp_dir=None,
                        notification_handler=None,
@@ -73,26 +75,70 @@ class BackupEngine(Thread):
         self._stopped = False
         self._command_port = command_port
         self._command_server = EngineCommandServer(self)
+        self._tags = None
 
     ###########################################################################
     @property
     def engine_id(self):
         return self._engine_id
 
+    @engine_id.setter
+    def engine_id(self, engine_id):
+        self._engine_id = engine_id
+
     ###########################################################################
     @property
     def backup_collection(self):
         return self._backup_collection
+
+    @backup_collection.setter
+    def backup_collection(self, val):
+        self._backup_collection = val
 
     ###########################################################################
     @property
     def max_workers(self):
         return self._max_workers
 
+    @max_workers.setter
+    def max_workers(self, max_workers):
+        self._max_workers = max_workers
+
     ###########################################################################
     @property
     def temp_dir(self):
         return self._temp_dir
+
+    @temp_dir.setter
+    def temp_dir(self, temp_dir):
+        self._temp_dir = temp_dir
+
+    ###########################################################################
+    @property
+    def tags(self):
+        return self._tags
+
+    @tags.setter
+    def tags(self, tags):
+        self._tags = tags
+
+    ###########################################################################
+    @property
+    def command_port(self):
+        return self._command_port
+
+    @command_port.setter
+    def command_port(self, command_port):
+        self._command_port = command_port
+
+    ###########################################################################
+    @property
+    def notification_handler(self):
+        return self._notification_handler
+
+    @notification_handler.setter
+    def notification_handler(self, handler):
+        self._notification_handler = handler
 
     ###########################################################################
     def run(self):
@@ -139,12 +185,12 @@ class BackupEngine(Thread):
         self.worker_finished(worker, STATE_FAILED, message=log_msg)
 
         backup = worker.backup
-        if self._notification_handler:
+        if self.notification_handler:
             subject = "Backup '%s' failed" % backup.id
             message = ("Backup '%s' failed.\n%s\n\nCause: \n%s\nStack Trace:"
                        "\n%s" % (backup.id, backup, exception, trace))
 
-            self._notification_handler.send_notification(subject, message)
+            self.notification_handler.send_notification(subject, message)
 
 
     ###########################################################################
@@ -225,7 +271,9 @@ class BackupEngine(Thread):
 
     ###########################################################################
     def read_next_backup(self):
-        q = {"state" : STATE_SCHEDULED}
+
+
+        q = self._get_backups_query()
         u = {"$set" : { "state" : STATE_IN_PROGRESS,
                         "engineId": self.engine_id}}
 
@@ -240,9 +288,46 @@ class BackupEngine(Thread):
         return backup
 
     ###########################################################################
+    def _get_backups_query(self):
+        q = {"state" : STATE_SCHEDULED}
+
+        # add tags if specified
+        if self.tags:
+            tag_filters = []
+            for name,value in self.tags.items():
+                tag_prop_path = "tags.%s" % name
+                tag_filters.append({tag_prop_path: value})
+
+            q["$or"] = tag_filters
+        else:
+            q["$or"]= [
+                    {"tags" : {"$exists": False}},
+                    {"tags" : {}},
+                    {"tags" : None}
+            ]
+
+        return q
+
+    ###########################################################################
     # Engine stopping
     ###########################################################################
     def stop(self):
+        """
+            Sends a stop request to the engine using the command port
+            This should be used by other processes (copies of the engine
+            instance) but not the actual running engine process
+        """
+        url = "http://0.0.0.0:%s/stop" % self.command_port
+        response = urllib.urlopen(url)
+        if response.getcode() == 200:
+            print response.read().strip()
+        else:
+            msg =  ("Error while trying to stop engine '%s' URL %s (Response"
+                    " code %)" % (self.engine_id, url, response.getcode()))
+            raise BackupEngineException(msg)
+
+    ###########################################################################
+    def _do_stop(self):
         """
             Stops the engine gracefully by waiting for all workers to finish
             and not starting any new workers.
@@ -669,7 +754,7 @@ class EngineCommandServer(Thread):
         def stop_engine():
             logger.info("Command Server: Received a stop command")
             try:
-                if engine.stop():
+                if engine._do_stop():
                     return "Engine stopped successfully"
                 else:
                     return ("Stop command received. Engine has %s workers "

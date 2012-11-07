@@ -33,6 +33,7 @@ class Backup(MBSObject):
         self._backup_rate = None
         self._start_date = None
         self._end_date = None
+        self._tags = None
 
     ###########################################################################
     @property
@@ -173,6 +174,15 @@ class Backup(MBSObject):
         self._end_date = end_date
 
     ###########################################################################
+    @property
+    def tags(self):
+        return self._tags
+
+    @tags.setter
+    def tags(self, tags):
+        self._tags = tags
+
+    ###########################################################################
     def log_event(self, name, message=None):
         logs = self.logs
 
@@ -241,6 +251,9 @@ class Backup(MBSObject):
 
         if self.end_date:
             doc["endDate"] = self.end_date
+
+        if self.tags:
+            doc["tags"] = self.tags
 
         return doc
 

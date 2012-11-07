@@ -33,19 +33,15 @@ def main(args):
 ###############################################################################
 def start_engine(parsed_args):
     engine_id = parsed_args.engineId
-    kwargs = {}
-    if parsed_args.maxWorkers:
-        kwargs["max_workers"] = int(parsed_args.maxWorkers)
-    if parsed_args.tempDir:
-        kwargs["temp_dir"] = parsed_args.tempDir
 
-    backup_engine = get_mbs().create_backup_engine(engine_id, **kwargs)
+    backup_engine = _get_engine(engine_id)
     backup_engine.start()
 
 ###############################################################################
 def stop_engine(parsed_args):
     engine_id = parsed_args.engineId
-    print get_mbs().stop_backup_engine(engine_id)
+    engine = _get_engine(engine_id)
+    engine.stop()
 
 ###############################################################################
 def start_plan_manager(parsed_args):
@@ -91,6 +87,16 @@ def download_backup(parsed_args):
         exit(1)
 
 ###############################################################################
+# Helpers
+###############################################################################
+def _get_engine(engine_id=None):
+
+    if not engine_id:
+        return get_mbs().get_default_engine()
+    else:
+        return get_mbs().get_engine(engine_id)
+
+###############################################################################
 # command parser
 ###############################################################################
 PARSER_DEF = {
@@ -108,24 +114,10 @@ PARSER_DEF = {
                     {
                     "name": "engineId",
                     "type" : "positional",
-                    "nargs": 1,
+                    "nargs": "?",
                     "displayName": "ENGINE_ID",
                     "help": "An engine id"
-                },
-                    {
-                    "name": "maxWorkers",
-                    "type" : "optional",
-                    "cmd_arg":  "--max-workers",
-                    "nargs": 1,
-                    "help": "max number of simultaneous workers"
-                },
-                    {
-                    "name": "tempDir",
-                    "type" : "optional",
-                    "cmd_arg":  "--temp-dir",
-                    "nargs": 1,
-                    "help": "temporary backup directory"
-                },
+                }
             ]
         },
 
@@ -139,7 +131,7 @@ PARSER_DEF = {
                     {
                     "name": "engineId",
                     "type" : "positional",
-                    "nargs": 1,
+                    "nargs": "?",
                     "displayName": "ENGINE_ID",
                     "help": "An engine id"
                 }

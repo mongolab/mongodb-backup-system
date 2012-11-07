@@ -77,7 +77,7 @@ class PlanManager(Thread):
         self._process_failed_backups()
         self._process_plans_considered_now()
 
-        if self._tick_ring == 0:
+        if True or self._tick_ring == 0:
             self._run_plan_generators()
             self._check_starving_scheduled_backups()
 
@@ -224,6 +224,7 @@ class PlanManager(Thread):
         backup.strategy = plan.strategy
         backup.source = plan.source
         backup.target = plan.target
+        backup.tags = plan.tags
         backup.plan_occurrence = plan.next_occurrence
         backup.change_state(STATE_SCHEDULED)
         self._set_plan_next_occurrence(plan)

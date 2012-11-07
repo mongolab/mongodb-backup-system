@@ -29,6 +29,7 @@ class BackupPlan(MBSObject):
         self._strategy = None
         self._retention_policy = None
         self._generator = None
+        self._tags = None
 
     ###########################################################################
     @property
@@ -113,6 +114,15 @@ class BackupPlan(MBSObject):
         self._generator = generator
 
     ###########################################################################
+    @property
+    def tags(self):
+        return self._tags
+
+    @tags.setter
+    def tags(self, tags):
+        self._tags = tags
+
+    ###########################################################################
     def next_natural_occurrence(self):
 
         last_natural_occurrence = self.last_natural_occurrence()
@@ -174,6 +184,9 @@ class BackupPlan(MBSObject):
 
         if self.generator:
             doc["generator"] = self.generator
+
+        if self.tags:
+            doc["tags"] = self.tags
 
         return doc
 
