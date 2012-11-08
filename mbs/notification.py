@@ -2,7 +2,7 @@ __author__ = 'abdul'
 
 import traceback
 import mbs_logging
-
+from utils import listify
 import smtplib
 
 from email.mime.text import MIMEText
@@ -57,8 +57,9 @@ class EmailNotificationHandler(NotificationHandler):
             logger.info("Sending notification email...")
             msg = MIMEText(message.encode('utf-8'), 'plain', 'UTF-8')
 
+            to_address = listify(self._to_address)
             msg['From'] = self.from_address
-            msg['To'] = self.to_address
+            msg['To'] = ",".join(to_address)
 
             if subject:
                 msg['Subject'] = subject
@@ -66,7 +67,7 @@ class EmailNotificationHandler(NotificationHandler):
 
             smtp = smtplib.SMTP(self.smtp_host)
             smtp.login(self.smtp_username, self.smtp_password)
-            smtp.sendmail(self.from_address, self.to_address, msg.as_string())
+            smtp.sendmail(self.from_address, to_address, msg.as_string())
             smtp.quit()
             logger.info("Email sent successfully!")
         except Exception, e:

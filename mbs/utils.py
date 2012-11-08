@@ -27,6 +27,13 @@ def _custom_json_default(obj):
         return json_util.default(obj)
 
 ###############################################################################
+def listify(object):
+    if isinstance(object, list):
+        return object
+
+    return [object]
+
+###############################################################################
 # sub-processing functions
 ###############################################################################
 def call_command(command, bubble_exit_code=False, **popen_kwargs):
