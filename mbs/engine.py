@@ -19,7 +19,7 @@ from subprocess import CalledProcessError
 from errors import MBSException
 
 from utils import (which, ensure_dir, execute_command, call_command,
-                   wait_for, resolve_path)
+                   wait_for, resolve_path, get_local_host_name)
 
 from date_utils import  timedelta_total_seconds, date_now
 
@@ -121,7 +121,8 @@ class BackupEngine(Thread):
 
     @tags.setter
     def tags(self, tags):
-        self._tags = tags
+        tags = tags or {}
+        self._tags = self._resolve_tags(tags)
 
     ###########################################################################
     @property
@@ -308,6 +309,32 @@ class BackupEngine(Thread):
             ]
 
         return q
+
+    ###########################################################################
+    def _get_tag_bindings(self):
+        """
+            Returns a dict of binding name/value that will be used for
+            resolving tags. Binding names starts with a '$'.
+            e.g. "$HOST":"FOO"
+        """
+        return {
+            "$HOST": get_local_host_name()
+        }
+
+    ###########################################################################
+    def _resolve_tags(self, tags):
+        resolved_tags = {}
+        for name,value in tags.items():
+            resolved_tags[name] = self._resolve_tag_value(value)
+
+        return resolved_tags
+
+    ###########################################################################
+    def _resolve_tag_value(self, value):
+        for binding_name, binding_value in self._get_tag_bindings().items():
+            value = value.replace(binding_name, binding_value)
+
+        return value
 
     ###########################################################################
     # Engine stopping

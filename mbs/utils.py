@@ -2,6 +2,7 @@ __author__ = 'abdul'
 
 import os
 import subprocess
+import socket
 
 import json
 import time
@@ -160,3 +161,6 @@ def wait_for(predicate, timeout=None, sleep_duration=2, log_func=None):
             time.sleep(sleep_duration)
 
     return False
+###############################################################################
+def get_local_host_name():
+    return socket.gethostname()
