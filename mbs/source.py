@@ -1,8 +1,7 @@
 __author__ = 'abdul'
 
 from base import MBSObject
-from mongo_utils import (get_best_source_member, is_cluster_mongo_uri,
-                         is_mongo_uri, MongoServer, parse_mongo_uri)
+import mongo_uri_tools
 
 from boto.ec2.connection import EC2Connection
 
@@ -93,7 +92,7 @@ class MongoSource(BackupSource):
         errors = []
         if not self.uri:
             errors.append("Missing 'uri' property")
-        elif not is_mongo_uri(self.uri):
+        elif not mongo_uri_tools.is_mongo_uri(self.uri):
             errors.append("Invalid 'uri'.%s" % e)
 
         return errors

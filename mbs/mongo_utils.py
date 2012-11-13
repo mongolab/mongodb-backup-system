@@ -2,7 +2,7 @@ __author__ = 'abdul'
 
 # Contains mongo db utility functions
 import pymongo
-from pymongo import uri_parser, errors
+from mongo_uri_tools import parse_mongo_uri
 from bson.son import SON
 
 from date_utils import timedelta_total_seconds
@@ -16,7 +16,8 @@ logger = mbs_logging.logger
 ###############################################################################
 def mongo_connect(uri):
     try:
-        dbname = pymongo.uri_parser.parse_uri(uri)['database']
+        uri_wrapper = parse_mongo_uri(uri)
+        dbname = uri_wrapper.database
         if not dbname:
             dbname = "admin"
             if uri.endswith("/"):
@@ -27,43 +28,7 @@ def mongo_connect(uri):
         return pymongo.Connection(uri)[dbname]
     except Exception, e:
         raise Exception("Could not establish a database connection to "
-                        "%s: %s" % (uri, e))
-
-
-###############################################################################
-def is_mongo_uri(value):
-    try:
-        parse_mongo_uri(value)
-        return True
-    except Exception,e:
-        return False
-
-###############################################################################
-def is_cluster_mongo_uri(mongo_uri):
-    """
-        Returns true if the specified mongo uri is a cluster connection
-    """
-    return len(parse_mongo_uri(mongo_uri)["nodelist"]) > 1
-
-###############################################################################
-def parse_mongo_uri(uri):
-    try:
-        uri_obj = uri_parser.parse_uri(uri)
-        # validate uri
-        nodes = uri_obj["nodelist"]
-        for node in nodes:
-            host = node[0]
-            if not host:
-                raise Exception("URI '%s' is missing a host." % uri)
-
-        return uri_obj
-    except errors.ConfigurationError, e:
-        raise Exception("Malformed URI '%s'. %s" % (uri, e))
-
-    except Exception, e:
-        raise Exception("Unable to parse mongo uri '%s'."
-                        " Cause: %s" % (e, uri))
-
+                        "%s: %s" % (uri_wrapper.masked_uri, e))
 
 ###############################################################################
 def get_best_source_member(cluster_uri):
@@ -73,7 +38,6 @@ def get_best_source_member(cluster_uri):
         best = passives with least lags, if no passives then least lag
 
     """
-
     members = get_cluster_members(cluster_uri)
     secondaries = []
     primary = None
@@ -118,19 +82,13 @@ def get_best_source_member(cluster_uri):
 
 ###############################################################################
 def get_cluster_members(cluster_uri):
-    uri_obj = parse_mongo_uri(cluster_uri)
-    # validate uri
-    nodes = uri_obj["nodelist"]
-
+    uri_wrapper = parse_mongo_uri(cluster_uri)
+    # validate that uri has DB set to admin or nothing
+    if uri_wrapper.database and uri_wrapper.database != "admin":
+        raise Exception("Database in uri '%s' can only be admin or"
+                        " unspecified" % uri_wrapper.masked_uri)
     members = []
-    for node in nodes:
-        address = "%s:%s" % (node[0], node[1])
-        database = "/%s" % uri_obj["database"] if uri_obj["database"] else ""
-
-        username = uri_obj["username"]
-        password = uri_obj["password"]
-        creds = "%s:%s@" % (username, password) if username else ""
-        member_uri = "mongodb://%s%s%s" % (creds, address, database)
+    for member_uri in uri_wrapper.member_raw_uri_list:
         members.append(MongoServer(member_uri))
 
     return members
@@ -141,8 +99,7 @@ class MongoServer(object):
 
     ###########################################################################
     def __init__(self, uri):
-        self._uri = uri
-        self._uri_obj = parse_mongo_uri(uri)
+        self._uri_wrapper = parse_mongo_uri(uri)
         self._admin_db = mongo_connect(uri)
         self._rs_conf = self._get_rs_config()
         self._rs_status = self._get_rs_status()
@@ -152,16 +109,12 @@ class MongoServer(object):
     ###########################################################################
     @property
     def uri(self):
-        return self._uri
+        return self._uri_wrapper.raw_uri
 
     ###########################################################################
     @property
-    def host(self):
-        node = self._uri_obj["nodelist"][0]
-        host = node[0]
-        port = node[1]
-        return "%s:%s" % (host, port)
-
+    def address(self):
+        return self._uri_wrapper.addresses[0]
 
     ###########################################################################
     @property
@@ -289,7 +242,7 @@ class MongoServer(object):
     ###########################################################################
     def _get_member_config(self):
         if self._rs_conf:
-            host = self.host
+            host = self.address
             mem_confs = self._rs_conf["members"]
             for mem_conf in mem_confs:
                 if mem_conf["host"] == host:
@@ -297,4 +250,4 @@ class MongoServer(object):
 
     ###########################################################################
     def __str__(self):
-        return self.host
+        return self.address

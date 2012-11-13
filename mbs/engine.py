@@ -8,6 +8,7 @@ import time
 import mbs_logging
 import shutil
 import urllib
+import mongo_uri_tools
 
 from flask import Flask
 from flask.globals import request
@@ -571,9 +572,10 @@ class BackupWorker(Thread):
 
     ###########################################################################
     def _execute_dump_command(self, source, dest):
+        source_address = source.source_address
         dump_cmd = ["/usr/local/bin/mongoctl",
                     "--noninteractive", # always run with noninteractive
-                    "dump", source.source_address,
+                    "dump", source_address,
                     "-o",dest]
 
         # if its a server level backup then add forceTableScan and oplog
@@ -583,8 +585,11 @@ class BackupWorker(Thread):
                 "--forceTableScan"]
             )
 
-
-        self.info("Running dump command: %s" % " ".join(dump_cmd))
+        dump_cmd_display= dump_cmd[:]
+        # if the source uri is a mongo uri then mask it
+        if mongo_uri_tools.is_mongo_uri(source_address):
+            dump_cmd_display[3] = mongo_uri_tools.mask_mongo_uri(source_address)
+        self.info("Running dump command: %s" % " ".join(dump_cmd_display))
 
         try:
             # execute dump command and redirect stdout and stderr to log file
@@ -596,7 +601,8 @@ class BackupWorker(Thread):
 
         except CalledProcessError, e:
             msg = ("Failed to dump. Dump command '%s' returned a non-zero exit"
-                   " status %s. Check dump logs." % (dump_cmd, e.returncode))
+                   " status %s. Check dump logs." %
+                   (dump_cmd_display, e.returncode))
             raise BackupEngineException(msg)
 
 
