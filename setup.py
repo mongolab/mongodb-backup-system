@@ -1,6 +1,7 @@
 import sys
 import os
 import pwd
+import uuid
 
 from setuptools import setup
 
@@ -50,8 +51,7 @@ def create_default_config():
         os.chown(conf_dir, owner_uid, owner_gid)
         os.chmod(conf_dir, 00755)
 
-    import bson
-    engine_id = bson.objectid.ObjectId()
+    engine_id = uuid.uuid1()
     default_conf = {
         "databaseURI": "YOUR DATABASE URI",
         "engines":[
