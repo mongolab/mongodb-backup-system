@@ -60,8 +60,8 @@ class MBS(object):
                                           notification_handler=
                                            self._notification_handler)
 
-        # init engines
-        self._engines = self._read_engines()
+        # load engines lazily
+        self._engines = None
 
         self._audit_collection = ac
 
@@ -95,6 +95,8 @@ class MBS(object):
     ###########################################################################
     @property
     def engines(self):
+        if not self._engines:
+            self._engines = self._read_engines()
         return self._engines
 
     ###########################################################################
