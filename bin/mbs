@@ -9,7 +9,9 @@ import os
 from dargparse import dargparse
 from bson.objectid import ObjectId
 from mbs.mbs import get_mbs
+from mbs.engine import STATUS_STOPPED, STATUS_STOPPING, STATUS_RUNNING
 from mbs.backup import STATE_SUCCEEDED
+from mbs.utils import wait_for
 
 ###############################################################################
 # MAIN
@@ -34,14 +36,52 @@ def main(args):
 def start_engine(parsed_args):
     engine_id = parsed_args.engineId
 
-    backup_engine = _get_engine(engine_id)
-    backup_engine.start()
+    engine = _get_engine(engine_id)
+
+    status = engine.get_status()
+    if status == STATUS_RUNNING:
+        print "Engine already started"
+        return
+    elif status == STATUS_STOPPING:
+        print ("Engine is stopping now. Please wait until it is completely "
+              "stopped then try starting again")
+        return
+
+    engine.start()
 
 ###############################################################################
 def stop_engine(parsed_args):
     engine_id = parsed_args.engineId
     engine = _get_engine(engine_id)
+    status = engine.get_status()
+    if status == STATUS_STOPPING:
+        print "A stop request has already been made"
+        return
+    elif status == STATUS_STOPPED:
+        print "Engine is not running"
+        return
+
     engine.stop()
+
+###############################################################################
+def restart_engine(parsed_args):
+    engine_id = parsed_args.engineId
+    engine = _get_engine(engine_id)
+
+    # stop the engine and wait for it is completely stopped
+    engine.stop()
+    def engine_stopped():
+        return engine.get_status() == STATUS_STOPPED
+
+    wait_for(engine_stopped)
+
+    engine.start()
+
+###############################################################################
+def status_engine(parsed_args):
+    engine_id = parsed_args.engineId
+    engine = _get_engine(engine_id)
+    print engine.get_status()
 
 ###############################################################################
 def start_plan_manager(parsed_args):
@@ -51,6 +91,10 @@ def start_plan_manager(parsed_args):
 ###############################################################################
 def stop_plan_manager(parsed_args):
     print get_mbs().stop_plan_manager()
+
+###############################################################################
+def status_plan_manager(parsed_args):
+    print "TBD"
 
 ###############################################################################
 def generate_audit_reports(parsed_args):
@@ -137,6 +181,39 @@ PARSER_DEF = {
                 }
             ]
         },
+        #### status-engine ####
+            {
+            "prog": "status-engine",
+            "shortDescription" : "gets the status of a backup engine",
+            "description" : "gets the status of a backup engine",
+            "function": status_engine,
+            "args": [
+                    {
+                    "name": "engineId",
+                    "type" : "positional",
+                    "nargs": "?",
+                    "displayName": "ENGINE_ID",
+                    "help": "An engine id"
+                }
+            ]
+        },
+
+        #### restart-engine ####
+            {
+            "prog": "restart-engine",
+            "shortDescription" : "restarts the backup engine",
+            "description" : "restarts the backup engine",
+            "function": restart_engine,
+            "args": [
+                    {
+                    "name": "engineId",
+                    "type" : "positional",
+                    "nargs": "?",
+                    "displayName": "ENGINE_ID",
+                    "help": "An engine id"
+                }
+            ]
+        },
             {
             "prog": "start-plan-manager",
             "shortDescription" : "starts the plan manager",
@@ -150,6 +227,13 @@ PARSER_DEF = {
             "shortDescription" : "stops the plan manager",
             "description" : "stops the plan manager",
             "function": stop_plan_manager
+        },
+        #### status-plan-manager ####
+            {
+            "prog": "status-plan-manager",
+            "shortDescription" : "gets the status of the plan manager",
+            "description" : "gets the status of the plan manager",
+            "function": status_plan_manager
         },
             {
             "prog": "generate-audit-reports",

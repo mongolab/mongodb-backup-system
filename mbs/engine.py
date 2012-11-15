@@ -43,6 +43,10 @@ EVENT_END_ARCHIVE = "END_ARCHIVE"
 EVENT_START_UPLOAD = "START_UPLOAD"
 EVENT_END_UPLOAD = "END_UPLOAD"
 
+STATUS_RUNNING = "running"
+STATUS_STOPPING = "stopping"
+STATUS_STOPPED = "stopped"
+
 ###############################################################################
 # LOGGER
 ###############################################################################
@@ -169,6 +173,7 @@ class BackupEngine(Thread):
                 self._start_backup(backup)
 
         self.info("Exited main loop")
+        self._pre_shutdown()
 
     ###########################################################################
     def _start_backup(self, backup):
@@ -353,14 +358,40 @@ class BackupEngine(Thread):
             This should be used by other processes (copies of the engine
             instance) but not the actual running engine process
         """
+
         url = "http://0.0.0.0:%s/stop" % self.command_port
-        response = urllib.urlopen(url)
-        if response.getcode() == 200:
-            print response.read().strip()
-        else:
-            msg =  ("Error while trying to stop engine '%s' URL %s (Response"
-                    " code %)" % (self.engine_guid, url, response.getcode()))
-            raise BackupEngineException(msg)
+        try:
+            response = urllib.urlopen(url)
+            if response.getcode() == 200:
+                print response.read().strip()
+            else:
+                msg =  ("Error while trying to stop engine '%s' URL %s "
+                        "(Response"" code %)" %
+                        (self.engine_guid, url, response.getcode()))
+                raise BackupEngineException(msg)
+        except IOError, e:
+            logger.error("Engine is not running")
+
+    ###########################################################################
+    def get_status(self):
+        """
+            Sends a status request to the engine using the command port
+            This should be used by other processes (copies of the engine
+            instance) but not the actual running engine process
+        """
+        url = "http://0.0.0.0:%s/status" % self.command_port
+        try:
+            response = urllib.urlopen(url)
+            if response.getcode() == 200:
+                return response.read().strip()
+            else:
+                msg =  ("Error while trying to get status engine '%s' URL %s "
+                        "(Response code %)" % (self.engine_guid, url,
+                                               response.getcode()))
+                raise BackupEngineException(msg)
+
+        except IOError, ioe:
+            return STATUS_STOPPED
 
     ###########################################################################
     def _do_stop(self):
@@ -373,8 +404,21 @@ class BackupEngine(Thread):
                   " to finish" % self._worker_count)
 
         self._stopped = True
-        self._stop_command_server()
         return self._worker_count == 0
+
+    ###########################################################################
+    def _do_get_status(self):
+        """
+            Gets the status of the engine
+        """
+        if self._stopped:
+            return STATUS_STOPPING
+        else:
+            return STATUS_RUNNING
+
+    ###########################################################################
+    def _pre_shutdown(self):
+        self._stop_command_server()
 
     ###########################################################################
     # Command Server
@@ -791,6 +835,7 @@ class EngineCommandServer(Thread):
     def _build_flask_server(self):
         flask_server = Flask(__name__)
         engine = self._engine
+        ## build stop method
         @flask_server.route('/stop', methods=['GET'])
         def stop_engine():
             logger.info("Command Server: Received a stop command")
@@ -804,6 +849,28 @@ class EngineCommandServer(Thread):
             except Exception, e:
                 return "Error while trying to stop engine: %s" % e
 
+        ## build status method
+        @flask_server.route('/status', methods=['GET'])
+        def status():
+            logger.info("Command Server: Received a status command")
+            try:
+                return engine._do_get_status()
+            except Exception, e:
+                return "Error while trying to get engine status: %s" % e
+
+        ## build status method
+        @flask_server.route('/stop-command-server', methods=['GET'])
+        def stop_command_server():
+            logger.info("Stopping command server")
+            try:
+                shutdown = request.environ.get('werkzeug.server.shutdown')
+                if shutdown is None:
+                    raise RuntimeError('Not running with the Werkzeug Server')
+                shutdown()
+                return "success"
+            except Exception, e:
+                return "Error while trying to get engine status: %s" % e
+
         return flask_server
 
     ###########################################################################
@@ -813,16 +880,26 @@ class EngineCommandServer(Thread):
                                threaded=True)
     ###########################################################################
     def stop(self):
-        """
-            Stops the flask server
-            http://flask.pocoo.org/snippets/67/
-        """
+
         logger.info("EngineCommandServer: Stopping flask server ")
-        shutdown = request.environ.get('werkzeug.server.shutdown')
-        if shutdown is None:
-            raise RuntimeError('Not running with the Werkzeug Server')
-        shutdown()
-        logger.info("EngineCommandServer: Flask server stopped successfully")
+        port = self._engine._command_port
+        url = "http://0.0.0.0:%s/stop-command-server" % port
+        try:
+            response = urllib.urlopen(url)
+            if response.getcode() == 200:
+                logger.info("EngineCommandServer: Flask server stopped "
+                            "successfully")
+                return response.read().strip()
+            else:
+                msg =  ("Error while trying to get status engine '%s' URL %s "
+                        "(Response code %)" % (self.engine_guid, url,
+                                               response.getcode()))
+                raise BackupEngineException(msg)
+
+        except Exception, e:
+            raise BackupEngineException("Error while stopping flask server:"
+                                        " %s" %e)
+
 
 ###############################################################################
 # BackupEngineException
