@@ -28,7 +28,7 @@ class Backup(MBSObject):
         self._target_reference = None
         self._plan = None
         self._plan_occurrence = None
-        self._engine_id = None
+        self._engine_guid = None
         self._logs = []
         self._backup_rate = None
         self._start_date = None
@@ -129,12 +129,12 @@ class Backup(MBSObject):
 
     ###########################################################################
     @property
-    def engine_id(self):
-        return self._engine_id
+    def engine_guid(self):
+        return self._engine_guid
 
-    @engine_id.setter
-    def engine_id(self, engine_id):
-        self._engine_id = engine_id
+    @engine_guid.setter
+    def engine_guid(self, engine_guid):
+        self._engine_guid = engine_guid
 
     ###########################################################################
     @property
@@ -230,7 +230,7 @@ class Backup(MBSObject):
             "target": self.target.to_document(),
             "plan": self.plan.to_document(),
             "planOccurrence": self.plan_occurrence,
-            "engineId": self.engine_id,
+            "engineGuid": self.engine_guid,
             "logs": self.export_logs()
         }
 

@@ -123,7 +123,7 @@ class MBS(object):
 
     ###########################################################################
     def get_engine(self, engine_id):
-        engine = filter(lambda eng: eng.engine_id == engine_id, self.engines)
+        engine = filter(lambda eng: eng.id == engine_id, self.engines)
         if engine:
             return engine[0]
         else:

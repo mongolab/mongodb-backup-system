@@ -60,13 +60,14 @@ logger = mbs_logging.logger
 class BackupEngine(Thread):
 
     ###########################################################################
-    def __init__(self, engine_id=None, backup_collection=None, max_workers=10,
+    def __init__(self, id=None, backup_collection=None, max_workers=10,
                        sleep_time=1,
                        temp_dir=None,
                        notification_handler=None,
                        command_port=8888):
         Thread.__init__(self)
-        self._engine_id = engine_id
+        self._id = id
+        self._engine_guid = None
         self._backup_collection = backup_collection
         self._sleep_time = sleep_time
         self._worker_count = 0
@@ -80,12 +81,19 @@ class BackupEngine(Thread):
 
     ###########################################################################
     @property
-    def engine_id(self):
-        return self._engine_id
+    def id(self):
+        return self._id
 
-    @engine_id.setter
-    def engine_id(self, engine_id):
-        self._engine_id = engine_id
+    @id.setter
+    def id(self, id):
+        self._id = id
+
+    ###########################################################################
+    @property
+    def engine_guid(self):
+        if not self._engine_guid:
+            self._engine_guid = get_local_host_name() + "-" + self.id
+        return self._engine_guid
 
     ###########################################################################
     @property
@@ -232,7 +240,7 @@ class BackupEngine(Thread):
         # 1- Recover recoverable backups
         q = {
             "state": STATE_IN_PROGRESS,
-            "engineId": self.engine_id
+            "engineGuid": self.engine_guid
         }
 
         total_recovered = 0
@@ -277,7 +285,7 @@ class BackupEngine(Thread):
 
         q = self._get_backups_query()
         u = {"$set" : { "state" : STATE_IN_PROGRESS,
-                        "engineId": self.engine_id}}
+                        "engineGuid": self.engine_guid}}
 
         c = self._backup_collection
         backup = None
@@ -286,7 +294,7 @@ class BackupEngine(Thread):
             backup = c.find_and_modify(query=q, update=u)
 
         if backup:
-            backup.engine_id = self.engine_id
+            backup.engine_guid = self.engine_guid
         return backup
 
     ###########################################################################
@@ -351,7 +359,7 @@ class BackupEngine(Thread):
             print response.read().strip()
         else:
             msg =  ("Error while trying to stop engine '%s' URL %s (Response"
-                    " code %)" % (self.engine_id, url, response.getcode()))
+                    " code %)" % (self.engine_guid, url, response.getcode()))
             raise BackupEngineException(msg)
 
     ###########################################################################
@@ -386,11 +394,11 @@ class BackupEngine(Thread):
     # Logging methods
     ###########################################################################
     def info(self, msg):
-        logger.info("<BackupEngine-%s>: %s" % (self.engine_id, msg))
+        logger.info("<BackupEngine-%s>: %s" % (self.id, msg))
 
     ###########################################################################
     def error(self, msg):
-        logger.error("<BackupEngine-%s>: %s" % (self.engine_id, msg))
+        logger.error("<BackupEngine-%s>: %s" % (self.id, msg))
 
 ###############################################################################
 # BackupWorker
