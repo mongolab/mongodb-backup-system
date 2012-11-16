@@ -28,4 +28,8 @@ fh = TimedRotatingFileHandler(logfile, backupCount=50, when="midnight")
 
 fh.setFormatter(formatter)
 logger.addHandler(fh)
-fh.doRollover()
+
+try:
+    fh.doRollover()
+except Exception, e:
+    logger.error("MBS LOGGER: Error while doing rollover. %s" % e)
