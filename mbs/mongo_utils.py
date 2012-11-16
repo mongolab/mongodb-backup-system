@@ -38,6 +38,7 @@ def get_best_source_member(cluster_uri):
         best = passives with least lags, if no passives then least lag
 
     """
+    uri_wrapper = parse_mongo_uri(cluster_uri)
     members = get_cluster_members(cluster_uri)
     secondaries = []
     primary = None
@@ -51,11 +52,11 @@ def get_best_source_member(cluster_uri):
 
     if not primary:
         raise Exception("Unable to determine primary for cluster '%s'" %
-                        cluster_uri)
+                        uri_wrapper.masked_uri)
 
     if not secondaries:
         raise Exception("No secondaries found for cluster '%s'" %
-                        cluster_uri)
+                        uri_wrapper.masked_uri)
 
     master_status = primary.rs_status
     # compute lags
