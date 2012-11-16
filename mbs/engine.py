@@ -201,7 +201,7 @@ class BackupEngine(Thread):
 
         backup = worker.backup
         if self.notification_handler:
-            subject = "Backup '%s' failed" % backup.id
+            subject = "Backup failed"
             message = ("Backup '%s' failed.\n%s\n\nCause: \n%s\nStack Trace:"
                        "\n%s" % (backup.id, backup, exception, trace))
 
