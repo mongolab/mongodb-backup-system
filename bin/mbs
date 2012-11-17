@@ -5,6 +5,7 @@ __author__ = 'abdul'
 import sys
 import traceback
 import os
+import signal
 
 from dargparse import dargparse
 from bson.objectid import ObjectId
@@ -48,6 +49,33 @@ def start_engine(parsed_args):
         return
 
     engine.start()
+
+    def engine_started():
+        return engine.get_status() == STATUS_RUNNING
+    wait_for(engine_started, timeout=5)
+
+    if engine_started():
+        print "Engine started successfully!"
+    else:
+        print "Engine did not start. Please check logs"
+
+    def engine_stopped():
+        return engine.get_status() == STATUS_STOPPED
+
+    def stop_this_engine(signal_val, frame):
+        print "Received a SIGTERM signal. Stopping engine"
+        engine.stop()
+        print "Waiting for engine to stop"
+        wait_for(engine_stopped, timeout=100)
+        if engine_stopped():
+            exit(0)
+        else:
+            print "Unable to stop engine within 100 seconds"
+            exit(1)
+
+    # register a signal handler to stop this engine
+    signal.signal(signal.SIGTERM, stop_this_engine)
+    print "Signal handler registered"
 
 ###############################################################################
 def stop_engine(parsed_args):
