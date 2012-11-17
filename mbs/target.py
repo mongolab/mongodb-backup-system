@@ -10,6 +10,7 @@ from base import MBSObject
 from boto.s3.connection import S3Connection
 from boto.s3.key import Key
 from boto.ec2 import EC2Connection
+from robustify.robustify import robustify
 
 ###############################################################################
 # LOGGER
@@ -57,6 +58,15 @@ class BackupTarget(MBSObject):
         return []
 
 ###############################################################################
+def _raise_if_not_s3_connectivity(exception):
+    msg = str(exception)
+    if "Broken pipe" in msg or "reset" in msg:
+        logger.warn("Caught an s3 connectivity exception: %s" % msg)
+    else:
+        logger.debug("Re-raising a an s3 NON-connectivity exception: %s" % msg)
+        raise
+
+###############################################################################
 # S3BucketTarget
 ###############################################################################
 class S3BucketTarget(BackupTarget):
@@ -69,6 +79,8 @@ class S3BucketTarget(BackupTarget):
         self._secret_key = None
 
     ###########################################################################
+    @robustify(max_attempts=3, retry_interval=2,
+               do_on_exception=_raise_if_not_s3_connectivity)
     def put_file(self, file_path):
         try:
 
