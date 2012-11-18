@@ -137,8 +137,14 @@ def resolve_path(path):
     # handle file uris
     path = path.replace("file://", "")
 
+    # manually expand ~
+    if path.startswith("~"):
+        login = os.getlogin()
+        home_dir = os.path.expanduser( "~%s" % login)
+        path = path.replace("~", home_dir, 1)
+
     # expand vars
-    path =  os.path.expandvars(os.path.expanduser(path))
+    path =  os.path.expandvars(path)
     # Turn relative paths to absolute
     path = os.path.abspath(path)
     return path
