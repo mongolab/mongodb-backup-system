@@ -130,23 +130,6 @@ class MBS(object):
             raise MBSException("No such engine '%s'" % engine_id)
 
     ###########################################################################
-    def stop_backup_engine(self, engine_id):
-        engine = self.get_engine(engine_id)
-        engine.stop()
-
-    ###########################################################################
-    def stop_plan_manager(self):
-        manager_port = 9999
-        url = "http://0.0.0.0:%s/stop" % manager_port
-        response = urllib.urlopen(url)
-        if response.getcode() == 200:
-            return response.read().strip()
-        else:
-            raise MBSException("Error while trying to stop plan manager."
-                               " URL %s (Response code %)" %
-                               (url, response.getcode()))
-
-    ###########################################################################
     @property
     def plan_manager(self):
         return self._plan_manager

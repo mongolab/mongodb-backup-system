@@ -32,7 +32,7 @@ def main(args):
     return command_function(parsed_args)
 
 ###############################################################################
-# Commands
+# Engine Commands
 ###############################################################################
 def start_engine(parsed_args):
     engine_id = parsed_args.engineId
@@ -75,7 +75,6 @@ def start_engine(parsed_args):
 
     # register a signal handler to stop this engine
     signal.signal(signal.SIGTERM, stop_this_engine)
-    print "Signal handler registered"
 
 ###############################################################################
 def stop_engine(parsed_args):
@@ -101,9 +100,13 @@ def restart_engine(parsed_args):
     def engine_stopped():
         return engine.get_status() == STATUS_STOPPED
 
-    wait_for(engine_stopped)
+    wait_for(engine_stopped, timeout=100)
 
-    engine.start()
+    if engine_stopped():
+        engine.start()
+    else:
+        print "Engine did not stop yet. Please try later"
+        exit(1)
 
 ###############################################################################
 def status_engine(parsed_args):
@@ -112,18 +115,85 @@ def status_engine(parsed_args):
     print engine.get_status()
 
 ###############################################################################
+# Plan Manager Commands
+###############################################################################
 def start_plan_manager(parsed_args):
     manager = get_mbs().plan_manager
+
+    status = manager.get_status()
+    if status == STATUS_RUNNING:
+        print "Plan Manager already started"
+        return
+    elif status == STATUS_STOPPING:
+        print ("Plan Manager is stopping now. Please wait until it is "
+               "completely stopped then try starting again")
+        return
+
     manager.start()
+
+    def manager_started():
+        return manager.get_status() == STATUS_RUNNING
+    wait_for(manager_started, timeout=5)
+
+    if manager_started():
+        print "Plan Manager started successfully!"
+    else:
+        print "Plan Manager did not start. Please check logs"
+
+    def manager_stopped():
+        return manager.get_status() == STATUS_STOPPED
+
+    def stop_this_manager(signal_val, frame):
+        print "Received a SIGTERM signal. Stopping plan manager"
+        manager.stop()
+        print "Waiting for plan manager to stop"
+        wait_for(manager_stopped, timeout=100)
+        if manager_stopped():
+            exit(0)
+        else:
+            print "Unable to stop plan manager within 100 seconds"
+            exit(1)
+
+    # register a signal handler to stop this manager
+    signal.signal(signal.SIGTERM, stop_this_manager)
 
 ###############################################################################
 def stop_plan_manager(parsed_args):
-    print get_mbs().stop_plan_manager()
+    manager = get_mbs().plan_manager
+    status = manager.get_status()
+    if status == STATUS_STOPPING:
+        print "A stop request has already been made"
+        return
+    elif status == STATUS_STOPPED:
+        print "Plan Manager is not running"
+        return
+
+    manager.stop()
+
+###############################################################################
+def restart_plan_manager(parsed_args):
+    manager = get_mbs().plan_manager
+
+    # stop the manager and wait for it is completely stopped
+    manager.stop()
+    def manager_stopped():
+        return manager.get_status() == STATUS_STOPPED
+
+    wait_for(manager_stopped, timeout=100)
+
+    if manager_stopped():
+        manager.start()
+    else:
+        print "Manager did not stop yet. Please try later"
+        exit(1)
 
 ###############################################################################
 def status_plan_manager(parsed_args):
-    print "TBD"
+    manager = get_mbs().plan_manager
+    print manager.get_status()
 
+###############################################################################
+# Other Commands
 ###############################################################################
 def generate_audit_reports(parsed_args):
     global_auditor = get_mbs().global_auditor
@@ -262,6 +332,14 @@ PARSER_DEF = {
             "shortDescription" : "gets the status of the plan manager",
             "description" : "gets the status of the plan manager",
             "function": status_plan_manager
+        },
+
+        #### restart-plan-manager ####
+            {
+            "prog": "restart-plan-manager",
+            "shortDescription" : "restart plan manager",
+            "description" : "restart plan manager",
+            "function": restart_plan_manager
         },
             {
             "prog": "generate-audit-reports",

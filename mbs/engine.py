@@ -858,7 +858,7 @@ class EngineCommandServer(Thread):
             except Exception, e:
                 return "Error while trying to get engine status: %s" % e
 
-        ## build status method
+        ## build stop-command-server method
         @flask_server.route('/stop-command-server', methods=['GET'])
         def stop_command_server():
             logger.info("Stopping command server")

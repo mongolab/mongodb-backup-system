@@ -3,6 +3,8 @@ __author__ = 'abdul'
 import time
 import mbs_logging
 import traceback
+import urllib
+
 from threading import Thread
 
 from flask import Flask
@@ -29,6 +31,10 @@ logger = mbs_logging.logger
 ###############################################################################
 # maximum backup wait time in seconds: default to five hours
 MAX_BACKUP_WAIT_TIME = 5 * 60 * 60
+
+MANAGER_STATUS_RUNNING = "running"
+MANAGER_STATUS_STOPPING = "stopping"
+MANAGER_STATUS_STOPPED = "stopped"
 
 ###############################################################################
 # PlanManager
@@ -67,6 +73,7 @@ class PlanManager(Thread):
                 self._notify_error(e)
 
         self.info("Exited main loop")
+        self._pre_shutdown()
 
     ###########################################################################
     def _tick(self):
@@ -334,13 +341,64 @@ class PlanManager(Thread):
     ###########################################################################
     def stop(self):
         """
-            Stops the manager gracefully by waiting for the current tick to
-             finish
+            Sends a stop request to the manager using the command port
+            This should be used by other processes (copy of the manager
+            instance) but not the actual running manager process
         """
-        self.info("Stopping manager gracefully. Waiting current tick"
-                  " to finish")
 
+        url = "http://0.0.0.0:%s/stop" % self._command_port
+        try:
+            response = urllib.urlopen(url)
+            if response.getcode() == 200:
+                print response.read().strip()
+            else:
+                msg =  ("Error while trying to stop manager URL %s "
+                        "(Response"" code %)" %
+                        ( url, response.getcode()))
+                raise PlanManagerException(msg)
+        except IOError, e:
+            logger.error("Manager is not running")
+
+    ###########################################################################
+    def get_status(self):
+        """
+            Sends a status request to the manager using the command port
+            This should be used by other processes (copy of the manager
+            instance) but not the actual running manager process
+        """
+        url = "http://0.0.0.0:%s/status" % self._command_port
+        try:
+            response = urllib.urlopen(url)
+            if response.getcode() == 200:
+                return response.read().strip()
+            else:
+                msg =  ("Error while trying to get status manager URL %s "
+                        "(Response code %)" % (url, response.getcode()))
+                raise PlanManagerException(msg)
+
+        except IOError, ioe:
+            return MANAGER_STATUS_STOPPED
+
+    ###########################################################################
+    def _do_stop(self):
+        """
+            Triggers the manager to gracefully stop
+        """
+        self.info("Stopping manager gracefully")
         self._stopped = True
+
+    ###########################################################################
+    def _do_get_status(self):
+        """
+            Gets the status of the manager
+        """
+        if self._stopped:
+            return MANAGER_STATUS_STOPPING
+        else:
+            return MANAGER_STATUS_RUNNING
+
+    ###########################################################################
+    def _pre_shutdown(self):
         self._stop_command_server()
 
     ###########################################################################
@@ -387,14 +445,38 @@ class ManagerCommandServer(Thread):
     def _build_flask_server(self):
         flask_server = Flask(__name__)
         manager = self._manager
+
+        ## build stop method
         @flask_server.route('/stop', methods=['GET'])
-        def stop_engine():
+        def stop_manager():
             logger.info("Command Server: Received a stop command")
             try:
-                manager.stop()
+                manager._do_stop()
                 return "Manager stopped successfully"
             except Exception, e:
                 return "Error while trying to stop manager: %s" % e
+
+        ## build status method
+        @flask_server.route('/status', methods=['GET'])
+        def status():
+            logger.info("Command Server: Received a status command")
+            try:
+                return manager._do_get_status()
+            except Exception, e:
+                return "Error while trying to get manager status: %s" % e
+
+        ## build stop-command-server method
+        @flask_server.route('/stop-command-server', methods=['GET'])
+        def stop_command_server():
+            logger.info("Stopping command server")
+            try:
+                shutdown = request.environ.get('werkzeug.server.shutdown')
+                if shutdown is None:
+                    raise RuntimeError('Not running with the Werkzeug Server')
+                shutdown()
+                return "success"
+            except Exception, e:
+                return "Error while trying to get manager status: %s" % e
 
         return flask_server
 
@@ -407,16 +489,24 @@ class ManagerCommandServer(Thread):
 
     ###########################################################################
     def stop(self):
-        """
-            Stops the flask server
-            http://flask.pocoo.org/snippets/67/
-        """
-        logger.info("EngineCommandServer: Stopping flask server ")
-        shutdown = request.environ.get('werkzeug.server.shutdown')
-        if shutdown is None:
-            raise RuntimeError('Not running with the Werkzeug Server')
-        shutdown()
-        logger.info("EngineCommandServer: Flask server stopped successfully")
+
+        logger.info("ManagerCommandServer: Stopping flask server ")
+        port = self._manager._command_port
+        url = "http://0.0.0.0:%s/stop-command-server" % port
+        try:
+            response = urllib.urlopen(url)
+            if response.getcode() == 200:
+                logger.info("ManagerCommandServer: Flask server stopped "
+                            "successfully")
+                return response.read().strip()
+            else:
+                msg =  ("Error while trying to send command of URL %s "
+                        "(Response code %)" % (url, response.getcode()))
+                raise PlanManagerException(msg)
+
+        except Exception, e:
+            raise PlanManagerException("Error while stopping flask server:"
+                                        " %s" %e)
 
 ###############################################################################
 # PlanManagerException
