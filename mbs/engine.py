@@ -482,13 +482,8 @@ class BackupWorker(Thread):
 
         try:
 
-            if backup.strategy == STRATEGY_DUMP:
-                self._run_dump_backup(backup)
-            elif backup.strategy == STRATEGY_EBS_SNAPSHOT:
-                self._run_ebs_snapshot_backup(backup)
-            else:
-                raise BackupEngineException("Unsupported backup strategy '%s'" %
-                                            backup.strategy)
+            # run the backup
+            self._run_backup(backup)
 
             # success!
             self.engine.worker_success(self)
@@ -504,43 +499,48 @@ class BackupWorker(Thread):
             # apply the retention policy
             # TODO Probably should be called somewhere else
             self._apply_retention_policy(backup.plan)
+            self._cleanup_backup(backup)
+
+    ###########################################################################
+    def _run_backup(self, backup):
+        if backup.strategy == STRATEGY_DUMP:
+            self._run_dump_backup(backup)
+        elif backup.strategy == STRATEGY_EBS_SNAPSHOT:
+            self._run_ebs_snapshot_backup(backup)
+        else:
+            raise BackupEngineException("Unsupported backup strategy '%s'" %
+                                        backup.strategy)
 
     ###########################################################################
     # DUMP Strategy
     ###########################################################################
     def _run_dump_backup(self, backup):
 
-
-        try:
-            # ensure that the te
-            self._ensure_temp_dir(backup)
+        # ensure that the te
+        self._ensure_temp_dir(backup)
 
 
-            # run mongoctl dump
-            if not backup.is_event_logged(EVENT_END_EXTRACT):
-                try:
-                    self._dump_source(backup)
-                except BackupEngineException, e:
-                    # still tar and upload failed dumps
-                    self.error("Dumping backup '%s' failed. Will still tar"
-                               "up and upload to keep dump logs" % backup.id)
-                    self._tar_and_upload_failed_dump(backup)
-                    raise e
+        # run mongoctl dump
+        if not backup.is_event_logged(EVENT_END_EXTRACT):
+            try:
+                self._dump_source(backup)
+            except BackupEngineException, e:
+                # still tar and upload failed dumps
+                self.error("Dumping backup '%s' failed. Will still tar"
+                           "up and upload to keep dump logs" % backup.id)
+                self._tar_and_upload_failed_dump(backup)
+                raise e
 
-            # tar the dump
-            if not backup.is_event_logged(EVENT_END_ARCHIVE):
-                self._archive_dump(backup)
+        # tar the dump
+        if not backup.is_event_logged(EVENT_END_ARCHIVE):
+            self._archive_dump(backup)
 
-            # upload back file to the target
-            if not backup.is_event_logged(EVENT_END_UPLOAD):
-                self._upload_dump(backup)
+        # upload back file to the target
+        if not backup.is_event_logged(EVENT_END_UPLOAD):
+            self._upload_dump(backup)
 
-            # calculate backup rate
-                self._calculate_backup_rate(backup)
-
-        finally:
-            # cleanup
-            self._cleanup_dump(backup)
+        # calculate backup rate
+            self._calculate_backup_rate(backup)
 
     ###########################################################################
     def _dump_source(self, backup):
@@ -628,7 +628,15 @@ class BackupWorker(Thread):
                                      message="Finished uploading bad tar")
 
     ###########################################################################
-    def _cleanup_dump(self, backup):
+    def _cleanup_backup(self, backup):
+        if backup.strategy == STRATEGY_DUMP:
+            self._cleanup_dump_backup(backup)
+        elif backup.strategy == STRATEGY_EBS_SNAPSHOT:
+            # TODO cleanup ? How?
+            pass
+
+    ###########################################################################
+    def _cleanup_dump_backup(self, backup):
         # delete the temp dir
         temp_dir = self._get_temp_dir(backup)
         tar_file_path = self._get_tar_file_path(backup)
