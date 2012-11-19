@@ -183,8 +183,8 @@ class PlanManager(Thread):
     ###########################################################################
     def _cancel_failed_backups_not_within_current_cycle(self):
         """
-        Cancels backups that failed and whose plan's next occurrence
-         in in the past
+        Cancels backups that failed or scheduled
+        and whose plan's next occurrence in in the past
         """
         now = date_now()
 
@@ -192,7 +192,7 @@ class PlanManager(Thread):
         #                " next occurrence is very soon or in the past")
 
         q = {
-            "state": STATE_FAILED,
+            "state": {"$in": [STATE_FAILED, STATE_SCHEDULED]},
             "plan.nextOccurrence": {"$lte": now}
         }
 
