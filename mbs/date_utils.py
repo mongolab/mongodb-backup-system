@@ -45,7 +45,7 @@ def is_date_value(value):
 def timedelta_total_seconds(td):
     """
     Equivalent python 2.7+ timedelta.total_seconds()
-     This was added for python 2.6 compatibilty
+     This was added for python 2.6 compatibility
     """
     return (td.microseconds + (td.seconds + td.days * 24 * 3600) * 1e6) / 1e6
 
