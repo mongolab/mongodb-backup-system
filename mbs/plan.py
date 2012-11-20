@@ -30,6 +30,7 @@ class BackupPlan(MBSObject):
         self._retention_policy = None
         self._generator = None
         self._tags = None
+        self._backup_naming_scheme = None
 
     ###########################################################################
     @property
@@ -123,6 +124,15 @@ class BackupPlan(MBSObject):
         self._tags = tags
 
     ###########################################################################
+    @property
+    def backup_naming_scheme(self):
+        return self._backup_naming_scheme
+
+    @backup_naming_scheme.setter
+    def backup_naming_scheme(self, naming_scheme):
+        self._backup_naming_scheme = naming_scheme
+
+    ###########################################################################
     def next_natural_occurrence(self):
 
         last_natural_occurrence = self.last_natural_occurrence()
@@ -165,6 +175,17 @@ class BackupPlan(MBSObject):
         return occurrences
 
     ###########################################################################
+    def get_backup_name(self, backup):
+        naming_scheme = self.backup_naming_scheme
+        if not naming_scheme:
+            naming_scheme = DefaultBackupNamingScheme()
+        elif type(naming_scheme) in [unicode, str]:
+            name_template = naming_scheme
+            naming_scheme = TemplateBackupNamingScheme(template=name_template)
+
+        return naming_scheme.get_backup_name(backup)
+
+    ###########################################################################
     def to_document(self):
         doc = {
             "_type": "Plan",
@@ -187,6 +208,9 @@ class BackupPlan(MBSObject):
 
         if self.tags:
             doc["tags"] = self.tags
+
+        if self.backup_naming_scheme:
+            doc["backupNamingScheme"] = self.backup_naming_scheme
 
         return doc
 
@@ -279,3 +303,55 @@ class Schedule(MBSObject):
             "frequency": self.frequency,
             "offset": self.offset
         }
+
+
+###############################################################################
+# BackupNamingScheme
+###############################################################################
+class BackupNamingScheme(MBSObject):
+
+    ###########################################################################
+    def __init__(self):
+        pass
+
+    ###########################################################################
+    def get_backup_name(self, backup):
+        pass
+
+###############################################################################
+# DefaultBackupNamingScheme
+###############################################################################
+class DefaultBackupNamingScheme(BackupNamingScheme):
+
+    ###########################################################################
+    def __init__(self):
+        BackupNamingScheme.__init__(self)
+
+    ###########################################################################
+    def get_backup_name(self, backup):
+        return "%s" % backup.id
+
+###############################################################################
+# TemplateBackupNamingScheme
+###############################################################################
+class TemplateBackupNamingScheme(BackupNamingScheme):
+
+    ###########################################################################
+    def __init__(self, template=None):
+        BackupNamingScheme.__init__(self)
+        self._template = template
+
+    ###########################################################################
+    def get_backup_name(self, backup):
+        return self.template.format(backup=backup)
+
+    ###########################################################################
+    @property
+    def template(self):
+        return self._template
+
+    @template.setter
+    def template(self, template):
+        self._template = template
+
+    ###########################################################################
