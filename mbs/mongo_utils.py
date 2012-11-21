@@ -67,13 +67,13 @@ def get_best_source_member(cluster_uri):
 
         if member1.is_passive():
             if member2.is_passive():
-                return int(member1.lag - member2.lag)
+                return int(member1.lag_in_seconds - member2.lag_in_seconds)
             else:
                 return -1
         elif member2.is_passive():
             return 1
         else:
-            return int(member1.lag - member2.lag)
+            return int(member1.lag_in_seconds - member2.lag_in_seconds)
 
 
     secondaries.sort(best_secondary_comp)
@@ -105,7 +105,7 @@ class MongoServer(object):
         self._rs_conf = self._get_rs_config()
         self._rs_status = self._get_rs_status()
         self._member_config = self._get_member_config()
-        self._lag = 0
+        self._lag_in_seconds = 0
 
     ###########################################################################
     @property
@@ -119,8 +119,8 @@ class MongoServer(object):
 
     ###########################################################################
     @property
-    def lag(self):
-        return self._lag
+    def lag_in_seconds(self):
+        return self._lag_in_seconds
 
     ###########################################################################
     @property
@@ -149,8 +149,8 @@ class MongoServer(object):
             master_status['optimeDate'] -
             my_status['optimeDate']))
 
-        self._lag = lag_in_seconds
-        return self._lag
+        self._lag_in_seconds = lag_in_seconds
+        return self._lag_in_seconds
 
     ###########################################################################
     def is_primary(self):
