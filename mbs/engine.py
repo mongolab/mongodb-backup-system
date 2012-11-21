@@ -29,6 +29,7 @@ from backup import (STATE_SCHEDULED, STATE_IN_PROGRESS, STATE_FAILED,
                     STATE_SUCCEEDED)
 
 from target import EbsSnapshotReference
+from robustify.robustify import robustify
 
 ###############################################################################
 # CONSTANTS
@@ -445,6 +446,18 @@ class BackupEngine(Thread):
         logger.error("<BackupEngine-%s>: %s" % (self.id, msg))
 
 ###############################################################################
+def _raise_if_not_connectivity(exception):
+    """
+        Module method for robustifying connection attempts
+    """
+    msg = str(exception)
+    if "Broken pipe" in msg or "reset" in msg:
+        logger.warn("Caught a connectivity exception: %s" % msg)
+    else:
+        logger.debug("Re-raising a a NON-connectivity exception: %s" % msg)
+        raise
+
+###############################################################################
 # BackupWorker
 ###############################################################################
 
@@ -543,6 +556,8 @@ class BackupWorker(Thread):
             self._calculate_backup_rate(backup)
 
     ###########################################################################
+    @robustify(max_attempts=3, retry_interval=2,
+               do_on_exception=_raise_if_not_connectivity)
     def _dump_source(self, backup):
         self.info("Dumping source %s " % backup.source)
         self.engine.log_backup_event(backup,
