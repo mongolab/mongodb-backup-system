@@ -702,9 +702,16 @@ class BackupWorker(Thread):
                                    stderr=dump_log_file)
 
         except CalledProcessError, e:
+            reason = ""
+            if e.returncode == 245:
+                reason = "Probably because of bad collection names."
+            if e.returncode == 255:
+                #TODO figure out whats mongodump error 255
+                reason = ""
+
             msg = ("Failed to dump. Dump command '%s' returned a non-zero exit"
-                   " status %s. Check dump logs." %
-                   (dump_cmd_display, e.returncode))
+                   " status %s. %s Check dump logs." %
+                   (dump_cmd_display, reason, e.returncode))
             raise BackupEngineException(msg)
 
 
