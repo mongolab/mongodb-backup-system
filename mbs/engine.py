@@ -735,9 +735,9 @@ class BackupWorker(Thread):
     def _calculate_backup_rate(self, backup):
         duration = timedelta_total_seconds(date_now() - backup.start_date)
         if backup.source_stats and backup.source_stats.get("fileSizeInGB"):
-            size = backup.source_stats["fileSizeInGB"]
-            rate = size/duration
-            backup.backup_rate = round(rate, 2)
+            size_mb = backup.source_stats["fileSizeInGB"] * 1024
+            rate = size_mb/duration
+            backup.backup_rate_in_mb = round(rate, 2)
 
     ###########################################################################
     # EBS Snapshot Strategy
