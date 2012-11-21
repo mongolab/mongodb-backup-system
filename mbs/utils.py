@@ -9,7 +9,7 @@ import json
 import time
 
 from date_utils import (datetime_to_bson, is_date_value, seconds_now,
-                        utc_str_to_dateime)
+                        utc_str_to_datetime)
 from bson import json_util
 
 ###############################################################################
@@ -114,7 +114,7 @@ def read_config_json(name, path):
 ###############################################################################
 def _custom_json_object_hook(dct):
     if "$date" in dct:
-        return utc_str_to_dateime(dct["$date"])
+        return utc_str_to_datetime(dct["$date"])
     else:
         return json_util.object_hook(dct)
 

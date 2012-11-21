@@ -85,5 +85,5 @@ def datetime_to_bson( ts ):
     return { "$date" : ts.strftime( "%Y-%m-%dT%H:%M:%S.000Z" ) }
 
 ###############################################################################
-def utc_str_to_dateime( str ):
+def utc_str_to_datetime( str ):
     return datetime.strptime(str, "%Y-%m-%dT%H:%M:%S.000Z")
