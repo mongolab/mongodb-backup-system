@@ -67,13 +67,13 @@ def get_best_source_member(cluster_uri):
 
         if member1.is_passive():
             if member2.is_passive():
-                return member1.lag - member2.lag
+                return int(member1.lag - member2.lag)
             else:
                 return -1
         elif member2.is_passive():
             return 1
         else:
-            return member1.lag - member2.lag
+            return int(member1.lag - member2.lag)
 
 
     secondaries.sort(best_secondary_comp)
