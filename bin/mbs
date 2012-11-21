@@ -36,7 +36,6 @@ def main(args):
 ###############################################################################
 def start_engine(parsed_args):
     engine_id = parsed_args.engineId
-
     engine = _get_engine(engine_id)
 
     status = engine.get_status()
@@ -45,10 +44,10 @@ def start_engine(parsed_args):
         return
     elif status == STATUS_STOPPING:
         print ("Engine is stopping now. Please wait until it is completely "
-              "stopped then try starting again")
+               "stopped then try starting again")
         return
 
-    engine.start()
+    _do_start_engine(engine, fork=parsed_args.fork)
 
     def engine_started():
         return engine.get_status() == STATUS_RUNNING
@@ -59,6 +58,20 @@ def start_engine(parsed_args):
     else:
         print "Engine did not start. Please check logs"
 
+###############################################################################
+def _do_start_engine(engine, fork=False):
+
+    if fork:
+        child_pid = os.fork()
+        if child_pid:
+            # parent process. return
+            print "Forked engine process %s" % child_pid
+            return
+
+    # forked child process
+    engine.start()
+
+    # register signal handler
     def engine_stopped():
         return engine.get_status() == STATUS_STOPPED
 
@@ -103,7 +116,7 @@ def restart_engine(parsed_args):
     wait_for(engine_stopped, timeout=100)
 
     if engine_stopped():
-        engine.start()
+        start_engine(parsed_args)
     else:
         print "Engine did not stop yet. Please try later"
         exit(1)
@@ -129,7 +142,7 @@ def start_plan_manager(parsed_args):
                "completely stopped then try starting again")
         return
 
-    manager.start()
+    _do_start_plan_manager(fork=parsed_args.fork)
 
     def manager_started():
         return manager.get_status() == STATUS_RUNNING
@@ -140,6 +153,33 @@ def start_plan_manager(parsed_args):
     else:
         print "Plan Manager did not start. Please check logs"
 
+###############################################################################
+def _do_start_plan_manager(fork=False):
+    if fork:
+        child_pid = os.fork()
+        if child_pid:
+            # parent process. return
+            print "Forked plan manager process %s" % child_pid
+            return
+
+    # forked child process
+    manager = get_mbs().plan_manager
+    manager.start()
+
+###############################################################################
+def stop_plan_manager(parsed_args):
+    manager = get_mbs().plan_manager
+    status = manager.get_status()
+    if status == STATUS_STOPPING:
+        print "A stop request has already been made"
+        return
+    elif status == STATUS_STOPPED:
+        print "Plan Manager is not running"
+        return
+
+    manager.stop()
+
+    # register signal handler
     def manager_stopped():
         return manager.get_status() == STATUS_STOPPED
 
@@ -158,19 +198,6 @@ def start_plan_manager(parsed_args):
     signal.signal(signal.SIGTERM, stop_this_manager)
 
 ###############################################################################
-def stop_plan_manager(parsed_args):
-    manager = get_mbs().plan_manager
-    status = manager.get_status()
-    if status == STATUS_STOPPING:
-        print "A stop request has already been made"
-        return
-    elif status == STATUS_STOPPED:
-        print "Plan Manager is not running"
-        return
-
-    manager.stop()
-
-###############################################################################
 def restart_plan_manager(parsed_args):
     manager = get_mbs().plan_manager
 
@@ -182,7 +209,7 @@ def restart_plan_manager(parsed_args):
     wait_for(manager_stopped, timeout=100)
 
     if manager_stopped():
-        manager.start()
+        start_plan_manager(parsed_args)
     else:
         print "Manager did not stop yet. Please try later"
         exit(1)
@@ -259,6 +286,15 @@ PARSER_DEF = {
                     "nargs": "?",
                     "displayName": "ENGINE_ID",
                     "help": "An engine id"
+                },
+                    {
+                    "name": "fork",
+                    "type" : "optional",
+                    "cmd_arg":  "--fork",
+                    "nargs": 0,
+                    "help": "fork the engine process",
+                    "action": "store_true",
+                    "default": False
                 }
             ]
         },
@@ -309,6 +345,15 @@ PARSER_DEF = {
                     "nargs": "?",
                     "displayName": "ENGINE_ID",
                     "help": "An engine id"
+                },
+                    {
+                    "name": "fork",
+                    "type" : "optional",
+                    "cmd_arg":  "--fork",
+                    "nargs": 0,
+                    "help": "fork the engine process",
+                    "action": "store_true",
+                    "default": False
                 }
             ]
         },
@@ -316,7 +361,18 @@ PARSER_DEF = {
             "prog": "start-plan-manager",
             "shortDescription" : "starts the plan manager",
             "description" : "starts the plan manager",
-            "function": start_plan_manager
+            "function": start_plan_manager,
+            "args": [
+                    {
+                    "name": "fork",
+                    "type" : "optional",
+                    "cmd_arg":  "--fork",
+                    "nargs": 0,
+                    "help": "fork the engine process",
+                    "action": "store_true",
+                    "default": False
+                }
+            ]
         },
 
         #### stop-plan-manager ####
@@ -339,7 +395,18 @@ PARSER_DEF = {
             "prog": "restart-plan-manager",
             "shortDescription" : "restart plan manager",
             "description" : "restart plan manager",
-            "function": restart_plan_manager
+            "function": restart_plan_manager,
+            "args": [
+                    {
+                    "name": "fork",
+                    "type" : "optional",
+                    "cmd_arg":  "--fork",
+                    "nargs": 0,
+                    "help": "fork the engine process",
+                    "action": "store_true",
+                    "default": False
+                }
+            ]
         },
             {
             "prog": "generate-audit-reports",
