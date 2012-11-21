@@ -84,8 +84,13 @@ class S3BucketTarget(BackupTarget):
     def put_file(self, file_path):
         try:
 
-            logger.info("S3BucketTarget: Uploading %s to s3 bucket %s" %
-                        (file_path, self.bucket_name))
+            # calculating file size
+            file_size = os.path.getsize(file_path)
+            file_size_in_gb = file_size / (1024 * 1024 * 1024)
+            file_size_in_gb = round(file_size_in_gb, 2)
+
+            logger.info("S3BucketTarget: Uploading %s (%s GB) to s3 bucket %s" %
+                        (file_path, file_size_in_gb, self.bucket_name))
 
 
             bucket = self._get_bucket()
@@ -95,10 +100,12 @@ class S3BucketTarget(BackupTarget):
             file_obj = open(file_path)
             k.set_contents_from_file(file_obj)
 
-            logger.info("S3BucketTarget: Uploading to s3 bucket %s completed"
-                        " successfully!!" % self.bucket_name)
+            logger.info("S3BucketTarget: Uploading %s (%s GB) to s3 bucket %s "
+                        "completed successfully!!" %
+                        (file_path, file_size_in_gb, self.bucket_name))
 
-            return FileReference(file_key)
+            return FileReference(file_name=file_key,
+                                 file_size_in_gb=file_size_in_gb)
         except Exception, e:
             traceback.print_exc()
             msg = ("S3BucketTarget: Error while trying to upload '%s'"
@@ -306,6 +313,7 @@ class TargetReference(MBSObject):
     ###########################################################################
     def __init__(self):
         self._expired = False
+        self._file_size_in_gb = None
 
     ###########################################################################
     @property
@@ -316,11 +324,22 @@ class TargetReference(MBSObject):
         """
         return self._expired
 
-
     @expired.setter
     def expired(self, expired):
         self._expired = expired
 
+    ###########################################################################
+    @property
+    def file_size_in_gb(self):
+        """
+            Indicates if the reference file expired.
+
+        """
+        return self._file_size_in_gb
+
+    @file_size_in_gb.setter
+    def file_size_in_gb(self, size):
+        self._file_size_in_gb = size
 
 ###############################################################################
 # FileReference
@@ -328,15 +347,15 @@ class TargetReference(MBSObject):
 class FileReference(TargetReference):
 
     ###########################################################################
-    def __init__(self, file_name=None):
+    def __init__(self, file_name=None, file_size_in_gb=None):
         TargetReference.__init__(self)
         self.file_name = file_name
+        self.file_size_in_gb = file_size_in_gb
 
     ###########################################################################
     @property
     def file_name(self):
         return self._file_name
-
 
     @file_name.setter
     def file_name(self, file_name):
@@ -346,7 +365,8 @@ class FileReference(TargetReference):
     def to_document(self):
         doc = {
             "_type": "FileReference",
-            "fileName": self.file_name
+            "fileName": self.file_name,
+            "fileSizeInGB": self.file_size_in_gb
         }
         if self.expired:
             doc["expired"] = self.expired
