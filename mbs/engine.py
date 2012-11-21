@@ -711,7 +711,7 @@ class BackupWorker(Thread):
 
             msg = ("Failed to dump. Dump command '%s' returned a non-zero exit"
                    " status %s. %s Check dump logs." %
-                   (dump_cmd_display, reason, e.returncode))
+                   (dump_cmd_display, e.returncode, reason))
             raise BackupEngineException(msg)
 
 
