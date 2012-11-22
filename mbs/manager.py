@@ -10,9 +10,9 @@ from threading import Thread
 from flask import Flask
 from flask.globals import request
 
-from date_utils import date_now, date_minus_seconds
+from date_utils import date_now, date_minus_seconds, time_str_to_datetime_today
 from errors import MBSException
-
+from audit import GlobalAuditor, PlanAuditor
 from backup import (Backup, STATE_SCHEDULED, STATE_IN_PROGRESS, STATE_FAILED,
                     STATE_CANCELED)
 ###############################################################################
@@ -41,22 +41,104 @@ MANAGER_STATUS_STOPPED = "stopped"
 ###############################################################################
 class PlanManager(Thread):
     ###########################################################################
-    def __init__(self, plan_collection, backup_collection,
-                       sleep_time=10, notification_handler=None,
+    def __init__(self, sleep_time=10,
                        command_port=9999):
 
         Thread.__init__(self)
-        self._plan_collection = plan_collection
-        self._backup_collection = backup_collection
+        self._plan_collection = None
+        self._backup_collection = None
         self._sleep_time = sleep_time
 
         self._registered_plan_generators = []
         self._tick_ring = 0
-        self._notification_handler = notification_handler
+        self._notification_handler = None
         self._stopped = False
         self._command_port = command_port
         self._command_server = ManagerCommandServer(self)
 
+        # auditing stuff
+        self._audit_collection = None
+
+        # init global editor
+        self._audit_notification_handler = None
+        self._global_auditor = None
+        self._plan_auditor = None
+        self._audit_schedule = None
+        self._audit_next_occurrence = None
+
+    ###########################################################################
+    # Properties
+    ###########################################################################
+    @property
+    def plan_collection(self):
+        return self._plan_collection
+
+    @plan_collection.setter
+    def plan_collection(self, pc):
+        self._plan_collection = pc
+
+    ###########################################################################
+    @property
+    def backup_collection(self):
+        return self._backup_collection
+
+    @backup_collection.setter
+    def backup_collection(self, bc):
+        self._backup_collection = bc
+
+    ###########################################################################
+    @property
+    def notification_handler(self):
+        return self._notification_handler
+
+    @notification_handler.setter
+    def notification_handler(self, handler):
+        self._notification_handler = handler
+
+    ###########################################################################
+    @property
+    def audit_collection(self):
+        return self._audit_collection
+
+    @audit_collection.setter
+    def audit_collection(self, ac):
+        self._audit_collection = ac
+
+    ###########################################################################
+    @property
+    def audit_notification_handler(self):
+        return self._audit_notification_handler
+
+    @audit_notification_handler.setter
+    def audit_notification_handler(self, handler):
+        self._audit_notification_handler = handler
+
+    ###########################################################################
+    @property
+    def audit_schedule(self):
+        return self._audit_schedule
+
+    @audit_schedule.setter
+    def audit_schedule(self, schedule):
+        self._audit_schedule = schedule
+
+    ###########################################################################
+    @property
+    def global_auditor(self):
+        if not self._global_auditor:
+            ac = self.audit_collection
+            nh = self.audit_notification_handler
+            self._global_auditor = GlobalAuditor(audit_collection=ac,
+                                                 notification_handler=nh)
+            # create / register plan auditor
+            plan_auditor = PlanAuditor(self.plan_collection,
+                                       self.backup_collection)
+            self._global_auditor.register_auditor(plan_auditor)
+
+        return self._global_auditor
+
+    ###########################################################################
+    # Behaviors
     ###########################################################################
     def run(self):
         self.info("Starting up... ")
@@ -87,6 +169,9 @@ class PlanManager(Thread):
         if self._tick_ring == 0:
             self._run_plan_generators()
             self._check_starving_scheduled_backups()
+
+        # run auditor if its time
+        #self._check_audit()
 
     ###########################################################################
     def _process_plans_considered_now(self):
@@ -278,6 +363,34 @@ class PlanManager(Thread):
     def remove_plan(self, plan):
         logger.info("Removing plan '%s' " % plan.id)
         self._plan_collection.remove_by_id(plan.id)
+
+    ###########################################################################
+    def _check_audit(self):
+        # TODO Properly run auditors as needed
+
+        #
+        if not self._audit_next_occurrence:
+            self._audit_next_occurrence = self._get_audit_next_occurrence()
+            return
+
+        if date_now() >= self._audit_next_occurrence():
+            self.info("Running auditor...")
+            self.global_auditor.generate_yesterday_audit_reports()
+            self._audit_next_occurrence = self._get_audit_next_occurrence()
+
+    ###########################################################################
+    def _get_audit_next_occurrence(self):
+        pass
+
+    ###########################################################################
+    def _audit_date_for_today(self):
+        if self._audit_schedule:
+            return time_str_to_datetime_today(self._audit_schedule)
+
+    ###########################################################################
+    def _audit_date_for_today(self):
+        if self._audit_schedule:
+            return time_str_to_datetime_today(self._audit_schedule)
 
     ###########################################################################
     # plan generators methods a

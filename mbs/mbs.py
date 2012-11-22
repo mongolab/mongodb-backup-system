@@ -53,27 +53,12 @@ class MBS(object):
                               clazz=AuditReport,
                               type_bindings=type_bindings)
 
-
-        # init plan manager
-        self._plan_manager = PlanManager(self.plan_collection,
-                                         self.backup_collection,
-                                          notification_handler=
-                                           self._notification_handler)
-
-        # load engines lazily
-        self._engines = None
-
         self._audit_collection = ac
+        # load manager/engines lazily
+        self._plan_manager = None
 
-        # init global editor
-        audit_notif_handler = self.get_auditor_notification_handler()
-        self._global_auditor = GlobalAuditor(self._audit_collection,
-                                             notification_handler=
-                                              audit_notif_handler)
-        plan_auditor = PlanAuditor(self.plan_collection,
-                                   self.backup_collection)
 
-        self._global_auditor.register_auditor(plan_auditor)
+        self._engines = None
 
     ###########################################################################
     def _get_type_bindings(self):
@@ -91,6 +76,16 @@ class MBS(object):
     @property
     def backup_collection(self):
         return self._backup_collection
+
+    ###########################################################################
+    @property
+    def audit_collection(self):
+        return self._audit_collection
+
+    ###########################################################################
+    @property
+    def plan_collection(self):
+        return self._plan_collection
 
     ###########################################################################
     @property
@@ -116,10 +111,6 @@ class MBS(object):
 
         return engines
 
-    ###########################################################################
-    @property
-    def plan_collection(self):
-        return self._plan_collection
 
     ###########################################################################
     def get_engine(self, engine_id):
@@ -132,21 +123,20 @@ class MBS(object):
     ###########################################################################
     @property
     def plan_manager(self):
-        return self._plan_manager
+        if not self._plan_manager:
+            manager_conf = self._get_config_value("planManager")
+            self._plan_manager = self._maker.make(manager_conf)
+            self._plan_manager.plan_collection = self.plan_collection
+            self._plan_manager.backup_collection = self.backup_collection
+            self._plan_manager.audit_collection = self.audit_collection
+            self._plan_manager.notification_handler = \
+                                                    self._notification_handler
 
-    ###########################################################################
-    @property
-    def global_auditor(self):
-        return self._global_auditor
+        return self._plan_manager
 
     ###########################################################################
     def get_notification_handler(self):
         handler_conf = self._get_config_value("notificationHandler")
-        return self._maker.make(handler_conf)
-
-    ###########################################################################
-    def get_auditor_notification_handler(self):
-        handler_conf = self._get_config_value("auditorNotificationHandler")
         return self._maker.make(handler_conf)
 
 ###############################################################################

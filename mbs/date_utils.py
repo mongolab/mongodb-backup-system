@@ -87,3 +87,9 @@ def datetime_to_bson( ts ):
 ###############################################################################
 def utc_str_to_datetime( str ):
     return datetime.strptime(str, "%Y-%m-%dT%H:%M:%S.000Z")
+
+###############################################################################
+def time_str_to_datetime_today(str):
+    time =  datetime.strptime(str, "%H:%M")
+    today = today_date()
+    return today.replace(hour=time.hour, minute=time.minute)

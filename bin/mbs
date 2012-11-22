@@ -223,7 +223,7 @@ def status_plan_manager(parsed_args):
 # Other Commands
 ###############################################################################
 def generate_audit_reports(parsed_args):
-    global_auditor = get_mbs().global_auditor
+    global_auditor = get_mbs().plan_manager.global_auditor
     global_auditor.generate_yesterday_audit_reports()
 
 ###############################################################################
