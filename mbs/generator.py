@@ -19,6 +19,10 @@ class PlanGenerator(object):
         self._plan_collection = plan_collection
 
     ###########################################################################
+    @property
+    def name(self):
+        return ""
+    ###########################################################################
     def get_plans_to_save(self):
         return []
 

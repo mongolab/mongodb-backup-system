@@ -400,12 +400,13 @@ class PlanManager(Thread):
 
     ###########################################################################
     def _run_plan_generators(self):
+        self.info("Running ALL plan generators")
         for generator in self._registered_plan_generators:
                 self._run_generator(generator)
 
     ###########################################################################
     def _run_generator(self, generator):
-
+        self.info("Running plan generator '%s' " % generator.name)
         # remove expired plans
         for plan in generator.get_plans_to_remove():
             self.remove_plan(plan)
