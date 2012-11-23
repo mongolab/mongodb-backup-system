@@ -146,7 +146,7 @@ class BackupPlan(MBSObject):
     def next_natural_occurrence(self):
 
         last_natural_occurrence = self.last_natural_occurrence()
-        frequency = self.schedule.frequency
+        frequency = self.schedule.frequency_in_seconds
         return date_plus_seconds(last_natural_occurrence, frequency)
 
     ###########################################################################
@@ -162,7 +162,7 @@ class BackupPlan(MBSObject):
 
         return seconds_to_date(date_seconds -
                                ((date_seconds - offset_seconds) %
-                                schedule.frequency))
+                                schedule.frequency_in_seconds))
 
     ###########################################################################
     def natural_occurrences_as_of(self, date):
@@ -174,7 +174,7 @@ class BackupPlan(MBSObject):
         occurrences = []
         last_occurrence = self.last_natural_occurrence_as_of(start_date)
 
-        delta = timedelta(seconds=self.schedule.frequency)
+        delta = timedelta(seconds=self.schedule.frequency_in_seconds)
 
         while last_occurrence < end_date:
             if last_occurrence >= start_date:
@@ -246,8 +246,8 @@ class BackupPlan(MBSObject):
             errors.append("Missing plan 'schedule'")
         else:
             #  frequency
-            if not self.schedule.frequency:
-                errors.append("Plan schedule is missing 'frequency'")
+            if not self.schedule.frequency_in_seconds:
+                errors.append("Plan schedule is missing 'frequencyInSeconds'")
             # offset
             if (self.schedule.offset and
                 not is_date_value(self.schedule.offset)):
@@ -286,7 +286,7 @@ class BackupPlan(MBSObject):
 ###############################################################################
 class Schedule(MBSObject):
     def __init__(self):
-        self._frequency = None
+        self._frequency_in_seconds = None
         self._offset = None
 
     ###########################################################################
@@ -300,18 +300,18 @@ class Schedule(MBSObject):
 
     ###########################################################################
     @property
-    def frequency(self):
-        return self._frequency
+    def frequency_in_seconds(self):
+        return self._frequency_in_seconds
 
-    @frequency.setter
-    def frequency(self, frequency):
-        self._frequency = frequency
+    @frequency_in_seconds.setter
+    def frequency_in_seconds(self, frequency):
+        self._frequency_in_seconds = frequency
 
     ###########################################################################
     def to_document(self):
         return {
             "_type": "Schedule",
-            "frequency": self.frequency,
+            "frequencyInSeconds": self.frequency_in_seconds,
             "offset": self.offset
         }
 
