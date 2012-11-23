@@ -31,7 +31,7 @@ def mongo_connect(uri):
                         "%s: %s" % (uri_wrapper.masked_uri, e))
 
 ###############################################################################
-def get_best_source_member(cluster_uri):
+def get_best_source_member(cluster_uri, primary_ok=False):
     """
         Returns the best source member to get the pull from.
         This only applicable for cluster connections.
@@ -45,6 +45,10 @@ def get_best_source_member(cluster_uri):
 
     # find primary/secondaries
     for member in members:
+        if not member.online:
+            logger.info("Member '%s' appears to be offline. Excluding..." %
+                        member)
+            continue
         if member.is_primary():
             primary = member
         elif member.is_secondary():
@@ -55,8 +59,13 @@ def get_best_source_member(cluster_uri):
                         uri_wrapper.masked_uri)
 
     if not secondaries:
-        raise Exception("No secondaries found for cluster '%s'" %
-                        uri_wrapper.masked_uri)
+        if primary_ok:
+            logger.info("No secondaries found and primaryOk is true. "
+                        "Using primary member '%s'" % primary)
+            return primary
+        else:
+            raise Exception("No secondaries found for cluster '%s'" %
+                            uri_wrapper.masked_uri)
 
     master_status = primary.rs_status
     # compute lags
@@ -101,7 +110,14 @@ class MongoServer(object):
     ###########################################################################
     def __init__(self, uri):
         self._uri_wrapper = parse_mongo_uri(uri)
-        self._admin_db = mongo_connect(uri)
+        self._admin_db = None
+
+        try:
+            self._admin_db = mongo_connect(uri)
+        except Exception, e:
+            logger.error("Error while trying to connect to '%s'. %s" %
+                         (self, e))
+            return
         self._rs_conf = self._get_rs_config()
         self._rs_status = self._get_rs_status()
         self._member_config = self._get_member_config()
@@ -111,6 +127,11 @@ class MongoServer(object):
     @property
     def uri(self):
         return self._uri_wrapper.raw_uri
+
+    ###########################################################################
+    @property
+    def online(self):
+        return self._admin_db is not None
 
     ###########################################################################
     @property
@@ -209,6 +230,11 @@ class MongoServer(object):
         return total_stats_gb
 
     ###########################################################################
+    @property
+    def server_status(self):
+        return self._get_server_status()
+
+    ###########################################################################
     def _get_database_stats(self, dbname):
         return self._admin_db.connection[dbname].command({"dbstats":1})
 
@@ -223,6 +249,17 @@ class MongoServer(object):
         except Exception, e:
             logger.error("Cannot get rs for member '%s'. cause: %s" %
                         (self, e))
+            return None
+
+    ###########################################################################
+    def _get_server_status(self):
+        try:
+            server_status_cmd = SON([('serverStatus', 1)])
+            server_status =  self._admin_db.command(server_status_cmd)
+            return server_status
+        except Exception, e:
+            logger.error("Cannot get server status for member '%s'. cause: %s" %
+                         (self, e))
             return None
 
     ###########################################################################

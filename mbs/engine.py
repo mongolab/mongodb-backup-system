@@ -565,7 +565,10 @@ class BackupWorker(Thread):
             message="Dumping source")
 
         # record source stats
-        backup.source_stats = backup.source.get_current_stats()
+        source_address = backup.source.get_source_address(primary_ok=
+                                                          backup.plan.primary_ok)
+        backup.source_stats = backup.source.get_current_stats(primary_ok=
+                                                              backup.plan.primary_ok)
 
         # save source stats if present
         if backup.source_stats:
@@ -574,7 +577,8 @@ class BackupWorker(Thread):
                 message="Computed source stats")
 
         temp_dir = self._get_temp_dir(backup)
-        self._execute_dump_command(backup.source, temp_dir)
+        dbname = backup.source.database_name
+        self._execute_dump_command(source_address, dbname, temp_dir)
 
 
         self.engine.log_backup_event(backup,
@@ -673,15 +677,14 @@ class BackupWorker(Thread):
             self.error("temp dir %s does not exist!" % temp_dir)
 
     ###########################################################################
-    def _execute_dump_command(self, source, dest):
-        source_address = source.source_address
+    def _execute_dump_command(self, source_address, database_name,dest):
         dump_cmd = ["/usr/local/bin/mongoctl",
                     "--noninteractive", # always run with noninteractive
                     "dump", source_address,
                     "-o",dest]
 
         # if its a server level backup then add forceTableScan and oplog
-        if not source.database_name:
+        if not database_name:
             dump_cmd.extend([
                 "--oplog",
                 "--forceTableScan"]

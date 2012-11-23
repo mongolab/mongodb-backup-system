@@ -23,6 +23,7 @@ class BackupPlan(MBSObject):
         self._id = None
         self._description = None
         self._source = None
+        self._primary_ok = None
         self._target = None
         self._schedule = None
         self._next_occurrence = None
@@ -58,6 +59,15 @@ class BackupPlan(MBSObject):
     @source.setter
     def source(self, source):
         self._source = source
+
+    ###########################################################################
+    @property
+    def primary_ok(self):
+        return self._primary_ok
+
+    @primary_ok.setter
+    def primary_ok(self, val):
+        self._primary_ok = val
 
     ###########################################################################
     @property
@@ -191,6 +201,7 @@ class BackupPlan(MBSObject):
             "_type": "Plan",
             "description": self.description,
             "source": self.source.to_document(),
+            "primaryOk": self.primary_ok,
             "target": self.target.to_document(),
             "schedule": self.schedule.to_document(),
             "nextOccurrence": self.next_occurrence,

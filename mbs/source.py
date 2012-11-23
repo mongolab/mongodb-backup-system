@@ -16,8 +16,7 @@ class BackupSource(MBSObject):
         pass
 
     ###########################################################################
-    @property
-    def source_address(self):
+    def get_source_address(self, **kwargs):
         pass
 
     ###########################################################################
@@ -70,9 +69,7 @@ class MongoSource(BackupSource):
         self._uri = uri
 
     ###########################################################################
-
-    @property
-    def source_address(self):
+    def get_source_address(self, **kwargs):
         return self.uri
 
     ###########################################################################
