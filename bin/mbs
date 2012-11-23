@@ -220,6 +220,10 @@ def status_plan_manager(parsed_args):
     print manager.get_status()
 
 ###############################################################################
+def run_plan_generators(parsed_args):
+    manager = get_mbs().plan_manager
+    manager._run_plan_generators()
+###############################################################################
 # Other Commands
 ###############################################################################
 def generate_audit_reports(parsed_args):
@@ -407,6 +411,13 @@ PARSER_DEF = {
                     "default": False
                 }
             ]
+        },
+        #### restart-plan-manager ####
+            {
+            "prog": "run-plan-generators",
+            "shortDescription" : "Runs plans generators",
+            "description" : "Runs plans generators",
+            "function": run_plan_generators
         },
             {
             "prog": "generate-audit-reports",
