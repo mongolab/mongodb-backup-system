@@ -199,12 +199,12 @@ class S3BucketTarget(BackupTarget):
         self._secret_key = str(secret_key)
 
     ###########################################################################
-    def to_document(self):
+    def to_document(self, display_only=False):
         return {
             "_type": "S3BucketTarget",
             "bucketName": self.bucket_name,
-            "accessKey": self.access_key,
-            "secretKey": self.secret_key
+            "accessKey": "xxxxx" if display_only else self.access_key,
+            "secretKey": "xxxxx" if display_only else self.secret_key
         }
 
     ###########################################################################
@@ -283,11 +283,11 @@ class EbsSnapshotTarget(BackupTarget):
         pass
 
     ###########################################################################
-    def to_document(self):
+    def to_document(self, display_only=False):
         return {
             "_type": "EbsSnapshotTarget",
-            "accessKey": self.access_key,
-            "secretKey": self.secret_key
+            "accessKey": "xxxxx" if display_only else self.access_key,
+            "secretKey": "xxxxx" if display_only else self.secret_key
         }
 
     ###########################################################################
@@ -362,7 +362,7 @@ class FileReference(TargetReference):
         self._file_name = file_name
 
     ###########################################################################
-    def to_document(self):
+    def to_document(self, display_only=False):
         doc = {
             "_type": "FileReference",
             "fileName": self.file_name,
@@ -392,7 +392,7 @@ class EbsSnapshotReference(TargetReference):
         self._snapshot_id = snapshot_id
 
     ###########################################################################
-    def to_document(self):
+    def to_document(self, display_only=False):
         doc = {
             "_type": "EbsSnapshotReference",
             "snapshotId": self.snapshot_id,

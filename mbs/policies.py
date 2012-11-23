@@ -116,7 +116,7 @@ class RetainLastNPolicy(RetentionPolicy):
             return backups[self.retain_count:]
 
     ###########################################################################
-    def to_document(self):
+    def to_document(self, display_only=False):
         return {
             "_type": "RetainLastNPolicy",
             "retainCount": self.retain_count
@@ -165,7 +165,7 @@ class RetainMaxTimePolicy(RetentionPolicy):
         return backups
 
     ###########################################################################
-    def to_document(self):
+    def to_document(self, display_only=False):
         return {
             "_type": "RetainMaxTimePolicy",
             "maxTime": self.max_time

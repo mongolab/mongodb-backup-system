@@ -221,14 +221,14 @@ class Backup(MBSObject):
             return state_logs[0].date
 
     ###########################################################################
-    def to_document(self):
+    def to_document(self, display_only=False):
         doc = {
             "_type": "Backup",
             "state": self.state,
             "strategy": self.strategy,
-            "source": self.source.to_document(),
-            "target": self.target.to_document(),
-            "plan": self.plan.to_document(),
+            "source": self.source.to_document(display_only=display_only),
+            "target": self.target.to_document(display_only=display_only),
+            "plan": self.plan.to_document(display_only=display_only),
             "planOccurrence": self.plan_occurrence,
             "engineGuid": self.engine_guid,
             "logs": self.export_logs()
@@ -238,7 +238,8 @@ class Backup(MBSObject):
             doc["_id"] = self.id
 
         if self.target_reference:
-            doc["targetReference"] = self.target_reference.to_document()
+            doc["targetReference"] = self.target_reference.to_document(
+                                                     display_only=display_only)
 
         if self.source_stats:
             doc["sourceStats"] = self.source_stats
@@ -315,7 +316,7 @@ class BackupLogEntry(MBSObject):
         self._message = value
 
     ###########################################################################
-    def to_document(self):
+    def to_document(self, display_only=False):
         return {
             "_type": "BackupLogEntry",
             "name": self.name,

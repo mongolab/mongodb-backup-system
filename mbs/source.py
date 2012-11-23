@@ -78,7 +78,8 @@ class MongoSource(BackupSource):
         return parse_mongo_uri(self.uri)["database"]
 
     ###########################################################################
-    def to_document(self):
+    def to_document(self, display_only=False):
+        # TODO mask uri on display only
         return {
             "_type": "MongoSource",
             "uri": self.uri
@@ -166,10 +167,10 @@ class EbsVolumeSource(BackupSource):
             return snapshots[0]
 
     ###########################################################################
-    def to_document(self):
+    def to_document(self, display_only=False):
         return {
             "_type": "EbsVolumeSource",
             "volumeId": self.volume_id,
-            "accessKey": self.access_key,
-            "secretKey": self.secret_key
+            "accessKey": "xxxxx" if display_only else self.access_key,
+            "secretKey": "xxxxx" if display_only else self.secret_key
         }

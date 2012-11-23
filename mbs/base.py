@@ -13,12 +13,19 @@ class MBSObject(object):
         pass
 
     ###########################################################################
-    def to_document(self):
+    def to_document(self, display_only=False):
+        """
+            Creates a document that represents the object.
+            display_only means that the document return will be used for
+            displaying only. This should be used when displaying documents
+            that contain credentials/etc...
+        """
+
         pass
 
     ###########################################################################
     def __str__(self):
-        return document_pretty_string(self.to_document())
+        return document_pretty_string(self.to_document(display_only=True))
 
     ###########################################################################
     def __eq__(self, other):

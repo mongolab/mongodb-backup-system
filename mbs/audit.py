@@ -127,20 +127,20 @@ class AuditReport(MBSObject):
 
 
     ###########################################################################
-    def to_document(self):
+    def to_document(self, display_only=False):
         return {
             "_type": "AuditReport",
             "auditType": self.audit_type,
             "auditDate": self.audit_date,
-            "failures": self._export_failures(),
+            "failures": self._export_failures(display_only=display_only),
             "totalAudits": self.total_audits,
             "totalSuccess": self.total_success,
             "totalFailures": self.total_failures,
             }
 
     ###########################################################################
-    def _export_failures(self):
-        return map(lambda entry: entry.to_document(),
+    def _export_failures(self, display_only=False):
+        return map(lambda entry: entry.to_document(display_only=display_only),
                    self.failed_audits)
 
 
@@ -183,13 +183,13 @@ class AuditEntry(MBSObject):
         self._backup = backup
 
     ###########################################################################
-    def to_document(self):
+    def to_document(self, display_only=False):
         doc =  {
             "state": self.state,
         }
 
         if self.backup:
-            doc["backup"] = self.backup.to_document()
+            doc["backup"] = self.backup.to_document(display_only=display_only)
 
         return doc
 
@@ -322,9 +322,10 @@ class PlanAuditReport(AuditReport):
         self._plan = plan
 
     ###########################################################################
-    def to_document(self):
-        doc = super(PlanAuditReport, self).to_document()
-        doc["plan"] = self.plan.to_document()
+    def to_document(self, display_only=False):
+        doc = super(PlanAuditReport, self).to_document(display_only=
+                                                       display_only)
+        doc["plan"] = self.plan.to_document(display_only=display_only)
         doc["_type"] = "PlanAuditReport"
         return doc
 
@@ -348,8 +349,8 @@ class PlanAuditEntry(AuditEntry):
         self._plan_occurrence = plan_occurrence
 
     ###########################################################################
-    def to_document(self):
-        doc = super(PlanAuditEntry, self).to_document()
+    def to_document(self, display_only=False):
+        doc = super(PlanAuditEntry, self).to_document(display_only=display_only)
         doc["planOccurrence"] = self.plan_occurrence
 
         return doc

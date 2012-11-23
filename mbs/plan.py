@@ -196,14 +196,14 @@ class BackupPlan(MBSObject):
         return naming_scheme.get_backup_name(backup)
 
     ###########################################################################
-    def to_document(self):
+    def to_document(self, display_only=False):
         doc = {
             "_type": "Plan",
             "description": self.description,
-            "source": self.source.to_document(),
+            "source": self.source.to_document(display_only=display_only),
             "primaryOk": self.primary_ok,
-            "target": self.target.to_document(),
-            "schedule": self.schedule.to_document(),
+            "target": self.target.to_document(display_only=display_only),
+            "schedule": self.schedule.to_document(display_only=display_only),
             "nextOccurrence": self.next_occurrence,
             "strategy": self.strategy
         }
@@ -212,7 +212,8 @@ class BackupPlan(MBSObject):
             doc["_id"] = self.id
 
         if self.retention_policy:
-            doc["retentionPolicy"] = self.retention_policy.to_document()
+            doc["retentionPolicy"] = self.retention_policy.to_document(
+                                                    display_only=display_only)
 
         if self.generator:
             doc["generator"] = self.generator
@@ -308,7 +309,7 @@ class Schedule(MBSObject):
         self._frequency_in_seconds = frequency
 
     ###########################################################################
-    def to_document(self):
+    def to_document(self, display_only=False):
         return {
             "_type": "Schedule",
             "frequencyInSeconds": self.frequency_in_seconds,
