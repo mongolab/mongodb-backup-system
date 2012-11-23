@@ -132,6 +132,9 @@ def status_engine(parsed_args):
 ###############################################################################
 def start_plan_manager(parsed_args):
     manager = get_mbs().plan_manager
+    if not manager:
+        print "No plan manager configured"
+        exit(1)
 
     status = manager.get_status()
     if status == STATUS_RUNNING:
@@ -169,6 +172,10 @@ def _do_start_plan_manager(fork=False):
 ###############################################################################
 def stop_plan_manager(parsed_args):
     manager = get_mbs().plan_manager
+    if not manager:
+        print "No plan manager configured"
+        exit(1)
+
     status = manager.get_status()
     if status == STATUS_STOPPING:
         print "A stop request has already been made"
@@ -201,6 +208,9 @@ def stop_plan_manager(parsed_args):
 def restart_plan_manager(parsed_args):
     manager = get_mbs().plan_manager
 
+    if not manager:
+        print "No plan manager configured"
+        exit(1)
     # stop the manager and wait for it is completely stopped
     manager.stop()
     def manager_stopped():
@@ -217,12 +227,22 @@ def restart_plan_manager(parsed_args):
 ###############################################################################
 def status_plan_manager(parsed_args):
     manager = get_mbs().plan_manager
+    if not manager:
+        print "No plan manager configured"
+        exit(1)
+
     print manager.get_status()
 
 ###############################################################################
 def run_plan_generators(parsed_args):
     manager = get_mbs().plan_manager
+    if not manager:
+        print "No plan manager configured"
+        exit(1)
+
     manager._run_plan_generators()
+
+
 ###############################################################################
 # Other Commands
 ###############################################################################
