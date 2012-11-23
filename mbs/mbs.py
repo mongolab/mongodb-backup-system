@@ -123,8 +123,8 @@ class MBS(object):
     ###########################################################################
     @property
     def plan_manager(self):
-        if not self._plan_manager:
-            manager_conf = self._get_config_value("planManager")
+        manager_conf = self._get_config_value("planManager")
+        if not self._plan_manager and manager_conf:
             self._plan_manager = self._maker.make(manager_conf)
             self._plan_manager.plan_collection = self.plan_collection
             self._plan_manager.backup_collection = self.backup_collection
