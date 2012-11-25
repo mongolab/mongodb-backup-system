@@ -559,22 +559,24 @@ class BackupWorker(Thread):
     @robustify(max_attempts=3, retry_interval=2,
                do_on_exception=_raise_if_not_connectivity)
     def _dump_source(self, backup):
-        self.info("Dumping source %s " % backup.source)
-        self.engine.log_backup_event(backup,
-            name=EVENT_START_EXTRACT,
-            message="Dumping source")
-
+        self.info("Getting source stats for source %s " % backup.source)
         # record source stats
         source_address = backup.source.get_source_address(primary_ok=
-                                                          backup.plan.primary_ok)
+                                                        backup.plan.primary_ok)
         backup.source_stats = backup.source.get_current_stats(primary_ok=
-                                                              backup.plan.primary_ok)
+                                                        backup.plan.primary_ok)
 
         # save source stats if present
         if backup.source_stats:
             self.engine.log_backup_event(backup,
                 name="COMPUTED_SOURCE_STATS",
                 message="Computed source stats")
+
+        self.info("Dumping source %s " % backup.source)
+        self.engine.log_backup_event(backup,
+            name=EVENT_START_EXTRACT,
+            message="Dumping source")
+
 
         temp_dir = self._get_temp_dir(backup)
         dbname = backup.source.database_name
