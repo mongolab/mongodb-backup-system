@@ -4,7 +4,6 @@ import traceback
 import mbs_logging
 from mbs import get_mbs
 from base import MBSObject
-from backup import STATE_SUCCEEDED
 from date_utils import date_now, date_minus_seconds
 
 ###############################################################################
@@ -40,7 +39,7 @@ class RetentionPolicy(MBSObject):
                 # Block other threads (through DB) from doing same operation
                 q = {
                     "_id": backup.id,
-                    "state": STATE_SUCCEEDED,
+                    "targetReference": {"$exists": True},
                     "$or": [
                             {"targetReference.expired": {"$exists": False}},
                             {"targetReference.expired": False}
@@ -99,7 +98,7 @@ class RetainLastNPolicy(RetentionPolicy):
     def get_expired_backups(self, plan):
         q = {
             "plan._id": plan.id,
-            "state": STATE_SUCCEEDED,
+            "targetReference": {"$exists": True},
             # Filter out backups with targetReference.expired is set to true
             "$or": [
                     {"targetReference.expired": {"$exists": False}},
@@ -150,7 +149,7 @@ class RetainMaxTimePolicy(RetentionPolicy):
         earliest_date_to_keep = date_minus_seconds(date_now(), self.max_time)
         q = {
             "plan._id": plan.id,
-            "state": STATE_SUCCEEDED,
+            "targetReference": {"$exists": True},
             # Filter out backups with targetReference.expired is set to true
             "$or": [
                     {"targetReference.expired": {"$exists": False}},

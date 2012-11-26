@@ -259,7 +259,7 @@ def download_backup(parsed_args):
         backup = bc.find_one({"_id": ObjectId(backup_id)})
 
         if backup:
-            if backup.state == STATE_SUCCEEDED:
+            if backup.target_reference:
                 if not backup.target_reference.expired:
                     backup.target.get_file(backup.target_reference, os.getcwd())
                 else:
@@ -269,7 +269,7 @@ def download_backup(parsed_args):
 
 
             else:
-                print ("Failed to download. Backup '%s' never succeeded."
+                print ("Failed to download. Backup '%s' never uploaded."
                        % backup_id)
                 exit(1)
         else:

@@ -642,7 +642,8 @@ class BackupWorker(Thread):
                                      name="ERROR_HANDLING_START_UPLOAD",
                                      message="Uploading bad tar")
 
-        backup.target.put_file(tar_file_path)
+        target_reference = backup.target.put_file(tar_file_path)
+        backup.target_reference = target_reference
 
         self.engine.log_backup_event(backup,
                                      name="ERROR_HANDLING_END_UPLOAD",
