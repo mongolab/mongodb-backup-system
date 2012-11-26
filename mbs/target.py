@@ -3,9 +3,11 @@ __author__ = 'abdul'
 import traceback
 import os
 import sys
+import shutil
 
 import mbs_logging
 from base import MBSObject
+from utils import which, execute_command
 
 from boto.s3.connection import S3Connection
 from boto.s3.key import Key
@@ -16,6 +18,13 @@ from robustify.robustify import robustify
 # LOGGER
 ###############################################################################
 logger = mbs_logging.logger
+
+###############################################################################
+# CONSTANTS
+###############################################################################
+S3_MULTIPART_MIN_SIZE = 100 * 1024 * 1024
+
+S3_MAX_SPLIT_SIZE = 1024 * 1024 * 1024
 
 ###############################################################################
 # Target Classes
@@ -92,13 +101,12 @@ class S3BucketTarget(BackupTarget):
             logger.info("S3BucketTarget: Uploading %s (%s GB) to s3 bucket %s" %
                         (file_path, file_size_in_gb, self.bucket_name))
 
-
-            bucket = self._get_bucket()
-            k = Key(bucket)
             file_key = os.path.basename(file_path)
-            k.key = file_key
-            file_obj = open(file_path)
-            k.set_contents_from_file(file_obj)
+
+            if file_size >= S3_MULTIPART_MIN_SIZE:
+                self._multi_part_put(file_key, file_path, file_size)
+            else:
+                self._single_part_put(file_key, file_path)
 
             logger.info("S3BucketTarget: Uploading %s (%s GB) to s3 bucket %s "
                         "completed successfully!!" %
@@ -112,6 +120,87 @@ class S3BucketTarget(BackupTarget):
                    " to s3 bucket %s. Cause: %s" %
                    (file_path, self.bucket_name, e))
             raise Exception(msg, e)
+
+    ###########################################################################
+    def _single_part_put(self, file_key, file_path):
+        bucket = self._get_bucket()
+        file_obj = open(file_path)
+        k = Key(bucket)
+        k.key = file_key
+        k.set_contents_from_file(file_obj)
+
+    ###########################################################################
+    def _multi_part_put(self, file_key, file_path, file_size):
+        # create the parts directory, delete/re-create if it already exists
+        # for some reason
+
+        try:
+            logger.info("S3BucketTarget: Starting multi-part put for %s " %
+                        file_path)
+
+            parts_dir = "%s_parts" % file_path
+            if os.path.exists(parts_dir):
+                shutil.rmtree(parts_dir)
+
+            os.mkdir(parts_dir)
+            part_prefix = "%s_" % file_key
+            # split file into parts
+            file_part_paths = self._split_file(file_path, file_size,
+                                               parts_dir=parts_dir,
+                                               prefix=part_prefix)
+
+            bucket = self._get_bucket()
+            mp = bucket.initiate_multipart_upload(file_key)
+
+            i = 1
+            for part_path in file_part_paths:
+                fp = open(part_path, 'rb')
+                mp.upload_part_from_file(fp, i)
+                fp.close()
+                i += 1
+
+            mp.complete_upload()
+            logger.info("S3BucketTarget: Multi-part put for %s completed"
+                        " successfully!" % file_path)
+        finally:
+            logger.info("S3BucketTarget: Cleaning multi-part temp "
+                        "folders/files")
+            # cleanup
+            if os.path.exists(parts_dir):
+                shutil.rmtree(parts_dir)
+
+    ###########################################################################
+    def _split_file(self, file_path, file_size,
+                    parts_dir=None, prefix=None):
+        """
+            Splits the specified file into 10 parts (if each part is less than
+             max size otherwise file_size/max_size)
+             Returns list of file part paths
+        """
+        logger.info("Splitting file '%s' into multiple parts" % file_path)
+
+        split_exe = which("split")
+        # split into 10 chunks if possible
+        chunk_size = int(file_size / 10)
+        if chunk_size > S3_MAX_SPLIT_SIZE:
+            chunk_size = S3_MAX_SPLIT_SIZE
+
+        dest = os.path.join(parts_dir, prefix)
+        split_cmd = [split_exe, "-b", str(chunk_size), file_path, dest]
+        cmd_display = " ".join(split_cmd)
+
+        logger.info("Running split command: %s" % cmd_display)
+        execute_command(split_cmd)
+
+        # construct return value
+        part_names = os.listdir(parts_dir)
+        part_paths = []
+        for name in part_names:
+            part_path = os.path.join(parts_dir, name)
+            part_paths.append(part_path)
+
+        logger.info("File %s split successfully" % file_path)
+        return part_paths
 
     ###########################################################################
     def get_file(self, file_reference, destination):
