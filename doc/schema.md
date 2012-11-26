@@ -13,16 +13,47 @@
     "source": <BackupSource>,
     "target": <BackupTarget>,
     "schedule": {
-        "frequency": <int>,
+        "frequencyInSeconds": <int>,
         "offset": <date>
     },
     "nextOccurrence": <date>,
     ["generator": <string>,]
     "strategy": <string>, // TB Reconsidered ("DUMP" | "EBS_SNAPSHOT" | "DB_FILES")
     "backupType": None,//TBD
-    "retentionPolicy": None //TBD
+    ["retentionPolicy": <RetentionPolicy>],
+    ["tags: [<string>,...], ]
+    ["backupNamingScheme: <string> | <BackupNamingScheme>, ] // template string or BackupNamingScheme document
+    ["primaryOk": <boolean>, ]
 }
 ```
+
+### RetentionPolicy
+
+* A description of a backup file retention policy
+* Has multiple types
+
+```
+// RetainLastNPolicy
+{
+    "_type": "RetainLastNPolicy",
+    "retainCount": <int>
+}
+
+// RetainMaxTimePolicy
+{
+    "_type": "RetainMaxTimePolicy",
+    "maxTime": <int>  // seconds
+}
+
+```
+
+### BackupNamingScheme
+
+* A description of a backup file naming scheme
+* Has multiple types
+
+```
+TBD
 
 ### Backup
 
@@ -40,7 +71,7 @@
          "optime": <timestamp>,
          "replLag": <int>
      },]
-    "engineId": <string>,
+    "engineGuid": <string>,
     "target": <BackupTarget>,
     "targetReference": <TargetReference>,
     "state": <string>, // ("SCHEDULED" | "IN_PROGRESS" | "SUCCEEDED" | "FAILED" | "CANCELED"),
@@ -54,7 +85,11 @@
                 "message": <string>,
             },
             ....
-        ]
+        ],
+    "backupRateInMB": <float> ,
+    "startDate": <date>
+    "endDate": <date>,
+    ["tags": [<string>, ...] ,]
 }
 ```
 
@@ -68,13 +103,25 @@
 // MongoSource
 {
     "_type": "MongoSource",
-    "databaseAddress": <string>, // supports cluster, server,or db uris
+    "uri": <string>, // supports cluster, server,or db uris
 }
 
-// MongoLabSource
+// MongoLabServerSource
 {
-    "_type": "MongoLabSource",
-    "databaseAddress": <string>, // supports Mongolab database address
+    "_type": "MongoLabServerSource",
+    "serverId": <string>,
+}
+
+// MongoLabClusterSource
+{
+    "_type": "MongoLabClusterSource",
+    "clusterId": <string>,
+}
+
+// MongoLabDatabaseSource
+{
+    "_type": "MongoLabDatabaseSource",
+    "databaseId": <string>,
 }
 
 // EbsVolumeSource
@@ -123,7 +170,8 @@
 // FileReference
 {
     "_type": "FileReference",
-    "fileName": <string>
+    "fileName": <string>,
+    "fileSize": <long> // in bytes
 }
 
 // EbsSnapshotReference
