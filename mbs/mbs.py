@@ -73,7 +73,7 @@ class MBS(object):
 
     ###########################################################################
     def _ensure_indexes(self, database):
-        logger.info("Ensuring mongodb-backup-system indexes")
+        logger.debug("Ensuring mongodb-backup-system indexes")
         for coll_name, coll_indexes in self._get_indexes().items():
             coll = database[coll_name]
             for c_index in coll_indexes:
