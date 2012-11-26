@@ -54,6 +54,7 @@
 
 ```
 TBD
+```
 
 ### Backup
 
@@ -159,13 +160,12 @@ TBD
 }
 ```
 
-```
-
 ### TargetReference
 
 * A reference to the backup resource that was saved to the target
 * Every target on put returns a target reference to the resource
 * Currently has the following implementations
+
 ```
 // FileReference
 {
