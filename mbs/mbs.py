@@ -1,10 +1,11 @@
 __author__ = 'abdul'
 
-import urllib
+import mbs_logging
 
 from makerpy.object_collection import ObjectCollection
 from makerpy.maker import resolve_class, Maker
 from type_bindings import TYPE_BINDINGS
+from indexes import MBS_INDEXES
 from errors import MBSException
 
 from utils import read_config_json
@@ -18,6 +19,11 @@ from audit import AuditReport
 MBS_CONFIG = "~/.mbs/mbs.config"
 
 ###############################################################################
+# LOGGER
+###############################################################################
+logger = mbs_logging.logger
+
+###############################################################################
 # MBS
 ###############################################################################
 class MBS(object):
@@ -28,6 +34,9 @@ class MBS(object):
         # init config and database
         self._config = config
         self._database = mongo_connect(self._get_database_uri())
+        # ensure indexes
+        self._ensure_indexes(self._database)
+
         type_bindings = self._get_type_bindings()
 
         # make the maker
@@ -61,6 +70,20 @@ class MBS(object):
     ###########################################################################
     def _get_type_bindings(self):
         return TYPE_BINDINGS
+
+    ###########################################################################
+    def _ensure_indexes(self, database):
+        logger.info("Ensuring mongodb-backup-system indexes")
+        for coll_name, coll_indexes in self._get_indexes().items():
+            coll = database[coll_name]
+            for c_index in coll_indexes:
+                logger.debug("Ensuring index %s on collection '%s'" %
+                             (c_index, coll_name))
+                coll.create_index(c_index)
+
+    ###########################################################################
+    def _get_indexes(self):
+        return MBS_INDEXES
 
     ###########################################################################
     def _get_config_value(self, name):
