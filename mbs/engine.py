@@ -714,7 +714,7 @@ class BackupWorker(Thread):
             if e.returncode == 255:
                 #TODO figure out whats mongodump error 255
                 reason = ""
-            last_line_tail_cmd = [which('tail'), '-1', dump_log_file]
+            last_line_tail_cmd = [which('tail'), '-1', dump_log_path]
             last_dump_line = execute_command(last_line_tail_cmd)
 
             msg = ("Failed to dump. Dump command '%s' returned a non-zero exit"
