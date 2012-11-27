@@ -154,7 +154,10 @@ class S3BucketTarget(BackupTarget):
 
             i = 1
             for part_path in file_part_paths:
+                part_size = os.path.getsize(part_path)
                 fp = open(part_path, 'rb')
+                logger.debug("Uploading file part %s %s (%s bytes)" %
+                             (i, part_path, part_size))
                 mp.upload_part_from_file(fp, i)
                 fp.close()
                 i += 1
