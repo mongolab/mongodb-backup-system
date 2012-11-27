@@ -714,10 +714,12 @@ class BackupWorker(Thread):
             if e.returncode == 255:
                 #TODO figure out whats mongodump error 255
                 reason = ""
+            last_line_tail_cmd = [which('tail'), '-1', dump_log_file]
+            last_dump_line = execute_command(last_line_tail_cmd)
 
             msg = ("Failed to dump. Dump command '%s' returned a non-zero exit"
-                   " status %s. %s Check dump logs." %
-                   (dump_cmd_display, e.returncode, reason))
+                   " status %s. %s Check dump logs. Last dump log line: %s" %
+                   (dump_cmd_display, e.returncode, reason, last_dump_line))
             raise BackupEngineException(msg)
 
 
