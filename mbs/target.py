@@ -202,6 +202,9 @@ class S3BucketTarget(BackupTarget):
             part_path = os.path.join(parts_dir, name)
             part_paths.append(part_path)
 
+        # IMPORTANT: we have to sort files by name to maintain original order!
+        part_path.sort()
+
         logger.info("File %s split successfully" % file_path)
         return part_paths
 
