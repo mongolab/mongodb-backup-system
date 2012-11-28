@@ -16,6 +16,15 @@ class BackupSource(MBSObject):
         pass
 
     ###########################################################################
+    def get_source_info(self, **kwargs):
+        """
+            returns a dict that contains source address and stats
+        """
+        return {
+            "address": self.get_source_address(**kwargs),
+            "stats": self.get_current_stats(**kwargs)
+        }
+    ###########################################################################
     def get_source_address(self, **kwargs):
         pass
 

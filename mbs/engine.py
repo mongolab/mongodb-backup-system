@@ -570,10 +570,15 @@ class BackupWorker(Thread):
     def _dump_source(self, backup):
         self.info("Getting source stats for source %s " % backup.source)
         # record source stats
-        source_address = backup.source.get_source_address(primary_ok=
-                                                        backup.plan.primary_ok)
-        backup.source_stats = backup.source.get_current_stats(primary_ok=
-                                                        backup.plan.primary_ok)
+        # compute minimum required lag
+        min_lag_seconds = int(backup.plan.schedule.frequency_in_seconds / 2)
+        source_args = {
+            "primary_ok": backup.plan.primary_ok,
+            "min_lag_seconds": min_lag_seconds
+        }
+        source_info = backup.source.get_source_info(**source_args)
+        source_address = source_info["address"]
+        backup.source_stats = source_info["stats"]
 
         # save source stats if present
         if backup.source_stats:

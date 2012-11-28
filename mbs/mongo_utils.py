@@ -31,12 +31,15 @@ def mongo_connect(uri):
                         "%s: %s" % (uri_wrapper.masked_uri, e))
 
 ###############################################################################
-def get_best_source_member(cluster_uri, primary_ok=False):
+def get_best_source_member(cluster_uri, primary_ok=False, min_lag_seconds=0):
     """
         Returns the best source member to get the pull from.
         This only applicable for cluster connections.
         best = passives with least lags, if no passives then least lag
-
+               if no secondaries and primary_ok then return primary
+               if min_lag_seconds was specified and least lag is greater than
+                min_lag_seconds then return primary if primary_ok, otherwise
+                least secondary
     """
     uri_wrapper = parse_mongo_uri(cluster_uri)
     members = get_cluster_members(cluster_uri)
@@ -86,9 +89,12 @@ def get_best_source_member(cluster_uri, primary_ok=False):
 
 
     secondaries.sort(best_secondary_comp)
-    best_member = secondaries[0]
-    return best_member
-
+    best_secondary = secondaries[0]
+    if (primary_ok and min_lag_seconds and
+        best_secondary.lag_in_seconds > min_lag_seconds):
+        return primary
+    else:
+        return best_secondary
 
 ###############################################################################
 def get_cluster_members(cluster_uri):
