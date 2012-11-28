@@ -79,7 +79,7 @@ class MBS(object):
             for c_index in coll_indexes:
                 logger.debug("Ensuring index %s on collection '%s'" %
                              (c_index, coll_name))
-                coll.create_index(c_index)
+                coll.ensure_index(c_index)
 
     ###########################################################################
     def _get_indexes(self):
