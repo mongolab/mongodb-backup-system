@@ -24,7 +24,7 @@ logger = mbs_logging.logger
 # CONSTANTS
 ###############################################################################
 MULTIPART_MIN_SIZE = 100 * 1024 * 1024
-
+CF_MULTIPART_MIN_SIZE = 5 * 1024 * 1024 * 1024
 MAX_SPLIT_SIZE = 1024 * 1024 * 1024
 
 ###############################################################################
@@ -422,7 +422,7 @@ class RackspaceCloudFilesTarget(BackupTarget):
                         "to container %s" %
                         (file_path, file_size_in_gb, self.container_name))
 
-            if file_size >= MULTIPART_MIN_SIZE:
+            if file_size >= CF_MULTIPART_MIN_SIZE:
                 self._multi_part_put(file_name, file_path, file_size)
             else:
                 self._single_part_put(file_name, file_path)
