@@ -9,7 +9,10 @@ MBS_CONF = os.path.expanduser("~/.mbs/mbs.config")
 setup(
     name='mbs',
     version='0.1.0',
-    scripts=['bin/mbs'],
+    scripts=[
+        'bin/mbs',
+        'bin/st'
+    ],
     packages=['mbs'],
     install_requires=[
         "dargparse",

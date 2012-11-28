@@ -23,9 +23,9 @@ logger = mbs_logging.logger
 ###############################################################################
 # CONSTANTS
 ###############################################################################
-S3_MULTIPART_MIN_SIZE = 100 * 1024 * 1024
+MULTIPART_MIN_SIZE = 100 * 1024 * 1024
 
-S3_MAX_SPLIT_SIZE = 1024 * 1024 * 1024
+MAX_SPLIT_SIZE = 1024 * 1024 * 1024
 
 ###############################################################################
 # Target Classes
@@ -97,7 +97,7 @@ class S3BucketTarget(BackupTarget):
 
             # calculating file size
             file_size = os.path.getsize(file_path)
-            file_size_in_gb = file_size / (1024 * 1024 * 1024)
+            file_size_in_gb = float(file_size) / (1024 * 1024 * 1024)
             file_size_in_gb = round(file_size_in_gb, 2)
 
             logger.info("S3BucketTarget: Uploading %s (%s GB) to s3 bucket %s" %
@@ -105,7 +105,7 @@ class S3BucketTarget(BackupTarget):
 
             file_key = os.path.basename(file_path)
 
-            if file_size >= S3_MULTIPART_MIN_SIZE:
+            if file_size >= MULTIPART_MIN_SIZE:
                 self._multi_part_put(file_key, file_path, file_size)
             else:
                 self._single_part_put(file_key, file_path)
@@ -187,8 +187,8 @@ class S3BucketTarget(BackupTarget):
         split_exe = which("split")
         # split into 10 chunks if possible
         chunk_size = int(file_size / 10)
-        if chunk_size > S3_MAX_SPLIT_SIZE:
-            chunk_size = S3_MAX_SPLIT_SIZE
+        if chunk_size > MAX_SPLIT_SIZE:
+            chunk_size = MAX_SPLIT_SIZE
 
         dest = os.path.join(parts_dir, prefix)
         split_cmd = [split_exe, "-b", str(chunk_size), file_path, dest]
@@ -414,18 +414,18 @@ class RackspaceCloudFilesTarget(BackupTarget):
 
             # calculating file size
             file_size = os.path.getsize(file_path)
-            file_size_in_gb = file_size / (1024 * 1024 * 1024)
+            file_size_in_gb = float(file_size) / (1024 * 1024 * 1024)
             file_size_in_gb = round(file_size_in_gb, 2)
+            file_name = os.path.basename(file_path)
 
             logger.info("RackspaceCloudFilesTarget: Uploading %s (%s GB) "
                         "to container %s" %
                         (file_path, file_size_in_gb, self.container_name))
 
-            file_name = os.path.basename(file_path)
-            container = self._get_container()
-            container_obj = container.create_object(file_name)
-            container_obj.load_from_filename(file_path)
-
+            if file_size >= MULTIPART_MIN_SIZE:
+                self._multi_part_put(file_name, file_path, file_size)
+            else:
+                self._single_part_put(file_name, file_path)
 
             logger.info("RackspaceCloudFilesTarget: Uploading %s (%s GB) "
                         "to container %s completed successfully!!" %
@@ -439,6 +439,47 @@ class RackspaceCloudFilesTarget(BackupTarget):
                    "'%s' to container %s. Cause: %s" %
                    (file_path, self.container_name, e))
             raise Exception(msg, e)
+
+    ###########################################################################
+    def _single_part_put(self, file_name, file_path):
+        container = self._get_container()
+        container_obj = container.create_object(file_name)
+        container_obj.load_from_filename(file_path)
+
+    ###########################################################################
+    def _multi_part_put(self, file_name, file_path, file_size):
+        """
+            Uploads file in chunks using Swift Tool (st) command
+            http://bazaar.launchpad.net/~hudson-openstack/swift/1.2/view/head:/bin/st
+
+        """
+        logger.info("RackspaceCloudFilesTarget: Starting multi-part put "
+                    "for %s " % file_path)
+
+        # calculate chunk size
+        # split into 10 chunks if possible
+        chunk_size = int(file_size / 10)
+        if chunk_size > MAX_SPLIT_SIZE:
+            chunk_size = MAX_SPLIT_SIZE
+
+        st_exe = which("st")
+        st_command = [
+            st_exe,
+            "-A", "https://auth.api.rackspacecloud.com/v1.0",
+            "-U", self.username,
+            "-K", self.api_key,
+            "upload",
+            "--segment-size", str(chunk_size),
+            self.container_name, file_name
+
+        ]
+        logger.info("RackspaceCloudFilesTarget: Executing command: %s" %
+                    " ".join(st_command))
+        working_dir = os.path.dirname(file_path)
+        execute_command(st_command, cwd=working_dir)
+        logger.info("RackspaceCloudFilesTarget: Multi-part put for %s "
+                    "completed successfully!" % file_path)
+
 
     ###########################################################################
     def get_file(self, file_reference, destination):
