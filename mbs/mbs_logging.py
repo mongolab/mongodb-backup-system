@@ -15,7 +15,7 @@ MBS_LOG_DIR = resolve_path("~/.mbs/logs")
 ensure_dir(MBS_LOG_DIR)
 
 logger = logging.getLogger("MBSLogger")
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 
 formatter = logging.Formatter("%(levelname)8s | %(asctime)s | %(message)s")
 
