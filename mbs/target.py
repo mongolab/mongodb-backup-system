@@ -226,14 +226,8 @@ class S3BucketTarget(BackupTarget):
                                 (file_name, self.bucket_name))
             file_obj = open(os.path.join(destination, file_name), mode="w")
 
-            def download_progress(bytes_downloaded, total):
-                percentage = (float(bytes_downloaded)/float(total)) * 100
-                sys.stdout.write("\rDownloaded %s bytes of %s. %%%i completed" %
-                                 (bytes_downloaded, total, percentage))
-                sys.stdout.flush()
-
             num_call_backs = key.size / 1000
-            key.get_contents_to_file(file_obj, cb=download_progress,
+            key.get_contents_to_file(file_obj, cb=_download_progress,
                                      num_cb=num_call_backs)
 
             print("Download completed successfully!!")
@@ -460,20 +454,11 @@ class RackspaceCloudFilesTarget(BackupTarget):
             if not container_obj:
                 raise Exception("No such file '%s' in container '%s'" %
                                 (file_name, self.container_name))
-            file_obj = open(os.path.join(destination, file_name), mode="w")
 
-            chunks = container_obj.stream()
-            bytes_downloaded = 0
-            total = container_obj.size
-            for chunk in chunks:
-                file_obj.write(chunk)
-                bytes_downloaded += len(chunk)
-                percentage = (float(bytes_downloaded)/float(total)) * 100
-                sys.stdout.write("\rDownloaded %s bytes of %s. %%%i "
-                                 "completed" %
-                                 (bytes_downloaded, total, percentage))
-                sys.stdout.flush()
 
+            des_file = os.path.join(destination, file_name)
+            container_obj.save_to_filename(des_file,
+                                           callback=_download_progress)
             print("\nDownload completed successfully!!")
 
         except Exception, e:
@@ -658,3 +643,14 @@ class EbsSnapshotReference(TargetReference):
         if self.expired:
             doc["expired"] = self.expired
         return doc
+
+
+###############################################################################
+# HELPERS
+###############################################################################
+def _download_progress(transferred, size):
+    percentage = (float(transferred)/float(size)) * 100
+    sys.stdout.write("\rDownloaded %s bytes of %s. %%%i "
+                     "completed" %
+                     (transferred, size, percentage))
+    sys.stdout.flush()
