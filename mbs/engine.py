@@ -9,6 +9,7 @@ import mbs_logging
 import shutil
 import urllib
 import mongo_uri_tools
+import json
 
 from flask import Flask
 from flask.globals import request
@@ -19,7 +20,8 @@ from subprocess import CalledProcessError
 from errors import MBSException
 
 from utils import (which, ensure_dir, execute_command, call_command,
-                   wait_for, resolve_path, get_local_host_name)
+                   wait_for, resolve_path, get_local_host_name,
+                   document_pretty_string)
 
 from date_utils import  timedelta_total_seconds, date_now
 
@@ -384,7 +386,7 @@ class BackupEngine(Thread):
         try:
             response = urllib.urlopen(url)
             if response.getcode() == 200:
-                return response.read().strip()
+                return json.loads(response.read().strip())
             else:
                 msg =  ("Error while trying to get status engine '%s' URL %s "
                         "(Response code %)" % (self.engine_guid, url,
@@ -392,7 +394,9 @@ class BackupEngine(Thread):
                 raise BackupEngineException(msg)
 
         except IOError, ioe:
-            return STATUS_STOPPED
+            return {
+                    "status":STATUS_STOPPED
+                }
 
     ###########################################################################
     def _do_stop(self):
@@ -413,9 +417,14 @@ class BackupEngine(Thread):
             Gets the status of the engine
         """
         if self._stopped:
-            return STATUS_STOPPING
+            status = STATUS_STOPPING
         else:
-            return STATUS_RUNNING
+            status = STATUS_RUNNING
+
+        return {
+            "status": status,
+            "workers": self._worker_count
+        }
 
     ###########################################################################
     def _pre_shutdown(self):
@@ -892,7 +901,7 @@ class EngineCommandServer(Thread):
         def status():
             logger.info("Command Server: Received a status command")
             try:
-                return engine._do_get_status()
+                return document_pretty_string(engine._do_get_status())
             except Exception, e:
                 return "Error while trying to get engine status: %s" % e
 

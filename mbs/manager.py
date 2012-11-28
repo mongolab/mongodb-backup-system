@@ -4,11 +4,13 @@ import time
 import mbs_logging
 import traceback
 import urllib
+import json
 
 from threading import Thread
 
 from flask import Flask
 from flask.globals import request
+from utils import document_pretty_string
 
 from date_utils import date_now, date_minus_seconds, time_str_to_datetime_today
 from errors import MBSException
@@ -484,14 +486,16 @@ class PlanManager(Thread):
         try:
             response = urllib.urlopen(url)
             if response.getcode() == 200:
-                return response.read().strip()
+                return json.loads(response.read().strip())
             else:
                 msg =  ("Error while trying to get status manager URL %s "
                         "(Response code %)" % (url, response.getcode()))
                 raise PlanManagerException(msg)
 
         except IOError, ioe:
-            return MANAGER_STATUS_STOPPED
+            return {
+                "status": MANAGER_STATUS_STOPPED
+            }
 
     ###########################################################################
     def _do_stop(self):
@@ -507,9 +511,13 @@ class PlanManager(Thread):
             Gets the status of the manager
         """
         if self._stopped:
-            return MANAGER_STATUS_STOPPING
+            status = MANAGER_STATUS_STOPPING
         else:
-            return MANAGER_STATUS_RUNNING
+            status = MANAGER_STATUS_RUNNING
+
+        return {
+            "status": status
+        }
 
     ###########################################################################
     def _pre_shutdown(self):
@@ -575,7 +583,7 @@ class ManagerCommandServer(Thread):
         def status():
             logger.info("Command Server: Received a status command")
             try:
-                return manager._do_get_status()
+                return document_pretty_string(manager._do_get_status())
             except Exception, e:
                 return "Error while trying to get manager status: %s" % e
 

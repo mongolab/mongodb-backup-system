@@ -11,8 +11,7 @@ from dargparse import dargparse
 from bson.objectid import ObjectId
 from mbs.mbs import get_mbs
 from mbs.engine import STATUS_STOPPED, STATUS_STOPPING, STATUS_RUNNING
-from mbs.backup import STATE_SUCCEEDED
-from mbs.utils import wait_for
+from mbs.utils import wait_for, document_pretty_string
 
 ###############################################################################
 # MAIN
@@ -39,10 +38,10 @@ def start_engine(parsed_args):
     engine = _get_engine(engine_id)
 
     status = engine.get_status()
-    if status == STATUS_RUNNING:
+    if status["status"] == STATUS_RUNNING:
         print "Engine already started"
         return
-    elif status == STATUS_STOPPING:
+    elif status["status"] == STATUS_STOPPING:
         print ("Engine is stopping now. Please wait until it is completely "
                "stopped then try starting again")
         return
@@ -50,7 +49,7 @@ def start_engine(parsed_args):
     _do_start_engine(engine, fork=parsed_args.fork)
 
     def engine_started():
-        return engine.get_status() == STATUS_RUNNING
+        return engine.get_status()["status"] == STATUS_RUNNING
     wait_for(engine_started, timeout=5)
 
     if engine_started():
@@ -73,7 +72,7 @@ def _do_start_engine(engine, fork=False):
 
     # register signal handler
     def engine_stopped():
-        return engine.get_status() == STATUS_STOPPED
+        return engine.get_status()["status"] == STATUS_STOPPED
 
     def stop_this_engine(signal_val, frame):
         print "Received a SIGTERM signal. Stopping engine"
@@ -94,10 +93,10 @@ def stop_engine(parsed_args):
     engine_id = parsed_args.engineId
     engine = _get_engine(engine_id)
     status = engine.get_status()
-    if status == STATUS_STOPPING:
+    if status["status"] == STATUS_STOPPING:
         print "A stop request has already been made"
         return
-    elif status == STATUS_STOPPED:
+    elif status["status"] == STATUS_STOPPED:
         print "Engine is not running"
         return
 
@@ -111,7 +110,7 @@ def restart_engine(parsed_args):
     # stop the engine and wait for it is completely stopped
     engine.stop()
     def engine_stopped():
-        return engine.get_status() == STATUS_STOPPED
+        return engine.get_status()["status"] == STATUS_STOPPED
 
     wait_for(engine_stopped, timeout=100)
 
@@ -125,7 +124,7 @@ def restart_engine(parsed_args):
 def status_engine(parsed_args):
     engine_id = parsed_args.engineId
     engine = _get_engine(engine_id)
-    print engine.get_status()
+    print document_pretty_string(engine.get_status())
 
 ###############################################################################
 # Plan Manager Commands
@@ -137,10 +136,10 @@ def start_plan_manager(parsed_args):
         exit(1)
 
     status = manager.get_status()
-    if status == STATUS_RUNNING:
+    if status["status"] == STATUS_RUNNING:
         print "Plan Manager already started"
         return
-    elif status == STATUS_STOPPING:
+    elif status["status"] == STATUS_STOPPING:
         print ("Plan Manager is stopping now. Please wait until it is "
                "completely stopped then try starting again")
         return
@@ -148,7 +147,7 @@ def start_plan_manager(parsed_args):
     _do_start_plan_manager(fork=parsed_args.fork)
 
     def manager_started():
-        return manager.get_status() == STATUS_RUNNING
+        return manager.get_status()["status"] == STATUS_RUNNING
     wait_for(manager_started, timeout=5)
 
     if manager_started():
@@ -177,10 +176,10 @@ def stop_plan_manager(parsed_args):
         exit(1)
 
     status = manager.get_status()
-    if status == STATUS_STOPPING:
+    if status["status"] == STATUS_STOPPING:
         print "A stop request has already been made"
         return
-    elif status == STATUS_STOPPED:
+    elif status["status"] == STATUS_STOPPED:
         print "Plan Manager is not running"
         return
 
@@ -188,7 +187,7 @@ def stop_plan_manager(parsed_args):
 
     # register signal handler
     def manager_stopped():
-        return manager.get_status() == STATUS_STOPPED
+        return manager.get_status()["status"] == STATUS_STOPPED
 
     def stop_this_manager(signal_val, frame):
         print "Received a SIGTERM signal. Stopping plan manager"
@@ -214,7 +213,7 @@ def restart_plan_manager(parsed_args):
     # stop the manager and wait for it is completely stopped
     manager.stop()
     def manager_stopped():
-        return manager.get_status() == STATUS_STOPPED
+        return manager.get_status()["status"] == STATUS_STOPPED
 
     wait_for(manager_stopped, timeout=100)
 
@@ -231,7 +230,7 @@ def status_plan_manager(parsed_args):
         print "No plan manager configured"
         exit(1)
 
-    print manager.get_status()
+    print document_pretty_string(manager.get_status())
 
 ###############################################################################
 def run_plan_generators(parsed_args):
