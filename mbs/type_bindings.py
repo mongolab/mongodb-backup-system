@@ -15,6 +15,7 @@ TYPE_BINDINGS = {
     "EbsVolumeSource": "mbs.source.EbsVolumeSource",
     "S3BucketTarget": "mbs.target.S3BucketTarget",
     "EbsSnapshotTarget": "mbs.target.EbsSnapshotTarget",
+    "RackspaceCloudFilesTarget": "mbs.target.RackspaceCloudFilesTarget",
     "FileReference": "mbs.target.FileReference",
     "EbsSnapshotReference": "mbs.target.EbsSnapshotReference",
     "RetainLastNPolicy": "mbs.policies.RetainLastNPolicy",

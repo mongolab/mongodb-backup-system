@@ -4,6 +4,7 @@ import traceback
 import os
 import sys
 import shutil
+import cloudfiles
 
 import mbs_logging
 from base import MBSObject
@@ -67,12 +68,13 @@ class BackupTarget(MBSObject):
         return []
 
 ###############################################################################
-def _raise_if_not_s3_connectivity(exception):
+def _raise_if_not_connectivity(exception):
     msg = str(exception)
     if "Broken pipe" in msg or "reset" in msg:
-        logger.warn("Caught an s3 connectivity exception: %s" % msg)
+        logger.warn("Caught a target connectivity exception: %s" % msg)
     else:
-        logger.debug("Re-raising a an s3 NON-connectivity exception: %s" % msg)
+        logger.debug("Re-raising a target NON-connectivity exception: %s" %
+                     msg)
         raise
 
 ###############################################################################
@@ -89,7 +91,7 @@ class S3BucketTarget(BackupTarget):
 
     ###########################################################################
     @robustify(max_attempts=3, retry_interval=2,
-               do_on_exception=_raise_if_not_s3_connectivity)
+               do_on_exception=_raise_if_not_connectivity)
     def put_file(self, file_path):
         try:
 
@@ -394,6 +396,166 @@ class EbsSnapshotTarget(BackupTarget):
 
         if not self.secret_key:
             errors.append("Missing 'secretKey' property")
+
+        return errors
+
+
+###############################################################################
+# RackspaceCloudFilesTarget
+###############################################################################
+class RackspaceCloudFilesTarget(BackupTarget):
+
+    ###########################################################################
+    def __init__(self):
+        BackupTarget.__init__(self)
+        self._container_name = None
+        self._username = None
+        self._api_key = None
+
+    ###########################################################################
+    @robustify(max_attempts=3, retry_interval=2,
+        do_on_exception=_raise_if_not_connectivity)
+    def put_file(self, file_path):
+        try:
+
+            # calculating file size
+            file_size = os.path.getsize(file_path)
+            file_size_in_gb = file_size / (1024 * 1024 * 1024)
+            file_size_in_gb = round(file_size_in_gb, 2)
+
+            logger.info("RackspaceCloudFilesTarget: Uploading %s (%s GB) "
+                        "to container %s" %
+                        (file_path, file_size_in_gb, self.container_name))
+
+            file_name = os.path.basename(file_path)
+            container = self._get_container()
+            container_obj = container.create_object(file_name)
+            container_obj.load_from_filename(file_path)
+
+
+            logger.info("RackspaceCloudFilesTarget: Uploading %s (%s GB) "
+                        "to container %s completed successfully!!" %
+                        (file_path, file_size_in_gb, self.container_name))
+
+            return FileReference(file_name=file_name,
+                                 file_size_in_gb=file_size_in_gb)
+        except Exception, e:
+            traceback.print_exc()
+            msg = ("RackspaceCloudFilesTarget: Error while trying to upload "
+                   "'%s' to container %s. Cause: %s" %
+                   (file_path, self.container_name, e))
+            raise Exception(msg, e)
+
+    ###########################################################################
+    def get_file(self, file_reference, destination):
+        try:
+
+            file_name = file_reference.file_name
+            print("Downloading '%s' from container '%s'" %
+                  (file_name, self.container_name))
+
+            container = self._get_container()
+            container_obj = container.get_object(file_name)
+
+            if not container_obj:
+                raise Exception("No such file '%s' in container '%s'" %
+                                (file_name, self.container_name))
+            file_obj = open(os.path.join(destination, file_name), mode="w")
+
+            chunks = container_obj.stream()
+            bytes_downloaded = 0
+            total = container_obj.size
+            for chunk in chunks:
+                file_obj.write(chunk)
+                bytes_downloaded += len(chunk)
+                percentage = (float(bytes_downloaded)/float(total)) * 100
+                sys.stdout.write("\rDownloaded %s bytes of %s. %%%i "
+                                 "completed" %
+                                 (bytes_downloaded, total, percentage))
+                sys.stdout.flush()
+
+            print("\nDownload completed successfully!!")
+
+        except Exception, e:
+            msg = ("RackspaceCloudFilesTarget: Error while trying to download "
+                   "'%s' from container %s. Cause: %s" %
+                   (file_name, self.container_name, e))
+            raise Exception(msg, e)
+
+    ###########################################################################
+    def delete_file(self, file_reference):
+        try:
+
+            file_name = file_reference.file_name
+            logger.info("RackspaceCloudFilesTarget: Deleting '%s' from "
+                        "container '%s'" % (file_name, self.container_name))
+
+            container = self._get_container()
+            container.delete_object(file_name)
+            logger.info("RackspaceCloudFilesTarget: Successfully deleted '%s' "
+                        "from container '%s'" %
+                        (file_name, self.container_name))
+        except Exception, e:
+            msg = ("RackspaceCloudFilesTarget: Error while trying to delete "
+                   "'%s' from container %s. Cause: %s" %
+                   (file_name, self.container_name, e))
+            raise Exception(msg, e)
+
+    ###########################################################################
+    @property
+    def container_name(self):
+        return self._container_name
+
+    @container_name.setter
+    def container_name(self, container_name):
+        self._container_name = str(container_name)
+
+    ###########################################################################
+    def _get_container(self):
+        conn = cloudfiles.get_connection(username=self.username,
+                                         api_key=self.api_key)
+
+        return conn.get_container(self.container_name)
+
+    ###########################################################################
+    @property
+    def username(self):
+        return self._username
+
+    @username.setter
+    def username(self, username):
+        self._username = str(username)
+
+    ###########################################################################
+    @property
+    def api_key(self):
+        return self._api_key
+
+    @api_key.setter
+    def api_key(self, api_key):
+        self._api_key = str(api_key)
+
+    ###########################################################################
+    def to_document(self, display_only=False):
+        return {
+            "_type": "RackspaceCloudFilesTarget",
+            "containerName": self.container_name,
+            "username": "xxxxx" if display_only else self.username,
+            "apiKey": "xxxxx" if display_only else self.api_key
+        }
+
+    ###########################################################################
+    def validate(self):
+        errors = []
+
+        if not self.container_name:
+            errors.append("Missing 'containerName' property")
+
+        if not self.username:
+            errors.append("Missing 'username' property")
+
+        if not self.api_key:
+            errors.append("Missing 'apiKey' property")
 
         return errors
 
