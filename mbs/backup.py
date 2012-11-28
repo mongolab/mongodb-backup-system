@@ -30,7 +30,7 @@ class Backup(MBSObject):
         self._plan_occurrence = None
         self._engine_guid = None
         self._logs = []
-        self._backup_rate_in_mb = None
+        self._backup_rate_in_mbps = None
         self._start_date = None
         self._end_date = None
         self._tags = None
@@ -148,12 +148,12 @@ class Backup(MBSObject):
 
     ###########################################################################
     @property
-    def backup_rate_in_mb(self):
-        return self._backup_rate_in_mb
+    def backup_rate_in_mbps(self):
+        return self._backup_rate_in_mbps
 
-    @backup_rate_in_mb.setter
-    def backup_rate_in_mb(self, backup_rate):
-        self._backup_rate_in_mb = backup_rate
+    @backup_rate_in_mbps.setter
+    def backup_rate_in_mbps(self, backup_rate):
+        self._backup_rate_in_mbps = backup_rate
 
     ###########################################################################
     @property
@@ -244,8 +244,8 @@ class Backup(MBSObject):
         if self.source_stats:
             doc["sourceStats"] = self.source_stats
 
-        if self.backup_rate_in_mb:
-            doc["backupRateInMB"] = self.backup_rate_in_mb
+        if self.backup_rate_in_mbps:
+            doc["backupRateInMBPS"] = self.backup_rate_in_mbps
 
         if self.start_date:
             doc["startDate"] = self.start_date
