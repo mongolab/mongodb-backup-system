@@ -456,6 +456,10 @@ class BackupEngine(Thread):
         logger.info("<BackupEngine-%s>: %s" % (self.id, msg))
 
     ###########################################################################
+    def warning(self, msg):
+        logger.warning("<BackupEngine-%s>: %s" % (self.id, msg))
+
+    ###########################################################################
     def error(self, msg):
         logger.error("<BackupEngine-%s>: %s" % (self.id, msg))
 
@@ -590,6 +594,16 @@ class BackupWorker(Thread):
             self.engine.log_backup_event(backup,
                 name="COMPUTED_SOURCE_STATS",
                 message="Computed source stats")
+
+        # log warning if dumping from a cluster's primary
+        if (backup.source.is_cluster_source() and
+            "primary" in source_info and source_info["primary"]):
+            self.warning("Backup '%s' will be extracted from the primary!" %
+                          backup.id)
+            self.engine.log_backup_event(backup,
+                event_type=EVENT_TYPE_WARNING,
+                name="USING_PRIMARY_WARNING",
+                message="Warning! The dump will be extracted from the primary")
 
         self.info("Dumping source %s " % backup.source)
         self.engine.log_backup_event(backup,
@@ -860,6 +874,10 @@ class BackupWorker(Thread):
     ###########################################################################
     def info(self, msg):
         self._engine.info("Worker-%s: %s" % (self._id, msg))
+
+    ###########################################################################
+    def warning(self, msg):
+        self._engine.warning("Worker-%s: %s" % (self._id, msg))
 
     ###########################################################################
     def error(self, msg):
