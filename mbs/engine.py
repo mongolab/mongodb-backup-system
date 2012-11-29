@@ -28,7 +28,8 @@ from date_utils import  timedelta_total_seconds, date_now
 from plan import STRATEGY_DUMP, STRATEGY_EBS_SNAPSHOT
 
 from backup import (STATE_SCHEDULED, STATE_IN_PROGRESS, STATE_FAILED,
-                    STATE_SUCCEEDED)
+                    STATE_SUCCEEDED,
+                    EVENT_TYPE_INFO, EVENT_TYPE_WARNING, EVENT_TYPE_ERROR)
 
 from target import EbsSnapshotReference
 from robustify.robustify import robustify
@@ -200,7 +201,9 @@ class BackupEngine(Thread):
     ###########################################################################
     def worker_fail(self, worker, exception, trace=None):
         log_msg = "Failure! Cause %s\nTrace:\n%s" % (exception,trace)
-        self.worker_finished(worker, STATE_FAILED, message=log_msg)
+        self.log_backup_event(worker.backup, event_type=EVENT_TYPE_ERROR,
+                              message=log_msg)
+        self.worker_finished(worker, STATE_FAILED)
 
         backup = worker.backup
         if self.notification_handler:
@@ -213,11 +216,12 @@ class BackupEngine(Thread):
 
     ###########################################################################
     def worker_success(self, worker):
-        self.worker_finished(worker, STATE_SUCCEEDED,
-                             message="Backup completed successfully!")
+        self.log_backup_event(worker.backup,
+                              message="Backup completed successfully!")
+        self.worker_finished(worker, STATE_SUCCEEDED)
 
     ###########################################################################
-    def worker_finished(self, worker, state, message):
+    def worker_finished(self, worker, state, message=None):
         # set end date
         worker.backup.end_date = date_now()
         # decrease worker count and update state
@@ -230,8 +234,9 @@ class BackupEngine(Thread):
         self._backup_collection.save_document(backup.to_document())
 
     ###########################################################################
-    def log_backup_event(self, backup, name, message=None):
-        backup.log_event(name, message=message)
+    def log_backup_event(self, backup, event_type=EVENT_TYPE_INFO,
+                                       name=None, message=None):
+        backup.log_event(event_type=event_type, name=name, message=message)
         self._backup_collection.save_document(backup.to_document())
 
 

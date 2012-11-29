@@ -12,6 +12,10 @@ STATE_CANCELED = "CANCELED"
 STATE_SUCCEEDED = "SUCCEEDED"
 
 EVENT_STATE_CHANGE = "STATE_CHANGE"
+# event types
+EVENT_TYPE_INFO = "INFO"
+EVENT_TYPE_WARNING = "WARNING"
+EVENT_TYPE_ERROR = "ERROR"
 
 ###############################################################################
 # Backup
@@ -51,7 +55,7 @@ class Backup(MBSObject):
         """
         if state != self.state:
             self.state = state
-            self.log_event(EVENT_STATE_CHANGE, message=message)
+            self.log_event(name=EVENT_STATE_CHANGE, message=message)
 
     ###########################################################################
     @property
@@ -183,10 +187,11 @@ class Backup(MBSObject):
         self._tags = tags
 
     ###########################################################################
-    def log_event(self, name, message=None):
+    def log_event(self, event_type=EVENT_TYPE_INFO, name=None, message=None):
         logs = self.logs
 
         log_entry = BackupLogEntry()
+        log_entry.event_type = event_type
         log_entry.name = name
         log_entry.date = date_now()
         log_entry.state = self.state
@@ -274,11 +279,20 @@ class BackupLogEntry(MBSObject):
 
     ###########################################################################
     def __init__(self):
+        self._event_type = None
         self._name = None
         self._date = None
         self._state = None
         self._message = None
 
+    ###########################################################################
+    @property
+    def event_type(self):
+        return self._event_type
+
+    @event_type.setter
+    def event_type(self, value):
+        self._event_type = value
     ###########################################################################
     @property
     def name(self):
@@ -317,10 +331,17 @@ class BackupLogEntry(MBSObject):
 
     ###########################################################################
     def to_document(self, display_only=False):
-        return {
+        doc= {
             "_type": "BackupLogEntry",
-            "name": self.name,
+            "eventType": self.event_type,
             "date": self.date,
-            "state": self.state,
-            "message": self.message
+            "state": self.state
         }
+        if self.name:
+            doc["name"] = self.name
+        if self.message:
+            doc["message"] = self.message
+
+        return doc
+
+    ###########################################################################
