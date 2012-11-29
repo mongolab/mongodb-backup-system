@@ -79,12 +79,17 @@ class MongoSource(BackupSource):
 
     ###########################################################################
     def get_source_address(self, **kwargs):
+        # TODO choose best member for clusters
         return self.uri
 
     ###########################################################################
     @property
     def database_name(self):
-        return parse_mongo_uri(self.uri)["database"]
+        return mongo_uri_tools.parse_mongo_uri(self.uri)["database"]
+
+    ###########################################################################
+    def is_cluster_source(self):
+        return mongo_uri_tools.is_cluster_mongo_uri(self.uri)
 
     ###########################################################################
     def to_document(self, display_only=False):
