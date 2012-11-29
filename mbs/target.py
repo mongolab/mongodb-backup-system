@@ -9,7 +9,7 @@ import cloudfiles
 import mbs_logging
 from base import MBSObject
 from utils import which, execute_command
-
+from azure.storage import BlobService
 from boto.s3.connection import S3Connection
 from boto.s3.key import Key
 from boto.ec2 import EC2Connection
@@ -587,6 +587,126 @@ class RackspaceCloudFilesTarget(BackupTarget):
 
         return errors
 
+###############################################################################
+# AzureContainerTarget
+###############################################################################
+class AzureContainerTarget(BackupTarget):
+
+    ###########################################################################
+    def __init__(self):
+        BackupTarget.__init__(self)
+        self._container_name = None
+        self._account_name = None
+        self._account_key = None
+
+    ###########################################################################
+    @robustify(max_attempts=3, retry_interval=2,
+        do_on_exception=_raise_if_not_connectivity)
+    def put_file(self, file_path):
+        try:
+
+            # calculating file size
+            file_size = os.path.getsize(file_path)
+            file_size_in_gb = float(file_size) / (1024 * 1024 * 1024)
+            file_size_in_gb = round(file_size_in_gb, 2)
+            file_name = os.path.basename(file_path)
+
+            logger.info("AzureContainerTarget: Uploading %s (%s GB) "
+                        "to container %s" %
+                        (file_path, file_size_in_gb, self.container_name))
+
+
+            self._single_part_put(file_name, file_path)
+
+            logger.info("AzureContainerTarget: Uploading %s (%s GB) "
+                        "to container %s completed successfully!!" %
+                        (file_path, file_size_in_gb, self.container_name))
+
+            return FileReference(file_name=file_name,
+                file_size_in_gb=file_size_in_gb)
+        except Exception, e:
+            traceback.print_exc()
+            msg = ("AzureContainerTarget: Error while trying to upload "
+                   "'%s' to container %s. Cause: %s" %
+                   (file_path, self.container_name, e))
+            raise Exception(msg, e)
+
+    ###########################################################################
+    def _single_part_put(self, file_name, file_path):
+        blob_service = self._get_blob_service()
+        fp = open(file_path, 'r').read()
+        blob_service.put_blob(self.container_name, file_name, fp,
+                              x_ms_blob_type='BlockBlob')
+
+    ###########################################################################
+    def _multi_part_put(self, file_name, file_path, file_size):
+        pass
+
+
+    ###########################################################################
+    def get_file(self, file_reference, destination):
+        raise Exception("AzureContainerTarget: get_file not supported yet")
+
+    ###########################################################################
+    def delete_file(self, file_reference):
+        raise Exception("AzureContainerTarget: delete_file not supported yet")
+
+    ###########################################################################
+    @property
+    def container_name(self):
+        return self._container_name
+
+    @container_name.setter
+    def container_name(self, container_name):
+        self._container_name = str(container_name)
+
+    ###########################################################################
+    def _get_blob_service(self):
+        return BlobService(account_name=self.account_name,
+                           account_key=self.account_key,
+                           protocol="https")
+
+    ###########################################################################
+    @property
+    def account_name(self):
+        return self._account_name
+
+    @account_name.setter
+    def account_name(self, account_name):
+        self._account_name = str(account_name)
+
+    ###########################################################################
+    @property
+    def account_key(self):
+        return self._account_key
+
+    @account_key.setter
+    def account_key(self, account_key):
+        self._account_key = str(account_key)
+
+    ###########################################################################
+    def to_document(self, display_only=False):
+        return {
+            "_type": "AzureContainerTarget",
+            "containerName": self.container_name,
+            "accountName": "xxxxx" if display_only else self.account_name,
+            "accountKey": "xxxxx" if display_only else self.account_key
+        }
+
+    ###########################################################################
+    def validate(self):
+        errors = []
+
+        if not self.container_name:
+            errors.append("Missing 'containerName' property")
+
+        if not self.account_name:
+            errors.append("Missing 'accountName' property")
+
+        if not self.account_key:
+            errors.append("Missing 'accountKey' property")
+
+        return errors
 ###############################################################################
 # Target Reference Classes
 ###############################################################################
