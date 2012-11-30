@@ -44,7 +44,7 @@ MANAGER_STATUS_STOPPED = "stopped"
 class PlanManager(Thread):
     ###########################################################################
     def __init__(self, sleep_time=10,
-                       command_port=9999):
+                       command_port=9003):
 
         Thread.__init__(self)
         self._plan_collection = None
