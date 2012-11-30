@@ -48,9 +48,11 @@ class AuditReport(MBSObject):
         self._audit_type = None
         self._audit_date = None
         self._failed_audits = []
+        self._warned_audits = []
         self._total_audits = 0
         self._total_success = 0
         self._total_failures = 0
+        self._total_warnings = 0
 
     ###########################################################################
     @property
@@ -92,8 +94,22 @@ class AuditReport(MBSObject):
         self._failed_audits = failed_audits
 
     ###########################################################################
+    @property
+    def warned_audits(self):
+        return self._warned_audits
+
+
+    @warned_audits.setter
+    def warned_audits(self, warned_audits):
+        self._warned_audits = warned_audits
+
+    ###########################################################################
     def has_failures(self):
         return self.failed_audits is not None and self.failed_audits
+
+    ###########################################################################
+    def has_warnings(self):
+        return self.warned_audits is not None and self.warned_audits
 
     ###########################################################################
     @property
@@ -125,6 +141,15 @@ class AuditReport(MBSObject):
     def total_failures(self, total_failures):
         self._total_failures = total_failures
 
+    ###########################################################################
+    @property
+    def total_warnings(self):
+        return self._total_warnings
+
+
+    @total_warnings.setter
+    def total_warnings(self, total_warnings):
+        self._total_warnings = total_warnings
 
     ###########################################################################
     def to_document(self, display_only=False):
@@ -133,9 +158,11 @@ class AuditReport(MBSObject):
             "auditType": self.audit_type,
             "auditDate": self.audit_date,
             "failures": self._export_failures(display_only=display_only),
+            "warnings": self._export_warnings(display_only=display_only),
             "totalAudits": self.total_audits,
             "totalSuccess": self.total_success,
             "totalFailures": self.total_failures,
+            "totalWarnings": self.total_warnings,
             }
 
     ###########################################################################
@@ -143,6 +170,10 @@ class AuditReport(MBSObject):
         return map(lambda entry: entry.to_document(display_only=display_only),
                    self.failed_audits)
 
+    ###########################################################################
+    def _export_warnings(self, display_only=False):
+        return map(lambda entry: entry.to_document(display_only=display_only),
+                    self.warned_audits)
 
 ###############################################################################
 # AuditEntry
@@ -167,6 +198,10 @@ class AuditEntry(MBSObject):
     ###########################################################################
     def failed(self):
         return not self.succeeded()
+
+    ###########################################################################
+    def warned(self):
+        return self.backup and self.backup.has_warnings()
 
     ###########################################################################
     def succeeded(self):
@@ -222,11 +257,19 @@ class PlanAuditor(BackupAuditor):
 
         total_plans = 0
         failed_plan_reports = []
+        warned_plan_reports = []
+        total_warnings = 0
         for plan in self._plan_collection.find():
             plan_report = self._create_plan_audit_report(plan, audit_date)
 
             if plan_report.has_failures():
                 failed_plan_reports.append(plan_report)
+            if plan_report.has_warnings():
+                # only append to warned audits if report doesn't have failures
+                if not plan_report.has_failures():
+                    warned_plan_reports.append(plan_report)
+
+                total_warnings += 1
 
             total_plans += 1
 
@@ -238,6 +281,7 @@ class PlanAuditor(BackupAuditor):
         all_plans_report.total_audits = total_plans
         all_plans_report.total_failures = total_failures
         all_plans_report.total_success = total_plans - total_failures
+        all_plans_report.total_warnings = total_warnings
 
         logger.info("PlanAuditor: Generated report:\n%s " % all_plans_report)
 
@@ -252,13 +296,19 @@ class PlanAuditor(BackupAuditor):
         plan_report.audit_type = TYPE_SINGLE_PLAN_AUDIT
 
         failed_audits = []
-
+        warned_audits = []
         total_audits = 0
-
+        total_warnings = 0
         for plan_occurrence in plan.natural_occurrences_as_of(audit_date):
             audit_entry = self._audit_plan_occurrence(plan, plan_occurrence)
             if audit_entry.failed():
                 failed_audits.append(audit_entry)
+
+            if audit_entry.warned():
+                # only append to warned audits if audit entry succeeded
+                if audit_entry.succeeded():
+                    warned_audits.append(audit_entry)
+                total_warnings += 1
 
             total_audits += 1
 
@@ -270,6 +320,8 @@ class PlanAuditor(BackupAuditor):
         plan_report.total_failures = total_failures
         plan_report.total_audits = total_audits
         plan_report.total_success = total_audits - total_failures
+        plan_report.warned_audits = warned_audits
+        plan_report.total_warnings = total_warnings
 
         return plan_report
 
