@@ -8,7 +8,7 @@
 ```
 {
     "_type": "BackupPlan",
-    "_id": <string>,
+    "_id": <object_id>,
     "createdDate": <date>,
     "description": <string>,
     "source": <BackupSource>,
@@ -64,7 +64,7 @@ TBD
 ```
 {
     "_type": "Backup",
-    "_id": <string>,
+    "_id": <object_id>,
     ["plan": <BackupPlan>,] // One off backups wont have plans
     ["planOccurrence": <timestamp>,] 
     "source": <BackupSource>,
@@ -181,3 +181,25 @@ TBD
     "snapshotId": <string>
 }
 ```
+
+### AuditReport
+
+* Represents an audit report
+
+```
+// AuditReport
+{
+    "_type": "AuditReport",
+    "_id": <object_id>,
+    "auditType": <string>, // "PLAN_AUDIT" | "FLEET_AUDIT"
+    "auditDate": <date>,
+    "totalAudits": <int>,
+    "totalSuccess": <int>,
+    "totalWarnings": <int>,
+    "totalFailures": <int>,
+    ["failures": [<AuditEntry>, ...],]
+    ["warnings": [<AuditEntry>], ...]]
+
+}
+```
+
