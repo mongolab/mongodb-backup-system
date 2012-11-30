@@ -263,9 +263,10 @@ class PlanAuditor(BackupAuditor):
             # skip recently added plans whose created date is after audit date
             if plan.created_date > audit_date:
                 logger.info("PlanAuditor: Skipping auditing plan '%s' since"
-                            " its created date '%s' is past audit date '%s'" %
-                            (plan.id, datetime_to_string(plan.created_date),
-                             datetime_to_string(audit_date)))
+                            " its created date '%s' is later than audit date "
+                            "'%s'" % (plan.id,
+                                      datetime_to_string(plan.created_date),
+                                      datetime_to_string(audit_date)))
                 continue
 
             plan_report = self._create_plan_audit_report(plan, audit_date)
