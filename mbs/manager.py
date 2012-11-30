@@ -349,6 +349,10 @@ class PlanManager(Thread):
 
                 raise PlanManagerException(err_msg)
 
+            # set plan created date if its not set
+            if not plan.created_date:
+                plan.created_date = date_now()
+
             if plan.id:
                 self.info("Updating plan: \n%s" % plan)
             else:

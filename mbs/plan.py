@@ -21,6 +21,7 @@ ALL_STRATEGIES = [STRATEGY_DUMP, STRATEGY_EBS_SNAPSHOT, STRATEGY_DB_FILES]
 class BackupPlan(MBSObject):
     def __init__(self):
         self._id = None
+        self._created_date = None
         self._description = None
         self._source = None
         self._primary_ok = None
@@ -41,6 +42,15 @@ class BackupPlan(MBSObject):
     @id.setter
     def id(self, id):
         self._id = id
+
+    ###########################################################################
+    @property
+    def created_date(self):
+        return self._created_date
+
+    @created_date.setter
+    def created_date(self, created_date):
+        self._created_date = created_date
 
     ###########################################################################
     @property
@@ -199,6 +209,7 @@ class BackupPlan(MBSObject):
     def to_document(self, display_only=False):
         doc = {
             "_type": "Plan",
+            "createdDate": self.created_date,
             "description": self.description,
             "source": self.source.to_document(display_only=display_only),
             "primaryOk": self.primary_ok,
