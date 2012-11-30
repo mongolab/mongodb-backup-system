@@ -595,15 +595,29 @@ class BackupWorker(Thread):
                 name="COMPUTED_SOURCE_STATS",
                 message="Computed source stats")
 
-        # log warning if dumping from a cluster's primary
-        if (backup.source.is_cluster_source() and
-            "primary" in source_info and source_info["primary"]):
-            self.warning("Backup '%s' will be extracted from the primary!" %
-                          backup.id)
-            self.engine.log_backup_event(backup,
-                event_type=EVENT_TYPE_WARNING,
-                name="USING_PRIMARY_WARNING",
-                message="Warning! The dump will be extracted from the primary")
+        # log warning if dumping from a cluster's primary or from a too
+        # stale member
+        if backup.source.is_cluster_source():
+
+            if "primary" in source_info and source_info["primary"]:
+                self.warning("Backup '%s' will be extracted from the "
+                             "primary!" % backup.id)
+
+                msg = "Warning! The dump will be extracted from the primary"
+                self.engine.log_backup_event(backup,
+                                             event_type=EVENT_TYPE_WARNING,
+                                             name="USING_PRIMARY_WARNING",
+                                             message=msg)
+            elif "tooStale" in source_info and source_info["tooStale"]:
+                self.warning("Backup '%s' will be extracted from a too stale"
+                             " member!" % backup.id)
+
+                msg = ("Warning! The dump will be extracted from a too "
+                      "stale member")
+                self.engine.log_backup_event(backup,
+                    event_type=EVENT_TYPE_WARNING,
+                    name="USING_TOO_STALE_WARNING",
+                    message=msg)
 
         self.info("Dumping source %s " % backup.source)
         self.engine.log_backup_event(backup,
