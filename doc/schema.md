@@ -9,6 +9,7 @@
 {
     "_type": "BackupPlan",
     "_id": <string>,
+    "createdDate": <date>,
     "description": <string>,
     "source": <BackupSource>,
     "target": <BackupTarget>,
