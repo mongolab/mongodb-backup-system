@@ -76,16 +76,22 @@ class MongoSource(BackupSource):
     ###########################################################################
     def __init__(self):
         BackupSource.__init__(self)
-        self._uri = None
+        self._uri_wrapper = None
 
     ###########################################################################
     @property
     def uri(self):
-        return self._uri
+        if self.uri_wrapper:
+            return self.uri_wrapper.raw_uri
 
     @uri.setter
     def uri(self, uri):
-        self._uri = uri
+        self._uri_wrapper = mongo_uri_tools.parse_mongo_uri(uri)
+
+    ###########################################################################
+    @property
+    def uri_wrapper(self):
+        return self._uri_wrapper
 
     ###########################################################################
     def get_source_address(self, **kwargs):
@@ -95,7 +101,8 @@ class MongoSource(BackupSource):
     ###########################################################################
     @property
     def database_name(self):
-        return mongo_uri_tools.parse_mongo_uri(self.uri)["database"]
+        if self.uri_wrapper:
+            return self.uri_wrapper.database
 
     ###########################################################################
     def is_cluster_source(self):
@@ -103,10 +110,10 @@ class MongoSource(BackupSource):
 
     ###########################################################################
     def to_document(self, display_only=False):
-        # TODO mask uri on display only
         return {
             "_type": "MongoSource",
-            "uri": self.uri
+            "uri": (self.uri_wrapper.masked_uri if display_only else
+                    self.uri_wrapper.raw_uri)
         }
 
     ###########################################################################
