@@ -206,11 +206,16 @@ class MongoServer(object):
                 "RS102" in self.rs_status["errmsg"])
 
     ###########################################################################
-    @property
-    def database_total_stats(self):
-        """
-            Returns true if the member is secondary
-        """
+    def get_database_stats(self, dbname):
+        return self._calculate_database_stats(only_for_db=dbname)
+
+    ###########################################################################
+    def get_all_database_stats(self):
+        return self._calculate_database_stats()
+
+    ###########################################################################
+    def _calculate_database_stats(self, only_for_db=None):
+
         total_stats = {
             "collections": 0,
             "objects": 0,
@@ -221,9 +226,14 @@ class MongoServer(object):
             "fileSize": 0,
             "nsSizeMB": 0
         }
-        database_names = self._admin_db.connection.database_names()
+
+        if only_for_db:
+            database_names = [only_for_db]
+        else:
+            database_names = self._admin_db.connection.database_names()
+
         for dbname in database_names:
-            db_stats = self._get_database_stats(dbname)
+            db_stats = self._read_database_stats(dbname)
             for key in total_stats.keys():
                     total_stats[key] += db_stats.get(key) or 0
 
@@ -251,7 +261,7 @@ class MongoServer(object):
         return self._get_server_status()
 
     ###########################################################################
-    def _get_database_stats(self, dbname):
+    def _read_database_stats(self, dbname):
         return self._admin_db.connection[dbname].command({"dbstats":1})
 
     ###########################################################################
