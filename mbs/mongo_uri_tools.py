@@ -82,7 +82,7 @@ class MongoUriWrapper:
     ###########################################################################
     def _get_uri(self, mask=False):
         # build db string
-        db = self.database or ""
+        db_str = "/%s" % self.database if self.database else ""
 
         # build credentials string
         if self.username:
@@ -95,12 +95,12 @@ class MongoUriWrapper:
 
         # build hosts string
         address_str = ",".join(self.addresses)
-        return "mongodb://%s%s/%s" % (creds, address_str, db)
+        return "mongodb://%s%s%s" % (creds, address_str, db_str)
 
     ###########################################################################
     def _get_member_uri_list(self, mask=False):
         # build db string
-        db = self.database or ""
+        db_str = "/%s" % self.database if self.database else ""
         username = self.username
         password = "****" if mask else self.password
 
@@ -114,7 +114,7 @@ class MongoUriWrapper:
         member_uris = []
         for node in self.node_list:
             address = "%s:%s" % (node[0], node[1])
-            mem_uri = "mongodb://%s%s/%s" % (creds, address, db)
+            mem_uri = "mongodb://%s%s/%s" % (creds, address, db_str)
             member_uris.append(mem_uri)
 
         return member_uris
