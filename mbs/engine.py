@@ -352,6 +352,9 @@ class BackupEngine(Thread):
 
     ###########################################################################
     def _resolve_tag_value(self, value):
+        # if value is not a string then return it as is
+        if not isinstance(value, (str, unicode)):
+            return value
         for binding_name, binding_value in self._get_tag_bindings().items():
             value = value.replace(binding_name, binding_value)
 
