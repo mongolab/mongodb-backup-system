@@ -76,6 +76,10 @@ class MongoUriWrapper:
         return self._uri_obj["password"]
 
     ###########################################################################
+    def is_cluster_uri(self):
+        return len(self.node_list) > 1
+
+    ###########################################################################
     def __str__(self):
         return self.masked_uri
 
