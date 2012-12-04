@@ -246,7 +246,6 @@ class Backup(MBSObject):
             "strategy": self.strategy,
             "source": self.source.to_document(display_only=display_only),
             "target": self.target.to_document(display_only=display_only),
-            "plan": self.plan.to_document(display_only=display_only),
             "planOccurrence": self.plan_occurrence,
             "engineGuid": self.engine_guid,
             "logs": self.export_logs()
@@ -254,6 +253,9 @@ class Backup(MBSObject):
 
         if self.id:
             doc["_id"] = self.id
+
+        if self.plan:
+            doc["plan"] = self.plan.to_document(display_only=display_only)
 
         if self.target_reference:
             doc["targetReference"] = self.target_reference.to_document(

@@ -509,7 +509,7 @@ class BackupWorker(Thread):
         backup.start_date = date_now()
         # apply the retention policy
         # TODO Probably should be called somewhere else
-        self._apply_retention_policy(backup.plan)
+        self._apply_retention_policy(backup)
 
         # set state to be in progress
         backup.change_state(STATE_IN_PROGRESS)
@@ -532,7 +532,7 @@ class BackupWorker(Thread):
         finally:
             # apply the retention policy
             # TODO Probably should be called somewhere else
-            self._apply_retention_policy(backup.plan)
+            self._apply_retention_policy(backup)
             self._cleanup_backup(backup)
 
     ###########################################################################
@@ -583,9 +583,16 @@ class BackupWorker(Thread):
         self.info("Getting source stats for source %s " % backup.source)
         # record source stats
         # compute minimum required lag
-        min_lag_seconds = int(backup.plan.schedule.frequency_in_seconds / 2)
+        if backup.plan:
+            min_lag_seconds = int(backup.plan.schedule.frequency_in_seconds / 2)
+            primary_ok = backup.plan.primary_ok
+        else:
+            # One Off backup : no min lag and primary OK!
+            min_lag_seconds = 0
+            primary_ok = True
+
         source_args = {
-            "primary_ok": backup.plan.primary_ok,
+            "primary_ok": primary_ok,
             "min_lag_seconds": min_lag_seconds
         }
         source_info = backup.source.get_source_info(**source_args)
@@ -883,9 +890,13 @@ class BackupWorker(Thread):
 
 
     ###########################################################################
-    def _apply_retention_policy(self, plan):
-        # apply the plans retention policy
-        if plan.retention_policy:
+    def _apply_retention_policy(self, backup):
+        """
+            apply the backup plan's retention policy if any.
+            No retention policies for one offs
+        """
+        plan = backup.plan
+        if plan and plan.retention_policy:
             plan.retention_policy.apply_policy(plan)
 
     ###########################################################################
@@ -909,7 +920,12 @@ def _backup_dir_name(backup):
 
 ###############################################################################
 def _tar_file_name(backup):
-    return "%s.tgz" % backup.plan.get_backup_name(backup)
+    if backup.plan:
+        return "%s.tgz" % backup.plan.get_backup_name(backup)
+    else:
+        # One offs are named by backup id
+        # TODO allow specifying file name for one offs
+        return "%s.tgz" % backup.id
 
 ###############################################################################
 ###############################################################################
