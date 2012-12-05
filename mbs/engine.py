@@ -922,9 +922,9 @@ def _backup_dir_name(backup):
 def _tar_file_name(backup):
     if backup.plan:
         return "%s.tgz" % backup.plan.get_backup_name(backup)
+    if backup.name:
+        return "%s.tgz" % backup.name
     else:
-        # One offs are named by backup id
-        # TODO allow specifying file name for one offs
         return "%s.tgz" % backup.id
 
 ###############################################################################

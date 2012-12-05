@@ -24,6 +24,7 @@ class Backup(MBSObject):
     def __init__(self):
         # init fields
         self._id = None
+        self._name = None
         self._state = None
         self._strategy = None
         self._source = None
@@ -47,6 +48,15 @@ class Backup(MBSObject):
     @id.setter
     def id(self, id):
         self._id = str(id)
+
+    ###########################################################################
+    @property
+    def name(self):
+        return self._name
+
+    @name.setter
+    def name(self, name):
+        self._name = name
 
     ###########################################################################
     def change_state(self, state, message=None):
@@ -253,6 +263,9 @@ class Backup(MBSObject):
 
         if self.id:
             doc["_id"] = self.id
+
+        if self.name:
+            doc["name"] = self.name
 
         if self.plan:
             doc["plan"] = self.plan.to_document(display_only=display_only)
