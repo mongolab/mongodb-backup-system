@@ -192,9 +192,8 @@ class MongoServer(object):
         """
             Returns true if the member is secondary or is recovering
         """
-        return (self.rs_status and
-                "stateStr" in self.rs_status and
-                self.rs_status["stateStr"] in ['SECONDARY', 'RECOVERING'])
+        master_result = self._admin_db.command({"isMaster" : 1})
+        return master_result and master_result.get("secondary")
 
     ###########################################################################
     def is_too_stale(self):
