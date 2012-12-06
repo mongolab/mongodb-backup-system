@@ -109,6 +109,7 @@ def get_cluster_members(cluster_uri):
 
     return members
 
+
 ###############################################################################
 class MongoServer(object):
 ###############################################################################
@@ -322,3 +323,34 @@ class MongoServer(object):
     ###########################################################################
     def __str__(self):
         return self.address
+
+###############################################################################
+def database_connection_stats(db_uri):
+    """
+        Returns database stats for the specified database uri
+    """
+    db = mongo_connect(db_uri)
+    return _calculate_database_stats(db)
+
+###############################################################################
+def _calculate_database_stats(db):
+        db_stats = db.command({"dbstats":1})
+
+
+        # convert size to GB
+        def to_gb(bytes):
+            gbs = bytes/(1024 * 1024 * 1024)
+            return round(gbs, 2)
+
+        total_stats_gb = {
+            "collections": db_stats["collections"],
+            "objects": db_stats["objects"],
+            "dataSizeInGB": to_gb(db_stats["dataSize"]),
+            "storageSizeInGB": to_gb(db_stats["storageSize"]),
+            "indexes": db_stats["indexes"],
+            "indexSizeInGB": to_gb(db_stats["indexSize"]),
+            "fileSizeInGB": to_gb(db_stats["fileSize"]),
+            "nsSizeMB": db_stats["nsSizeMB"]
+        }
+
+        return total_stats_gb
