@@ -286,6 +286,8 @@ class PlanAuditor(BackupAuditor):
 
         if failed_plan_reports:
             all_plans_report.failed_audits = failed_plan_reports
+        if warned_plan_reports:
+            all_plans_report.warned_audits = warned_plan_reports
 
         all_plans_report.total_audits = total_plans
         all_plans_report.total_failures = total_failures
@@ -325,6 +327,9 @@ class PlanAuditor(BackupAuditor):
 
         if failed_audits:
             plan_report.failed_audits = failed_audits
+
+        if warned_audits:
+            plan_report.warned_audits = warned_audits
 
         plan_report.total_failures = total_failures
         plan_report.total_audits = total_audits
