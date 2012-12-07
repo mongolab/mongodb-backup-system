@@ -112,12 +112,16 @@ class S3BucketTarget(BackupTarget):
             else:
                 self._single_part_put(file_key, file_path)
 
+            # validate that the file has been uploaded successfully
+            self._verify_file_uploaded(file_key, file_size)
+
             logger.info("S3BucketTarget: Uploading %s (%s GB) to s3 bucket %s "
                         "completed successfully!!" %
                         (file_path, file_size_in_gb, self.bucket_name))
 
             return FileReference(file_name=file_key,
                                  file_size_in_gb=file_size_in_gb)
+
         except Exception, e:
             traceback.print_exc()
             msg = ("S3BucketTarget: Error while trying to upload '%s'"
@@ -211,6 +215,22 @@ class S3BucketTarget(BackupTarget):
 
         logger.info("File %s split successfully" % file_path)
         return part_paths
+
+    ###########################################################################
+    def _verify_file_uploaded(self, file_key, file_size):
+
+        bucket = self._get_bucket()
+        key = bucket.get_key(file_key)
+        if not key:
+            raise Exception("Failure during upload verification: File '%s'"
+                            " does not exist in bucket '%s'" %
+                            (file_key, self.bucket_name))
+        elif file_size != key.size:
+            raise Exception("Failure during upload verification: File size in"
+                            " bucket does not match size on disk in"
+                            " bucket '%s'" % (file_key, self.bucket_name))
+
+        # success!
 
     ###########################################################################
     def get_file(self, file_reference, destination):
@@ -429,6 +449,9 @@ class RackspaceCloudFilesTarget(BackupTarget):
             else:
                 self._single_part_put(file_name, file_path)
 
+            # validate that the file has been uploaded successfully
+            self._verify_file_uploaded(file_name, file_size)
+
             logger.info("RackspaceCloudFilesTarget: Uploading %s (%s GB) "
                         "to container %s completed successfully!!" %
                         (file_path, file_size_in_gb, self.container_name))
@@ -482,6 +505,21 @@ class RackspaceCloudFilesTarget(BackupTarget):
         logger.info("RackspaceCloudFilesTarget: Multi-part put for %s "
                     "completed successfully!" % file_path)
 
+
+    ###########################################################################
+    def _verify_file_uploaded(self, file_name, file_size):
+        container = self._get_container()
+        container_obj = container.get_object(file_name)
+        if not container_obj:
+            raise Exception("Failure during upload verification: File '%s'"
+                            " does not exist in container '%s'" %
+                            (file_name, self.container_name))
+        elif file_size != container_obj.size:
+            raise Exception("Failure during upload verification: File size in"
+                            " bucket does not match size on disk in"
+                            " bucket '%s'" % (file_name, self.container_name))
+
+            # success!
 
     ###########################################################################
     def get_file(self, file_reference, destination):
