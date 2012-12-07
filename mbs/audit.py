@@ -257,7 +257,7 @@ class PlanAuditor(BackupAuditor):
 
         total_plans = 0
         failed_plan_reports = []
-        warned_plan_reports = []
+        all_warned_audits = []
         total_warnings = 0
         for plan in self._plan_collection.find():
             # skip recently added plans whose created date is after audit date
@@ -276,7 +276,7 @@ class PlanAuditor(BackupAuditor):
             if plan_report.has_warnings():
                 # only append to warned audits if report doesn't have failures
                 if not plan_report.has_failures():
-                    warned_plan_reports.append(plan_report)
+                    all_warned_audits.extend(plan_report.warned_audits)
 
                 total_warnings += 1
 
@@ -286,6 +286,8 @@ class PlanAuditor(BackupAuditor):
 
         if failed_plan_reports:
             all_plans_report.failed_audits = failed_plan_reports
+        if all_warned_audits:
+            all_plans_report.warned_audits = all_warned_audits
 
         all_plans_report.total_audits = total_plans
         all_plans_report.total_failures = total_failures
@@ -325,6 +327,9 @@ class PlanAuditor(BackupAuditor):
 
         if failed_audits:
             plan_report.failed_audits = failed_audits
+
+        if warned_audits:
+            plan_report.warned_audits = warned_audits
 
         plan_report.total_failures = total_failures
         plan_report.total_audits = total_audits
