@@ -47,7 +47,7 @@ class RetentionPolicy(MBSObject):
                 }
 
                 u = {
-                    "targetReference.expired": True
+                    "$set": {"targetReference.expired": True}
                 }
                 backup = backup_collection.find_and_modify(q,u)
                 if backup:
