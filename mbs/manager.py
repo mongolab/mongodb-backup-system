@@ -263,29 +263,26 @@ class PlanManager(Thread):
 
     ###########################################################################
     def _process_failed_backups(self):
-        self._cancel_failed_backups_not_within_current_cycle()
+        self._cancel_past_due_scheduled_backups()
         # temporarily turn this off until we introduce retryTimeout/maxNoRetries
         #self._reschedule_failed_backups_within_current_cycle()
 
     ###########################################################################
-    def _cancel_failed_backups_not_within_current_cycle(self):
+    def _cancel_past_due_scheduled_backups(self):
         """
-        Cancels backups that failed or scheduled
-        and whose plan's next occurrence in in the past
+        Cancels scheduled backups whose plan's next occurrence in in the past
         """
         now = date_now()
 
-        #self.info("Cancelling failed backups whose"
-        #                " next occurrence is very soon or in the past")
-
         q = {
-            "state": {"$in": [STATE_FAILED, STATE_SCHEDULED]},
+            "state": {"$in": [STATE_SCHEDULED]},
             "plan.nextOccurrence": {"$lte": now}
         }
 
         for backup in self._backup_collection.find(q):
             self.info("Cancelling backup %s" % backup._id)
-            backup.change_state(STATE_CANCELED)
+            backup.change_state(STATE_CANCELED, message="Backup is past due." \
+                                                        " Canceling...")
             self._backup_collection.save_document(backup.to_document())
 
     ###########################################################################
@@ -305,10 +302,27 @@ class PlanManager(Thread):
         }
 
         for backup in self._backup_collection.find(q):
+            self.reschedule_backup(backup)
 
-            self.info("Rescheduling backup %s" % backup._id)
-            backup.change_state(STATE_SCHEDULED)
-            self._backup_collection.save_document(backup.to_document())
+    ###########################################################################
+    def reschedule_backup(self, backup):
+        """
+            Reschedules the backup IF backup state is FAILED and
+                        backup is still within it's plan current cycle
+        """
+        if backup.state != STATE_FAILED:
+            msg = ("Cannot reschedule backup ('%s', '%s'). Rescheduling is "
+                   "only allowed for backups whose state is '%s'." %
+                   (backup.id, backup.state, STATE_FAILED))
+            raise PlanManagerException(msg)
+        elif backup.plan and backup.plan.next_occurrence <= date_now():
+            msg = ("Cannot reschedule backup '%s' because its occurrence is"
+                   " in the past of the current cycle" % backup.id)
+            raise PlanManagerException(msg)
+
+        self.info("Rescheduling backup %s" % backup._id)
+        backup.change_state(STATE_SCHEDULED, message="Rescheduling")
+        self._backup_collection.save_document(backup.to_document())
 
     ###########################################################################
     def _schedule_new_backup(self, plan):

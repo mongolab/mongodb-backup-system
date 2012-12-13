@@ -28,7 +28,7 @@ from date_utils import  timedelta_total_seconds, date_now
 from plan import STRATEGY_DUMP, STRATEGY_EBS_SNAPSHOT
 
 from backup import (STATE_SCHEDULED, STATE_IN_PROGRESS, STATE_FAILED,
-                    STATE_SUCCEEDED,
+                    STATE_SUCCEEDED, STATE_CANCELED,
                     EVENT_TYPE_INFO, EVENT_TYPE_WARNING, EVENT_TYPE_ERROR)
 
 from target import EbsSnapshotReference
@@ -86,6 +86,7 @@ class BackupEngine(Thread):
         self._command_port = command_port
         self._command_server = EngineCommandServer(self)
         self._tags = None
+        self._tick_ring = 0
 
     ###########################################################################
     @property
@@ -168,22 +169,54 @@ class BackupEngine(Thread):
         self._recover()
 
         while not self._stopped:
-            # wait until we have workers available
-            self._wait_for_workers_availability()
-            # Now that we have workers available ==> read next backup
-            self.info("Reading next scheduled backup...")
-            backup = self.read_next_backup()
-            if backup:
-                self._start_backup(backup)
+            self._start_next_backup()
+            self._clean_next_past_due_failed_backup()
 
         self.info("Exited main loop")
         self._pre_shutdown()
+
+    ###########################################################################
+    def _start_next_backup(self):
+        # wait until we have workers available
+        self._wait_for_workers_availability()
+        # Now that we have workers available ==> read next backup
+        backup = self.read_next_backup()
+        if backup:
+            self._start_backup(backup)
+
+    ###########################################################################
+    def _clean_next_past_due_failed_backup(self):
+        # we do this every 10 ticks
+        # increase tick_counter
+        self._tick_ring = (self._tick_ring + 1) % 10
+
+        if self._tick_ring == 0:
+            return;
+
+        # Now that we have workers available ==> read next backup
+        backup = self._read_next_failed_past_due_backup()
+        if backup:
+            # set backup state to cancelled
+            msg = "Backup failed and is past due. Cancelling..."
+            backup.change_state(STATE_CANCELED, message=msg)
+            # wait until we have workers available
+            self._wait_for_workers_availability()
+            worker_id = self.next_worker_id()
+            self.info("Starting cleaner worker for backup '%s'" % backup.id)
+            BackupCleanerWorker(worker_id, backup, self).start()
 
     ###########################################################################
     def _start_backup(self, backup):
         self.info("Received  backup %s" % backup)
         worker_id = self.next_worker_id()
         self.info("Starting backup %s, BackupWorker %s" %
+                  (backup._id, worker_id))
+        BackupWorker(worker_id, backup, self).start()
+
+    ###########################################################################
+    def _clean_backup(self, backup):
+        worker_id = self.next_worker_id()
+        self.info("Cleaning backup %s, BackupWorker %s" %
                   (backup._id, worker_id))
         BackupWorker(worker_id, backup, self).start()
 
@@ -221,12 +254,18 @@ class BackupEngine(Thread):
         self.worker_finished(worker, STATE_SUCCEEDED)
 
     ###########################################################################
+    def cleaner_finished(self, worker):
+        self.worker_finished(worker, STATE_CANCELED)
+
+    ###########################################################################
     def worker_finished(self, worker, state, message=None):
-        # set end date
-        worker.backup.end_date = date_now()
+        backup = worker.backup
+        # set end date if not set already
+        if not backup.end_date:
+            backup.end_date = date_now()
         # decrease worker count and update state
         self._worker_count -= 1
-        self.update_backup_state(worker.backup, state, message=message)
+        self.update_backup_state(backup, state, message=message)
 
     ###########################################################################
     def update_backup_state(self, backup, state, message=None):
@@ -295,20 +334,27 @@ class BackupEngine(Thread):
     ###########################################################################
     def read_next_backup(self):
 
-
         q = self._get_backups_query()
         u = {"$set" : { "state" : STATE_IN_PROGRESS,
                         "engineGuid": self.engine_guid}}
 
         c = self._backup_collection
-        backup = None
-        while not self._stopped and backup is None:
-            time.sleep(self._sleep_time)
-            backup = c.find_and_modify(query=q, update=u)
+        backup = c.find_and_modify(query=q, update=u)
 
         if backup:
             backup.engine_guid = self.engine_guid
+
         return backup
+
+    ###########################################################################
+    def _read_next_failed_past_due_backup(self):
+        q = { "state": STATE_FAILED,
+              "plan.nextOccurrence": {"$lte": date_now()},
+              "engineGuid": self.engine_guid}
+
+        u = {"$set" : { "state" : STATE_CANCELED}}
+
+        return self._backup_collection.find_and_modify(query=q, update=u)
 
     ###########################################################################
     def _get_backups_query(self):
@@ -520,8 +566,13 @@ class BackupWorker(Thread):
             self._run_backup(backup)
 
             # success!
+
+            # cleanup temp workspace
+            self._cleanup_backup(backup)
+
             self.engine.worker_success(self)
             self.info("Backup '%s' completed successfully" % backup.id)
+
         except Exception, e:
             # fail
             self.error("Backup failed. Cause %s" % e)
@@ -533,7 +584,6 @@ class BackupWorker(Thread):
             # apply the retention policy
             # TODO Probably should be called somewhere else
             self._apply_retention_policy(backup)
-            self._cleanup_backup(backup)
 
     ###########################################################################
     def _run_backup(self, backup):
@@ -724,17 +774,21 @@ class BackupWorker(Thread):
             name="CLEANUP",
             message="Running cleanup")
 
-        if temp_dir:
-            shutil.rmtree(temp_dir)
-            # delete the gzip
-            self.info("Cleanup: tar file %s" % tar_file_path)
-            if tar_file_path and os.path.exists(tar_file_path):
-                os.remove(tar_file_path)
+        try:
+
+            if temp_dir:
+                shutil.rmtree(temp_dir)
+                # delete the gzip
+                self.info("Cleanup: tar file %s" % tar_file_path)
+                if tar_file_path and os.path.exists(tar_file_path):
+                    os.remove(tar_file_path)
+                else:
+                    self.error("tar file %s does not exists!" %
+                               tar_file_path)
             else:
-                self.error("tar file %s does not exists!" %
-                           tar_file_path)
-        else:
-            self.error("temp dir %s does not exist!" % temp_dir)
+                self.error("temp dir %s does not exist!" % temp_dir)
+        except Exception, e:
+            self.error("Cleanup error for backup '%s': %s" % (backup.id, e))
 
     ###########################################################################
     def _execute_dump_command(self, source_address, database_name,dest):
@@ -910,6 +964,24 @@ class BackupWorker(Thread):
     ###########################################################################
     def error(self, msg):
         self._engine.error("Worker-%s: %s" % (self._id, msg))
+
+
+###############################################################################
+# BackupCleanerWorker
+###############################################################################
+
+class BackupCleanerWorker(BackupWorker):
+
+    ###########################################################################
+    def __init__(self, id, backup, engine):
+        BackupWorker.__init__(self, id, backup, engine)
+
+    ###########################################################################
+    def run(self):
+        try:
+            self._cleanup_backup(self.backup)
+        finally:
+            self.engine.cleaner_finished(self)
 
 
 ###############################################################################

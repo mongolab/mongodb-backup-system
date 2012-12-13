@@ -279,6 +279,23 @@ def download_backup(parsed_args):
         exit(1)
 
 ###############################################################################
+def reschedule_backup(parsed_args):
+
+    try:
+        backup_id = parsed_args.backupId
+        bc = get_mbs().backup_collection
+        backup = bc.find_one({"_id": ObjectId(backup_id)})
+
+        if backup:
+           get_mbs().plan_manager.reschedule_backup(backup)
+        else:
+            print "No such backup '%s'" % backup_id
+            exit(1)
+    except Exception, e:
+        print "%s" % e
+        exit(1)
+
+###############################################################################
 # Helpers
 ###############################################################################
 def _get_engine(engine_id=None):
@@ -460,6 +477,22 @@ PARSER_DEF = {
                 "help": "Backup id"
             }],
             "function": download_backup
+        },
+
+            {
+            "prog": "reschedule-backup",
+            "shortDescription" : "Reschedules specified backup",
+            "description" : "Reschedules specified backup. "
+                            "Only applicable to failed backups",
+            "args": [
+                    {
+                    "name": "backupId",
+                    "type" : "positional",
+                    "nargs": 1,
+                    "displayName": "BACKUP_ID",
+                    "help": "Backup id"
+                }],
+            "function": reschedule_backup
         }
     ]
 }
