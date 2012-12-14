@@ -207,14 +207,14 @@ class MongoServer(object):
 
     ###########################################################################
     def get_database_stats(self, dbname):
-        return self._calculate_database_stats(only_for_db=dbname)
+        return self._calculate_my_database_stats(only_for_db=dbname)
 
     ###########################################################################
     def get_all_database_stats(self):
-        return self._calculate_database_stats()
+        return self._calculate_my_database_stats()
 
     ###########################################################################
-    def _calculate_database_stats(self, only_for_db=None):
+    def _calculate_my_database_stats(self, only_for_db=None):
 
         total_stats = {
             "collections": 0,
@@ -233,36 +233,17 @@ class MongoServer(object):
             database_names = self._admin_db.connection.database_names()
 
         for dbname in database_names:
-            db_stats = self._read_database_stats(dbname)
+            db = self._admin_db.connection[dbname]
+            db_stats = _calculate_database_stats(db)
             for key in total_stats.keys():
                     total_stats[key] += db_stats.get(key) or 0
 
-        # convert size to GB
-        def to_gb(bytes):
-            gbs = bytes/(1024 * 1024 * 1024)
-            return round(gbs, 2)
-
-        total_stats_gb = {
-            "collections": total_stats["collections"],
-            "objects": total_stats["objects"],
-            "dataSizeInGB": to_gb(total_stats["dataSize"]),
-            "storageSizeInGB": to_gb(total_stats["storageSize"]),
-            "indexes": total_stats["indexes"],
-            "indexSizeInGB": to_gb(total_stats["indexSize"]),
-            "fileSizeInGB": to_gb(total_stats["fileSize"]),
-            "nsSizeMB": total_stats["nsSizeMB"]
-        }
-
-        return total_stats_gb
+        return total_stats
 
     ###########################################################################
     @property
     def server_status(self):
         return self._get_server_status()
-
-    ###########################################################################
-    def _read_database_stats(self, dbname):
-        return self._admin_db.connection[dbname].command({"dbstats":1})
 
     ###########################################################################
     def _get_rs_status(self):
@@ -336,21 +317,17 @@ def database_connection_stats(db_uri):
 def _calculate_database_stats(db):
         db_stats = db.command({"dbstats":1})
 
-
-        # convert size to GB
-        def to_gb(bytes):
-            gbs = bytes/(1024 * 1024 * 1024)
-            return round(gbs, 2)
-
-        total_stats_gb = {
+        result = {
             "collections": db_stats["collections"],
             "objects": db_stats["objects"],
-            "dataSizeInGB": to_gb(db_stats["dataSize"]),
-            "storageSizeInGB": to_gb(db_stats["storageSize"]),
+            "dataSize": db_stats["dataSize"],
+            "storageSize": db_stats["storageSize"],
             "indexes": db_stats["indexes"],
-            "indexSizeInGB": to_gb(db_stats["indexSize"]),
-            "fileSizeInGB": to_gb(db_stats["fileSize"]),
+            "indexSize":db_stats["indexSize"],
+            "fileSize": db_stats["fileSize"],
             "nsSizeMB": db_stats["nsSizeMB"]
         }
 
-        return total_stats_gb
+        return result
+
+###############################################################################

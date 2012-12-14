@@ -878,8 +878,8 @@ class BackupWorker(Thread):
     ###########################################################################
     def _calculate_backup_rate(self, backup):
         duration = timedelta_total_seconds(date_now() - backup.start_date)
-        if backup.source_stats and backup.source_stats.get("fileSizeInGB"):
-            size_mb = backup.source_stats["fileSizeInGB"] * 1024
+        if backup.source_stats and backup.source_stats.get("fileSize"):
+            size_mb = backup.source_stats["fileSize"] / (1024 * 1024)
             rate = size_mb/duration
             backup.backup_rate_in_mbps = round(rate, 2)
 

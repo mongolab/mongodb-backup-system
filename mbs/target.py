@@ -103,12 +103,10 @@ class S3BucketTarget(BackupTarget):
 
             # calculating file size
             file_size = os.path.getsize(file_path)
-            file_size_in_gb = float(file_size) / (1024 * 1024 * 1024)
-            file_size_in_gb = round(file_size_in_gb, 2)
 
             logger.info("S3BucketTarget: Uploading '%s' (%s GB) to '%s' in "
                         " s3 bucket %s" % (file_path, destination_path,
-                                           file_size_in_gb, self.bucket_name))
+                                           file_size, self.bucket_name))
 
             destination_path = destination_path or os.path.basename(file_path)
 
@@ -122,10 +120,10 @@ class S3BucketTarget(BackupTarget):
 
             logger.info("S3BucketTarget: Uploading %s (%s GB) to s3 bucket %s "
                         "completed successfully!!" %
-                        (file_path, file_size_in_gb, self.bucket_name))
+                        (file_path, file_size, self.bucket_name))
 
             return FileReference(file_path=destination_path,
-                                 file_size_in_gb=file_size_in_gb)
+                                 file_size=file_size)
 
         except Exception, e:
             traceback.print_exc()
@@ -442,13 +440,12 @@ class RackspaceCloudFilesTarget(BackupTarget):
 
             # calculating file size
             file_size = os.path.getsize(file_path)
-            file_size_in_gb = float(file_size) / (1024 * 1024 * 1024)
-            file_size_in_gb = round(file_size_in_gb, 2)
+
             destination_path = destination_path or os.path.basename(file_path)
 
             logger.info("RackspaceCloudFilesTarget: Uploading %s (%s GB) "
                         "to container %s" %
-                        (file_path, file_size_in_gb, self.container_name))
+                        (file_path, file_size, self.container_name))
 
             if file_size >= CF_MULTIPART_MIN_SIZE:
                 self._multi_part_put(file_path, destination_path, file_size)
@@ -460,10 +457,10 @@ class RackspaceCloudFilesTarget(BackupTarget):
 
             logger.info("RackspaceCloudFilesTarget: Uploading %s (%s GB) "
                         "to container %s completed successfully!!" %
-                        (file_path, file_size_in_gb, self.container_name))
+                        (file_path, file_size, self.container_name))
 
             return FileReference(file_path=destination_path,
-                                 file_size_in_gb=file_size_in_gb)
+                                 file_size=file_size)
         except Exception, e:
             traceback.print_exc()
             msg = ("RackspaceCloudFilesTarget: Error while trying to upload "
@@ -651,23 +648,21 @@ class AzureContainerTarget(BackupTarget):
 
             # calculating file size
             file_size = os.path.getsize(file_path)
-            file_size_in_gb = float(file_size) / (1024 * 1024 * 1024)
-            file_size_in_gb = round(file_size_in_gb, 2)
             destination_path = os.path.basename(file_path)
 
             logger.info("AzureContainerTarget: Uploading %s (%s GB) "
                         "to container %s" %
-                        (file_path, file_size_in_gb, self.container_name))
+                        (file_path, file_size, self.container_name))
 
 
             self._single_part_put(file_path, destination_path)
 
             logger.info("AzureContainerTarget: Uploading %s (%s GB) "
                         "to container %s completed successfully!!" %
-                        (file_path, file_size_in_gb, self.container_name))
+                        (file_path, file_size, self.container_name))
 
             return FileReference(file_path=destination_path,
-                file_size_in_gb=file_size_in_gb)
+                                 file_size=file_size)
         except Exception, e:
             traceback.print_exc()
             msg = ("AzureContainerTarget: Error while trying to upload "
@@ -762,7 +757,7 @@ class TargetReference(MBSObject):
     ###########################################################################
     def __init__(self):
         self._expired = False
-        self._file_size_in_gb = None
+        self._file_size = None
 
     ###########################################################################
     @property
@@ -779,16 +774,12 @@ class TargetReference(MBSObject):
 
     ###########################################################################
     @property
-    def file_size_in_gb(self):
-        """
-            Indicates if the reference file expired.
+    def file_size(self):
+        return self._file_size
 
-        """
-        return self._file_size_in_gb
-
-    @file_size_in_gb.setter
-    def file_size_in_gb(self, size):
-        self._file_size_in_gb = size
+    @file_size.setter
+    def file_size(self, file_size):
+        self._file_size = file_size
 
 ###############################################################################
 # FileReference
@@ -796,10 +787,10 @@ class TargetReference(MBSObject):
 class FileReference(TargetReference):
 
     ###########################################################################
-    def __init__(self, file_path=None, file_size_in_gb=None):
+    def __init__(self, file_path=None, file_size=None):
         TargetReference.__init__(self)
         self.file_path = file_path
-        self.file_size_in_gb = file_size_in_gb
+        self.file_size = file_size
 
     ###########################################################################
     @property
@@ -815,7 +806,7 @@ class FileReference(TargetReference):
         doc = {
             "_type": "FileReference",
             "filePath": self.file_path,
-            "fileSizeInGB": self.file_size_in_gb
+            "fileSize": self.file_size
         }
         if self.expired:
             doc["expired"] = self.expired
