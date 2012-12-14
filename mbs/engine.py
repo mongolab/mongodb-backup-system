@@ -719,7 +719,10 @@ class BackupWorker(Thread):
 
         # set the target reference and it will be saved by the next
         # log event call
-        target_reference = backup.target.put_file(tar_file_path)
+        destination_path = _upload_file_name(backup)
+        target_reference = backup.target.put_file(tar_file_path,
+                                                  destination_path=
+                                                    destination_path)
         backup.target_reference = target_reference
 
         self.engine.log_backup_event(backup,
@@ -992,6 +995,10 @@ def _backup_dir_name(backup):
 
 ###############################################################################
 def _tar_file_name(backup):
+    return "%s.tgz" % backup.id
+
+###############################################################################
+def _upload_file_name(backup):
     if backup.plan:
         return "%s.tgz" % backup.plan.get_backup_name(backup)
     if backup.name:

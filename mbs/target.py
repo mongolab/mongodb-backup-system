@@ -37,7 +37,11 @@ class BackupTarget(MBSObject):
         pass
 
     ###########################################################################
-    def put_file(self, file_path):
+    def put_file(self, file_path, destination_path=None):
+        """
+            Uploads the specified file path under destination_path.
+             destination_path defaults to base name (file name) of file_path
+        """
         pass
 
     ###########################################################################
@@ -94,7 +98,7 @@ class S3BucketTarget(BackupTarget):
     ###########################################################################
     @robustify(max_attempts=3, retry_interval=2,
                do_on_exception=_raise_if_not_connectivity)
-    def put_file(self, file_path):
+    def put_file(self, file_path, destination_path=None):
         try:
 
             # calculating file size
@@ -102,24 +106,25 @@ class S3BucketTarget(BackupTarget):
             file_size_in_gb = float(file_size) / (1024 * 1024 * 1024)
             file_size_in_gb = round(file_size_in_gb, 2)
 
-            logger.info("S3BucketTarget: Uploading %s (%s GB) to s3 bucket %s" %
-                        (file_path, file_size_in_gb, self.bucket_name))
+            logger.info("S3BucketTarget: Uploading '%s' (%s GB) to '%s' in "
+                        " s3 bucket %s" % (file_path, destination_path,
+                                           file_size_in_gb, self.bucket_name))
 
-            file_key = os.path.basename(file_path)
+            destination_path = destination_path or os.path.basename(file_path)
 
             if file_size >= MULTIPART_MIN_SIZE:
-                self._multi_part_put(file_key, file_path, file_size)
+                self._multi_part_put(file_path, destination_path, file_size)
             else:
-                self._single_part_put(file_key, file_path)
+                self._single_part_put(file_path, destination_path)
 
             # validate that the file has been uploaded successfully
-            self._verify_file_uploaded(file_key, file_size)
+            self._verify_file_uploaded(destination_path, file_size)
 
             logger.info("S3BucketTarget: Uploading %s (%s GB) to s3 bucket %s "
                         "completed successfully!!" %
                         (file_path, file_size_in_gb, self.bucket_name))
 
-            return FileReference(file_name=file_key,
+            return FileReference(file_path=destination_path,
                                  file_size_in_gb=file_size_in_gb)
 
         except Exception, e:
@@ -130,15 +135,15 @@ class S3BucketTarget(BackupTarget):
             raise Exception(msg, e)
 
     ###########################################################################
-    def _single_part_put(self, file_key, file_path):
+    def _single_part_put(self, file_path, destination_path):
         bucket = self._get_bucket()
         file_obj = open(file_path)
         k = Key(bucket)
-        k.key = file_key
+        k.key = destination_path
         k.set_contents_from_file(file_obj)
 
     ###########################################################################
-    def _multi_part_put(self, file_key, file_path, file_size):
+    def _multi_part_put(self, file_path, destination_path, file_size):
         # create the parts directory, delete/re-create if it already exists
         # for some reason
 
@@ -151,14 +156,15 @@ class S3BucketTarget(BackupTarget):
                 shutil.rmtree(parts_dir)
 
             os.mkdir(parts_dir)
-            part_prefix = "%s_" % file_key
+            file_name = os.path.basename(file_path)
+            part_prefix = "%s_" % file_name
             # split file into parts
             file_part_paths = self._split_file(file_path, file_size,
                                                parts_dir=parts_dir,
                                                prefix=part_prefix)
 
             bucket = self._get_bucket()
-            mp = bucket.initiate_multipart_upload(file_key)
+            mp = bucket.initiate_multipart_upload(destination_path)
 
             i = 1
             for part_path in file_part_paths:
@@ -217,18 +223,18 @@ class S3BucketTarget(BackupTarget):
         return part_paths
 
     ###########################################################################
-    def _verify_file_uploaded(self, file_key, file_size):
+    def _verify_file_uploaded(self, destination_path, file_size):
 
         bucket = self._get_bucket()
-        key = bucket.get_key(file_key)
+        key = bucket.get_key(destination_path)
         if not key:
             raise Exception("Failure during upload verification: File '%s'"
                             " does not exist in bucket '%s'" %
-                            (file_key, self.bucket_name))
+                            (destination_path, self.bucket_name))
         elif file_size != key.size:
             raise Exception("Failure during upload verification: File size in"
-                            " bucket does not match size on disk in"
-                            " bucket '%s'" % (file_key, self.bucket_name))
+                            " bucket does not match size on disk in bucket "
+                            "'%s'" % (destination_path, self.bucket_name))
 
         # success!
 
@@ -236,17 +242,17 @@ class S3BucketTarget(BackupTarget):
     def get_file(self, file_reference, destination):
         try:
 
-            file_name = file_reference.file_name
+            file_path = file_reference.file_path
             print("Downloading '%s' from s3 bucket '%s'" %
-                        (file_name, self.bucket_name))
+                  (file_path, self.bucket_name))
 
             bucket = self._get_bucket()
-            key = bucket.get_key(file_name)
+            key = bucket.get_key(file_path)
 
             if not key:
                 raise Exception("No such file '%s' in bucket '%s'" %
-                                (file_name, self.bucket_name))
-            file_obj = open(os.path.join(destination, file_name), mode="w")
+                                (file_path, self.bucket_name))
+            file_obj = open(os.path.join(destination, file_path), mode="w")
 
             num_call_backs = key.size / 1000
             key.get_contents_to_file(file_obj, cb=_download_progress,
@@ -257,26 +263,26 @@ class S3BucketTarget(BackupTarget):
         except Exception, e:
             msg = ("S3BucketTarget: Error while trying to download '%s'"
                    " from s3 bucket %s. Cause: %s" %
-                   (file_name, self.bucket_name, e))
+                   (file_path, self.bucket_name, e))
             raise Exception(msg, e)
 
     ###########################################################################
     def delete_file(self, file_reference):
         try:
 
-            file_name = file_reference.file_name
+            file_path = file_reference.file_path
             logger.info("S3BucketTarget: Deleting '%s' from s3 bucket '%s'" %
-                        (file_name, self.bucket_name))
+                        (file_path, self.bucket_name))
 
             bucket = self._get_bucket()
-            key = bucket.get_key(file_name)
+            key = bucket.get_key(file_path)
             bucket.delete_key(key)
-            logger.info("S3BucketTarget: Successfully deleted'%s' from s3"
-                        " bucket '%s'" % (file_name, self.bucket_name))
+            logger.info("S3BucketTarget: Successfully deleted '%s' from s3"
+                        " bucket '%s'" % (file_path, self.bucket_name))
         except Exception, e:
             msg = ("S3BucketTarget: Error while trying to delete '%s'"
                    " from s3 bucket %s. Cause: %s" %
-                   (file_name, self.bucket_name, e))
+                   (file_path, self.bucket_name, e))
             raise Exception(msg, e)
 
     ###########################################################################
@@ -349,7 +355,7 @@ class EbsSnapshotTarget(BackupTarget):
         self._ec2_connection = None
 
     ###########################################################################
-    def put_file(self, file_path):
+    def put_file(self, file_path, destination_path=None):
         raise Exception("Unsupported operation")
 
     ###########################################################################
@@ -431,32 +437,32 @@ class RackspaceCloudFilesTarget(BackupTarget):
     ###########################################################################
     @robustify(max_attempts=3, retry_interval=2,
         do_on_exception=_raise_if_not_connectivity)
-    def put_file(self, file_path):
+    def put_file(self, file_path, destination_path=None):
         try:
 
             # calculating file size
             file_size = os.path.getsize(file_path)
             file_size_in_gb = float(file_size) / (1024 * 1024 * 1024)
             file_size_in_gb = round(file_size_in_gb, 2)
-            file_name = os.path.basename(file_path)
+            destination_path = destination_path or os.path.basename(file_path)
 
             logger.info("RackspaceCloudFilesTarget: Uploading %s (%s GB) "
                         "to container %s" %
                         (file_path, file_size_in_gb, self.container_name))
 
             if file_size >= CF_MULTIPART_MIN_SIZE:
-                self._multi_part_put(file_name, file_path, file_size)
+                self._multi_part_put(file_path, destination_path, file_size)
             else:
-                self._single_part_put(file_name, file_path)
+                self._single_part_put(file_path, destination_path)
 
             # validate that the file has been uploaded successfully
-            self._verify_file_uploaded(file_name, file_size)
+            self._verify_file_uploaded(destination_path, file_size)
 
             logger.info("RackspaceCloudFilesTarget: Uploading %s (%s GB) "
                         "to container %s completed successfully!!" %
                         (file_path, file_size_in_gb, self.container_name))
 
-            return FileReference(file_name=file_name,
+            return FileReference(file_path=destination_path,
                                  file_size_in_gb=file_size_in_gb)
         except Exception, e:
             traceback.print_exc()
@@ -466,13 +472,13 @@ class RackspaceCloudFilesTarget(BackupTarget):
             raise Exception(msg, e)
 
     ###########################################################################
-    def _single_part_put(self, file_name, file_path):
+    def _single_part_put(self, file_path, destination_path):
         container = self._get_container()
-        container_obj = container.create_object(file_name)
+        container_obj = container.create_object(destination_path)
         container_obj.load_from_filename(file_path)
 
     ###########################################################################
-    def _multi_part_put(self, file_name, file_path, file_size):
+    def _multi_part_put(self, file_path, destination_path, file_size):
         """
             Uploads file in chunks using Swift Tool (st) command
             http://bazaar.launchpad.net/~hudson-openstack/swift/1.2/view/head:/bin/st
@@ -495,7 +501,7 @@ class RackspaceCloudFilesTarget(BackupTarget):
             "-K", self.api_key,
             "upload",
             "--segment-size", str(chunk_size),
-            self.container_name, file_name
+            self.container_name, destination_path
 
         ]
         logger.info("RackspaceCloudFilesTarget: Executing command: %s" %
@@ -507,17 +513,17 @@ class RackspaceCloudFilesTarget(BackupTarget):
 
 
     ###########################################################################
-    def _verify_file_uploaded(self, file_name, file_size):
+    def _verify_file_uploaded(self, destination_path, file_size):
         container = self._get_container()
-        container_obj = container.get_object(file_name)
+        container_obj = container.get_object(destination_path)
         if not container_obj:
             raise Exception("Failure during upload verification: File '%s'"
                             " does not exist in container '%s'" %
-                            (file_name, self.container_name))
+                            (destination_path, self.container_name))
         elif file_size != container_obj.size:
             raise Exception("Failure during upload verification: File size in"
-                            " bucket does not match size on disk in"
-                            " bucket '%s'" % (file_name, self.container_name))
+                            " bucket does not match size on disk in bucket "
+                            "'%s'" % (destination_path, self.container_name))
 
             # success!
 
@@ -525,19 +531,19 @@ class RackspaceCloudFilesTarget(BackupTarget):
     def get_file(self, file_reference, destination):
         try:
 
-            file_name = file_reference.file_name
+            file_path = file_reference.file_path
             print("Downloading '%s' from container '%s'" %
-                  (file_name, self.container_name))
+                  (file_path, self.container_name))
 
             container = self._get_container()
-            container_obj = container.get_object(file_name)
+            container_obj = container.get_object(file_path)
 
             if not container_obj:
                 raise Exception("No such file '%s' in container '%s'" %
-                                (file_name, self.container_name))
+                                (file_path, self.container_name))
 
 
-            des_file = os.path.join(destination, file_name)
+            des_file = os.path.join(destination, file_path)
             container_obj.save_to_filename(des_file,
                                            callback=_download_progress)
             print("\nDownload completed successfully!!")
@@ -545,26 +551,26 @@ class RackspaceCloudFilesTarget(BackupTarget):
         except Exception, e:
             msg = ("RackspaceCloudFilesTarget: Error while trying to download "
                    "'%s' from container %s. Cause: %s" %
-                   (file_name, self.container_name, e))
+                   (file_path, self.container_name, e))
             raise Exception(msg, e)
 
     ###########################################################################
     def delete_file(self, file_reference):
         try:
 
-            file_name = file_reference.file_name
+            file_path = file_reference.file_path
             logger.info("RackspaceCloudFilesTarget: Deleting '%s' from "
-                        "container '%s'" % (file_name, self.container_name))
+                        "container '%s'" % (file_path, self.container_name))
 
             container = self._get_container()
-            container.delete_object(file_name)
+            container.delete_object(file_path)
             logger.info("RackspaceCloudFilesTarget: Successfully deleted '%s' "
                         "from container '%s'" %
-                        (file_name, self.container_name))
+                        (file_path, self.container_name))
         except Exception, e:
             msg = ("RackspaceCloudFilesTarget: Error while trying to delete "
                    "'%s' from container %s. Cause: %s" %
-                   (file_name, self.container_name, e))
+                   (file_path, self.container_name, e))
             raise Exception(msg, e)
 
     ###########################################################################
@@ -640,27 +646,27 @@ class AzureContainerTarget(BackupTarget):
     ###########################################################################
     @robustify(max_attempts=3, retry_interval=2,
         do_on_exception=_raise_if_not_connectivity)
-    def put_file(self, file_path):
+    def put_file(self, file_path, destination_path):
         try:
 
             # calculating file size
             file_size = os.path.getsize(file_path)
             file_size_in_gb = float(file_size) / (1024 * 1024 * 1024)
             file_size_in_gb = round(file_size_in_gb, 2)
-            file_name = os.path.basename(file_path)
+            destination_path = os.path.basename(file_path)
 
             logger.info("AzureContainerTarget: Uploading %s (%s GB) "
                         "to container %s" %
                         (file_path, file_size_in_gb, self.container_name))
 
 
-            self._single_part_put(file_name, file_path)
+            self._single_part_put(file_path, destination_path)
 
             logger.info("AzureContainerTarget: Uploading %s (%s GB) "
                         "to container %s completed successfully!!" %
                         (file_path, file_size_in_gb, self.container_name))
 
-            return FileReference(file_name=file_name,
+            return FileReference(file_path=destination_path,
                 file_size_in_gb=file_size_in_gb)
         except Exception, e:
             traceback.print_exc()
@@ -670,14 +676,14 @@ class AzureContainerTarget(BackupTarget):
             raise Exception(msg, e)
 
     ###########################################################################
-    def _single_part_put(self, file_name, file_path):
+    def _single_part_put(self, file_path, destination_path):
         blob_service = self._get_blob_service()
         fp = open(file_path, 'r').read()
-        blob_service.put_blob(self.container_name, file_name, fp,
+        blob_service.put_blob(self.container_name, destination_path, fp,
                               x_ms_blob_type='BlockBlob')
 
     ###########################################################################
-    def _multi_part_put(self, file_name, file_path, file_size):
+    def _multi_part_put(self, file_path, destination_path, file_size):
         pass
 
 
@@ -790,25 +796,25 @@ class TargetReference(MBSObject):
 class FileReference(TargetReference):
 
     ###########################################################################
-    def __init__(self, file_name=None, file_size_in_gb=None):
+    def __init__(self, file_path=None, file_size_in_gb=None):
         TargetReference.__init__(self)
-        self.file_name = file_name
+        self.file_path = file_path
         self.file_size_in_gb = file_size_in_gb
 
     ###########################################################################
     @property
-    def file_name(self):
-        return self._file_name
+    def file_path(self):
+        return self._file_path
 
-    @file_name.setter
-    def file_name(self, file_name):
-        self._file_name = file_name
+    @file_path.setter
+    def file_path(self, file_path):
+        self._file_path = file_path
 
     ###########################################################################
     def to_document(self, display_only=False):
         doc = {
             "_type": "FileReference",
-            "fileName": self.file_name,
+            "filePath": self.file_path,
             "fileSizeInGB": self.file_size_in_gb
         }
         if self.expired:
