@@ -4,6 +4,7 @@ __author__ = 'abdul'
 import pymongo
 from mongo_uri_tools import parse_mongo_uri
 from bson.son import SON
+from robustify.robustify import robustify
 
 from date_utils import timedelta_total_seconds
 import mbs_logging
@@ -30,7 +31,20 @@ def mongo_connect(uri):
         raise Exception("Could not establish a database connection to "
                         "%s: %s" % (uri_wrapper.masked_uri, e))
 
+
 ###############################################################################
+def _raise_if_not_no_primary(exception):
+    msg = str(exception)
+    if "Unable to determine primary" in msg:
+        logger.warn("Caught a no primary found exception: %s" % msg)
+    else:
+        logger.debug("Re-raising a get_best_source_member "
+                     "NON-no-primary exception: %s" % msg)
+        raise
+
+###############################################################################
+@robustify(max_attempts=5, retry_interval=10,
+            do_on_exception=_raise_if_not_no_primary)
 def get_best_source_member(cluster_uri, primary_ok=False, min_lag_seconds=0):
     """
         Returns the best source member to get the pull from.
