@@ -76,7 +76,8 @@ def _raise_if_not_connectivity(exception):
     msg = str(exception)
     if ("Broken pipe" in msg or
         "reset" in msg or
-        "timed out" in msg):
+        "timed out" in msg or
+        "try again" in msg):
         logger.warn("Caught a target connectivity exception: %s" % msg)
     else:
         logger.debug("Re-raising a target NON-connectivity exception: %s" %
