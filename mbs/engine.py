@@ -525,6 +525,18 @@ def _raise_if_not_connectivity(exception):
         raise
 
 ###############################################################################
+def _raise_if_cannot_redump(exception):
+    """
+        Module method for robustifying dump attempts
+    """
+    msg = str(exception)
+    if "capped cursor overrun during query" in msg:
+        logger.warn("Caught a 'capped cursor overrun' exception: %s" % msg)
+    else:
+        logger.debug("Re-raising a a NON-redumpable exception: %s" % msg)
+        raise
+
+###############################################################################
 # BackupWorker
 ###############################################################################
 
@@ -794,6 +806,8 @@ class BackupWorker(Thread):
             self.error("Cleanup error for backup '%s': %s" % (backup.id, e))
 
     ###########################################################################
+    @robustify(max_attempts=5, retry_interval=60,
+               do_on_exception=_raise_if_cannot_redump)
     def _execute_dump_command(self, source_address, database_name,dest):
         dump_cmd = ["/usr/local/bin/mongoctl",
                     "--noninteractive", # always run with noninteractive
