@@ -69,7 +69,7 @@ class BackupEngine(Thread):
 
     ###########################################################################
     def __init__(self, id=None, backup_collection=None, max_workers=10,
-                       sleep_time=1,
+                       sleep_time=10,
                        temp_dir=None,
                        notification_handler=None,
                        command_port=8888):
@@ -186,9 +186,9 @@ class BackupEngine(Thread):
 
     ###########################################################################
     def _clean_next_past_due_failed_backup(self):
-        # we do this every 10 ticks
+        # we do this every 100 ticks
         # increase tick_counter
-        self._tick_ring = (self._tick_ring + 1) % 10
+        self._tick_ring = (self._tick_ring + 1) % 100
 
         if self._tick_ring == 0:
             return;
