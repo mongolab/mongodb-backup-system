@@ -164,7 +164,7 @@ class PlanManager(Thread):
     def _tick(self):
 
         # increase _generators_tick_counter
-        self._tick_ring = (self._tick_ring + 1) % 10
+        self._tick_ring = (self._tick_ring + 1) % 100
 
         self._process_failed_backups()
         self._process_plans_considered_now()
