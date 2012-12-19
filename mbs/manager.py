@@ -33,6 +33,7 @@ logger = mbs_logging.logger
 ###############################################################################
 # maximum backup wait time in seconds: default to five hours
 MAX_BACKUP_WAIT_TIME = 5 * 60 * 60
+ONE_OFF_BACKUP_MAX_WAIT_TIME = 60
 
 MANAGER_STATUS_RUNNING = "running"
 MANAGER_STATUS_STOPPING = "stopping"
@@ -170,7 +171,7 @@ class PlanManager(Thread):
 
         if self._tick_ring == 0:
             self._run_plan_generators()
-            self._check_starving_scheduled_backups()
+            self._notify_on_past_due_scheduled_backups()
 
         # run auditor if its time
         #self._check_audit()
@@ -436,18 +437,42 @@ class PlanManager(Thread):
             self.save_plan(plan)
 
     ###########################################################################
-    def _check_starving_scheduled_backups(self):
+    def _notify_on_past_due_scheduled_backups(self):
         """
-            Send notifications for jobs that has been scheduled for a long
-            time and have not been picked up by an engine yet
+            Send notifications for jobs that has been scheduled for a period
+            longer than min(half the frequency, 5 hours) of its plan.
+             If backup does not have a plan (i.e. one off)
+             then it will check after 60 seconds.
         """
         # query for backups whose scheduled date is before current date minus
         # than max starvation time
-        starve_date = date_minus_seconds(date_now(), MAX_BACKUP_WAIT_TIME)
+
+
+        where = ("(Math.min(%s, (this.plan.schedule.frequencyInSeconds / 2) * 1000) + "
+                    "this.logs[0].date.getTime()) < new Date().getTime()" %
+                 (MAX_BACKUP_WAIT_TIME * 1000))
+        one_off_starve_date = date_minus_seconds(date_now(),
+                                                 ONE_OFF_BACKUP_MAX_WAIT_TIME)
         q = {
             "state": STATE_SCHEDULED,
-            "logs.0.date": {"$lt": starve_date}
+            "$or":[
+                # backups with plans starving query
+                {
+                    "$and":[
+                        {"plan": {"$exists": True}},
+                        {"$where": where}
+                    ]
+                },
+                # One off backups (no plan) starving query
+                {
+                    "$and":[
+                            {"plan": {"$exists": False}},
+                            {"logs.0.date": {"$lt": one_off_starve_date}}
+                    ]
+                 }
+            ]
         }
+
         starving_backups = self._backup_collection.find(q)
 
         if starving_backups:
