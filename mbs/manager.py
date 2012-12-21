@@ -306,6 +306,17 @@ class PlanManager(Thread):
             self.reschedule_backup(backup)
 
     ###########################################################################
+    def reschedule_all_failed_backups(self):
+        self.info("Rescheduling all failed backups")
+
+        q = {
+            "state": STATE_FAILED
+        }
+
+        for backup in self._backup_collection.find(q):
+            self.reschedule_backup(backup)
+
+    ###########################################################################
     def reschedule_backup(self, backup):
         """
             Reschedules the backup IF backup state is FAILED and

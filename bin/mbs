@@ -296,6 +296,15 @@ def reschedule_backup(parsed_args):
         exit(1)
 
 ###############################################################################
+def reschedule_all_backups(parsed_args):
+
+    try:
+        get_mbs().plan_manager.reschedule_all_failed_backups()
+    except Exception, e:
+        print "%s" % e
+        exit(1)
+
+###############################################################################
 # Helpers
 ###############################################################################
 def _get_engine(engine_id=None):
@@ -493,6 +502,13 @@ PARSER_DEF = {
                     "help": "Backup id"
                 }],
             "function": reschedule_backup
+        },
+
+            {
+            "prog": "reschedule-all-backups",
+            "shortDescription" : "Reschedules all failed backups",
+            "description" : "Reschedules all failed backups",
+            "function": reschedule_all_backups
         }
     ]
 }
