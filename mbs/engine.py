@@ -530,8 +530,8 @@ def _raise_if_cannot_redump(exception):
         Module method for robustifying dump attempts
     """
     msg = str(exception)
-    if "capped cursor overrun during query" in msg:
-        logger.warn("Caught a 'capped cursor overrun' exception: %s" % msg)
+    if "exit status 255" in msg:
+        logger.warn("Caught a 'exit status 255' exception: %s" % msg)
     else:
         logger.debug("Re-raising a a NON-redumpable exception: %s" % msg)
         raise
