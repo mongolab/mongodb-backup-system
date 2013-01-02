@@ -616,8 +616,8 @@ class BackupWorker(Thread):
     ###########################################################################
     def _run_dump_backup(self, backup):
 
-        # ensure that the te
-        self._ensure_temp_dir(backup)
+        # ensure backup workspace
+        self._ensure_backup_workspace_dir(backup)
 
 
         # run mongoctl dump
@@ -692,19 +692,19 @@ class BackupWorker(Thread):
                 msg = ("Warning! The dump will be extracted from a too "
                       "stale member")
                 self.engine.log_backup_event(backup,
-                    event_type=EVENT_TYPE_WARNING,
-                    name="USING_TOO_STALE_WARNING",
-                    message=msg)
+                                             event_type=EVENT_TYPE_WARNING,
+                                             name="USING_TOO_STALE_WARNING",
+                                             message=msg)
 
         self.info("Dumping source %s " % backup.source)
         self.engine.log_backup_event(backup,
-            name=EVENT_START_EXTRACT,
-            message="Dumping source")
+                                     name=EVENT_START_EXTRACT,
+                                     message="Dumping source")
 
 
-        temp_dir = self._get_temp_dir(backup)
+        dump_dir = self._get_backup_dump_dir(backup)
         dbname = backup.source.database_name
-        self._execute_dump_command(source_address, dbname, temp_dir)
+        self._execute_dump_command(source_address, dbname, dump_dir)
 
 
         self.engine.log_backup_event(backup,
@@ -713,14 +713,14 @@ class BackupWorker(Thread):
 
     ###########################################################################
     def _archive_dump(self, backup):
-        temp_dir = self._get_temp_dir(backup)
+        dump_dir = self._get_backup_dump_dir(backup)
         tar_filename = _tar_file_name(backup)
-        self.info("Taring dump %s to %s" % (temp_dir, tar_filename))
+        self.info("Taring dump %s to %s" % (dump_dir, tar_filename))
         self.engine.log_backup_event(backup,
             name=EVENT_START_ARCHIVE,
             message="Taring dump")
 
-        self._execute_tar_command(temp_dir, tar_filename)
+        self._execute_tar_command(dump_dir, tar_filename)
 
         self.engine.log_backup_event(backup,
             name=EVENT_END_ARCHIVE,
@@ -734,17 +734,12 @@ class BackupWorker(Thread):
             name=EVENT_START_UPLOAD,
             message="Upload tar to target")
 
-        # set the target reference and it will be saved by the next
-        # log event call
-        destination_path = _upload_file_name(backup)
-        target_reference = backup.target.put_file(tar_file_path,
-                                                  destination_path=
-                                                    destination_path)
+        target_reference = backup.target.put_file(tar_file_path)
         backup.target_reference = target_reference
 
         self.engine.log_backup_event(backup,
-            name=EVENT_END_UPLOAD,
-            message="Upload completed!")
+                                     name=EVENT_END_UPLOAD,
+                                     message="Upload completed!")
 
     ###########################################################################
     def _tar_and_upload_failed_dump(self, backup):
@@ -753,12 +748,12 @@ class BackupWorker(Thread):
                                      name="ERROR_HANDLING_START_TAR",
                                      message="Taring bad dump")
 
-        temp_dir = self._get_temp_dir(backup)
+        dump_dir = self._get_backup_dump_dir(backup)
         tar_filename = _tar_file_name(backup)
         tar_file_path = self._get_tar_file_path(backup)
 
         # tar up
-        self._execute_tar_command(temp_dir, tar_filename)
+        self._execute_tar_command(dump_dir, tar_filename)
         self.engine.log_backup_event(backup,
                                      name="ERROR_HANDLING_END_TAR",
                                      message="Finished taring bad dump")
@@ -787,26 +782,19 @@ class BackupWorker(Thread):
     ###########################################################################
     def _cleanup_dump_backup(self, backup):
         # delete the temp dir
-        temp_dir = self._get_temp_dir(backup)
-        tar_file_path = self._get_tar_file_path(backup)
-        self.info("Cleanup: deleting temp dir %s" % temp_dir)
+        backup_workspace_dir = self._get_backup_workspace_dir(backup)
+        self.info("Cleanup: deleting workspace dir %s" % backup_workspace_dir)
         self.engine.log_backup_event(backup,
             name="CLEANUP",
             message="Running cleanup")
 
         try:
 
-            if temp_dir:
-                shutil.rmtree(temp_dir)
-                # delete the gzip
-                self.info("Cleanup: tar file %s" % tar_file_path)
-                if tar_file_path and os.path.exists(tar_file_path):
-                    os.remove(tar_file_path)
-                else:
-                    self.error("tar file %s does not exists!" %
-                               tar_file_path)
+            if os.path.exists(backup_workspace_dir):
+                shutil.rmtree(backup_workspace_dir)
             else:
-                self.error("temp dir %s does not exist!" % temp_dir)
+                self.error("workspace dir %s does not exist!" %
+                           backup_workspace_dir)
         except Exception, e:
             self.error("Cleanup error for backup '%s': %s" % (backup.id, e))
 
@@ -814,11 +802,11 @@ class BackupWorker(Thread):
     @robustify(max_attempts=5, retry_interval=60,
                do_on_exception=_raise_if_cannot_redump,
                do_on_failure=_raise_on_failure)
-    def _execute_dump_command(self, source_address, database_name,dest):
+    def _execute_dump_command(self, source_address, database_name, dest):
         dump_cmd = ["/usr/local/bin/mongoctl",
                     "--noninteractive", # always run with noninteractive
                     "dump", source_address,
-                    "-o",dest]
+                    "-o", dest]
 
         # if its a server level backup then add forceTableScan and oplog
         if not database_name:
@@ -878,22 +866,26 @@ class BackupWorker(Thread):
             raise BackupEngineException(msg)
 
     ###########################################################################
-    def _ensure_temp_dir(self, backup):
-        temp_dir = self._get_temp_dir(backup)
-        if not os.path.exists(temp_dir):
-            self.info("Creating temp dir '%s' for backup %s" %
-                      (temp_dir, backup._id))
-            os.makedirs(temp_dir)
+    def _ensure_backup_workspace_dir(self, backup):
+        workspace_dir = self._get_backup_workspace_dir(backup)
+        if not os.path.exists(workspace_dir):
+            os.makedirs(workspace_dir)
 
-        return temp_dir
+        return workspace_dir
 
     ###########################################################################
-    def _get_temp_dir(self, backup):
-        return os.path.join(self.engine.temp_dir,_backup_dir_name(backup))
+    def _get_backup_workspace_dir(self, backup):
+        return os.path.join(self.engine.temp_dir, str(backup._id))
+
+    ###########################################################################
+    def _get_backup_dump_dir(self, backup):
+        return os.path.join(self._get_backup_workspace_dir(backup),
+                            _backup_dump_dir_name(backup))
 
     ###########################################################################
     def _get_tar_file_path(self, backup):
-        return os.path.join(self.engine.temp_dir, _tar_file_name(backup))
+        return os.path.join(self._get_backup_workspace_dir(backup),
+                            _tar_file_name(backup))
 
     ###########################################################################
     def _calculate_backup_rate(self, backup):
@@ -1010,21 +1002,18 @@ class BackupCleanerWorker(BackupWorker):
 ###############################################################################
 # Helpers
 ###############################################################################
-def _backup_dir_name(backup):
-    return "%s" % backup.id
 
-###############################################################################
 def _tar_file_name(backup):
-    return "%s.tgz" % backup.id
+    return "%s.tgz" % _backup_dump_dir_name(backup)
 
 ###############################################################################
-def _upload_file_name(backup):
+def _backup_dump_dir_name(backup):
     if backup.plan:
-        return "%s.tgz" % backup.plan.get_backup_name(backup)
+        return backup.plan.get_backup_name(backup)
     if backup.name:
-        return "%s.tgz" % backup.name
+        return backup.name
     else:
-        return "%s.tgz" % backup.id
+        return str(backup.id)
 
 ###############################################################################
 ###############################################################################
