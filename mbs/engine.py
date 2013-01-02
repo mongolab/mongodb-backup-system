@@ -537,6 +537,10 @@ def _raise_if_cannot_redump(exception):
         raise
 
 ###############################################################################
+def _raise_on_failure():
+    raise
+
+###############################################################################
 # BackupWorker
 ###############################################################################
 
@@ -640,7 +644,8 @@ class BackupWorker(Thread):
 
     ###########################################################################
     @robustify(max_attempts=3, retry_interval=2,
-               do_on_exception=_raise_if_not_connectivity)
+               do_on_exception=_raise_if_not_connectivity,
+               do_on_failure=_raise_on_failure)
     def _dump_source(self, backup):
         self.info("Getting source stats for source %s " % backup.source)
         # record source stats
@@ -807,7 +812,8 @@ class BackupWorker(Thread):
 
     ###########################################################################
     @robustify(max_attempts=5, retry_interval=60,
-               do_on_exception=_raise_if_cannot_redump)
+               do_on_exception=_raise_if_cannot_redump,
+               do_on_failure=_raise_on_failure)
     def _execute_dump_command(self, source_address, database_name,dest):
         dump_cmd = ["/usr/local/bin/mongoctl",
                     "--noninteractive", # always run with noninteractive

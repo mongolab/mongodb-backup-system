@@ -43,8 +43,13 @@ def _raise_if_not_no_primary(exception):
         raise
 
 ###############################################################################
+def _raise_on_failure():
+    raise
+
+###############################################################################
 @robustify(max_attempts=5, retry_interval=10,
-            do_on_exception=_raise_if_not_no_primary)
+            do_on_exception=_raise_if_not_no_primary,
+            do_on_failure=_raise_on_failure)
 def get_best_source_member(cluster_uri, primary_ok=False, min_lag_seconds=0):
     """
         Returns the best source member to get the pull from.

@@ -85,6 +85,10 @@ def _raise_if_not_connectivity(exception):
         raise
 
 ###############################################################################
+def _raise_on_failure():
+    raise
+
+###############################################################################
 # S3BucketTarget
 ###############################################################################
 class S3BucketTarget(BackupTarget):
@@ -98,7 +102,8 @@ class S3BucketTarget(BackupTarget):
 
     ###########################################################################
     @robustify(max_attempts=3, retry_interval=2,
-               do_on_exception=_raise_if_not_connectivity)
+               do_on_exception=_raise_if_not_connectivity,
+               do_on_failure=_raise_on_failure)
     def put_file(self, file_path, destination_path=None):
         try:
 
@@ -435,7 +440,8 @@ class RackspaceCloudFilesTarget(BackupTarget):
 
     ###########################################################################
     @robustify(max_attempts=3, retry_interval=2,
-        do_on_exception=_raise_if_not_connectivity)
+               do_on_exception=_raise_if_not_connectivity,
+               do_on_failure=_raise_on_failure)
     def put_file(self, file_path, destination_path=None):
         try:
 
@@ -643,7 +649,8 @@ class AzureContainerTarget(BackupTarget):
 
     ###########################################################################
     @robustify(max_attempts=3, retry_interval=2,
-        do_on_exception=_raise_if_not_connectivity)
+               do_on_exception=_raise_if_not_connectivity,
+               do_on_failure=_raise_on_failure)
     def put_file(self, file_path, destination_path):
         try:
 
