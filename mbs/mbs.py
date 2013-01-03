@@ -15,6 +15,8 @@ from backup import Backup
 from plan import BackupPlan
 from audit import AuditReport
 
+from encryption import Encryptor
+
 ###############################################################################
 MBS_CONFIG = "~/.mbs/mbs.config"
 
@@ -66,6 +68,9 @@ class MBS(object):
 
 
         self._engines = None
+
+        # init the encryptor
+        self._encryptor = self._get_encryptor()
 
     ###########################################################################
     def _get_type_bindings(self):
@@ -159,6 +164,20 @@ class MBS(object):
     def get_notification_handler(self):
         handler_conf = self._get_config_value("notificationHandler")
         return self._maker.make(handler_conf)
+
+    ###########################################################################
+    def _get_encryptor(self):
+        encryptor_conf = self._get_config_value("encryptor")
+        if encryptor_conf:
+            return self._maker.make(encryptor_conf)
+        else:
+            # return default encryption class
+            return Encryptor()
+
+    ###########################################################################
+    @property
+    def encryptor(self):
+        return self._encryptor
 
 ###############################################################################
 # MBS Singleton
