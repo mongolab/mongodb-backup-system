@@ -1012,15 +1012,15 @@ def _backup_dump_dir_name(backup):
     # Temporary work around for backup names being a path instead of a single
     # name
     # TODO do the right thing
-    if backup.plan:
-        return os.path.basename(backup.plan.get_backup_name(backup))
-    if backup.name:
-        return os.path.basename(backup.name)
-    else:
-        return str(backup.id)
+    return os.path.basename(_get_backup_name(backup))
+
 
 ###############################################################################
 def _upload_file_dest(backup):
+    return "%s.tgz" % _get_backup_name(backup)
+
+###############################################################################
+def _get_backup_name(backup):
     if backup.plan:
         return backup.plan.get_backup_name(backup)
     if backup.name:
