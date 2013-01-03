@@ -733,8 +733,9 @@ class BackupWorker(Thread):
         self.engine.log_backup_event(backup,
             name=EVENT_START_UPLOAD,
             message="Upload tar to target")
-
-        target_reference = backup.target.put_file(tar_file_path)
+        upload_dest_path = _upload_file_dest(backup)
+        target_reference = backup.target.put_file(tar_file_path,
+                                                  destination_path=upload_dest_path)
         backup.target_reference = target_reference
 
         self.engine.log_backup_event(backup,
@@ -1008,6 +1009,18 @@ def _tar_file_name(backup):
 
 ###############################################################################
 def _backup_dump_dir_name(backup):
+    # Temporary work around for backup names being a path instead of a single
+    # name
+    # TODO do the right thing
+    if backup.plan:
+        return os.path.basename(backup.plan.get_backup_name(backup))
+    if backup.name:
+        return os.path.basename(backup.name)
+    else:
+        return str(backup.id)
+
+###############################################################################
+def _upload_file_dest(backup):
     if backup.plan:
         return backup.plan.get_backup_name(backup)
     if backup.name:
