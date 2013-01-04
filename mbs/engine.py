@@ -825,7 +825,10 @@ class BackupWorker(Thread):
         try:
             # execute dump command and redirect stdout and stderr to log file
             ensure_dir(dest)
-            dump_log_path = os.path.join(dest, 'dump.log')
+            ## IMPORTANT: TEMPORARILY EXCLUDE DUMP FILES FROM DEST FOLDER
+            # dump_log_path = os.path.join(dest, 'dump.log')
+            # TODO: uncomment the line above and remove the line bellow
+            dump_log_path = os.path.join(os.path.dirname(dest), 'dump.log')
             dump_log_file = open(dump_log_path, 'w')
             call_command(dump_cmd, stdout=dump_log_file,
                                    stderr=dump_log_file)
