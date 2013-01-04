@@ -2,17 +2,37 @@ __author__ = 'abdul'
 
 from pymongo import ASCENDING
 
+SIX_MONTH_SECONDS = 60 * 60 * 24 * 30 * 6
+
 MBS_INDEXES = {
     "backups": [
-        [('state', ASCENDING), ('plan.nextOccurrence', ASCENDING)],
-        [('planOccurrence', ASCENDING), ('plan._id', ASCENDING)],
-        [('state', ASCENDING), ('plan.$id', ASCENDING)],
-        [('state', ASCENDING), ('engineGuid', ASCENDING)],
-        [('plan.description', ASCENDING)]
+            {
+            "index": [('state', ASCENDING), ('plan.nextOccurrence', ASCENDING)]
+        },
+            {
+            "index": [('planOccurrence', ASCENDING), ('plan._id', ASCENDING)]
+        },
+            {
+            "index": [('state', ASCENDING), ('plan.$id', ASCENDING)]
+        },
+            {
+            "index": [('state', ASCENDING), ('engineGuid', ASCENDING)]
+        },
+            {
+            "index": [('plan.description', ASCENDING)]
+        },
+            {
+            "index": [('targetReference.expiredDate', ASCENDING)],
+            "args": {
+                "expireAfterSeconds": SIX_MONTH_SECONDS
+            }
+        }
     ],
 
     "plans":[
-        [('source._type', ASCENDING)]
+        {
+            "index":[('source._type', ASCENDING)]
+        }
     ]
 }
 

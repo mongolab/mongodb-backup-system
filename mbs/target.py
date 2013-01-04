@@ -817,7 +817,7 @@ class TargetReference(MBSObject):
     """
     ###########################################################################
     def __init__(self):
-        self._expired = False
+        self._expired_date = False
         self._file_size = None
 
     ###########################################################################
@@ -827,11 +827,18 @@ class TargetReference(MBSObject):
             Indicates if the reference file expired.
 
         """
-        return self._expired
+        return self.expired_date is not None
 
-    @expired.setter
-    def expired(self, expired):
-        self._expired = expired
+
+    ###########################################################################
+    @property
+    def expired_date(self):
+        return self._expired_date
+
+    @expired_date.setter
+    def expired_date(self, expired_date):
+        self._expired_date = expired_date
+
 
     ###########################################################################
     @property
@@ -869,8 +876,8 @@ class FileReference(TargetReference):
             "filePath": self.file_path,
             "fileSize": self.file_size
         }
-        if self.expired:
-            doc["expired"] = self.expired
+        if self.expired_date:
+            doc["expiredDate"] = self.expired_date
         return doc
 
 ###############################################################################
@@ -896,11 +903,10 @@ class EbsSnapshotReference(TargetReference):
     def to_document(self, display_only=False):
         doc = {
             "_type": "EbsSnapshotReference",
-            "snapshotId": self.snapshot_id,
-            "expired": self.expired
+            "snapshotId": self.snapshot_id
         }
-        if self.expired:
-            doc["expired"] = self.expired
+        if self.expired_date:
+            doc["expiredDate"] = self.expired_date
         return doc
 
 

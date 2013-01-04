@@ -41,20 +41,20 @@ class RetentionPolicy(MBSObject):
                     "_id": backup.id,
                     "targetReference": {"$exists": True},
                     "$or": [
-                            {"targetReference.expired": {"$exists": False}},
-                            {"targetReference.expired": False}
+                            {"targetReference.expiredDate": {"$exists": False}},
+                            {"targetReference.expiredDate": None}
                     ]
                 }
 
                 u = {
-                    "$set": {"targetReference.expired": True}
+                    "$set": {"targetReference.expiredDate": date_now()}
                 }
                 backup = backup_collection.find_and_modify(q,u)
                 if backup:
                     logger.info("%s: Expiring backup %s and deleting backup "
                                 "file" %
                                 (policy_name, backup.id))
-                    backup.target_reference.expired = True
+                    backup.target_reference.expired_date = date_now()
                     backup.target.delete_file(backup.target_reference)
                     backup_collection.save_document(backup.to_document())
                     logger.info("%s: Backup %s archived successfully!" %
@@ -99,10 +99,10 @@ class RetainLastNPolicy(RetentionPolicy):
         q = {
             "plan._id": plan.id,
             "targetReference": {"$exists": True},
-            # Filter out backups with targetReference.expired is set to true
+            # Filter out backups with targetReference.expiredDate is set
             "$or": [
-                    {"targetReference.expired": {"$exists": False}},
-                    {"targetReference.expired": False}
+                    {"targetReference.expiredDate": {"$exists": False}},
+                    {"targetReference.expiredDate": None}
             ]
         }
         s = [("startDate", -1)]
@@ -150,10 +150,10 @@ class RetainMaxTimePolicy(RetentionPolicy):
         q = {
             "plan._id": plan.id,
             "targetReference": {"$exists": True},
-            # Filter out backups with targetReference.expired is set to true
+            # Filter out backups with targetReference.expiredDate is set
             "$or": [
-                    {"targetReference.expired": {"$exists": False}},
-                    {"targetReference.expired": False}
+                    {"targetReference.expiredDate": {"$exists": False}},
+                    {"targetReference.expiredDate": None}
             ],
             "startDate": {
                 "$lt": earliest_date_to_keep

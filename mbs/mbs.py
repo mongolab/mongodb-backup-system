@@ -84,7 +84,8 @@ class MBS(object):
             for c_index in coll_indexes:
                 logger.debug("Ensuring index %s on collection '%s'" %
                              (c_index, coll_name))
-                coll.ensure_index(c_index)
+                kwargs = c_index.get("args") or {}
+                coll.ensure_index(c_index["index"], **kwargs)
 
     ###########################################################################
     def _get_indexes(self):
