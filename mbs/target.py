@@ -817,7 +817,7 @@ class TargetReference(MBSObject):
     """
     ###########################################################################
     def __init__(self):
-        self._expired_date = False
+        self._expired_date = None
         self._file_size = None
 
     ###########################################################################
