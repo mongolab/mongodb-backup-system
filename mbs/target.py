@@ -616,7 +616,8 @@ class RackspaceCloudFilesTarget(BackupTarget):
     ###########################################################################
     def _get_container(self):
         conn = cloudfiles.get_connection(username=self.username,
-                                         api_key=self.api_key)
+                                         api_key=self.api_key,
+                                         timeout=30)
 
         return conn.get_container(self.container_name)
 
