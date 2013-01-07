@@ -567,8 +567,7 @@ class BackupWorker(Thread):
     def run(self):
         backup = self.backup
         self.info("Running %s backup %s" % (backup.strategy, backup._id))
-        # set start date
-        backup.start_date = date_now()
+
         # apply the retention policy
         # TODO Probably should be called somewhere else
         self._apply_retention_policy(backup)
@@ -1024,8 +1023,6 @@ def _upload_file_dest(backup):
 
 ###############################################################################
 def _get_backup_name(backup):
-    if backup.plan:
-        return backup.plan.get_backup_name(backup)
     if backup.name:
         return backup.name
     else:
