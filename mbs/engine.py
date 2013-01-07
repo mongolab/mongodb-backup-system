@@ -567,6 +567,10 @@ class BackupWorker(Thread):
     def run(self):
         backup = self.backup
         self.info("Running %s backup %s" % (backup.strategy, backup._id))
+        # set start date
+        backup.start_date = date_now()
+        # set backup name
+        _set_backup_name(backup)
 
         # apply the retention policy
         # TODO Probably should be called somewhere else
@@ -1014,19 +1018,20 @@ def _backup_dump_dir_name(backup):
     # Temporary work around for backup names being a path instead of a single
     # name
     # TODO do the right thing
-    return os.path.basename(_get_backup_name(backup))
+    return os.path.basename(backup.name)
 
 
 ###############################################################################
 def _upload_file_dest(backup):
-    return "%s.tgz" % _get_backup_name(backup)
+    return "%s.tgz" % backup.name
 
 ###############################################################################
-def _get_backup_name(backup):
-    if backup.name:
-        return backup.name
-    else:
-        return str(backup.id)
+def _set_backup_name(backup):
+    if not backup.name:
+        if backup.plan:
+            backup.name = backup.plan.get_backup_name(backup)
+        else:
+            backup.name = str(backup.id)
 
 ###############################################################################
 ###############################################################################
