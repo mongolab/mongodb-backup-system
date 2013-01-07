@@ -335,7 +335,8 @@ class S3BucketTarget(BackupTarget):
 
     @encrypted_access_key.setter
     def encrypted_access_key(self, val):
-        self._encrypted_access_key = str(val)
+        if val:
+            self._encrypted_access_key = val.encode('ascii', 'replace')
 
     ###########################################################################
     @property
@@ -344,7 +345,8 @@ class S3BucketTarget(BackupTarget):
 
     @encrypted_secret_key.setter
     def encrypted_secret_key(self, val):
-        self._encrypted_secret_key = str(val)
+        if val:
+            self._encrypted_secret_key = val.encode('ascii', 'replace')
 
     ###########################################################################
     def to_document(self, display_only=False):
