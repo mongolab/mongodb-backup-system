@@ -14,6 +14,10 @@ import mbs_logging
 ###############################################################################
 logger = mbs_logging.logger
 
+# CONSTS
+# db connection timeout, 30 seconds
+CONN_TIMEOUT = 30000
+
 ###############################################################################
 def mongo_connect(uri):
     try:
@@ -26,7 +30,9 @@ def mongo_connect(uri):
             else:
                 uri += "/admin"
 
-        return pymongo.Connection(uri)[dbname]
+        conn = pymongo.Connection(uri, socketTimeoutMS=CONN_TIMEOUT,
+                                       connectTimeoutMS=CONN_TIMEOUT)
+        return conn[dbname]
     except Exception, e:
         raise Exception("Could not establish a database connection to "
                         "%s: %s" % (uri_wrapper.masked_uri, e))
