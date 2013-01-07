@@ -336,7 +336,7 @@ class S3BucketTarget(BackupTarget):
     @encrypted_access_key.setter
     def encrypted_access_key(self, val):
         if val:
-            self._encrypted_access_key = val.encode('ascii', 'replace')
+            self._encrypted_access_key = val.encode('ascii', 'ignore')
 
     ###########################################################################
     @property
@@ -346,7 +346,7 @@ class S3BucketTarget(BackupTarget):
     @encrypted_secret_key.setter
     def encrypted_secret_key(self, val):
         if val:
-            self._encrypted_secret_key = val.encode('ascii', 'replace')
+            self._encrypted_secret_key = val.encode('ascii', 'ignore')
 
     ###########################################################################
     def to_document(self, display_only=False):
@@ -655,7 +655,7 @@ class RackspaceCloudFilesTarget(BackupTarget):
     @encrypted_username.setter
     def encrypted_username(self, value):
         if value:
-            self._encrypted_username = value.encode('ascii', 'replace')
+            self._encrypted_username = value.encode('ascii', 'ignore')
 
     ###########################################################################
     @property
@@ -665,7 +665,7 @@ class RackspaceCloudFilesTarget(BackupTarget):
     @encrypted_api_key.setter
     def encrypted_api_key(self, value):
         if value:
-            self._encrypted_api_key = value.encode('ascii', 'replace')
+            self._encrypted_api_key = value.encode('ascii', 'ignore')
 
     ###########################################################################
     def to_document(self, display_only=False):
