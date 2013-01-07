@@ -654,7 +654,8 @@ class RackspaceCloudFilesTarget(BackupTarget):
 
     @encrypted_username.setter
     def encrypted_username(self, value):
-        self._encrypted_username = str(value)
+        if value:
+            self._encrypted_username = value.encode('ascii', 'replace')
 
     ###########################################################################
     @property
@@ -663,7 +664,8 @@ class RackspaceCloudFilesTarget(BackupTarget):
 
     @encrypted_api_key.setter
     def encrypted_api_key(self, value):
-        self._encrypted_api_key = str(value)
+        if value:
+            self._encrypted_api_key = value.encode('ascii', 'replace')
 
     ###########################################################################
     def to_document(self, display_only=False):
