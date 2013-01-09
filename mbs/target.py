@@ -111,7 +111,7 @@ class S3BucketTarget(BackupTarget):
             # calculating file size
             file_size = os.path.getsize(file_path)
 
-            logger.info("S3BucketTarget: Uploading '%s' (%s GB) to '%s' in "
+            logger.info("S3BucketTarget: Uploading '%s' (%s bytes) to '%s' in "
                         " s3 bucket %s" % (file_path, destination_path,
                                            file_size, self.bucket_name))
 
@@ -125,7 +125,7 @@ class S3BucketTarget(BackupTarget):
             # validate that the file has been uploaded successfully
             self._verify_file_uploaded(destination_path, file_size)
 
-            logger.info("S3BucketTarget: Uploading %s (%s GB) to s3 bucket %s "
+            logger.info("S3BucketTarget: Uploading %s (%s bytes) to s3 bucket %s "
                         "completed successfully!!" %
                         (file_path, file_size, self.bucket_name))
 
@@ -479,7 +479,7 @@ class RackspaceCloudFilesTarget(BackupTarget):
 
             destination_path = destination_path or os.path.basename(file_path)
 
-            logger.info("RackspaceCloudFilesTarget: Uploading %s (%s GB) "
+            logger.info("RackspaceCloudFilesTarget: Uploading %s (%s bytes) "
                         "to container %s" %
                         (file_path, file_size, self.container_name))
 
@@ -491,7 +491,7 @@ class RackspaceCloudFilesTarget(BackupTarget):
             # validate that the file has been uploaded successfully
             self._verify_file_uploaded(destination_path, file_size)
 
-            logger.info("RackspaceCloudFilesTarget: Uploading %s (%s GB) "
+            logger.info("RackspaceCloudFilesTarget: Uploading %s (%s bytes) "
                         "to container %s completed successfully!!" %
                         (file_path, file_size, self.container_name))
 
@@ -716,14 +716,14 @@ class AzureContainerTarget(BackupTarget):
             file_size = os.path.getsize(file_path)
             destination_path = os.path.basename(file_path)
 
-            logger.info("AzureContainerTarget: Uploading %s (%s GB) "
+            logger.info("AzureContainerTarget: Uploading %s (%s bytes) "
                         "to container %s" %
                         (file_path, file_size, self.container_name))
 
 
             self._single_part_put(file_path, destination_path)
 
-            logger.info("AzureContainerTarget: Uploading %s (%s GB) "
+            logger.info("AzureContainerTarget: Uploading %s (%s bytes) "
                         "to container %s completed successfully!!" %
                         (file_path, file_size, self.container_name))
 
