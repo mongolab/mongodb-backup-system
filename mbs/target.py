@@ -237,9 +237,11 @@ class S3BucketTarget(BackupTarget):
                             " does not exist in bucket '%s'" %
                             (destination_path, self.bucket_name))
         elif file_size != key.size:
-            raise Exception("Failure during upload verification: File '%s' "
-                            "size in bucket '%s' does not match size "
-                            "on disk " % (destination_path, self.bucket_name))
+            msg = ("Failure during upload verification: File '%s' size in "
+                   "bucket '%s' (%s bytes) does not match size on disk "
+                   "(%s bytes)" %
+                   (destination_path, self.bucket_name, key.size, file_size))
+            raise Exception(msg)
 
         # success!
 
@@ -554,9 +556,11 @@ class RackspaceCloudFilesTarget(BackupTarget):
                             " does not exist in container '%s'" %
                             (destination_path, self.container_name))
         elif file_size != container_obj.size:
-            raise Exception("Failure during upload verification: File '%s' "
-                            "size in container '%s' does not match size on"
-                            " disk" % (destination_path, self.container_name))
+            msg = ("Failure during upload verification: File '%s' size in "
+                   "container '%s' (%s bytes) does not match size on disk "
+                   "(%s bytes)" % (destination_path, self.container_name,
+                                   container_obj.size, file_size))
+            raise Exception(msg)
 
             # success!
 
