@@ -73,15 +73,16 @@ class BackupTarget(MBSObject):
         return []
 
 ###############################################################################
-def _raise_if_not_connectivity(exception):
+def _raise_if_not_retriable(exception):
     msg = str(exception)
     if ("Broken pipe" in msg or
         "reset" in msg or
         "timed out" in msg or
-        "try again" in msg):
-        logger.warn("Caught a target connectivity exception: %s" % msg)
+        "try again" in msg or
+        "Failure during upload verification" in msg):
+        logger.warn("Caught a target retriable exception: %s" % msg)
     else:
-        logger.debug("Re-raising a target NON-connectivity exception: %s" %
+        logger.debug("Re-raising a target NON-retriable exception: %s" %
                      msg)
         raise
 
@@ -103,7 +104,7 @@ class S3BucketTarget(BackupTarget):
 
     ###########################################################################
     @robustify(max_attempts=3, retry_interval=2,
-               do_on_exception=_raise_if_not_connectivity,
+               do_on_exception=_raise_if_not_retriable,
                do_on_failure=_raise_on_failure)
     def put_file(self, file_path, destination_path=None):
         try:
@@ -471,7 +472,7 @@ class RackspaceCloudFilesTarget(BackupTarget):
 
     ###########################################################################
     @robustify(max_attempts=3, retry_interval=2,
-               do_on_exception=_raise_if_not_connectivity,
+               do_on_exception=_raise_if_not_retriable,
                do_on_failure=_raise_on_failure)
     def put_file(self, file_path, destination_path=None):
         try:
@@ -711,7 +712,7 @@ class AzureContainerTarget(BackupTarget):
 
     ###########################################################################
     @robustify(max_attempts=3, retry_interval=2,
-               do_on_exception=_raise_if_not_connectivity,
+               do_on_exception=_raise_if_not_retriable,
                do_on_failure=_raise_on_failure)
     def put_file(self, file_path, destination_path):
         try:
