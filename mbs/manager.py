@@ -341,6 +341,7 @@ class PlanManager(Thread):
         self.info("Scheduling plan '%s'" % plan._id)
 
         backup = Backup()
+        backup.created_date = date_now()
         backup.strategy = plan.strategy
         backup.source = plan.source
         backup.target = plan.target

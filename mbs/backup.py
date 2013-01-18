@@ -24,6 +24,7 @@ class Backup(MBSObject):
     def __init__(self):
         # init fields
         self._id = None
+        self._created_date = None
         self._name = None
         self._state = None
         self._strategy = None
@@ -48,6 +49,15 @@ class Backup(MBSObject):
     @id.setter
     def id(self, id):
         self._id = str(id)
+
+    ###########################################################################
+    @property
+    def created_date(self):
+        return self._created_date
+
+    @created_date.setter
+    def created_date(self, created_date):
+        self._created_date = created_date
 
     ###########################################################################
     @property
@@ -252,6 +262,7 @@ class Backup(MBSObject):
     def to_document(self, display_only=False):
         doc = {
             "_type": "Backup",
+            "createdDate": self.created_date,
             "state": self.state,
             "strategy": self.strategy,
             "source": self.source.to_document(display_only=display_only),
