@@ -60,7 +60,7 @@ class RetentionPolicy(MBSObject):
                     logger.info("%s: Backup %s archived successfully!" %
                                 (policy_name, backup.id))
             except Exception, e:
-                logger.error("%s: Error while archiving backup %s. "
+                raise Exception("%s: Error while archiving backup %s. "
                              "Trace: %s" %
                              (policy_name, backup.id, traceback.format_exc()))
 
