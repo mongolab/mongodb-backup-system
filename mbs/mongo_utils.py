@@ -20,8 +20,9 @@ CONN_TIMEOUT = 30000
 
 ###############################################################################
 def mongo_connect(uri):
+    uri_wrapper = parse_mongo_uri(uri)
+
     try:
-        uri_wrapper = parse_mongo_uri(uri)
         dbname = uri_wrapper.database
         if not dbname:
             dbname = "admin"
