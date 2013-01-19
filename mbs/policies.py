@@ -54,8 +54,8 @@ class RetentionPolicy(MBSObject):
                     logger.info("%s: Expiring backup %s and deleting backup "
                                 "file" %
                                 (policy_name, backup.id))
-                    backup.target_reference.expired_date = date_now()
                     backup.target.delete_file(backup.target_reference)
+                    backup.target_reference.expired_date = date_now()
                     backup_collection.save_document(backup.to_document())
                     logger.info("%s: Backup %s archived successfully!" %
                                 (policy_name, backup.id))
