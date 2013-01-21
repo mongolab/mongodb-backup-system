@@ -6,7 +6,7 @@ from makerpy.object_collection import ObjectCollection
 from makerpy.maker import resolve_class, Maker
 from type_bindings import TYPE_BINDINGS
 from indexes import MBS_INDEXES
-from errors import MBSException
+from errors import MBSError
 
 from utils import read_config_json
 from mongo_utils import mongo_connect
@@ -129,7 +129,7 @@ class MBS(object):
     def _read_engines(self):
         engines_conf = self._get_config_value("engines")
         if not engines_conf:
-            raise MBSException("No 'engines' configured")
+            raise MBSError("No 'engines' configured")
 
         engines = self._maker.make(engines_conf)
         for engine in engines:
@@ -145,7 +145,7 @@ class MBS(object):
         if engine:
             return engine[0]
         else:
-            raise MBSException("No such engine '%s'" % engine_id)
+            raise MBSError("No such engine '%s'" % engine_id)
 
     ###########################################################################
     @property

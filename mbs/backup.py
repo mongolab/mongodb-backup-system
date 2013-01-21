@@ -40,6 +40,9 @@ class Backup(MBSObject):
         self._start_date = None
         self._end_date = None
         self._tags = None
+        self._try_count = 0
+        self._reschedulable = None
+        self._workspace = None
 
     ###########################################################################
     @property
@@ -207,7 +210,35 @@ class Backup(MBSObject):
         self._tags = tags
 
     ###########################################################################
-    def log_event(self, event_type=EVENT_TYPE_INFO, name=None, message=None):
+    @property
+    def try_count(self):
+        return self._try_count
+
+    @try_count.setter
+    def try_count(self, try_count):
+        self._try_count = try_count
+
+    ###########################################################################
+    @property
+    def reschedulable(self):
+        return self._reschedulable
+
+    @reschedulable.setter
+    def reschedulable(self, val):
+        self._reschedulable = val
+
+    ###########################################################################
+    @property
+    def workspace(self):
+        return self._workspace
+
+    @workspace.setter
+    def workspace(self, val):
+        self._workspace = val
+
+    ###########################################################################
+    def log_event(self, event_type=EVENT_TYPE_INFO, name=None, message=None,
+                        more_info=None):
         logs = self.logs
 
         log_entry = BackupLogEntry()
@@ -216,6 +247,7 @@ class Backup(MBSObject):
         log_entry.date = date_now()
         log_entry.state = self.state
         log_entry.message = message
+        log_entry.more_info = more_info
 
         logs.append(log_entry)
         self.logs = logs
@@ -264,12 +296,13 @@ class Backup(MBSObject):
             "_type": "Backup",
             "createdDate": self.created_date,
             "state": self.state,
-            "strategy": self.strategy,
+            "strategy": self.strategy.to_document(display_only=display_only),
             "source": self.source.to_document(display_only=display_only),
             "target": self.target.to_document(display_only=display_only),
             "planOccurrence": self.plan_occurrence,
             "engineGuid": self.engine_guid,
-            "logs": self.export_logs()
+            "logs": self.export_logs(),
+            "workspace": self.workspace
         }
 
         if self.id:
@@ -300,6 +333,12 @@ class Backup(MBSObject):
         if self.tags:
             doc["tags"] = self.tags
 
+        if self.try_count:
+            doc["tryCount"] = self.try_count
+
+        if self.reschedulable is not None:
+            doc["reschedulable"] = self.reschedulable
+
         return doc
 
     ###########################################################################
@@ -323,6 +362,7 @@ class BackupLogEntry(MBSObject):
         self._date = None
         self._state = None
         self._message = None
+        self._more_info = None
 
     ###########################################################################
     @property
@@ -332,6 +372,7 @@ class BackupLogEntry(MBSObject):
     @event_type.setter
     def event_type(self, value):
         self._event_type = value
+
     ###########################################################################
     @property
     def name(self):
@@ -369,6 +410,15 @@ class BackupLogEntry(MBSObject):
         self._message = value
 
     ###########################################################################
+    @property
+    def more_info(self):
+        return self._more_info
+
+    @more_info.setter
+    def more_info(self, value):
+        self._more_info = value
+
+    ###########################################################################
     def to_document(self, display_only=False):
         doc= {
             "_type": "BackupLogEntry",
@@ -378,8 +428,12 @@ class BackupLogEntry(MBSObject):
         }
         if self.name:
             doc["name"] = self.name
+
         if self.message:
             doc["message"] = self.message
+
+        if self.more_info:
+            doc["moreInfo"] = self.more_info
 
         return doc
 

@@ -5,15 +5,6 @@ from datetime import timedelta
 from date_utils import (seconds_to_date, date_to_seconds, date_plus_seconds,
                         date_now, is_date_value, epoch_date)
 
-###############################################################################
-# CONSTANTS
-###############################################################################
-
-STRATEGY_DUMP = "DUMP"
-STRATEGY_EBS_SNAPSHOT = "EBS_SNAPSHOT"
-STRATEGY_DB_FILES = "DB_FILES"
-
-ALL_STRATEGIES = [STRATEGY_DUMP, STRATEGY_EBS_SNAPSHOT, STRATEGY_DB_FILES]
 
 ###############################################################################
 # BackupPlan
@@ -24,7 +15,6 @@ class BackupPlan(MBSObject):
         self._created_date = None
         self._description = None
         self._source = None
-        self._primary_ok = None
         self._target = None
         self._schedule = None
         self._next_occurrence = None
@@ -69,15 +59,6 @@ class BackupPlan(MBSObject):
     @source.setter
     def source(self, source):
         self._source = source
-
-    ###########################################################################
-    @property
-    def primary_ok(self):
-        return self._primary_ok
-
-    @primary_ok.setter
-    def primary_ok(self, val):
-        self._primary_ok = val
 
     ###########################################################################
     @property
@@ -212,11 +193,10 @@ class BackupPlan(MBSObject):
             "createdDate": self.created_date,
             "description": self.description,
             "source": self.source.to_document(display_only=display_only),
-            "primaryOk": self.primary_ok,
             "target": self.target.to_document(display_only=display_only),
             "schedule": self.schedule.to_document(display_only=display_only),
             "nextOccurrence": self.next_occurrence,
-            "strategy": self.strategy
+            "strategy": self.strategy.to_document(display_only=display_only)
         }
 
         if self.id:
@@ -288,8 +268,6 @@ class BackupPlan(MBSObject):
         # validate strategy
         if not self.strategy:
             errors.append("Missing plan 'strategy'")
-        elif self.strategy not in ALL_STRATEGIES:
-            errors.append("Unknown plan strategy '%s'" % self.strategy)
 
         return errors
 

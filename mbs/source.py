@@ -1,6 +1,7 @@
 __author__ = 'abdul'
 
 from base import MBSObject
+from mongo_utils import MongoDatabase, MongoServer, MongoCluster
 import mongo_uri_tools
 
 from boto.ec2.connection import EC2Connection
@@ -13,23 +14,11 @@ class BackupSource(MBSObject):
 
     ###########################################################################
     def __init__(self):
-        pass
+        self._tags = None
 
     ###########################################################################
-    def get_source_info(self, **kwargs):
-        """
-            returns a dict that contains source address and stats
-        """
-        return {
-            "address": self.get_source_address(**kwargs),
-            "stats": self.get_current_stats(**kwargs)
-        }
-    ###########################################################################
-    def get_source_address(self, **kwargs):
-        pass
-
-    ###########################################################################
-    def get_current_stats(self, **kwargs):
+    @property
+    def uri(self):
         pass
 
     ###########################################################################
@@ -43,12 +32,24 @@ class BackupSource(MBSObject):
         pass
 
     ###########################################################################
-    def is_cluster_source(self):
-        return False
+    @property
+    def tags(self):
+        return self._tags
+
+    @tags.setter
+    def tags(self, tags):
+        self._tags = tags
 
     ###########################################################################
-    def to_document(self):
-        pass
+    def to_document(self, display_only=False):
+        doc = {
+
+        }
+
+        if self.tags:
+            doc["tags"] = self.tags
+
+        return doc
 
     ###########################################################################
     def is_valid(self):
@@ -69,52 +70,35 @@ class BackupSource(MBSObject):
 
 
 ###############################################################################
-# Database Source
+# MongoSource
 ###############################################################################
 class MongoSource(BackupSource):
 
     ###########################################################################
     def __init__(self):
         BackupSource.__init__(self)
-        self._uri_wrapper = None
+        self._uri = None
+
 
     ###########################################################################
     @property
     def uri(self):
-        if self.uri_wrapper:
-            return self.uri_wrapper.raw_uri
+        return self._uri
 
     @uri.setter
     def uri(self, uri):
-        self._uri_wrapper = mongo_uri_tools.parse_mongo_uri(uri)
-
-    ###########################################################################
-    @property
-    def uri_wrapper(self):
-        return self._uri_wrapper
-
-    ###########################################################################
-    def get_source_address(self, **kwargs):
-        # TODO choose best member for clusters
-        return self.uri
-
-    ###########################################################################
-    @property
-    def database_name(self):
-        if self.uri_wrapper:
-            return self.uri_wrapper.database
-
-    ###########################################################################
-    def is_cluster_source(self):
-        return mongo_uri_tools.is_cluster_mongo_uri(self.uri)
+        self._uri = uri
 
     ###########################################################################
     def to_document(self, display_only=False):
-        return {
+        doc =  super(MongoSource, self).to_document()
+        doc.update ({
             "_type": "MongoSource",
-            "uri": (self.uri_wrapper.masked_uri if display_only else
-                    self.uri_wrapper.raw_uri)
-        }
+            "uri": (mongo_uri_tools.mask_mongo_uri(self.uri) if display_only
+                    else self.uri)
+        })
+
+        return doc
 
     ###########################################################################
     def validate(self):

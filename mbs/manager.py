@@ -13,7 +13,7 @@ from flask.globals import request
 from utils import document_pretty_string
 
 from date_utils import date_now, date_minus_seconds, time_str_to_datetime_today
-from errors import MBSException
+from errors import MBSError
 from audit import GlobalAuditor, PlanAuditor
 from backup import (Backup, STATE_SCHEDULED, STATE_IN_PROGRESS, STATE_FAILED,
                     STATE_CANCELED)
@@ -34,6 +34,10 @@ logger = mbs_logging.logger
 # maximum backup wait time in seconds: default to five hours
 MAX_BACKUP_WAIT_TIME = 5 * 60 * 60
 ONE_OFF_BACKUP_MAX_WAIT_TIME = 60
+
+# Minimum time before rescheduling a failed backup (5 minutes)
+RESCHEDULE_PERIOD = 5 * 60
+RESCHEDULE_PERIOD_MILLS = RESCHEDULE_PERIOD * 1000
 
 MANAGER_STATUS_RUNNING = "running"
 MANAGER_STATUS_STOPPING = "stopping"
@@ -172,6 +176,7 @@ class PlanManager(Thread):
         if self._tick_ring == 0:
             self._run_plan_generators()
             self._notify_on_past_due_scheduled_backups()
+            self._reschedule_failed_backups_within_current_cycle()
 
         # run auditor if its time
         #self._check_audit()
@@ -289,17 +294,19 @@ class PlanManager(Thread):
     ###########################################################################
     def _reschedule_failed_backups_within_current_cycle(self):
         """
-        Reschedule backups that failed and whose plan's next occurrence
-         is in the future
+        Reschedule failed reschedulable backups that failed at least
+        RESCHEDULE_PERIOD seconds ago
         """
         now = date_now()
 
-        #self.info("Rescheduling failed backups whose next occurrence is"
-        #                " in the future")
+        # select backups whose last log date is at least RESCHEDULE_PERIOD ago
 
+        where = ("(this.logs[this.logs.length-1].date.getTime() + %s) < "
+                 "new Date().getTime()" % RESCHEDULE_PERIOD_MILLS)
         q = {
             "state": STATE_FAILED,
-            "plan.nextOccurrence": {"$gt": now}
+            "reschedulable": True,
+            "$where": where
         }
 
         for backup in self._backup_collection.find(q):
@@ -326,11 +333,11 @@ class PlanManager(Thread):
             msg = ("Cannot reschedule backup ('%s', '%s'). Rescheduling is "
                    "only allowed for backups whose state is '%s'." %
                    (backup.id, backup.state, STATE_FAILED))
-            raise PlanManagerException(msg)
+            raise PlanManagerError(msg)
         elif backup.plan and backup.plan.next_occurrence <= date_now():
             msg = ("Cannot reschedule backup '%s' because its occurrence is"
                    " in the past of the current cycle" % backup.id)
-            raise PlanManagerException(msg)
+            raise PlanManagerError(msg)
 
         self.info("Rescheduling backup %s" % backup._id)
         backup.change_state(STATE_SCHEDULED, message="Rescheduling")
@@ -375,7 +382,7 @@ class PlanManager(Thread):
                            "Please correct the following errors and then try"
                            " saving again.\n%s" % (plan, errors))
 
-                raise PlanManagerException(err_msg)
+                raise PlanManagerError(err_msg)
 
             # set plan created date if its not set
             if not plan.created_date:
@@ -390,7 +397,7 @@ class PlanManager(Thread):
 
             self.info("Plan saved successfully")
         except Exception, e:
-            raise PlanManagerException("Error while saving plan %s. %s" %
+            raise PlanManagerError("Error while saving plan %s. %s" %
                                        (plan, e))
 
     ###########################################################################
@@ -527,7 +534,7 @@ class PlanManager(Thread):
                 msg =  ("Error while trying to stop manager URL %s "
                         "(Response"" code %)" %
                         ( url, response.getcode()))
-                raise PlanManagerException(msg)
+                raise PlanManagerError(msg)
         except IOError, e:
             logger.error("Manager is not running")
 
@@ -546,7 +553,7 @@ class PlanManager(Thread):
             else:
                 msg =  ("Error while trying to get status manager URL %s "
                         "(Response code %)" % (url, response.getcode()))
-                raise PlanManagerException(msg)
+                raise PlanManagerError(msg)
 
         except IOError, ioe:
             return {
@@ -680,17 +687,14 @@ class ManagerCommandServer(Thread):
             else:
                 msg =  ("Error while trying to send command of URL %s "
                         "(Response code %)" % (url, response.getcode()))
-                raise PlanManagerException(msg)
+                raise PlanManagerError(msg)
 
         except Exception, e:
-            raise PlanManagerException("Error while stopping flask server:"
+            raise PlanManagerError("Error while stopping flask server:"
                                         " %s" %e)
 
 ###############################################################################
-# PlanManagerException
+# PlanManagerError
 ###############################################################################
-class PlanManagerException(MBSException):
-
-    ###########################################################################
-    def __init__(self, message, cause=None):
-        MBSException.__init__(self, message, cause=cause)
+class PlanManagerError(MBSError):
+    pass

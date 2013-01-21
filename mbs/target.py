@@ -14,7 +14,8 @@ from azure.storage import BlobService
 from boto.s3.connection import S3Connection
 from boto.s3.key import Key
 from boto.ec2 import EC2Connection
-from robustify.robustify import robustify
+
+from errors import *
 
 ###############################################################################
 # LOGGER
@@ -38,10 +39,69 @@ class BackupTarget(MBSObject):
         pass
 
     ###########################################################################
+    @property
+    def container_name(self):
+        """
+            Should be implemented by subclasses
+        """
+
+    @property
+    def target_type(self):
+        """
+            returns the target type which is the class name
+        """
+        return self.__class__.__name__
+    ###########################################################################
     def put_file(self, file_path, destination_path=None):
         """
             Uploads the specified file path under destination_path.
              destination_path defaults to base name (file name) of file_path
+             This is the generic implementation that includes upload
+             verification and returning proper errors
+        """
+        try:
+
+            destination_path = destination_path or os.path.basename(file_path)
+            # calculating file size
+            file_size = os.path.getsize(file_path)
+            logger.info("%s: Uploading '%s' (%s bytes) to '%s' in "
+                        " container %s" % (self.target_type, file_path,
+                                           file_size, destination_path,
+                                           self.container_name))
+
+
+
+            target_ref = self.do_put_file(file_path, destination_path=
+                                                        destination_path)
+
+            # validate that the file has been uploaded successfully
+            self._verify_file_uploaded(destination_path, file_size)
+
+            logger.info("%s: Uploading %s (%s bytes) to container %s "
+                        "completed successfully!!" %
+                        (self.target_type, file_path, file_size,
+                         self.container_name))
+
+            return target_ref
+
+        except Exception, e:
+            if isinstance(e, TargetError):
+                raise e
+
+            if is_connection_exception(e):
+                error_type = TargetConnectionError
+            else:
+                error_type = TargetError
+            msg = ("%s: Error while trying to upload '%s'"
+                   " to container '%s'" %
+                   (self.target_type, file_path, self.container_name))
+
+            raise error_type(msg, cause=e)
+
+    ###########################################################################
+    def do_put_file(self, file_path, destination_path=None):
+        """
+           does the actually work. should be implemented by subclasses
         """
         pass
 
@@ -54,7 +114,18 @@ class BackupTarget(MBSObject):
     ###########################################################################
     def delete_file(self, file_reference):
         """
-            Deletes the specified f file reference
+            Generic implementation of deleting a file reference by delegating
+            to abstract do_delete_file and decorating it with proper validation
+            and errors
+        """
+
+        self.do_delete_file(file_reference)
+        self._verify_file_deleted(file_reference.file_path)
+
+    ###########################################################################
+    def do_delete_file(self, file_reference):
+        """
+            Should be overridden by subclasses
         """
     ###########################################################################
     def is_valid(self):
@@ -72,24 +143,39 @@ class BackupTarget(MBSObject):
         """
         return []
 
-###############################################################################
-def _raise_if_not_retriable(exception):
-    msg = str(exception)
-    if ("Broken pipe" in msg or
-        "reset" in msg or
-        "timed out" in msg or
-        "try again" in msg or
-        "Failure during upload verification" in msg):
-        logger.warn("Caught a target retriable exception: %s" % msg)
-    else:
-        logger.debug("Re-raising a target NON-retriable exception: %s" %
-                     msg)
-        raise
+    ###########################################################################
+    def _verify_file_uploaded(self, destination_path, file_size):
 
-###############################################################################
-def _raise_on_failure():
-    raise
+        dest_exists, dest_size = self._fetch_file_info(destination_path)
+        if not dest_exists:
+            msg = ("%s: Failure during upload verification: File '%s' does not"
+                   " exist in container '%s'" %
+                   (self.target_type, destination_path, self.container_name))
+            raise TargetUploadError(msg)
+        elif file_size != dest_size:
+            msg = ("%s: Failure during upload verification: File '%s' size in "
+                   "container '%s' (%s bytes) does not match size on disk "
+                   "(%s bytes)" %
+                   (self.target_type, destination_path, self.container_name,
+                    dest_size, file_size))
+            raise TargetUploadError(msg)
 
+    ###########################################################################
+    def _verify_file_deleted(self, file_path):
+
+        file_exists, file_size = self._fetch_file_info(file_path)
+        if file_exists:
+            msg = ("%s: Failure during delete verification: File '%s' still"
+                   " exists in container '%s'" %
+                   (self.target_type, file_path, self.container_name))
+            raise TargetDeleteError(msg)
+
+    ###########################################################################
+    def _fetch_file_info(self, destination_path):
+        """
+            Returns a tuple of (file_exists, file_size)
+            Should be implemented by subclasses
+        """
 ###############################################################################
 # S3BucketTarget
 ###############################################################################
@@ -103,42 +189,31 @@ class S3BucketTarget(BackupTarget):
         self._encrypted_secret_key = None
 
     ###########################################################################
-    @robustify(max_attempts=3, retry_interval=2,
-               do_on_exception=_raise_if_not_retriable,
-               do_on_failure=_raise_on_failure)
-    def put_file(self, file_path, destination_path=None):
-        try:
+    def do_put_file(self, file_path, destination_path):
 
-            # calculating file size
-            file_size = os.path.getsize(file_path)
+        # determine single/multi part upload
+        file_size = os.path.getsize(file_path)
 
-            logger.info("S3BucketTarget: Uploading '%s' (%s bytes) to '%s' in "
-                        " s3 bucket %s" % (file_path, destination_path,
-                                           file_size, self.bucket_name))
+        if file_size >= MULTIPART_MIN_SIZE:
+            self._multi_part_put(file_path, destination_path, file_size)
+        else:
+            self._single_part_put(file_path, destination_path)
 
-            destination_path = destination_path or os.path.basename(file_path)
+        return FileReference(file_path=destination_path,
+                             file_size=file_size)
 
-            if file_size >= MULTIPART_MIN_SIZE:
-                self._multi_part_put(file_path, destination_path, file_size)
-            else:
-                self._single_part_put(file_path, destination_path)
+    ###########################################################################
+    def _fetch_file_info(self, destination_path):
+        """
+            Override by s3 specifics
 
-            # validate that the file has been uploaded successfully
-            self._verify_file_uploaded(destination_path, file_size)
-
-            logger.info("S3BucketTarget: Uploading %s (%s bytes) to s3 bucket %s "
-                        "completed successfully!!" %
-                        (file_path, file_size, self.bucket_name))
-
-            return FileReference(file_path=destination_path,
-                                 file_size=file_size)
-
-        except Exception, e:
-            traceback.print_exc()
-            msg = ("S3BucketTarget: Error while trying to upload '%s'"
-                   " to s3 bucket %s. Cause: %s" %
-                   (file_path, self.bucket_name, e))
-            raise Exception(msg, e)
+        """
+        bucket = self._get_bucket()
+        key = bucket.get_key(destination_path)
+        if key:
+            return True, key.size
+        else:
+            return False, None
 
     ###########################################################################
     def _single_part_put(self, file_path, destination_path):
@@ -229,24 +304,6 @@ class S3BucketTarget(BackupTarget):
         return part_paths
 
     ###########################################################################
-    def _verify_file_uploaded(self, destination_path, file_size):
-
-        bucket = self._get_bucket()
-        key = bucket.get_key(destination_path)
-        if not key:
-            raise Exception("Failure during upload verification: File '%s'"
-                            " does not exist in bucket '%s'" %
-                            (destination_path, self.bucket_name))
-        elif file_size != key.size:
-            msg = ("Failure during upload verification: File '%s' size in "
-                   "bucket '%s' (%s bytes) does not match size on disk "
-                   "(%s bytes)" %
-                   (destination_path, self.bucket_name, key.size, file_size))
-            raise Exception(msg)
-
-        # success!
-
-    ###########################################################################
     def get_file(self, file_reference, destination):
         try:
 
@@ -258,8 +315,10 @@ class S3BucketTarget(BackupTarget):
             key = bucket.get_key(file_path)
 
             if not key:
-                raise Exception("No such file '%s' in bucket '%s'" %
-                                (file_path, self.bucket_name))
+                raise TargetFileNotFoundError("No such file '%s' in bucket "
+                                              "'%s'" % (file_path,
+                                                        self.bucket_name))
+
             file_obj = open(os.path.join(destination, file_path), mode="w")
 
             num_call_backs = key.size / 1000
@@ -272,10 +331,10 @@ class S3BucketTarget(BackupTarget):
             msg = ("S3BucketTarget: Error while trying to download '%s'"
                    " from s3 bucket %s. Cause: %s" %
                    (file_path, self.bucket_name, e))
-            raise Exception(msg, e)
+            raise TargetError(msg, cause=e)
 
     ###########################################################################
-    def delete_file(self, file_reference):
+    def do_delete_file(self, file_reference):
         try:
 
             file_path = file_reference.file_path
@@ -291,7 +350,12 @@ class S3BucketTarget(BackupTarget):
             msg = ("S3BucketTarget: Error while trying to delete '%s'"
                    " from s3 bucket %s. Cause: %s" %
                    (file_path, self.bucket_name, e))
-            raise Exception(msg, e)
+            raise TargetDeleteError(msg, cause=e)
+
+    ###########################################################################
+    @property
+    def container_name(self):
+        return self.bucket_name
 
     ###########################################################################
     @property
@@ -471,41 +535,21 @@ class RackspaceCloudFilesTarget(BackupTarget):
         self._encrypted_api_key = None
 
     ###########################################################################
-    @robustify(max_attempts=3, retry_interval=2,
-               do_on_exception=_raise_if_not_retriable,
-               do_on_failure=_raise_on_failure)
-    def put_file(self, file_path, destination_path=None):
-        try:
+    def do_put_file(self, file_path, destination_path):
 
-            # calculating file size
-            file_size = os.path.getsize(file_path)
+        # determine single/multi part upload
+        file_size = os.path.getsize(file_path)
 
-            destination_path = destination_path or os.path.basename(file_path)
+        destination_path = destination_path or os.path.basename(file_path)
 
-            logger.info("RackspaceCloudFilesTarget: Uploading %s (%s bytes) "
-                        "to container %s" %
-                        (file_path, file_size, self.container_name))
 
-            if file_size >= CF_MULTIPART_MIN_SIZE:
-                self._multi_part_put(file_path, destination_path, file_size)
-            else:
-                self._single_part_put(file_path, destination_path)
+        if file_size >= CF_MULTIPART_MIN_SIZE:
+            self._multi_part_put(file_path, destination_path, file_size)
+        else:
+            self._single_part_put(file_path, destination_path)
 
-            # validate that the file has been uploaded successfully
-            self._verify_file_uploaded(destination_path, file_size)
-
-            logger.info("RackspaceCloudFilesTarget: Uploading %s (%s bytes) "
-                        "to container %s completed successfully!!" %
-                        (file_path, file_size, self.container_name))
-
-            return FileReference(file_path=destination_path,
-                                 file_size=file_size)
-        except Exception, e:
-            traceback.print_exc()
-            msg = ("RackspaceCloudFilesTarget: Error while trying to upload "
-                   "'%s' to container %s. Cause: %s" %
-                   (file_path, self.container_name, e))
-            raise Exception(msg, e)
+        return FileReference(file_path=destination_path,
+                             file_size=file_size)
 
     ###########################################################################
     def _single_part_put(self, file_path, destination_path):
@@ -549,21 +593,13 @@ class RackspaceCloudFilesTarget(BackupTarget):
 
 
     ###########################################################################
-    def _verify_file_uploaded(self, destination_path, file_size):
+    def _fetch_file_info(self, destination_path):
         container = self._get_container()
         container_obj = container.get_object(destination_path)
-        if not container_obj:
-            raise Exception("Failure during upload verification: File '%s'"
-                            " does not exist in container '%s'" %
-                            (destination_path, self.container_name))
-        elif file_size != container_obj.size:
-            msg = ("Failure during upload verification: File '%s' size in "
-                   "container '%s' (%s bytes) does not match size on disk "
-                   "(%s bytes)" % (destination_path, self.container_name,
-                                   container_obj.size, file_size))
-            raise Exception(msg)
-
-            # success!
+        if container_obj:
+            return True, container_obj.size
+        else:
+            return False, None
 
     ###########################################################################
     def get_file(self, file_reference, destination):
@@ -590,10 +626,10 @@ class RackspaceCloudFilesTarget(BackupTarget):
             msg = ("RackspaceCloudFilesTarget: Error while trying to download "
                    "'%s' from container %s. Cause: %s" %
                    (file_path, self.container_name, e))
-            raise Exception(msg, e)
+            raise TargetError(msg, e)
 
     ###########################################################################
-    def delete_file(self, file_reference):
+    def do_delete_file(self, file_reference):
         try:
 
             file_path = file_reference.file_path
@@ -609,7 +645,7 @@ class RackspaceCloudFilesTarget(BackupTarget):
             msg = ("RackspaceCloudFilesTarget: Error while trying to delete "
                    "'%s' from container %s. Cause: %s" %
                    (file_path, self.container_name, e))
-            raise Exception(msg, e)
+            raise TargetDeleteError(msg, e)
 
     ###########################################################################
     @property
@@ -711,9 +747,6 @@ class AzureContainerTarget(BackupTarget):
         self._account_key = None
 
     ###########################################################################
-    @robustify(max_attempts=3, retry_interval=2,
-               do_on_exception=_raise_if_not_retriable,
-               do_on_failure=_raise_on_failure)
     def put_file(self, file_path, destination_path):
         try:
 
@@ -735,7 +768,6 @@ class AzureContainerTarget(BackupTarget):
             return FileReference(file_path=destination_path,
                                  file_size=file_size)
         except Exception, e:
-            traceback.print_exc()
             msg = ("AzureContainerTarget: Error while trying to upload "
                    "'%s' to container %s. Cause: %s" %
                    (file_path, self.container_name, e))

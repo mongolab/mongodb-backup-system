@@ -2,12 +2,13 @@ __author__ = 'abdul'
 
 # Contains mongo db utility functions
 import pymongo
+import mbs_logging
+
 from mongo_uri_tools import parse_mongo_uri
 from bson.son import SON
-from robustify.robustify import robustify
-
+from errors import *
 from date_utils import timedelta_total_seconds
-import mbs_logging
+
 
 ###############################################################################
 # LOGGER
@@ -35,106 +36,130 @@ def mongo_connect(uri):
                                        connectTimeoutMS=CONN_TIMEOUT)
         return conn[dbname]
     except Exception, e:
-        raise Exception("Could not establish a database connection to "
-                        "%s: %s" % (uri_wrapper.masked_uri, e))
-
-
-###############################################################################
-def _raise_if_not_no_primary(exception):
-    msg = str(exception)
-    if "Unable to determine primary" in msg:
-        logger.warn("Caught a no primary found exception: %s" % msg)
-    else:
-        logger.debug("Re-raising a get_best_source_member "
-                     "NON-no-primary exception: %s" % msg)
-        raise
-
-###############################################################################
-def _raise_on_failure():
-    raise
-
-###############################################################################
-@robustify(max_attempts=5, retry_interval=10,
-            do_on_exception=_raise_if_not_no_primary,
-            do_on_failure=_raise_on_failure)
-def get_best_source_member(cluster_uri, primary_ok=False, min_lag_seconds=0):
-    """
-        Returns the best source member to get the pull from.
-        This only applicable for cluster connections.
-        best = passives with least lags, if no passives then least lag
-               if no secondaries and primary_ok then return primary
-               if min_lag_seconds was specified and least lag is greater than
-                min_lag_seconds then return primary if primary_ok, otherwise
-                least secondary
-    """
-    uri_wrapper = parse_mongo_uri(cluster_uri)
-    members = get_cluster_members(cluster_uri)
-    secondaries = []
-    primary = None
-
-    # find primary/secondaries
-    for member in members:
-        if not member.online:
-            logger.info("Member '%s' appears to be offline. Excluding..." %
-                        member)
-            continue
-        if member.is_primary():
-            primary = member
-        elif member.is_secondary():
-            secondaries.append(member)
-
-    if not primary:
-        raise Exception("Unable to determine primary for cluster '%s'" %
-                        uri_wrapper.masked_uri)
-
-    if not secondaries:
-        if primary_ok:
-            logger.info("No secondaries found and primaryOk is true. "
-                        "Using primary member '%s'" % primary)
-            return primary
+        if is_connection_exception(e):
+            raise ConnectionError("Could not establish a database connection "
+                                  "to %s" % uri_wrapper.masked_uri, cause=e)
         else:
-            raise Exception("No secondaries found for cluster '%s'" %
-                            uri_wrapper.masked_uri)
+            raise e
 
-    master_status = primary.rs_status
-    # compute lags
-    for secondary in secondaries:
-        secondary.compute_lag(master_status)
+###############################################################################
+class MongoDatabase(object):
 
-    def best_secondary_comp(member1, member2):
+    ###########################################################################
+    def __init__(self, uri):
+        self._uri_wrapper = parse_mongo_uri(uri)
+        # validate that uri has a database
+        if not self._uri_wrapper.database:
+            raise ConfigurationError("Uri must contain a database")
 
-        if member1.is_passive():
-            if member2.is_passive():
-                return int(member1.lag_in_seconds - member2.lag_in_seconds)
+        self._connection = mongo_connect(uri)
+        self._database = self._connection[self._uri_wrapper.database]
+        self._database_stats = _calculate_database_stats(self._database)
+
+    ###########################################################################
+    @property
+    def database(self):
+        return self._database
+
+    @property
+    def stats(self):
+        return self._database_stats
+
+###############################################################################
+class MongoCluster(object):
+    ###########################################################################
+    def __init__(self, uri):
+        self._uri_wrapper = parse_mongo_uri(uri)
+        self._init_members()
+
+    ###########################################################################
+    @property
+    def members(self):
+        return self._members
+
+    ###########################################################################
+    @property
+    def uri(self):
+        return self._uri_wrapper.raw_uri
+
+    ###########################################################################
+    @property
+    def primary_member(self):
+        return self._primary_member
+
+    ###########################################################################
+    def _init_members(self):
+        uri_wrapper = self._uri_wrapper
+        # validate that uri has DB set to admin or nothing
+        if uri_wrapper.database and uri_wrapper.database != "admin":
+            raise ConfigurationError("Database in uri '%s' can only be admin or"
+                                     " unspecified" % uri_wrapper.masked_uri)
+        members = []
+        primary_member = None
+        for member_uri in uri_wrapper.member_raw_uri_list:
+            member = MongoServer(member_uri)
+            members.append(member)
+            if member.is_online() and member.is_primary():
+                primary_member = member
+
+        if not primary_member:
+            raise PrimaryNotFoundError("Unable to determine primary for "
+                                       "cluster '%s'" % self)
+        self._members = members
+        self._primary_member = primary_member
+
+    ###########################################################################
+    def get_best_secondary(self, min_lag_seconds=0):
+        """
+            Returns the best source member to get the pull from.
+            This only applicable for cluster connections.
+            best = passives with least lags, if no passives then least lag
+        """
+        members = self.members
+        secondaries = []
+        # find secondaries
+        for member in members:
+            if not member.is_online():
+                logger.info("Member '%s' appears to be offline. Excluding..." %
+                            member)
+                continue
+            elif member.is_secondary():
+                secondaries.append(member)
+
+
+        if not secondaries:
+            logger.info("No secondaries found for cluster '%s'" % self)
+
+        master_status = self.primary_member.rs_status
+        # compute lags
+        for secondary in secondaries:
+            secondary.compute_lag(master_status)
+
+        def best_secondary_comp(member1, member2):
+
+            if member1.is_passive():
+                if member2.is_passive():
+                    return int(member1.lag_in_seconds - member2.lag_in_seconds)
+                else:
+                    return -1
+            elif member2.is_passive():
+                return 1
             else:
-                return -1
-        elif member2.is_passive():
-            return 1
-        else:
-            return int(member1.lag_in_seconds - member2.lag_in_seconds)
+                return int(member1.lag_in_seconds - member2.lag_in_seconds)
 
 
-    secondaries.sort(best_secondary_comp)
-    best_secondary = secondaries[0]
-    if (primary_ok and min_lag_seconds and
-        best_secondary.lag_in_seconds > min_lag_seconds):
-        return primary
-    else:
-        return best_secondary
+        secondaries.sort(best_secondary_comp)
+        if secondaries:
+            best_secondary = secondaries[0]
+            if (min_lag_seconds and
+                best_secondary.lag_in_seconds > min_lag_seconds):
+                return None
+            else:
+                return best_secondary
 
-###############################################################################
-def get_cluster_members(cluster_uri):
-    uri_wrapper = parse_mongo_uri(cluster_uri)
-    # validate that uri has DB set to admin or nothing
-    if uri_wrapper.database and uri_wrapper.database != "admin":
-        raise Exception("Database in uri '%s' can only be admin or"
-                        " unspecified" % uri_wrapper.masked_uri)
-    members = []
-    for member_uri in uri_wrapper.member_raw_uri_list:
-        members.append(MongoServer(member_uri))
-
-    return members
-
+    ###########################################################################
+    def __str__(self):
+        return self._uri_wrapper.masked_uri
 
 ###############################################################################
 class MongoServer(object):
@@ -144,9 +169,12 @@ class MongoServer(object):
     def __init__(self, uri):
         self._uri_wrapper = parse_mongo_uri(uri)
         self._admin_db = None
+        self._is_online = False
 
         try:
             self._admin_db = mongo_connect(uri)
+            # connection success! set online to true
+            self._is_online = True
         except Exception, e:
             logger.error("Error while trying to connect to '%s'. %s" %
                          (self, e))
@@ -162,9 +190,8 @@ class MongoServer(object):
         return self._uri_wrapper.raw_uri
 
     ###########################################################################
-    @property
-    def online(self):
-        return self._admin_db is not None
+    def is_online(self):
+        return self._is_online
 
     ###########################################################################
     @property
@@ -188,7 +215,6 @@ class MongoServer(object):
         return self._rs_status
 
     ###########################################################################
-
     def compute_lag(self, master_status):
         """Given two 'members' elements from rs.status(),
         return lag between their optimes (in secs).
@@ -196,8 +222,8 @@ class MongoServer(object):
         my_status = self._rs_status
 
         if not my_status:
-            raise Exception("Unable to determine replicaset status for"
-                                " member '%s'" % self)
+            raise ConnectionError("Unable to determine replicaset status for"
+                                  " member '%s'" % self)
 
         lag_in_seconds = abs(timedelta_total_seconds(
             master_status['optimeDate'] -
@@ -240,36 +266,14 @@ class MongoServer(object):
         return self._calculate_my_database_stats()
 
     ###########################################################################
-    def _calculate_my_database_stats(self, only_for_db=None):
+    def get_stats(self):
+        stats =  {
+            "optime": self.optime,
+            "replLagInSeconds": self.lag_in_seconds
 
-        total_stats = {
-            "collections": 0,
-            "objects": 0,
-            "dataSize": 0,
-            "storageSize": 0,
-            "indexes": 0,
-            "indexSize": 0,
-            "fileSize": 0,
-            "nsSizeMB": 0
         }
-
-        if only_for_db:
-            database_names = [only_for_db]
-        else:
-            database_names = self._admin_db.connection.database_names()
-
-        for dbname in database_names:
-            db = self._admin_db.connection[dbname]
-            db_stats = _calculate_database_stats(db)
-            for key in total_stats.keys():
-                    total_stats[key] += db_stats.get(key) or 0
-
-        return total_stats
-
-    ###########################################################################
-    @property
-    def server_status(self):
-        return self._get_server_status()
+        stats.update(self._get_server_status())
+        return stats
 
     ###########################################################################
     def _get_rs_status(self):
@@ -280,9 +284,7 @@ class MongoServer(object):
                 if 'self' in member and member['self']:
                     return member
         except Exception, e:
-            logger.error("Cannot get rs for member '%s'. cause: %s" %
-                        (self, e))
-            return None
+            raise ReplicasetError("Cannot get rs for member '%s'", cause=e)
 
     ###########################################################################
     def _get_server_status(self):
@@ -299,9 +301,8 @@ class MongoServer(object):
                 del server_status["locks"]
             return server_status
         except Exception, e:
-            logger.error("Cannot get server status for member '%s'. cause: %s" %
-                         (self, e))
-            return None
+            raise ServerError("Cannot get server status for member '%s'. " %
+                              self, cause=e)
 
     ###########################################################################
     def _get_rs_config(self):
@@ -310,8 +311,8 @@ class MongoServer(object):
             local_db = self._admin_db.connection["local"]
             return local_db['system.replset'].find_one()
         except Exception, e:
-                logger.error("Cannot get rs config for member '%s'. "
-                            "cause: %s" % (self, e))
+                raise ReplicasetError("Cannot get rs config for member '%s'." %
+                                      self, cause=e)
 
 
     ###########################################################################
@@ -357,3 +358,26 @@ def _calculate_database_stats(db):
         return result
 
 ###############################################################################
+def _calculate_connection_databases_stats(self):
+
+    total_stats = {
+        "collections": 0,
+        "objects": 0,
+        "dataSize": 0,
+        "storageSize": 0,
+        "indexes": 0,
+        "indexSize": 0,
+        "fileSize": 0,
+        "nsSizeMB": 0
+    }
+
+
+    database_names = self._admin_db.connection.database_names()
+
+    for dbname in database_names:
+        db = self._admin_db.connection[dbname]
+        db_stats = _calculate_database_stats(db)
+        for key in total_stats.keys():
+            total_stats[key] += db_stats.get(key) or 0
+
+    return total_stats

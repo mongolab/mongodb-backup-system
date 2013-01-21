@@ -7,6 +7,8 @@ TYPE_BINDINGS = {
     "BackupLogEntry": "mbs.backup.BackupLogEntry",
     "Plan": "mbs.plan.BackupPlan",
     "Schedule": "mbs.plan.Schedule",
+    "Strategy": "mbs.strategy.BackupStrategy",
+    "DumpStrategy": "mbs.strategy.DumpStrategy",
     "Source": "mbs.source.BackupSource",
     "SourceStats": "mbs.source.SourceStats",
     "Target": "mbs.target.BackupTarget",

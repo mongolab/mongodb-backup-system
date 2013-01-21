@@ -6,33 +6,30 @@ import os
 
 import time
 import mbs_logging
-import shutil
+
 import urllib
-import mongo_uri_tools
+
 import json
 
 from flask import Flask
 from flask.globals import request
 
 from threading import Thread
-from subprocess import CalledProcessError
 
-from errors import MBSException
 
-from utils import (which, ensure_dir, execute_command, call_command,
-                   wait_for, resolve_path, get_local_host_name,
+from errors import MBSError
+
+from utils import (ensure_dir, wait_for, resolve_path, get_local_host_name,
                    document_pretty_string)
 
 from date_utils import  timedelta_total_seconds, date_now
 
-from plan import STRATEGY_DUMP, STRATEGY_EBS_SNAPSHOT
 
 from backup import (STATE_SCHEDULED, STATE_IN_PROGRESS, STATE_FAILED,
                     STATE_SUCCEEDED, STATE_CANCELED,
-                    EVENT_TYPE_INFO, EVENT_TYPE_WARNING, EVENT_TYPE_ERROR)
+                    EVENT_TYPE_INFO, EVENT_TYPE_ERROR)
 
 from target import EbsSnapshotReference
-from robustify.robustify import robustify
 
 ###############################################################################
 # CONSTANTS
@@ -232,14 +229,15 @@ class BackupEngine(Thread):
         return self._worker_count
 
     ###########################################################################
-    def worker_fail(self, worker, exception, trace=None):
-        log_msg = "Failure! Cause %s\nTrace:\n%s" % (exception,trace)
+    def worker_fail(self, worker, exception):
+        log_msg = "Failure! Cause : %s" % exception
         self.log_backup_event(worker.backup, event_type=EVENT_TYPE_ERROR,
                               message=log_msg)
         self.worker_finished(worker, STATE_FAILED)
 
         backup = worker.backup
-        if self.notification_handler:
+        # send a notification only if the backup is not reschedulable
+        if not backup.reschedulable and self.notification_handler:
             subject = "Backup failed"
             message = ("Backup '%s' failed.\n%s\n\nCause: \n%s\nStack Trace:"
                        "\n%s" % (backup.id, backup, exception, trace))
@@ -425,7 +423,7 @@ class BackupEngine(Thread):
                 msg =  ("Error while trying to stop engine '%s' URL %s "
                         "(Response"" code %)" %
                         (self.engine_guid, url, response.getcode()))
-                raise BackupEngineException(msg)
+                raise BackupEngineError(msg)
         except IOError, e:
             logger.error("Engine is not running")
 
@@ -445,7 +443,7 @@ class BackupEngine(Thread):
                 msg =  ("Error while trying to get status engine '%s' URL %s "
                         "(Response code %)" % (self.engine_guid, url,
                                                response.getcode()))
-                raise BackupEngineException(msg)
+                raise BackupEngineError(msg)
 
         except IOError, ioe:
             return {
@@ -512,33 +510,6 @@ class BackupEngine(Thread):
     def error(self, msg):
         logger.error("<BackupEngine-%s>: %s" % (self.id, msg))
 
-###############################################################################
-def _raise_if_not_connectivity(exception):
-    """
-        Module method for robustifying connection attempts
-    """
-    msg = str(exception)
-    if "Broken pipe" in msg or "reset" in msg:
-        logger.warn("Caught a connectivity exception: %s" % msg)
-    else:
-        logger.debug("Re-raising a a NON-connectivity exception: %s" % msg)
-        raise
-
-###############################################################################
-def _raise_if_cannot_redump(exception):
-    """
-        Module method for robustifying dump attempts
-    """
-    msg = str(exception)
-    if "exit status 255" in msg:
-        logger.warn("Caught a 'exit status 255' exception: %s" % msg)
-    else:
-        logger.debug("Re-raising a a NON-redumpable exception: %s" % msg)
-        raise
-
-###############################################################################
-def _raise_on_failure():
-    raise
 
 ###############################################################################
 # BackupWorker
@@ -566,7 +537,11 @@ class BackupWorker(Thread):
     ###########################################################################
     def run(self):
         backup = self.backup
-        self.info("Running %s backup %s" % (backup.strategy, backup._id))
+        # increase # of tries
+        backup.try_count += 1
+
+        self.info("Running %s backup %s (try # %s)" %
+                  (backup.strategy, backup._id, backup.try_count))
         # set start date
         backup.start_date = date_now()
         # set backup name
@@ -581,318 +556,38 @@ class BackupWorker(Thread):
 
         try:
 
+            # set the workspace
+            workspace_dir = self._get_backup_workspace_dir(backup)
+            backup.workspace = workspace_dir
             # run the backup
-            self._run_backup(backup)
+            self.backup.strategy.run_backup(backup)
 
-            # success!
+
 
             # cleanup temp workspace
-            self._cleanup_backup(backup)
+            self.backup.strategy.cleanup_backup(backup)
 
+            # calculate backup rate
+            self._calculate_backup_rate(backup)
+
+            # success!
             self.engine.worker_success(self)
+
             self.info("Backup '%s' completed successfully" % backup.id)
 
         except Exception, e:
             # fail
             self.error("Backup failed. Cause %s" % e)
-            trace = traceback.format_exc()
-            self.error(trace)
-
-            self.engine.worker_fail(self, exception=e, trace=trace)
+            self.engine.worker_fail(self, exception=e)
         finally:
             # apply the retention policy
             # TODO Probably should be called somewhere else
             self._apply_retention_policy(backup)
 
-    ###########################################################################
-    def _run_backup(self, backup):
-        if backup.strategy == STRATEGY_DUMP:
-            self._run_dump_backup(backup)
-        elif backup.strategy == STRATEGY_EBS_SNAPSHOT:
-            self._run_ebs_snapshot_backup(backup)
-        else:
-            raise BackupEngineException("Unsupported backup strategy '%s'" %
-                                        backup.strategy)
-
-    ###########################################################################
-    # DUMP Strategy
-    ###########################################################################
-    def _run_dump_backup(self, backup):
-
-        # ensure backup workspace
-        self._ensure_backup_workspace_dir(backup)
-
-
-        # run mongoctl dump
-        if not backup.is_event_logged(EVENT_END_EXTRACT):
-            try:
-                self._dump_source(backup)
-            except BackupEngineException, e:
-                # still tar and upload failed dumps
-                self.error("Dumping backup '%s' failed. Will still tar"
-                           "up and upload to keep dump logs" % backup.id)
-                self._tar_and_upload_failed_dump(backup)
-                raise e
-
-        # tar the dump
-        if not backup.is_event_logged(EVENT_END_ARCHIVE):
-            self._archive_dump(backup)
-
-        # upload back file to the target
-        if not backup.is_event_logged(EVENT_END_UPLOAD):
-            self._upload_dump(backup)
-
-        # calculate backup rate
-            self._calculate_backup_rate(backup)
-
-    ###########################################################################
-    @robustify(max_attempts=3, retry_interval=2,
-               do_on_exception=_raise_if_not_connectivity,
-               do_on_failure=_raise_on_failure)
-    def _dump_source(self, backup):
-        self.info("Getting source stats for source %s " % backup.source)
-        # record source stats
-        # compute minimum required lag
-        if backup.plan:
-            min_lag_seconds = int(backup.plan.schedule.frequency_in_seconds / 2)
-            primary_ok = backup.plan.primary_ok
-        else:
-            # One Off backup : no min lag and primary OK!
-            min_lag_seconds = 0
-            primary_ok = True
-
-        source_args = {
-            "primary_ok": primary_ok,
-            "min_lag_seconds": min_lag_seconds
-        }
-        source_info = backup.source.get_source_info(**source_args)
-        source_address = source_info["address"]
-        backup.source_stats = source_info["stats"]
-
-        # save source stats if present
-        if backup.source_stats:
-            self.engine.log_backup_event(backup,
-                name="COMPUTED_SOURCE_STATS",
-                message="Computed source stats")
-
-        # log warning if dumping from a cluster's primary or from a too
-        # stale member
-        if backup.source.is_cluster_source():
-
-            if "primary" in source_info and source_info["primary"]:
-                self.warning("Backup '%s' will be extracted from the "
-                             "primary!" % backup.id)
-
-                msg = "Warning! The dump will be extracted from the primary"
-                self.engine.log_backup_event(backup,
-                                             event_type=EVENT_TYPE_WARNING,
-                                             name="USING_PRIMARY_WARNING",
-                                             message=msg)
-            elif "tooStale" in source_info and source_info["tooStale"]:
-                self.warning("Backup '%s' will be extracted from a too stale"
-                             " member!" % backup.id)
-
-                msg = ("Warning! The dump will be extracted from a too "
-                      "stale member")
-                self.engine.log_backup_event(backup,
-                                             event_type=EVENT_TYPE_WARNING,
-                                             name="USING_TOO_STALE_WARNING",
-                                             message=msg)
-
-        self.info("Dumping source %s " % backup.source)
-        self.engine.log_backup_event(backup,
-                                     name=EVENT_START_EXTRACT,
-                                     message="Dumping source")
-
-
-        dump_dir = self._get_backup_dump_dir(backup)
-        dbname = backup.source.database_name
-        self._execute_dump_command(source_address, dbname, dump_dir)
-
-
-        self.engine.log_backup_event(backup,
-                                     name=EVENT_END_EXTRACT,
-                                     message="Dump completed")
-
-    ###########################################################################
-    def _archive_dump(self, backup):
-        dump_dir = self._get_backup_dump_dir(backup)
-        tar_filename = _tar_file_name(backup)
-        self.info("Taring dump %s to %s" % (dump_dir, tar_filename))
-        self.engine.log_backup_event(backup,
-            name=EVENT_START_ARCHIVE,
-            message="Taring dump")
-
-        self._execute_tar_command(dump_dir, tar_filename)
-
-        self.engine.log_backup_event(backup,
-            name=EVENT_END_ARCHIVE,
-            message="Taring completed")
-
-    ###########################################################################
-    def _upload_dump(self, backup):
-        tar_file_path = self._get_tar_file_path(backup)
-        self.info("Uploading %s to target" % tar_file_path)
-        self.engine.log_backup_event(backup,
-            name=EVENT_START_UPLOAD,
-            message="Upload tar to target")
-        upload_dest_path = _upload_file_dest(backup)
-        target_reference = backup.target.put_file(tar_file_path,
-                                                  destination_path=upload_dest_path)
-        backup.target_reference = target_reference
-
-        self.engine.log_backup_event(backup,
-                                     name=EVENT_END_UPLOAD,
-                                     message="Upload completed!")
-
-    ###########################################################################
-    def _tar_and_upload_failed_dump(self, backup):
-        self.info("Taring up failed backup '%s' ..." % backup.id)
-        self.engine.log_backup_event(backup,
-                                     name="ERROR_HANDLING_START_TAR",
-                                     message="Taring bad dump")
-
-        dump_dir = self._get_backup_dump_dir(backup)
-        tar_filename = _tar_file_name(backup)
-        tar_file_path = self._get_tar_file_path(backup)
-
-        # tar up
-        self._execute_tar_command(dump_dir, tar_filename)
-        self.engine.log_backup_event(backup,
-                                     name="ERROR_HANDLING_END_TAR",
-                                     message="Finished taring bad dump")
-
-        # upload
-        self.info("Uploading tar for failed backup '%s' ..." % backup.id)
-        self.engine.log_backup_event(backup,
-                                     name="ERROR_HANDLING_START_UPLOAD",
-                                     message="Uploading bad tar")
-
-        target_reference = backup.target.put_file(tar_file_path)
-        backup.target_reference = target_reference
-
-        self.engine.log_backup_event(backup,
-                                     name="ERROR_HANDLING_END_UPLOAD",
-                                     message="Finished uploading bad tar")
-
-    ###########################################################################
-    def _cleanup_backup(self, backup):
-        if backup.strategy == STRATEGY_DUMP:
-            self._cleanup_dump_backup(backup)
-        elif backup.strategy == STRATEGY_EBS_SNAPSHOT:
-            # TODO cleanup ? How?
-            pass
-
-    ###########################################################################
-    def _cleanup_dump_backup(self, backup):
-        # delete the temp dir
-        backup_workspace_dir = self._get_backup_workspace_dir(backup)
-        self.info("Cleanup: deleting workspace dir %s" % backup_workspace_dir)
-        self.engine.log_backup_event(backup,
-            name="CLEANUP",
-            message="Running cleanup")
-
-        try:
-
-            if os.path.exists(backup_workspace_dir):
-                shutil.rmtree(backup_workspace_dir)
-            else:
-                self.error("workspace dir %s does not exist!" %
-                           backup_workspace_dir)
-        except Exception, e:
-            self.error("Cleanup error for backup '%s': %s" % (backup.id, e))
-
-    ###########################################################################
-    @robustify(max_attempts=5, retry_interval=60,
-               do_on_exception=_raise_if_cannot_redump,
-               do_on_failure=_raise_on_failure)
-    def _execute_dump_command(self, source_address, database_name, dest):
-        dump_cmd = ["/usr/local/bin/mongoctl",
-                    "--noninteractive", # always run with noninteractive
-                    "dump", source_address,
-                    "-o", dest]
-
-        # if its a server level backup then add forceTableScan and oplog
-        if not database_name:
-            dump_cmd.extend([
-                "--oplog",
-                "--forceTableScan"]
-            )
-
-        dump_cmd_display= dump_cmd[:]
-        # if the source uri is a mongo uri then mask it
-        if mongo_uri_tools.is_mongo_uri(source_address):
-            dump_cmd_display[3] = mongo_uri_tools.mask_mongo_uri(source_address)
-        self.info("Running dump command: %s" % " ".join(dump_cmd_display))
-
-        try:
-            # execute dump command and redirect stdout and stderr to log file
-            ensure_dir(dest)
-            ## IMPORTANT: TEMPORARILY EXCLUDE DUMP FILES FROM DEST FOLDER
-            # dump_log_path = os.path.join(dest, 'dump.log')
-            # TODO: uncomment the line above and remove the line bellow
-            dump_log_path = os.path.join(os.path.dirname(dest), 'dump.log')
-            dump_log_file = open(dump_log_path, 'w')
-            call_command(dump_cmd, stdout=dump_log_file,
-                                   stderr=dump_log_file)
-
-        except CalledProcessError, e:
-            reason = ""
-            if e.returncode == 245:
-                reason = "Probably because of bad collection names."
-            if e.returncode == 255:
-                #TODO figure out whats mongodump error 255
-                reason = ""
-            last_line_tail_cmd = [which('tail'), '-1', dump_log_path]
-            last_dump_line = execute_command(last_line_tail_cmd)
-
-            msg = ("Failed to dump. Dump command '%s' returned a non-zero exit"
-                   " status %s. %s Check dump logs. Last dump log line: %s" %
-                   (dump_cmd_display, e.returncode, reason, last_dump_line))
-            raise BackupEngineException(msg)
-
-
-    ###########################################################################
-    def _execute_tar_command(self, path, filename):
-
-        try:
-            tar_exe = which("tar")
-            working_dir = os.path.dirname(path)
-            target_dirname = os.path.basename(path)
-
-            tar_cmd = [tar_exe, "-cvzf", filename, target_dirname]
-            cmd_display = " ".join(tar_cmd)
-
-            self.info("Running tar command: %s" % cmd_display)
-            execute_command(tar_cmd, cwd=working_dir)
-
-        except CalledProcessError, e:
-            msg = ("Failed to tar. Tar command '%s' returned a non-zero exit"
-                   " status %s. Command output:\n%s" %
-                   (cmd_display, e.returncode, e.output))
-            raise BackupEngineException(msg)
-
-    ###########################################################################
-    def _ensure_backup_workspace_dir(self, backup):
-        workspace_dir = self._get_backup_workspace_dir(backup)
-        if not os.path.exists(workspace_dir):
-            os.makedirs(workspace_dir)
-
-        return workspace_dir
 
     ###########################################################################
     def _get_backup_workspace_dir(self, backup):
         return os.path.join(self.engine.temp_dir, str(backup._id))
-
-    ###########################################################################
-    def _get_backup_dump_dir(self, backup):
-        return os.path.join(self._get_backup_workspace_dir(backup),
-                            _backup_dump_dir_name(backup))
-
-    ###########################################################################
-    def _get_tar_file_path(self, backup):
-        return os.path.join(self._get_backup_workspace_dir(backup),
-                            _tar_file_name(backup))
 
     ###########################################################################
     def _calculate_backup_rate(self, backup):
@@ -928,7 +623,7 @@ class BackupWorker(Thread):
 
         snapshot_desc = self.backup_dir_name(backup)
         if not volume.create_snapshot(snapshot_desc):
-            raise BackupEngineException("Failed to create snapshot from backup"
+            raise BackupEngineError("Failed to create snapshot from backup"
                                         " source :\n%s" % ebs_volume_source)
         else:
             # get the snapshot id and put it as a target reference
@@ -961,7 +656,7 @@ class BackupWorker(Thread):
                           snapshot.id)
                 backup.target_reference = EbsSnapshotReference(snapshot.id)
             else:
-                raise BackupEngineException("Snapshot Timeout error")
+                raise BackupEngineError("Snapshot Timeout error")
 
 
 
@@ -1001,29 +696,9 @@ class BackupCleanerWorker(BackupWorker):
     ###########################################################################
     def run(self):
         try:
-            self._cleanup_backup(self.backup)
+            self.backup.strategy.cleanup_backup(self.backup)
         finally:
             self.engine.cleaner_finished(self)
-
-
-###############################################################################
-# Helpers
-###############################################################################
-
-def _tar_file_name(backup):
-    return "%s.tgz" % _backup_dump_dir_name(backup)
-
-###############################################################################
-def _backup_dump_dir_name(backup):
-    # Temporary work around for backup names being a path instead of a single
-    # name
-    # TODO do the right thing
-    return os.path.basename(backup.name)
-
-
-###############################################################################
-def _upload_file_dest(backup):
-    return "%s.tgz" % backup.name
 
 ###############################################################################
 def _set_backup_name(backup):
@@ -1033,7 +708,6 @@ def _set_backup_name(backup):
         else:
             backup.name = str(backup.id)
 
-###############################################################################
 ###############################################################################
 # EngineCommandServer
 ###############################################################################
@@ -1108,18 +782,15 @@ class EngineCommandServer(Thread):
                 msg =  ("Error while trying to get status engine '%s' URL %s "
                         "(Response code %)" % (self.engine_guid, url,
                                                response.getcode()))
-                raise BackupEngineException(msg)
+                raise BackupEngineError(msg)
 
         except Exception, e:
-            raise BackupEngineException("Error while stopping flask server:"
+            raise BackupEngineError("Error while stopping flask server:"
                                         " %s" %e)
 
 
 ###############################################################################
-# BackupEngineException
+# BackupEngineError
 ###############################################################################
-class BackupEngineException(MBSException):
-
-    ###########################################################################
-    def __init__(self, message, cause=None):
-        MBSException.__init__(self, message, cause=cause)
+class BackupEngineError(MBSError):
+    pass
