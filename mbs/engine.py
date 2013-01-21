@@ -229,7 +229,7 @@ class BackupEngine(Thread):
         return self._worker_count
 
     ###########################################################################
-    def worker_fail(self, worker, exception):
+    def worker_fail(self, worker, exception, trace=None):
         log_msg = "Failure! Cause : %s" % exception
         self.log_backup_event(worker.backup, event_type=EVENT_TYPE_ERROR,
                               message=log_msg)
@@ -577,8 +577,9 @@ class BackupWorker(Thread):
 
         except Exception, e:
             # fail
-            self.error("Backup failed. Cause %s" % e)
-            self.engine.worker_fail(self, exception=e)
+            trace = traceback.format_exc()
+            self.error("Backup failed. Cause %s. \nTrace: %s" % (e, trace))
+            self.engine.worker_fail(self, exception=e, trace=trace)
         finally:
             # apply the retention policy
             # TODO Probably should be called somewhere else
