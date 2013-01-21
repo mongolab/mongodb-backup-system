@@ -5,6 +5,8 @@ import os
 import sys
 import shutil
 import cloudfiles
+import cloudfiles.errors
+
 import mbs_logging
 
 from mbs import get_mbs
@@ -14,7 +16,6 @@ from azure.storage import BlobService
 from boto.s3.connection import S3Connection
 from boto.s3.key import Key
 from boto.ec2 import EC2Connection
-
 from errors import *
 
 ###############################################################################
@@ -595,11 +596,15 @@ class RackspaceCloudFilesTarget(BackupTarget):
     ###########################################################################
     def _fetch_file_info(self, destination_path):
         container = self._get_container()
-        container_obj = container.get_object(destination_path)
-        if container_obj:
-            return True, container_obj.size
-        else:
-            return False, None
+        try:
+            container_obj = container.get_object(destination_path)
+            if container_obj:
+                return True, container_obj.size
+
+        except cloudfiles.errors.NoSuchObject:
+            pass
+
+        return False, None
 
     ###########################################################################
     def get_file(self, file_reference, destination):
