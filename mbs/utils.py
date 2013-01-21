@@ -45,7 +45,7 @@ def call_command(command, bubble_exit_code=False, **popen_kwargs):
         if bubble_exit_code:
             exit(e.returncode)
         else:
-            raise e
+            raise
 
 ###############################################################################
 def execute_command(command, **popen_kwargs):

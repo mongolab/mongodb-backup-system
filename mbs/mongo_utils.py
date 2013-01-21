@@ -40,7 +40,7 @@ def mongo_connect(uri):
             raise ConnectionError("Could not establish a database connection "
                                   "to %s" % uri_wrapper.masked_uri, cause=e)
         else:
-            raise e
+            raise
 
 ###############################################################################
 class MongoDatabase(object):

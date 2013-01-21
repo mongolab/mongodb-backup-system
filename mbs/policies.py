@@ -63,7 +63,7 @@ class RetentionPolicy(MBSObject):
                 logger.error("%s: Error while archiving backup %s. "
                              "Trace: %s" %
                              (policy_name, backup.id, traceback.format_exc()))
-                raise e
+                raise
 
     ###########################################################################
     def get_expired_backups(self, plan):

@@ -121,7 +121,7 @@ class DumpStrategy(BackupStrategy):
         except Exception, e:
             # set reschedulable
             backup.reschedulable = self.is_backup_reschedulable(backup, e)
-            raise e
+            raise
 
     ###########################################################################
     @robustify(max_attempts=3, retry_interval=30,
@@ -140,7 +140,7 @@ class DumpStrategy(BackupStrategy):
                 logger.error("Dumping backup '%s' failed. Will still tar"
                              "up and upload to keep dump logs" % backup.id)
                 self._tar_and_upload_failed_dump(backup)
-                raise e
+                raise
 
         # tar the dump
         if not backup.is_event_logged(EVENT_END_ARCHIVE):

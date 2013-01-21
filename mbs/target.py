@@ -87,7 +87,7 @@ class BackupTarget(MBSObject):
 
         except Exception, e:
             if isinstance(e, TargetError):
-                raise e
+                raise
 
             if is_connection_exception(e):
                 error_type = TargetConnectionError
