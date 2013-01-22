@@ -351,8 +351,20 @@ class BackupEngine(Thread):
     ###########################################################################
     def _read_next_failed_past_due_backup(self):
         q = { "state": STATE_FAILED,
-              "plan.nextOccurrence": {"$lte": date_now()},
-              "engineGuid": self.engine_guid}
+              "engineGuid": self.engine_guid,
+              "$or": [
+                  {
+                      "plan.nextOccurrence": {"$lte": date_now()}
+                  },
+
+                  {
+                      "plan": {"$exists": False},
+                       "reschedulable": False
+                  }
+
+
+              ]
+        }
 
         u = {"$set" : { "state" : STATE_CANCELED}}
 
@@ -679,7 +691,7 @@ class BackupWorker(Thread):
             msg = ("Error while applying retention policy for backup plan "
                    "'%s'. %s" % (backup.plan.id, e))
             logger.error(msg)
-            self.engine._send_notification("Retention Policy Error", msg)
+            #self.engine._send_notification("Retention Policy Error", msg)
 
 
     ###########################################################################
