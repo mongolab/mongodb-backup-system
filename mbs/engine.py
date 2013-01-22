@@ -237,13 +237,17 @@ class BackupEngine(Thread):
 
         backup = worker.backup
         # send a notification only if the backup is not reschedulable
-        if not backup.reschedulable and self.notification_handler:
+        if not backup.reschedulable:
             subject = "Backup failed"
             message = ("Backup '%s' failed.\n%s\n\nCause: \n%s\nStack Trace:"
                        "\n%s" % (backup.id, backup, exception, trace))
 
-            self.notification_handler.send_notification(subject, message)
+            self._send_notification(subject, message)
 
+    ###########################################################################
+    def _send_notification(self, subject, message):
+        if self.notification_handler:
+            self.notification_handler.send_notification(subject, message)
 
     ###########################################################################
     def worker_success(self, worker):
@@ -667,9 +671,16 @@ class BackupWorker(Thread):
             apply the backup plan's retention policy if any.
             No retention policies for one offs
         """
-        plan = backup.plan
-        if plan and plan.retention_policy:
-            plan.retention_policy.apply_policy(plan)
+        try:
+            plan = backup.plan
+            if plan and plan.retention_policy:
+                plan.retention_policy.apply_policy(plan)
+        except Exception, e:
+            msg = ("Error while applying retention policy for backup plan "
+                   "'%s'. %s" % (backup.plan.id, e))
+            logger.error(msg)
+            self.engine._send_notification("Retention Policy Error", msg)
+
 
     ###########################################################################
     def info(self, msg):
