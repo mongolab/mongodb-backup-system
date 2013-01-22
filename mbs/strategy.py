@@ -199,6 +199,7 @@ class DumpStrategy(BackupStrategy):
                                                                min_lag_seconds)
 
             if best_secondary:
+                selected_member = best_secondary
                 # log warning if secondary is too stale
                 if best_secondary.is_too_stale():
                     logger.warning("Backup '%s' will be extracted from a "
@@ -211,12 +212,11 @@ class DumpStrategy(BackupStrategy):
                                      name="USING_TOO_STALE_WARNING",
                                      message=msg)
 
-                selected_member = best_secondary
-
 
         if not selected_member and self.primary_ok:
             # otherwise dump from primary if primary ok or if this is the
             # last try. log warning because we are dumping from a primary
+            selected_member = primary_member
             logger.warning("Backup '%s' will be extracted from the "
                            "primary!" % backup.id)
 
@@ -226,9 +226,7 @@ class DumpStrategy(BackupStrategy):
                              name="USING_PRIMARY_WARNING",
                              message=msg)
 
-            selected_member = primary_member
-
-        else:
+        if not selected_member:
             # error out
             raise NoEligibleMembersFound("No eligible members found")
 
