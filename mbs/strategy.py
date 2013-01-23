@@ -242,6 +242,12 @@ class DumpStrategy(BackupStrategy):
         else:
             backup.source_stats = mongo_server.get_stats()
 
+        # save source stats if present
+
+
+        log_backup_event(backup, name="COMPUTED_SOURCE_STATS",
+                                 message="Computed source stats")
+
         # dump the the server
         uri = mongo_server.uri
         if source.database_name:
