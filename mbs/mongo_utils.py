@@ -263,7 +263,8 @@ class MongoServer(object):
             db = self._admin_db.connection[only_for_db]
             db_stats = _calculate_database_stats(db)
         else:
-            db_stats = _calculate_database_stats(self._admin_db.connection)
+            conn = self._admin_db.connection
+            db_stats = _calculate_connection_databases_stats(conn)
 
 
         stats =  {
