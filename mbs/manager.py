@@ -57,7 +57,7 @@ class PlanManager(Thread):
         self._sleep_time = sleep_time
 
         self._registered_plan_generators = []
-        self._tick_ring = 0
+        self._tick_count = 0
         self._notification_handler = None
         self._stopped = False
         self._command_port = command_port
@@ -168,18 +168,16 @@ class PlanManager(Thread):
     def _tick(self):
 
         # increase _generators_tick_counter
-        self._tick_ring = (self._tick_ring + 1) % 100
+        self._tick_count += 1
 
-        self._process_failed_backups()
         self._process_plans_considered_now()
 
-        if self._tick_ring == 0:
-            self._run_plan_generators()
+        # run those things every 100 ticks
+        if self._tick_count % 100 == 0:
             self._notify_on_past_due_scheduled_backups()
-            self._reschedule_failed_backups_within_current_cycle()
-
-        # run auditor if its time
-        #self._check_audit()
+            self._cancel_past_cycle_scheduled_backups()
+            self._run_plan_generators()
+            self._reschedule_in_cycle_failed_backups()
 
     ###########################################################################
     def _process_plans_considered_now(self):
@@ -268,13 +266,7 @@ class PlanManager(Thread):
         return self._backup_collection.find_one(q) is not None
 
     ###########################################################################
-    def _process_failed_backups(self):
-        self._cancel_past_due_scheduled_backups()
-        # temporarily turn this off until we introduce retryTimeout/maxNoRetries
-        #self._reschedule_failed_backups_within_current_cycle()
-
-    ###########################################################################
-    def _cancel_past_due_scheduled_backups(self):
+    def _cancel_past_cycle_scheduled_backups(self):
         """
         Cancels scheduled backups whose plan's next occurrence in in the past
         """
@@ -292,7 +284,7 @@ class PlanManager(Thread):
             self._backup_collection.save_document(backup.to_document())
 
     ###########################################################################
-    def _reschedule_failed_backups_within_current_cycle(self):
+    def _reschedule_in_cycle_failed_backups(self):
         """
         Reschedule failed reschedulable backups that failed at least
         RESCHEDULE_PERIOD seconds ago
