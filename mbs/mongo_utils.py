@@ -343,6 +343,7 @@ def database_connection_stats(db_uri):
 
 ###############################################################################
 def _calculate_database_stats(db):
+    try:
         db_stats = db.command({"dbstats":1})
 
         result = {
@@ -357,6 +358,12 @@ def _calculate_database_stats(db):
         }
 
         return result
+    except Exception, e:
+        if is_connection_exception(e):
+            raise ConnectionError("Error while trying to compute stats "
+                                  "for database '%s'." % db.name, cause=e)
+        else:
+            raise
 
 ###############################################################################
 def _calculate_connection_databases_stats(connection):
