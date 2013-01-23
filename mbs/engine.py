@@ -83,7 +83,7 @@ class BackupEngine(Thread):
         self._command_port = command_port
         self._command_server = EngineCommandServer(self)
         self._tags = None
-        self._tick_ring = 0
+        self._tick_count = 0
 
     ###########################################################################
     @property
@@ -166,38 +166,48 @@ class BackupEngine(Thread):
         self._recover()
 
         while not self._stopped:
-            self._start_next_backup()
-            self._clean_next_past_due_failed_backup()
+            try:
+                self._tick()
+                time.sleep(self._sleep_time)
+            except Exception, e:
+                self.error("Caught an error: '%s'.\nStack Trace:\n%s" %
+                           (e, traceback.format_exc()))
+                self._notify_error(e)
 
         self.info("Exited main loop")
         self._pre_shutdown()
 
     ###########################################################################
+    def _tick(self):
+        # increase tick_counter
+        self._tick_count += 1
+
+        # try to start the next backup if there are available workers
+        if self._has_available_workers():
+            self._start_next_backup()
+
+        # Cancel a failed backup every 100 ticks and there are available
+        # workers
+        if self._tick_count % 100 == 0 and self._has_available_workers():
+            self._clean_next_past_due_failed_backup()
+
+    ###########################################################################
     def _start_next_backup(self):
-        # wait until we have workers available
-        self._wait_for_workers_availability()
-        # Now that we have workers available ==> read next backup
         backup = self.read_next_backup()
         if backup:
             self._start_backup(backup)
 
     ###########################################################################
     def _clean_next_past_due_failed_backup(self):
-        # we do this every 100 ticks
-        # increase tick_counter
-        self._tick_ring = (self._tick_ring + 1) % 100
 
-        if self._tick_ring == 0:
-            return;
-
-        # Now that we have workers available ==> read next backup
+        # read next failed past due backup
         backup = self._read_next_failed_past_due_backup()
         if backup:
             # set backup state to cancelled
             msg = "Backup failed and is past due. Cancelling..."
             backup.change_state(STATE_CANCELED, message=msg)
-            # wait until we have workers available
-            self._wait_for_workers_availability()
+
+            # clean it
             worker_id = self.next_worker_id()
             self.info("Starting cleaner worker for backup '%s'" % backup.id)
             BackupCleanerWorker(worker_id, backup, self).start()
@@ -211,17 +221,8 @@ class BackupEngine(Thread):
         BackupWorker(worker_id, backup, self).start()
 
     ###########################################################################
-    def _clean_backup(self, backup):
-        worker_id = self.next_worker_id()
-        self.info("Cleaning backup %s, BackupWorker %s" %
-                  (backup._id, worker_id))
-        BackupWorker(worker_id, backup, self).start()
-
-    ###########################################################################
-    def _wait_for_workers_availability(self):
-    # if max workers are reached then sleep
-        while self._worker_count >= self.max_workers:
-            time.sleep(self._sleep_time)
+    def _has_available_workers(self):
+        return self._worker_count < self.max_workers
 
     ###########################################################################
     def next_worker_id(self):
@@ -243,6 +244,16 @@ class BackupEngine(Thread):
                        "\n%s" % (backup.id, backup, exception, trace))
 
             self._send_notification(subject, message)
+
+    ###########################################################################
+    def _notify_error(self, exception):
+        if self._notification_handler:
+            subject = "BackupEngine Error"
+            message = ("BackupEngine '%s' Error!. Cause: %s. "
+                       "\n\nStack Trace:\n%s" %
+                       (self.engine_guid, exception, traceback.format_exc()))
+
+            self._notification_handler.send_notification(subject, message)
 
     ###########################################################################
     def _send_notification(self, subject, message):
@@ -284,10 +295,9 @@ class BackupEngine(Thread):
     ###########################################################################
     def _recover(self):
         """
-        Does necessary recovery work on crashes.
-         1- Recover recoverable in-progress backups associated with this engine
-         otherwise Reschedule if possible
-         2- Wipes the temp dir
+        Does necessary recovery work on crashes. Fails all backups that crashed
+        while in progress and makes them reschedulable. Plan manager will
+        decide to cancel them or reschedule them.
         """
         self.info("Running recovery..")
 
@@ -297,41 +307,18 @@ class BackupEngine(Thread):
             "engineGuid": self.engine_guid
         }
 
-        total_recovered = 0
-        total_failed = 0
+        total_crashed = 0
         for backup in self._backup_collection.find(q):
-            if self._is_backup_recoverable(backup):
-                # wait until we have workers available
-                self._wait_for_workers_availability()
-                self._recover_backup(backup)
-                total_recovered += 1
-            else:
-                # fail backup
-                self.info("Recovery: Failing backup %s" % backup._id)
-                self.update_backup_state(backup, STATE_FAILED)
-                total_failed += 1
+            # fail backup
+            self.info("Recovery: Failing backup %s" % backup._id)
+            backup.reschedulable = True
+            self.update_backup_state(backup, STATE_FAILED)
+            total_crashed += 1
 
 
-        total_crashed = total_recovered + total_failed
 
-        self.info("Recovery complete! Total Crashed backups:%s,"
-                  " Total scheduled for recovery=%s, Total failed=%s" %
-                  (total_crashed, total_recovered, total_failed))
-
-    ###########################################################################
-    def _recover_backup(self, backup):
-        self.info("Recovery: Resuming backup '%s'" % backup.id)
-        self.log_backup_event(backup,
-                              name="RECOVERY",
-                              message="Resuming backup")
-
-        self._start_backup(backup)
-
-    ###########################################################################
-    def _is_backup_recoverable(self, backup):
-        return backup.is_event_logged([EVENT_END_EXTRACT,
-                                       EVENT_END_ARCHIVE,
-                                       EVENT_END_UPLOAD])
+        self.info("Recovery complete! Total Crashed backups: %s." %
+                  total_crashed)
 
     ###########################################################################
     def read_next_backup(self):
