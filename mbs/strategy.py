@@ -240,7 +240,7 @@ class DumpStrategy(BackupStrategy):
             backup.source_stats = mongo_server.get_stats(only_for_db=
                                                           source.database_name)
         else:
-            backup.source = mongo_server.get_stats()
+            backup.source_stats = mongo_server.get_stats()
 
         # dump the the server
         uri = mongo_server.uri
