@@ -234,9 +234,14 @@ class DumpStrategy(BackupStrategy):
 
     ###########################################################################
     def _do_dump_server(self, backup, mongo_server):
-        # record stats
-        backup.source_stats = mongo_server.get_stats()
         source = backup.source
+        # record stats
+        if source.database_name:
+            backup.source_stats = mongo_server.get_stats(only_for_db=
+                                                          source.database_name)
+        else:
+            backup.source = mongo_server.get_stats()
+
         # dump the the server
         uri = mongo_server.uri
         if source.database_name:

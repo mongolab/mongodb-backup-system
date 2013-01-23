@@ -61,8 +61,7 @@ class MongoDatabase(object):
     def database(self):
         return self._database
 
-    @property
-    def stats(self):
+    def get_stats(self):
         return self._database_stats
 
 ###############################################################################
@@ -258,20 +257,21 @@ class MongoServer(object):
                 "RS102" in self.rs_status["errmsg"])
 
     ###########################################################################
-    def get_database_stats(self, dbname):
-        return self._calculate_my_database_stats(only_for_db=dbname)
+    def get_stats(self, only_for_db=None):
+        # compute database stats
+        if only_for_db:
+            db = self._admin_db.connection[only_for_db]
+            db_stats = _calculate_database_stats(db)
+        else:
+            db_stats = _calculate_database_stats(self._admin_db.connection)
 
-    ###########################################################################
-    def get_all_database_stats(self):
-        return self._calculate_my_database_stats()
 
-    ###########################################################################
-    def get_stats(self):
         stats =  {
             "optime": self.optime,
             "replLagInSeconds": self.lag_in_seconds
 
         }
+        stats.update(db_stats)
         stats.update(self._get_server_status())
         return stats
 
@@ -358,7 +358,7 @@ def _calculate_database_stats(db):
         return result
 
 ###############################################################################
-def _calculate_connection_databases_stats(self):
+def _calculate_connection_databases_stats(connection):
 
     total_stats = {
         "collections": 0,
@@ -372,10 +372,10 @@ def _calculate_connection_databases_stats(self):
     }
 
 
-    database_names = self._admin_db.connection.database_names()
+    database_names = connection.database_names()
 
     for dbname in database_names:
-        db = self._admin_db.connection[dbname]
+        db = connection[dbname]
         db_stats = _calculate_database_stats(db)
         for key in total_stats.keys():
             total_stats[key] += db_stats.get(key) or 0
