@@ -301,7 +301,6 @@ class BackupEngine(Thread):
         """
         self.info("Running recovery..")
 
-        # 1- Recover recoverable backups
         q = {
             "state": STATE_IN_PROGRESS,
             "engineGuid": self.engine_guid
