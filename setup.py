@@ -16,7 +16,7 @@ setup(
     packages=['mbs'],
     install_requires=[
         "dargparse",
-        "pymongo==2.3",
+        "pymongo==2.4.1",
         "maker-py",
         'boto==2.6.0',
         'Flask==0.8',
