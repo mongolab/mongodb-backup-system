@@ -17,6 +17,11 @@ EVENT_TYPE_INFO = "INFO"
 EVENT_TYPE_WARNING = "WARNING"
 EVENT_TYPE_ERROR = "ERROR"
 
+# Priority constants
+PRIORITY_HIGH = 0
+PRIORITY_MEDIUM = 5
+PRIORITY_LOW = 10
+
 ###############################################################################
 # Backup
 ###############################################################################
@@ -43,6 +48,7 @@ class Backup(MBSObject):
         self._try_count = 0
         self._reschedulable = None
         self._workspace = None
+        self._priority = PRIORITY_LOW
 
     ###########################################################################
     @property
@@ -237,6 +243,15 @@ class Backup(MBSObject):
         self._workspace = val
 
     ###########################################################################
+    @property
+    def priority(self):
+        return self._priority
+
+    @priority.setter
+    def priority(self, val):
+        self._priority = val
+
+    ###########################################################################
     def log_event(self, event_type=EVENT_TYPE_INFO, name=None, message=None,
                         more_info=None):
         logs = self.logs
@@ -338,6 +353,9 @@ class Backup(MBSObject):
 
         if self.reschedulable is not None:
             doc["reschedulable"] = self.reschedulable
+
+        if self.priority is not None:
+            doc["priority"] = self.priority
 
         return doc
 

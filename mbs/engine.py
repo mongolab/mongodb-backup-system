@@ -322,12 +322,20 @@ class BackupEngine(Thread):
     ###########################################################################
     def read_next_backup(self):
 
-        q = self._get_backups_query()
+        q = self._get_scheduled_backups_query()
         u = {"$set" : { "state" : STATE_IN_PROGRESS,
                         "engineGuid": self.engine_guid}}
 
+        # sort by priority except every third tick, we sort by created date to
+        # avoid starvation
+        if self._tick_count % 5 == 0:
+            s = [("createdDate", 1)]
+        else:
+            s = [("priority", 1)]
+
         c = self._backup_collection
-        backup = c.find_and_modify(query=q, update=u)
+
+        backup = c.find_and_modify(query=q, sort=s, update=u)
 
         if backup:
             backup.engine_guid = self.engine_guid
@@ -357,7 +365,7 @@ class BackupEngine(Thread):
         return self._backup_collection.find_and_modify(query=q, update=u)
 
     ###########################################################################
-    def _get_backups_query(self):
+    def _get_scheduled_backups_query(self):
         q = {"state" : STATE_SCHEDULED}
 
         # add tags if specified

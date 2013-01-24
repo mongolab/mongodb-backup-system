@@ -345,6 +345,7 @@ class PlanManager(Thread):
         backup.source = plan.source
         backup.target = plan.target
         backup.tags = plan.tags
+        backup.priority = plan.priority
         backup.plan_occurrence = plan.next_occurrence
         backup.change_state(STATE_SCHEDULED)
         self._set_plan_next_occurrence(plan)

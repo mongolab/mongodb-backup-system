@@ -49,7 +49,7 @@ class RetentionPolicy(MBSObject):
                 u = {
                     "$set": {"targetReference.expiredDate": date_now()}
                 }
-                backup = backup_collection.find_and_modify(q,u)
+                backup = backup_collection.find_and_modify(query=q, update=u)
                 if backup:
                     logger.info("%s: Expiring backup %s and deleting backup "
                                 "file" %

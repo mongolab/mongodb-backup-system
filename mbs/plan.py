@@ -5,6 +5,7 @@ from datetime import timedelta
 from date_utils import (seconds_to_date, date_to_seconds, date_plus_seconds,
                         date_now, is_date_value, epoch_date)
 
+from backup import PRIORITY_LOW
 
 ###############################################################################
 # BackupPlan
@@ -23,6 +24,7 @@ class BackupPlan(MBSObject):
         self._generator = None
         self._tags = None
         self._backup_naming_scheme = None
+        self._priority = PRIORITY_LOW
 
     ###########################################################################
     @property
@@ -133,6 +135,16 @@ class BackupPlan(MBSObject):
     def backup_naming_scheme(self, naming_scheme):
         self._backup_naming_scheme = naming_scheme
 
+
+    ###########################################################################
+    @property
+    def priority(self):
+        return self._priority
+
+    @priority.setter
+    def priority(self, val):
+        self._priority = val
+
     ###########################################################################
     def next_natural_occurrence(self):
 
@@ -214,6 +226,9 @@ class BackupPlan(MBSObject):
 
         if self.backup_naming_scheme:
             doc["backupNamingScheme"] = self.backup_naming_scheme
+
+        if self.priority:
+            doc["priority"] = self.priority
 
         return doc
 
