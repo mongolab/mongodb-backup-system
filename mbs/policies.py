@@ -106,7 +106,7 @@ class RetainLastNPolicy(RetentionPolicy):
                     {"targetReference.expiredDate": None}
             ]
         }
-        s = [("startDate", -1)]
+        s = [("createdDate", -1)]
 
         backups = get_mbs().backup_collection.find(q, sort=s)
 
