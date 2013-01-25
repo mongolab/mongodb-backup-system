@@ -1,6 +1,6 @@
 __author__ = 'abdul'
 
-from pymongo import ASCENDING
+from pymongo import ASCENDING, DESCENDING
 
 SIX_MONTH_SECONDS = 60 * 60 * 24 * 30 * 6
 
@@ -26,6 +26,12 @@ MBS_INDEXES = {
             "args": {
                 "expireAfterSeconds": SIX_MONTH_SECONDS
             }
+        } ,
+
+            {
+            "index": [ ('plan._id', ASCENDING), ('targetReference', ASCENDING),
+                       ('createdDate', DESCENDING),
+                       ('targetReference.expiredDate', ASCENDING) ]
         }
     ],
 
