@@ -89,6 +89,9 @@ class BadCollectionNameError(DumpError):
 class InvalidBSONObjSizeError(DumpError, RetriableError):
     pass
 
+class CappedCursorOverrunError(DumpError, RetriableError):
+    pass
+
 class InvalidDBNameError(DumpError):
     pass
 

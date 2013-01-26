@@ -398,6 +398,8 @@ class DumpStrategy(BackupStrategy):
                 error_type = BadCollectionNameError
             elif "10334" in last_dump_line:
                 error_type = InvalidBSONObjSizeError
+            elif "13338" in last_dump_line:
+                error_type = CappedCursorOverrunError
             elif "13280" in last_dump_line:
                 error_type = InvalidDBNameError
             else:
