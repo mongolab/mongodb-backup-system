@@ -55,8 +55,7 @@ class MongoDatabase(object):
         if not self._uri_wrapper.database:
             raise ConfigurationError("Uri must contain a database")
 
-        self._connection = mongo_connect(uri)
-        self._database = self._connection[self._uri_wrapper.database]
+        self._database = mongo_connect(uri)
 
     ###########################################################################
     @property
