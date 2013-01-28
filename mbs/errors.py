@@ -59,6 +59,9 @@ class ConnectionError(MBSError, RetriableError):
         Base error for connection errors
     """
 
+class AuthenticationFailedError(MBSError):
+    pass
+
 class ServerError(ConnectionError):
     """
         Base error for server errors

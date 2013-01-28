@@ -39,6 +39,9 @@ def mongo_connect(uri):
         if is_connection_exception(e):
             raise ConnectionError("Could not establish a database connection "
                                   "to %s" % uri_wrapper.masked_uri, cause=e)
+        elif "authentication failed" in str(e):
+            raise AuthenticationFailedError("Failed to auth to '%s'" %
+                                            uri_wrapper.masked_uri, cause=e)
         else:
             raise
 
@@ -183,9 +186,12 @@ class MongoServer(object):
             # connection success! set online to true
             self._is_online = True
         except Exception, e:
-            logger.error("Error while trying to connect to '%s'. %s" %
-                         (self, e))
-            return
+            if isinstance(e, ConnectionError):
+                logger.error("Error while trying to connect to '%s'. %s" %
+                             (self, e))
+                return
+            else:
+                raise
         self._rs_conf = self._get_rs_config()
         self._rs_status = self._get_rs_status()
         self._member_config = self._get_member_config()
