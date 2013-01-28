@@ -402,6 +402,8 @@ class DumpStrategy(BackupStrategy):
                 error_type = CappedCursorOverrunError
             elif "13280" in last_dump_line:
                 error_type = InvalidDBNameError
+            elif "10320" in last_dump_line:
+                error_type = BadTypeError
             else:
                 error_type = DumpError
 

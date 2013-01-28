@@ -95,6 +95,9 @@ class CappedCursorOverrunError(DumpError, RetriableError):
 class InvalidDBNameError(DumpError):
     pass
 
+class BadTypeError(DumpError, RetriableError):
+    pass
+
 class ArchiveError(BackupError):
     """
         Base error for dump errors
