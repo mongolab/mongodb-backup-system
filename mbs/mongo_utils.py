@@ -54,7 +54,6 @@ class MongoDatabase(object):
 
         self._connection = mongo_connect(uri)
         self._database = self._connection[self._uri_wrapper.database]
-        self._database_stats = _calculate_database_stats(self._database)
 
     ###########################################################################
     @property
@@ -62,7 +61,16 @@ class MongoDatabase(object):
         return self._database
 
     def get_stats(self):
-        return self._database_stats
+        try:
+            return _calculate_database_stats(self._database)
+        except Exception, e:
+            if is_connection_exception(e):
+                raise ConnectionError("Error while trying to compute stats "
+                                      "for database '%s'." %
+                                      self._uri_wrapper.masked_uri, cause=e)
+            else:
+                raise
+
 
 ###############################################################################
 class MongoCluster(object):
@@ -259,22 +267,30 @@ class MongoServer(object):
     ###########################################################################
     def get_stats(self, only_for_db=None):
         # compute database stats
-        if only_for_db:
-            db = self._admin_db.connection[only_for_db]
-            db_stats = _calculate_database_stats(db)
-        else:
-            conn = self._admin_db.connection
-            db_stats = _calculate_connection_databases_stats(conn)
+        try:
+            if only_for_db:
+                db = self._admin_db.connection[only_for_db]
+                db_stats = _calculate_database_stats(db)
+            else:
+                conn = self._admin_db.connection
+                db_stats = _calculate_connection_databases_stats(conn)
 
 
-        stats =  {
-            "optime": self.optime,
-            "replLagInSeconds": self.lag_in_seconds
+            stats =  {
+                "optime": self.optime,
+                "replLagInSeconds": self.lag_in_seconds
 
-        }
-        stats.update(db_stats)
-        stats.update(self._get_server_status())
-        return stats
+            }
+            stats.update(db_stats)
+            stats.update(self._get_server_status())
+            return stats
+        except Exception, e:
+            if is_connection_exception(e):
+                raise ConnectionError("Error while trying to compute stats "
+                                      "for server '%s'." %
+                                      self._uri_wrapper.masked_uri, cause=e)
+            else:
+                raise
 
     ###########################################################################
     def _get_rs_status(self):
@@ -343,27 +359,20 @@ def database_connection_stats(db_uri):
 
 ###############################################################################
 def _calculate_database_stats(db):
-    try:
-        db_stats = db.command({"dbstats":1})
+    db_stats = db.command({"dbstats":1})
 
-        result = {
-            "collections": db_stats["collections"],
-            "objects": db_stats["objects"],
-            "dataSize": db_stats["dataSize"],
-            "storageSize": db_stats["storageSize"],
-            "indexes": db_stats["indexes"],
-            "indexSize":db_stats["indexSize"],
-            "fileSize": db_stats["fileSize"],
-            "nsSizeMB": db_stats["nsSizeMB"]
-        }
+    result = {
+        "collections": db_stats["collections"],
+        "objects": db_stats["objects"],
+        "dataSize": db_stats["dataSize"],
+        "storageSize": db_stats["storageSize"],
+        "indexes": db_stats["indexes"],
+        "indexSize":db_stats["indexSize"],
+        "fileSize": db_stats["fileSize"],
+        "nsSizeMB": db_stats["nsSizeMB"]
+    }
 
-        return result
-    except Exception, e:
-        if is_connection_exception(e):
-            raise ConnectionError("Error while trying to compute stats "
-                                  "for database '%s'." % db.name, cause=e)
-        else:
-            raise
+    return result
 
 ###############################################################################
 def _calculate_connection_databases_stats(connection):
