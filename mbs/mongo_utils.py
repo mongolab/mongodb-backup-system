@@ -177,20 +177,38 @@ class MongoServer(object):
     ###########################################################################
     def __init__(self, uri):
         self._uri_wrapper = parse_mongo_uri(uri)
-        self._admin_db = None
+        self._connection = None
         self._is_online = False
 
         try:
-            self._admin_db = mongo_connect(uri)
+            self._connection = pymongo.Connection(self._uri_wrapper.address)
+            self._admin_db = self._connection['admin']
             # connection success! set online to true
             self._is_online = True
+
+            # if this is an arbiter then this is the farthest that we can get
+            # to
+            if self.is_arbiter():
+                return;
+
+            # authenticate to admin db if creds are available
+            if self._uri_wrapper.username:
+                self._admin_db.authenticate(self._uri_wrapper.username,
+                                            self._uri_wrapper.password)
+
+
         except Exception, e:
-            if isinstance(e, ConnectionError):
+            if is_connection_exception(e):
                 logger.error("Error while trying to connect to '%s'. %s" %
                              (self, e))
                 return
+            elif "authentication failed" in str(e):
+                raise AuthenticationFailedError("Failed to auth to '%s'" %
+                                                self.uri_wrapper.masked_uri,
+                                                cause=e)
             else:
                 raise
+
         self._rs_conf = self._get_rs_config()
         self._rs_status = self._get_rs_status()
         self._member_config = self._get_member_config()
@@ -249,16 +267,28 @@ class MongoServer(object):
         """
             Returns true if member is primary
         """
-        master_result = self._admin_db.command({"isMaster" : 1})
+        master_result = self._is_master_command()
         return master_result and master_result.get("ismaster")
 
     ###########################################################################
     def is_secondary(self):
         """
-            Returns true if the member is secondary or is recovering
+            Returns true if the member is secondary
         """
-        master_result = self._admin_db.command({"isMaster" : 1})
+        master_result = self._is_master_command()
         return master_result and master_result.get("secondary")
+
+    ###########################################################################
+    def is_arbiter(self):
+        """
+            Returns true if the member is an arbiter
+        """
+        master_result = self._is_master_command()
+        return master_result and master_result.get("arbiterOnly")
+
+    ###########################################################################
+    def _is_master_command(self):
+        return self._admin_db.command({"isMaster" : 1})
 
     ###########################################################################
     def is_too_stale(self):
@@ -274,10 +304,10 @@ class MongoServer(object):
         # compute database stats
         try:
             if only_for_db:
-                db = self._admin_db.connection[only_for_db]
+                db = self._connection[only_for_db]
                 db_stats = _calculate_database_stats(db)
             else:
-                conn = self._admin_db.connection
+                conn = self._connection
                 db_stats = _calculate_connection_databases_stats(conn)
 
 
@@ -330,7 +360,7 @@ class MongoServer(object):
     def _get_rs_config(self):
 
         try:
-            local_db = self._admin_db.connection["local"]
+            local_db = self._connection["local"]
             return local_db['system.replset'].find_one()
         except Exception, e:
                 raise ReplicasetError("Cannot get rs config for member '%s'." %

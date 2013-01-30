@@ -57,6 +57,11 @@ class MongoUriWrapper:
 
     ###########################################################################
     @property
+    def address(self):
+        return self.addresses[0]
+
+    ###########################################################################
+    @property
     def addresses(self):
         addresses = []
         for node in self.node_list:
