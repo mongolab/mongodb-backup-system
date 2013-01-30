@@ -193,8 +193,12 @@ class MongoServer(object):
 
             # authenticate to admin db if creds are available
             if self._uri_wrapper.username:
-                self._admin_db.authenticate(self._uri_wrapper.username,
-                                            self._uri_wrapper.password)
+                auth = self._admin_db.authenticate(self._uri_wrapper.username,
+                                                   self._uri_wrapper.password)
+                if not auth:
+                    raise AuthenticationFailedError("Failed to auth to '%s'" %
+                                                    self.uri_wrapper.masked_uri)
+
 
 
         except Exception, e:
@@ -202,10 +206,6 @@ class MongoServer(object):
                 logger.error("Error while trying to connect to '%s'. %s" %
                              (self, e))
                 return
-            elif "authentication failed" in str(e):
-                raise AuthenticationFailedError("Failed to auth to '%s'" %
-                                                self.uri_wrapper.masked_uri,
-                                                cause=e)
             else:
                 raise
 
