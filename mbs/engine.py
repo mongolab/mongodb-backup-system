@@ -231,9 +231,14 @@ class BackupEngine(Thread):
 
     ###########################################################################
     def worker_fail(self, worker, exception, trace=None):
-        log_msg = "Failure! Cause : %s" % exception
+        if isinstance(exception, MBSError):
+            log_msg = exception.message
+        else:
+            log_msg = "Unexpected error. Please contact admin"
+
+        details = "%s. Stack Trace: %s" % (exception, trace)
         self.log_backup_event(worker.backup, event_type=EVENT_TYPE_ERROR,
-                              message=log_msg)
+                              message=log_msg, details=details)
         self.worker_finished(worker, STATE_FAILED)
 
         backup = worker.backup
@@ -287,8 +292,9 @@ class BackupEngine(Thread):
 
     ###########################################################################
     def log_backup_event(self, backup, event_type=EVENT_TYPE_INFO,
-                                       name=None, message=None):
-        backup.log_event(event_type=event_type, name=name, message=message)
+                                       name=None, message=None, details=None):
+        backup.log_event(event_type=event_type, name=name, message=message,
+                         details=details)
         self._backup_collection.save_document(backup.to_document())
 
 

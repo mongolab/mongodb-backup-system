@@ -253,7 +253,7 @@ class Backup(MBSObject):
 
     ###########################################################################
     def log_event(self, event_type=EVENT_TYPE_INFO, name=None, message=None,
-                        more_info=None):
+                        details=None):
         logs = self.logs
 
         log_entry = BackupLogEntry()
@@ -262,7 +262,7 @@ class Backup(MBSObject):
         log_entry.date = date_now()
         log_entry.state = self.state
         log_entry.message = message
-        log_entry.more_info = more_info
+        log_entry.details = details
 
         logs.append(log_entry)
         self.logs = logs
@@ -380,7 +380,7 @@ class BackupLogEntry(MBSObject):
         self._date = None
         self._state = None
         self._message = None
-        self._more_info = None
+        self._details = None
 
     ###########################################################################
     @property
@@ -429,12 +429,12 @@ class BackupLogEntry(MBSObject):
 
     ###########################################################################
     @property
-    def more_info(self):
-        return self._more_info
+    def details(self):
+        return self._details
 
-    @more_info.setter
-    def more_info(self, value):
-        self._more_info = value
+    @details.setter
+    def details(self, value):
+        self._details = value
 
     ###########################################################################
     def to_document(self, display_only=False):
@@ -450,8 +450,8 @@ class BackupLogEntry(MBSObject):
         if self.message:
             doc["message"] = self.message
 
-        if self.more_info:
-            doc["moreInfo"] = self.more_info
+        if self.details:
+            doc["details"] = self.details
 
         return doc
 

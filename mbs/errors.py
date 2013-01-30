@@ -16,13 +16,26 @@ class MBSError(Exception):
         Base class for all backup system error
     """
     ###########################################################################
-    def __init__(self, msg, cause=None):
+    def __init__(self, msg, cause=None, details=None):
         self.message = msg
         self._cause = cause
+        self._details = details
+
     ###########################################################################
     def __str__(self):
-        cause_str = "Cause: %s" % self._cause if self._cause else ""
-        return "%s: %s. %s" % (self.error_type, self.message, cause_str)
+        return self.detailed_message
+
+    ###########################################################################
+    @property
+    def detailed_message(self):
+        details_str = "Error Type: %s, Details: %s" % (self.error_type,
+                                                       self.message)
+        if self._details:
+            details_str += ". %s" % self._details
+        if self._cause:
+            details_str += ", Cause: %s: %s" % (type(self._cause), self._cause)
+
+        return details_str
 
     ###########################################################################
     @property
@@ -44,15 +57,7 @@ class RetriableError(Exception):
         Base class for ALL retriable errors. All retriable errors should
         inherit this class
     """
-
 ###############################################################################
-# BackupError
-###############################################################################
-class BackupError(MBSError):
-    """
-        Base class for backup errors
-    """
-
 
 class ConnectionError(MBSError, RetriableError):
     """
@@ -78,7 +83,7 @@ class PrimaryNotFoundError(ReplicasetError):
 class NoEligibleMembersFound(ReplicasetError):
     pass
 
-class DumpError(BackupError):
+class DumpError(MBSError):
     """
         Base error for dump errors
     """
@@ -101,7 +106,7 @@ class InvalidDBNameError(DumpError):
 class BadTypeError(DumpError, RetriableError):
     pass
 
-class ArchiveError(BackupError):
+class ArchiveError(MBSError):
     """
         Base error for dump errors
     """
@@ -129,5 +134,5 @@ class TargetFileNotFoundError(TargetError):
 ############ UTILITY ERROR METHODS ##############
 def is_connection_exception(exception):
     msg = str(exception)
-    return ("timed out" in msg or "refused" in msg or "rest" in msg or
-            "Broken pipe" in msg)
+    return ("timed out" in msg or "refused" in msg or "reset" in msg or
+            "Broken pipe" in msg or "closed" in msg)

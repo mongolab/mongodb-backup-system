@@ -88,15 +88,13 @@ class BackupTarget(MBSObject):
         except Exception, e:
             if isinstance(e, TargetError):
                 raise
-
-            if is_connection_exception(e):
+            elif is_connection_exception(e):
                 error_type = TargetConnectionError
             else:
                 error_type = TargetError
-            msg = ("%s: Error while trying to upload '%s'"
-                   " to container '%s'" %
-                   (self.target_type, file_path, self.container_name))
 
+            msg = ("Failed to to upload '%s' to container '%s'" %
+                   (destination_path, self.container_name))
             raise error_type(msg, cause=e)
 
     ###########################################################################
@@ -148,18 +146,22 @@ class BackupTarget(MBSObject):
     def _verify_file_uploaded(self, destination_path, file_size):
 
         dest_exists, dest_size = self._fetch_file_info(destination_path)
+        msg = ("Failed to to upload '%s' to container '%s'" %
+               (destination_path, self.container_name))
+
         if not dest_exists:
-            msg = ("%s: Failure during upload verification: File '%s' does not"
-                   " exist in container '%s'" %
-                   (self.target_type, destination_path, self.container_name))
-            raise TargetUploadError(msg)
+            details = ("%s: Failure during upload verification: File '%s' "
+                       "does not exist in container '%s'" %
+                       (self.target_type, destination_path,
+                        self.container_name))
+            raise TargetUploadError(msg, details)
         elif file_size != dest_size:
-            msg = ("%s: Failure during upload verification: File '%s' size in "
-                   "container '%s' (%s bytes) does not match size on disk "
-                   "(%s bytes)" %
-                   (self.target_type, destination_path, self.container_name,
-                    dest_size, file_size))
-            raise TargetUploadError(msg)
+            details = ("%s: Failure during upload verification: File '%s' size"
+                       " in container '%s' (%s bytes) does not match size on "
+                       "disk (%s bytes)" %
+                       (self.target_type, destination_path,
+                        self.container_name, dest_size, file_size))
+            raise TargetUploadError(msg, details=details)
 
     ###########################################################################
     def _verify_file_deleted(self, file_path):
