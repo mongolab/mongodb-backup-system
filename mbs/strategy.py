@@ -228,8 +228,7 @@ class DumpStrategy(BackupStrategy):
 
         if not selected_member:
             # error out
-            raise NoEligibleMembersFound("No eligible members found to take "
-                                         "dump from")
+            raise NoEligibleMembersFound(source.uri)
 
         self._do_dump_server(backup, selected_member)
 
@@ -393,35 +392,21 @@ class DumpStrategy(BackupStrategy):
             # read the last dump log line
             last_line_tail_cmd = [which('tail'), '-1', dump_log_path]
             last_dump_line = execute_command(last_line_tail_cmd)
-            reason = ""
             # select proper error type to raise
             if e.returncode == 245:
                 error_type = BadCollectionNameError
-                reason = ("Possibly because your database contains collections"
-                         " with bad names (e.g. containing '/' characters). "
-                         "Please rename or drop these collections")
             elif "10334" in last_dump_line:
                 error_type = InvalidBSONObjSizeError
-                reason = "Invalid BSON Object Size Error"
             elif "13338" in last_dump_line:
                 error_type = CappedCursorOverrunError
-                reason = "Capped Cursor Overrun Error"
             elif "13280" in last_dump_line:
                 error_type = InvalidDBNameError
-                reason = "Your database name is invalid"
             elif "10320" in last_dump_line:
                 error_type = BadTypeError
-                reason = "BSONElement: bad type"
             else:
                 error_type = DumpError
 
-            msg = ("Dumping database failed. %s."% reason)
-            details = ("Failed to dump. Dump command '%s' returned a non-zero "
-                       "exit status %s.Check dump logs. Last dump log line: "
-                       "%s" % (dump_cmd_display, e.returncode, last_dump_line))
-
-            raise error_type(msg, cause=e, details=details)
-
+            raise error_type(dump_cmd_display, e.returncode, last_dump_line, e)
 
     ###########################################################################
     def _execute_tar_command(self, path, filename):
@@ -438,15 +423,12 @@ class DumpStrategy(BackupStrategy):
             execute_command(tar_cmd, cwd=working_dir)
 
         except CalledProcessError, e:
-            msg = "Failed to archive dump"
-            details = ("Failed to tar. Tar command '%s' returned a non-zero "
-                       "exit status %s. Command output:\n%s" %
-                       (cmd_display, e.returncode, e.output))
             if "No space left on device" in e.output:
-                raise NoSpaceLeftError(msg, cause=e, details=details)
+                error_type = NoSpaceLeftError
             else:
-                raise ArchiveError(msg, cause=e, details=details)
+                error_type = ArchiveError
 
+            raise error_type(cmd_display, e.returncode, e.output, e)
 
     ###########################################################################
     def _get_backup_dump_dir(self, backup):

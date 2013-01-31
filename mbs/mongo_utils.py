@@ -37,11 +37,9 @@ def mongo_connect(uri):
         return conn[dbname]
     except Exception, e:
         if is_connection_exception(e):
-            raise ConnectionError("Could not establish a database connection "
-                                  "to %s" % uri_wrapper.masked_uri, cause=e)
+            raise ConnectionError(uri_wrapper.masked_uri, cause=e)
         elif "authentication failed" in str(e):
-            raise AuthenticationFailedError("Failed to auth to '%s'" %
-                                            uri_wrapper.masked_uri, cause=e)
+            raise AuthenticationFailedError(uri_wrapper.masked_uri, cause=e)
         else:
             raise
 
@@ -67,9 +65,9 @@ class MongoDatabase(object):
             return _calculate_database_stats(self._database)
         except Exception, e:
             if is_connection_exception(e):
-                raise ConnectionError("Error while trying to compute stats "
-                                      "for database '%s'." %
-                                      self._uri_wrapper.masked_uri, cause=e)
+                raise ConnectionError(self._uri_wrapper.masked_uri,
+                                      details="Compute database stats",
+                                      cause=e)
             else:
                 raise
 
@@ -112,8 +110,7 @@ class MongoCluster(object):
                 primary_member = member
 
         if not primary_member:
-            raise PrimaryNotFoundError("Unable to determine primary for "
-                                       "cluster '%s'" % self)
+            raise PrimaryNotFoundError(uri_wrapper.masked_uri)
         self._members = members
         self._primary_member = primary_member
 
@@ -196,8 +193,7 @@ class MongoServer(object):
                 auth = self._admin_db.authenticate(self._uri_wrapper.username,
                                                    self._uri_wrapper.password)
                 if not auth:
-                    raise AuthenticationFailedError("Failed to auth to '%s'" %
-                                                    self.uri_wrapper.masked_uri)
+                    raise AuthenticationFailedError(self.uri_wrapper.masked_uri)
 
 
 
@@ -252,8 +248,10 @@ class MongoServer(object):
         my_status = self._rs_status
 
         if not my_status:
-            raise ConnectionError("Unable to determine replicaset status for"
-                                  " member '%s'" % self)
+            details = ("Unable to determine replicaset status for member '%s'"
+                       % self)
+            raise ConnectionError(self._uri_wrapper.masked_uri,
+                                  details=details)
 
         lag_in_seconds = abs(timedelta_total_seconds(
             master_status['optimeDate'] -
@@ -321,9 +319,10 @@ class MongoServer(object):
             return stats
         except Exception, e:
             if is_connection_exception(e):
-                raise ConnectionError("Error while trying to compute stats "
-                                      "for server '%s'." %
-                                      self._uri_wrapper.masked_uri, cause=e)
+                details = ("Error while trying to compute stats for server "
+                           "'%s'." % self)
+                raise ConnectionError(self._uri_wrapper.masked_uri,
+                                      details=details, cause=e)
             else:
                 raise
 
@@ -336,7 +335,8 @@ class MongoServer(object):
                 if 'self' in member and member['self']:
                     return member
         except Exception, e:
-            raise ReplicasetError("Cannot get rs for member '%s'", cause=e)
+            details = "Cannot get rs for member '%s'" % self
+            raise ReplicasetError(details=details, cause=e)
 
     ###########################################################################
     def _get_server_status(self):
@@ -353,8 +353,9 @@ class MongoServer(object):
                 del server_status["locks"]
             return server_status
         except Exception, e:
-            raise ServerError("Cannot get server status for member '%s'. " %
-                              self, cause=e)
+            details = "Cannot get server status for member '%s'. " % self
+            raise ServerError(self._uri_wrapper.masked_uri, details=details,
+                              cause=e)
 
     ###########################################################################
     def _get_rs_config(self):
@@ -363,8 +364,8 @@ class MongoServer(object):
             local_db = self._connection["local"]
             return local_db['system.replset'].find_one()
         except Exception, e:
-                raise ReplicasetError("Cannot get rs config for member '%s'." %
-                                      self, cause=e)
+                details = "Cannot get rs config for member '%s'." % self
+                raise ReplicasetError(details=details, cause=e)
 
 
     ###########################################################################

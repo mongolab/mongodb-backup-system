@@ -84,18 +84,14 @@ class BackupTarget(MBSObject):
                          self.container_name))
 
             return target_ref
-
         except Exception, e:
             if isinstance(e, TargetError):
                 raise
             elif is_connection_exception(e):
-                error_type = TargetConnectionError
+                raise TargetConnectionError(self.container_name, cause=e)
             else:
-                error_type = TargetError
-
-            msg = ("Failed to to upload '%s' to container '%s'" %
-                   (destination_path, self.container_name))
-            raise error_type(msg, cause=e)
+                raise TargetUploadError(destination_path, self.container_name,
+                                        cause=e)
 
     ###########################################################################
     def do_put_file(self, file_path, destination_path=None):
@@ -146,22 +142,13 @@ class BackupTarget(MBSObject):
     def _verify_file_uploaded(self, destination_path, file_size):
 
         dest_exists, dest_size = self._fetch_file_info(destination_path)
-        msg = ("Failed to to upload '%s' to container '%s'" %
-               (destination_path, self.container_name))
+        cname = self.container_name
 
         if not dest_exists:
-            details = ("%s: Failure during upload verification: File '%s' "
-                       "does not exist in container '%s'" %
-                       (self.target_type, destination_path,
-                        self.container_name))
-            raise TargetUploadError(msg, details)
+            raise UploadedFileDoesNotExistError(destination_path, cname)
         elif file_size != dest_size:
-            details = ("%s: Failure during upload verification: File '%s' size"
-                       " in container '%s' (%s bytes) does not match size on "
-                       "disk (%s bytes)" %
-                       (self.target_type, destination_path,
-                        self.container_name, dest_size, file_size))
-            raise TargetUploadError(msg, details=details)
+            raise UploadedFileSizeMatchError(destination_path, cname,
+                                             dest_size, file_size)
 
     ###########################################################################
     def _verify_file_deleted(self, file_path):

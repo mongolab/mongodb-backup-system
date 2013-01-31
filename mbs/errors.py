@@ -16,14 +16,16 @@ class MBSError(Exception):
         Base class for all backup system error
     """
     ###########################################################################
-    def __init__(self, msg, cause=None, details=None):
-        self.message = msg
+    def __init__(self, msg=None, cause=None, details=None):
+        self._message = msg
         self._cause = cause
         self._details = details
 
+
     ###########################################################################
-    def __str__(self):
-        return self.detailed_message
+    @property
+    def message(self):
+        return self._message
 
     ###########################################################################
     @property
@@ -45,6 +47,10 @@ class MBSError(Exception):
         """
         return self.__class__.__name__
 
+    ###########################################################################
+    def __str__(self):
+        return self.detailed_message
+
 ###############################################################################
 # ConfigurationError
 ###############################################################################
@@ -57,81 +63,185 @@ class RetriableError(Exception):
         Base class for ALL retriable errors. All retriable errors should
         inherit this class
     """
+
 ###############################################################################
 
 class ConnectionError(MBSError, RetriableError):
     """
         Base error for connection errors
     """
+    ###########################################################################
+    def __init__(self, uri, details=None, cause=None):
+        msg = "Could not establish a database connection to '%s'" % uri
+        super(ConnectionError, self).__init__(msg=msg, details=details, cause=cause)
 
+###############################################################################
 class AuthenticationFailedError(MBSError):
-    pass
 
+    ###########################################################################
+    def __init__(self, uri, cause=None):
+        msg = "Failed to auth to '%s'" % uri
+        super(AuthenticationFailedError, self).__init__(msg=msg, cause=cause)
+
+###############################################################################
 class ServerError(ConnectionError):
     """
         Base error for server errors
     """
 
-class ReplicasetError(ConnectionError):
+###############################################################################
+class ReplicasetError(MBSError, RetriableError):
     """
         Base error for replicaset errors
     """
+    ###########################################################################
+    def __init__(self, details=None, cause=None):
+        msg = "There has been an error while trying to connect to replicaset"
+        super(ReplicasetError, self).__init__(msg=msg, details=details,
+                                              cause=cause)
 
+###############################################################################
 class PrimaryNotFoundError(ReplicasetError):
-    pass
 
+    ###########################################################################
+    def __init__(self, uri):
+        details = "Unable to determine primary for cluster '%s'" % uri
+        super(PrimaryNotFoundError, self).__init__(details=details)
+
+###############################################################################
 class NoEligibleMembersFound(ReplicasetError):
-    pass
 
+    ###########################################################################
+    def __init__(self, uri):
+        details = "No eligible members in '%s' found to take dump from" % uri
+        super(NoEligibleMembersFound, self).__init__(details=details)
+
+
+###############################################################################
 class DumpError(MBSError):
     """
         Base error for dump errors
     """
+    ###########################################################################
+    def __init__(self, dump_cmd, return_code, last_dump_line, cause):
+        msg = ("Dumping database failed.")
+        details = ("Failed to dump. Dump command '%s' returned a non-zero "
+                   "exit status %s.Check dump logs. Last dump log line: "
+                   "%s" % (dump_cmd, return_code, last_dump_line))
+        super(DumpError, self).__init__(msg=msg, details=details, cause=cause)
 
+
+###############################################################################
 class BadCollectionNameError(DumpError):
     """
         Raised when a database contains bad collection names such as the ones
         containing "/"
     """
+    ###########################################################################
+    def __init__(self, dump_cmd, return_code, last_dump_line, cause):
+        super(BadCollectionNameError, self).__init__(dump_cmd, return_code,
+                                                     last_dump_line, cause)
+        self._message = ("Dumping database failed. Possibly because your "
+                         "database contains collections with bad names (e.g. "
+                         "containing '/' characters). Please rename or drop "
+                         "these collections")
 
+
+###############################################################################
 class InvalidBSONObjSizeError(DumpError, RetriableError):
     pass
 
+###############################################################################
 class CappedCursorOverrunError(DumpError, RetriableError):
     pass
 
+###############################################################################
 class InvalidDBNameError(DumpError):
-    pass
 
+    ###########################################################################
+    def __init__(self, dump_cmd, return_code, last_dump_line, cause):
+        super(InvalidDBNameError, self).__init__(dump_cmd, return_code,
+            last_dump_line, cause)
+        self._message = ("Dumping database failed. Your database name is "
+                         "invalid")
+
+###############################################################################
 class BadTypeError(DumpError, RetriableError):
     pass
 
+###############################################################################
 class ArchiveError(MBSError):
     """
-        Base error for dump errors
+        Base error for archive errors
     """
+    def __init__(self, tar_cmd, return_code, cmd_output, cause):
+        msg = "Failed to archive dump"
+        details = ("Failed to tar. Tar command '%s' returned a non-zero "
+                   "exit status %s. Command output:\n%s" %
+                   (tar_cmd, return_code, cmd_output))
+        super(ArchiveError, self).__init__(msg=msg, details=details,
+                                           cause=cause)
 
+###############################################################################
 class NoSpaceLeftError(ArchiveError):
     pass
 
+###############################################################################
 class TargetError(MBSError):
     """
         Base type for target errors
     """
 
+###############################################################################
 class TargetConnectionError(TargetError, RetriableError):
-    pass
+    def __init__(self, container_name, cause=None):
+        msg = ("There has been a connection error while trying to connect to"
+               " container '%s'" % container_name)
+        super(TargetConnectionError, self).__init__(msg, cause=cause)
 
-class TargetUploadError(TargetError, RetriableError):
-    pass
+###############################################################################
+class TargetUploadError(TargetError):
 
+    ###########################################################################
+    def __init__(self, destination_path, container_name, cause=None):
+        msg = ("Failed to to upload '%s' to container '%s'" %
+               (destination_path, container_name))
+        super(TargetUploadError, self).__init__(msg, cause=cause)
+
+
+###############################################################################
+class UploadedFileDoesNotExistError(TargetUploadError, RetriableError):
+
+    ###########################################################################
+    def __init__(self, destination_path, container_name):
+        TargetUploadError.__init__(self, destination_path, container_name)
+        self._details = ("Failure during upload verification: File '%s' does"
+                         "not exist in container '%s'" %
+                        (destination_path, container_name))
+
+###############################################################################
+class UploadedFileSizeMatchError(TargetUploadError, RetriableError):
+
+    ###########################################################################
+    def __init__(self, destination_path, container_name, dest_size, file_size):
+        TargetUploadError.__init__(self, destination_path, container_name)
+        self._details = ("Failure during upload verification: File '%s' size"
+                         " in container '%s' (%s bytes) does not match size on"
+                         " disk (%s bytes)" %
+                         (destination_path, container_name, dest_size,
+                          file_size))
+
+###############################################################################
 class TargetDeleteError(TargetError, RetriableError):
     pass
 
+###############################################################################
 class TargetFileNotFoundError(TargetError):
     pass
 
-############ UTILITY ERROR METHODS ##############
+###############################################################################
+# UTILITY ERROR METHODS
+###############################################################################
 def is_connection_exception(exception):
     msg = str(exception)
     return ("timed out" in msg or "refused" in msg or "reset" in msg or
