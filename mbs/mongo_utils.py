@@ -179,7 +179,8 @@ class MongoServer(object):
 
         try:
             self._connection = pymongo.Connection(self._uri_wrapper.address)
-            self._admin_db = self._connection['admin']
+            self._admin_db = self._connection["admin"]
+            self._authed_to_admin = False
             # connection success! set online to true
             self._is_online = True
 
@@ -187,15 +188,6 @@ class MongoServer(object):
             # to
             if self.is_arbiter():
                 return;
-
-            # authenticate to admin db if creds are available
-            if self._uri_wrapper.username:
-                auth = self._admin_db.authenticate(self._uri_wrapper.username,
-                                                   self._uri_wrapper.password)
-                if not auth:
-                    raise AuthenticationFailedError(self.uri_wrapper.masked_uri)
-
-
 
         except Exception, e:
             if is_connection_exception(e):
@@ -205,10 +197,25 @@ class MongoServer(object):
             else:
                 raise
 
-        self._rs_conf = self._get_rs_config()
-        self._rs_status = self._get_rs_status()
-        self._member_config = self._get_member_config()
+        self._rs_conf = None
+        self._rs_status = None
+        self._member_config = None
         self._lag_in_seconds = 0
+
+    ###########################################################################
+    def get_auth_admin_db(self):
+        if self._authed_to_admin:
+            return self._admin_db
+
+        # authenticate to admin db if creds are available
+        if self._uri_wrapper.username:
+            auth = self._admin_db.authenticate(self._uri_wrapper.username,
+                self._uri_wrapper.password)
+            if not auth:
+                raise AuthenticationFailedError(self.uri_wrapper.masked_uri)
+
+        self._authed_to_admin = True
+        return self._admin_db
 
     ###########################################################################
     @property
@@ -238,14 +245,33 @@ class MongoServer(object):
     ###########################################################################
     @property
     def rs_status(self):
+        if not self._rs_status:
+            self._rs_status = self._get_rs_status()
+
         return self._rs_status
+
+    ###########################################################################
+    @property
+    def rs_conf(self):
+        if not self._rs_conf:
+            self._rs_conf = self._get_rs_config()
+
+        return self._rs_conf
+
+    ###########################################################################
+    @property
+    def member_config(self):
+        if not self._member_config:
+            self._member_config = self._get_member_config()
+
+        return self._member_config
 
     ###########################################################################
     def compute_lag(self, master_status):
         """Given two 'members' elements from rs.status(),
         return lag between their optimes (in secs).
         """
-        my_status = self._rs_status
+        my_status = self.rs_status
 
         if not my_status:
             details = ("Unable to determine replicaset status for member '%s'"
@@ -330,7 +356,7 @@ class MongoServer(object):
     def _get_rs_status(self):
         try:
             rs_status_cmd = SON([('replSetGetStatus', 1)])
-            rs_status =  self._admin_db.command(rs_status_cmd)
+            rs_status =  self.get_auth_admin_db().command(rs_status_cmd)
             for member in rs_status['members']:
                 if 'self' in member and member['self']:
                     return member
@@ -342,7 +368,7 @@ class MongoServer(object):
     def _get_server_status(self):
         try:
             server_status_cmd = SON([('serverStatus', 1)])
-            server_status =  self._admin_db.command(server_status_cmd)
+            server_status =  self.get_auth_admin_db().command(server_status_cmd)
 
             # IMPORTANT NOTE: We remove the "locks" property
             # which is introduced in 2.2.0 to avoid having issues if a client
@@ -361,7 +387,7 @@ class MongoServer(object):
     def _get_rs_config(self):
 
         try:
-            local_db = self._connection["local"]
+            local_db = self.get_auth_admin_db().connection["local"]
             return local_db['system.replset'].find_one()
         except Exception, e:
                 details = "Cannot get rs config for member '%s'." % self
@@ -370,13 +396,13 @@ class MongoServer(object):
 
     ###########################################################################
     def is_passive(self):
-        return self._member_config.get("priority") == 0
+        return self.member_config.get("priority") == 0
 
     ###########################################################################
     def _get_member_config(self):
-        if self._rs_conf:
+        if self.rs_conf:
             host = self.address
-            mem_confs = self._rs_conf["members"]
+            mem_confs = self.rs_conf["members"]
             for mem_conf in mem_confs:
                 if mem_conf["host"] == host:
                     return mem_conf
