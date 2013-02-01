@@ -80,7 +80,7 @@ class AuthenticationFailedError(MBSError):
 
     ###########################################################################
     def __init__(self, uri, cause=None):
-        msg = "Failed to auth to '%s'" % uri
+        msg = "Failed to authenticate to '%s'" % uri
         super(AuthenticationFailedError, self).__init__(msg=msg, cause=cause)
 
 ###############################################################################
@@ -96,7 +96,7 @@ class ReplicasetError(MBSError, RetriableError):
     """
     ###########################################################################
     def __init__(self, details=None, cause=None):
-        msg = "There has been an error while trying to connect to replicaset"
+        msg = "Could not connect to replica set"
         super(ReplicasetError, self).__init__(msg=msg, details=details,
                                               cause=cause)
 
@@ -124,7 +124,7 @@ class DumpError(MBSError):
     """
     ###########################################################################
     def __init__(self, dump_cmd, return_code, last_dump_line, cause):
-        msg = ("Dumping database failed.")
+        msg = ("Failed to mongodump")
         details = ("Failed to dump. Dump command '%s' returned a non-zero "
                    "exit status %s.Check dump logs. Last dump log line: "
                    "%s" % (dump_cmd, return_code, last_dump_line))
@@ -141,11 +141,10 @@ class BadCollectionNameError(DumpError):
     def __init__(self, dump_cmd, return_code, last_dump_line, cause):
         super(BadCollectionNameError, self).__init__(dump_cmd, return_code,
                                                      last_dump_line, cause)
-        self._message = ("Dumping database failed. Possibly because your "
-                         "database contains collections with bad names (e.g. "
-                         "containing '/' characters). Please rename or drop "
-                         "these collections")
-
+        self._message = ("Failed to mongodump... possibly because you "
+                         "have collection name(s) with invalid "
+                         "characters (e.g. '/'). If so, please rename or "
+                         "drop these collection(s)")
 
 ###############################################################################
 class InvalidBSONObjSizeError(DumpError, RetriableError):
@@ -162,8 +161,8 @@ class InvalidDBNameError(DumpError):
     def __init__(self, dump_cmd, return_code, last_dump_line, cause):
         super(InvalidDBNameError, self).__init__(dump_cmd, return_code,
             last_dump_line, cause)
-        self._message = ("Dumping database failed. Your database name is "
-                         "invalid")
+        self._message = ("Failed to mongodump because the name of your "
+                         "database is invalid")
 
 ###############################################################################
 class BadTypeError(DumpError, RetriableError):
@@ -175,7 +174,7 @@ class ArchiveError(MBSError):
         Base error for archive errors
     """
     def __init__(self, tar_cmd, return_code, cmd_output, cause):
-        msg = "Failed to archive dump"
+        msg = "Failed to zip and compress your backup"
         details = ("Failed to tar. Tar command '%s' returned a non-zero "
                    "exit status %s. Command output:\n%s" %
                    (tar_cmd, return_code, cmd_output))
@@ -195,8 +194,8 @@ class TargetError(MBSError):
 ###############################################################################
 class TargetConnectionError(TargetError, RetriableError):
     def __init__(self, container_name, cause=None):
-        msg = ("There has been a connection error while trying to connect to"
-               " container '%s'" % container_name)
+        msg = ("Could not connect to cloud storage "
+               "container '%s'" % container_name)
         super(TargetConnectionError, self).__init__(msg, cause=cause)
 
 ###############################################################################
@@ -204,8 +203,8 @@ class TargetUploadError(TargetError):
 
     ###########################################################################
     def __init__(self, destination_path, container_name, cause=None):
-        msg = ("Failed to to upload '%s' to container '%s'" %
-               (destination_path, container_name))
+        msg = ("Failed to to upload your backup to cloud storage "
+               "container '%s'" % (container_name))
         super(TargetUploadError, self).__init__(msg, cause=cause)
 
 
