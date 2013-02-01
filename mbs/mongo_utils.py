@@ -325,6 +325,10 @@ class MongoServer(object):
 
     ###########################################################################
     def get_stats(self, only_for_db=None):
+
+        # ensure that we are authed to admin
+        self.get_auth_admin_db()
+
         # compute database stats
         try:
             if only_for_db:
