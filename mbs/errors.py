@@ -238,6 +238,13 @@ class TargetDeleteError(TargetError, RetriableError):
 class TargetFileNotFoundError(TargetError):
     pass
 
+
+###############################################################################
+class RetentionPolicyError(MBSError):
+    """
+        Thrown when there is an error when applying retention policy error
+    """
+
 ###############################################################################
 # UTILITY ERROR METHODS
 ###############################################################################

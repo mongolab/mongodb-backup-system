@@ -248,23 +248,26 @@ class BackupEngine(Thread):
             message = ("Backup '%s' failed.\n%s\n\nCause: \n%s\nStack Trace:"
                        "\n%s" % (backup.id, backup, exception, trace))
 
-            self._send_notification(subject, message)
+            self._send_error_notification(subject, message, exception)
 
     ###########################################################################
     def _notify_error(self, exception):
-        if self._notification_handler:
-            subject = "BackupEngine Error"
-            message = ("BackupEngine '%s' Error!. Cause: %s. "
-                       "\n\nStack Trace:\n%s" %
-                       (self.engine_guid, exception, traceback.format_exc()))
-
-            self._notification_handler.send_notification(subject, message)
+        subject = "BackupEngine Error"
+        message = ("BackupEngine '%s' Error!. Cause: %s. "
+                   "\n\nStack Trace:\n%s" %
+                   (self.engine_guid, exception, traceback.format_exc()))
+        self._send_error_notification(subject, message, exception)
 
     ###########################################################################
     def _send_notification(self, subject, message):
         if self.notification_handler:
             self.notification_handler.send_notification(subject, message)
 
+    ###########################################################################
+    def _send_error_notification(self, subject, message, exception):
+        if self.notification_handler:
+            self.notification_handler.send_error_notification(subject, message,
+                                                              exception)
     ###########################################################################
     def worker_success(self, worker):
         self.log_backup_event(worker.backup,
@@ -691,7 +694,8 @@ class BackupWorker(Thread):
             msg = ("Error while applying retention policy for backup plan "
                    "'%s'. %s" % (backup.plan.id, e))
             logger.error(msg)
-            #self.engine._send_notification("Retention Policy Error", msg)
+            self.engine._send_error_notification("Retention Policy Error", msg,
+                                                  e)
 
 
     ###########################################################################

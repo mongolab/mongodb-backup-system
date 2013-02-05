@@ -506,7 +506,8 @@ class PlanManager(Thread):
             message = ("PlanManager Error!.\n\nStack Trace:\n%s" %
                        traceback.format_exc())
 
-            self._notification_handler.send_notification(subject, message)
+            nh = self._notification_handler
+            nh._send_error_notification(subject, message, exception)
 
     ###########################################################################
     # Manager stopping

@@ -3,6 +3,7 @@ __author__ = 'abdul'
 import traceback
 import mbs_logging
 from mbs import get_mbs
+from errors import RetentionPolicyError
 from base import MBSObject
 from date_utils import date_now, date_minus_seconds
 
@@ -63,7 +64,11 @@ class RetentionPolicy(MBSObject):
                 logger.error("%s: Error while archiving backup %s. "
                              "Trace: %s" %
                              (policy_name, backup.id, traceback.format_exc()))
-                raise
+
+                msg = ("Error while applying retention policy on backup %s. " %
+                       backup.id)
+                raise RetentionPolicyError(msg, cause=e,
+                                           details=traceback.format_exc())
 
     ###########################################################################
     def get_expired_backups(self, plan):

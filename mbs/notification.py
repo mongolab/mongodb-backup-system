@@ -25,12 +25,39 @@ class NotificationHandler(object):
 
     ###########################################################################
     def __init__(self):
-        pass
+        self._error_recipient_mapping = None
+
     ###########################################################################
-
-    def send_notification(self, subject, message):
+    def send_notification(self, subject, message, recipient=None):
         pass
 
+    ###########################################################################
+    def send_error_notification(self, subject, message, exception):
+        recipient = self.get_recipient_by_error_class(exception.__class__)
+
+        self.send_notification(subject, message, recipient)
+
+    ###########################################################################
+    def get_recipient_by_error_class(self, error_class):
+        class_name = get_class_full_name(error_class)
+        if class_name in self.error_recipient_mapping:
+            return self.error_recipient_mapping[class_name]
+        else:
+            for base in error_class.__bases__:
+                recipient = self.get_recipient_by_error_class(base)
+                if recipient:
+                    return recipient
+
+
+
+    ###########################################################################
+    @property
+    def error_recipient_mapping(self):
+        return self._error_recipient_mapping
+
+    @error_recipient_mapping.setter
+    def error_recipient_mapping(self, val):
+        self._error_recipient_mapping = val
 
 
 ###############################################################################
@@ -50,14 +77,14 @@ class EmailNotificationHandler(NotificationHandler):
 
     ###########################################################################
 
-    def send_notification(self, subject, message):
+    def send_notification(self, subject, message, recipient=None):
 
         try:
 
             logger.info("Sending notification email...")
             msg = MIMEText(message.encode('utf-8'), 'plain', 'UTF-8')
 
-            to_address = listify(self._to_address)
+            to_address = listify(recipient or self._to_address)
             msg['From'] = self.from_address
             msg['To'] = ",".join(to_address)
 
@@ -120,3 +147,8 @@ class EmailNotificationHandler(NotificationHandler):
     @to_address.setter
     def to_address(self, to_address):
         self._to_address = to_address
+
+###############################################################################
+def get_class_full_name(clazz):
+    return (clazz.__module__ + "." +
+            clazz.__name__)
