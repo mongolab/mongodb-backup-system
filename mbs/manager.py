@@ -175,6 +175,7 @@ class PlanManager(Thread):
         # run those things every 100 ticks
         if self._tick_count % 100 == 0:
             self._notify_on_past_due_scheduled_backups()
+            self._notify_on_late_in_progress_backups()
             self._cancel_past_cycle_scheduled_backups()
             self._run_plan_generators()
             self._reschedule_in_cycle_failed_backups()
@@ -497,6 +498,34 @@ class PlanManager(Thread):
             if self._notification_handler:
                 self.info("Sending a notification...")
                 sbj = "Past due scheduled backups"
+                self._notification_handler.send_notification(sbj, msg)
+
+    ###########################################################################
+    def _notify_on_late_in_progress_backups(self):
+        """
+            Send notifications for jobs that have been in progress for a period
+            longer than a MAX_BACKUP_WAIT_TIME threshold
+        """
+
+        min_start_date = date_minus_seconds(date_now(), MAX_BACKUP_WAIT_TIME)
+        q = {
+            "state": STATE_IN_PROGRESS,
+            "startDate": {
+                "$lt": min_start_date
+            }
+        }
+
+        late_backups = self._backup_collection.find(q)
+
+        if late_backups:
+            msg = ("You have %s in-progress backups that has been running for"
+                   " more than the maximum waiting time (%s seconds)." %
+                   (len(late_backups), MAX_BACKUP_WAIT_TIME))
+            self.info(msg)
+
+            if self._notification_handler:
+                self.info("Sending a notification...")
+                sbj = "Late in-progress backups"
                 self._notification_handler.send_notification(sbj, msg)
 
     ###########################################################################
