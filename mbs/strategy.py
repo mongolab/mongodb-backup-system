@@ -7,7 +7,7 @@ import mbs_logging
 import mongo_uri_tools
 
 from base import MBSObject
-from mbs import get_mbs
+from persistence import update_backup
 from mongo_utils import MongoCluster, MongoDatabase, MongoServer
 from subprocess import CalledProcessError
 from errors import *
@@ -15,7 +15,7 @@ from utils import (which, ensure_dir, execute_command, call_command)
 
 
 
-from backup import  EVENT_TYPE_INFO, EVENT_TYPE_WARNING
+from backup import EVENT_TYPE_WARNING
 from robustify.robustify import robustify
 
 ###############################################################################
@@ -121,6 +121,7 @@ class DumpStrategy(BackupStrategy):
         except Exception, e:
             # set reschedulable
             backup.reschedulable = self.is_backup_reschedulable(backup, e)
+            update_backup(backup, properties="reschedulable")
             raise
 
     ###########################################################################
@@ -154,9 +155,9 @@ class DumpStrategy(BackupStrategy):
     def _dump_source(self, backup):
 
         logger.info("Dumping source %s " % backup.source)
-        log_backup_event(backup,
-            name=EVENT_START_EXTRACT,
-            message="Dumping source")
+        update_backup(backup,
+                      event_name=EVENT_START_EXTRACT,
+                      message="Dumping source")
 
         # log warning if dumping from a cluster's primary or from a too
         # stale member
@@ -170,9 +171,9 @@ class DumpStrategy(BackupStrategy):
             self._dump_database_source(backup)
 
 
-        log_backup_event(backup,
-            name=EVENT_END_EXTRACT,
-            message="Dump completed")
+        update_backup(backup,
+                      event_name=EVENT_END_EXTRACT,
+                      message="Dump completed")
 
     ###########################################################################
     def _dump_cluster_source(self, backup):
@@ -207,10 +208,10 @@ class DumpStrategy(BackupStrategy):
 
                     msg = ("Warning! The dump will be extracted from a too "
                            "stale member")
-                    log_backup_event(backup,
-                                     event_type=EVENT_TYPE_WARNING,
-                                     name="USING_TOO_STALE_WARNING",
-                                     message=msg)
+                    update_backup(backup,
+                                  event_type=EVENT_TYPE_WARNING,
+                                  event_name="USING_TOO_STALE_WARNING",
+                                  message=msg)
 
 
         if not selected_member and self.primary_ok:
@@ -221,10 +222,10 @@ class DumpStrategy(BackupStrategy):
                            "primary!" % backup.id)
 
             msg = "Warning! The dump will be extracted from the  primary"
-            log_backup_event(backup,
-                             event_type=EVENT_TYPE_WARNING,
-                             name="USING_PRIMARY_WARNING",
-                             message=msg)
+            update_backup(backup,
+                          event_type=EVENT_TYPE_WARNING,
+                          event_name="USING_PRIMARY_WARNING",
+                          message=msg)
 
         if not selected_member:
             # error out
@@ -242,11 +243,10 @@ class DumpStrategy(BackupStrategy):
         else:
             backup.source_stats = mongo_server.get_stats()
 
-        # save source stats if present
-
-
-        log_backup_event(backup, name="COMPUTED_SOURCE_STATS",
-                                 message="Computed source stats")
+        # save source stats
+        update_backup(backup, properties="sourceStats",
+                      event_name="COMPUTED_SOURCE_STATS",
+                      message="Computed source stats")
 
         # dump the the server
         uri = mongo_server.uri
@@ -267,6 +267,12 @@ class DumpStrategy(BackupStrategy):
         mongo_database = MongoDatabase(backup.source.uri)
         # record stats
         backup.source_stats = mongo_database.get_stats()
+
+        # save source stats
+        update_backup(backup, properties="sourceStats",
+                      event_name="COMPUTED_SOURCE_STATS",
+                      message="Computed source stats")
+
         self._do_dump_backup(backup, backup.source.uri)
 
     ###########################################################################
@@ -274,38 +280,40 @@ class DumpStrategy(BackupStrategy):
         dump_dir = self._get_backup_dump_dir(backup)
         tar_filename = _tar_file_name(backup)
         logger.info("Taring dump %s to %s" % (dump_dir, tar_filename))
-        log_backup_event(backup,
-            name=EVENT_START_ARCHIVE,
-            message="Taring dump")
+        update_backup(backup,
+                      event_name=EVENT_START_ARCHIVE,
+                      message="Taring dump")
 
         self._execute_tar_command(dump_dir, tar_filename)
 
-        log_backup_event(backup,
-            name=EVENT_END_ARCHIVE,
-            message="Taring completed")
+        update_backup(backup,
+                      event_name=EVENT_END_ARCHIVE,
+                      message="Taring completed")
 
     ###########################################################################
     def _upload_dump(self, backup):
         tar_file_path = self._get_tar_file_path(backup)
         logger.info("Uploading %s to target" % tar_file_path)
-        log_backup_event(backup,
-            name=EVENT_START_UPLOAD,
-            message="Upload tar to target")
+
+        update_backup(backup,
+                      event_name=EVENT_START_UPLOAD,
+                      message="Upload tar to target")
         upload_dest_path = _upload_file_dest(backup)
         target_reference = backup.target.put_file(tar_file_path,
             destination_path=upload_dest_path)
+
         backup.target_reference = target_reference
 
-        log_backup_event(backup,
-            name=EVENT_END_UPLOAD,
-            message="Upload completed!")
+        update_backup(backup, properties="targetReference",
+                      event_name=EVENT_END_UPLOAD,
+                      message="Upload completed!")
 
     ###########################################################################
     def _tar_and_upload_failed_dump(self, backup):
         logger.info("Taring up failed backup '%s' ..." % backup.id)
-        log_backup_event(backup,
-            name="ERROR_HANDLING_START_TAR",
-            message="Taring bad dump")
+        update_backup(backup,
+                      event_name="ERROR_HANDLING_START_TAR",
+                      message="Taring bad dump")
 
         dump_dir = self._get_backup_dump_dir(backup)
         tar_filename = _tar_file_name(backup)
@@ -313,22 +321,22 @@ class DumpStrategy(BackupStrategy):
 
         # tar up
         self._execute_tar_command(dump_dir, tar_filename)
-        log_backup_event(backup,
-            name="ERROR_HANDLING_END_TAR",
-            message="Finished taring bad dump")
+        update_backup(backup,
+                      event_name="ERROR_HANDLING_END_TAR",
+                      message="Finished taring bad dump")
 
         # upload
         logger.info("Uploading tar for failed backup '%s' ..." % backup.id)
-        log_backup_event(backup,
-            name="ERROR_HANDLING_START_UPLOAD",
-            message="Uploading bad tar")
+        update_backup(backup,
+                      event_name="ERROR_HANDLING_START_UPLOAD",
+                      message="Uploading bad tar")
 
         target_reference = backup.target.put_file(tar_file_path)
         backup.target_reference = target_reference
 
-        log_backup_event(backup,
-            name="ERROR_HANDLING_END_UPLOAD",
-            message="Finished uploading bad tar")
+        update_backup(backup, properties="targetReference",
+                      event_name="ERROR_HANDLING_END_UPLOAD",
+                      message="Finished uploading bad tar")
 
     ###########################################################################
     def cleanup_backup(self, backup):
@@ -336,9 +344,9 @@ class DumpStrategy(BackupStrategy):
         # delete the temp dir
         workspace = backup.workspace
         logger.info("Cleanup: deleting workspace dir %s" % workspace)
-        log_backup_event(backup,
-            name="CLEANUP",
-            message="Running cleanup")
+        update_backup(backup,
+                      event_name="CLEANUP",
+                      message="Running cleanup")
 
         try:
 
@@ -443,12 +451,6 @@ class DumpStrategy(BackupStrategy):
 ###############################################################################
 # Helpers
 ###############################################################################
-
-
-def log_backup_event(backup, event_type=EVENT_TYPE_INFO,
-                     name=None, message=None):
-    backup.log_event(event_type=event_type, name=name, message=message)
-    get_mbs().backup_collection.save_document(backup.to_document())
 
 def _tar_file_name(backup):
     return "%s.tgz" % _backup_dump_dir_name(backup)

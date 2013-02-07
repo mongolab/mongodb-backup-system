@@ -16,7 +16,9 @@ from date_utils import date_now, date_minus_seconds, time_str_to_datetime_today
 from errors import MBSError
 from audit import GlobalAuditor, PlanAuditor
 from backup import (Backup, STATE_SCHEDULED, STATE_IN_PROGRESS, STATE_FAILED,
-                    STATE_CANCELED)
+                    STATE_CANCELED, EVENT_STATE_CHANGE)
+
+from persistence import update_backup
 ###############################################################################
 ########################                                #######################
 ######################## Plan Management and Scheduling #######################
@@ -280,9 +282,10 @@ class PlanManager(Thread):
 
         for backup in self._backup_collection.find(q):
             self.info("Cancelling backup %s" % backup._id)
-            backup.change_state(STATE_CANCELED, message="Backup is past due." \
-                                                        " Canceling...")
-            self._backup_collection.save_document(backup.to_document())
+            backup.state = STATE_CANCELED
+            update_backup(backup, properties="state",
+                          event_name=EVENT_STATE_CHANGE,
+                          message="Backup is past due. Canceling...")
 
     ###########################################################################
     def _reschedule_in_cycle_failed_backups(self):
@@ -333,8 +336,10 @@ class PlanManager(Thread):
             raise PlanManagerError(msg)
 
         self.info("Rescheduling backup %s" % backup._id)
-        backup.change_state(STATE_SCHEDULED, message="Rescheduling")
-        self._backup_collection.save_document(backup.to_document())
+        backup.state = STATE_SCHEDULED
+        update_backup(backup, properties="state",
+                      event_name=EVENT_STATE_CHANGE,
+                      message="Rescheduling")
 
     ###########################################################################
     def _schedule_new_backup(self, plan):
@@ -363,7 +368,13 @@ class PlanManager(Thread):
     ###########################################################################
     def _set_plan_next_occurrence(self, plan):
         plan.next_occurrence = plan.next_natural_occurrence()
-        self._plan_collection.save_document(plan.to_document())
+        q = {"_id": plan.id}
+        u = {
+            "$set": {
+                "nextOccurrence": plan.next_occurrence
+            }
+        }
+        self._plan_collection.update(spec=q, document=u)
 
     ###########################################################################
     def save_plan(self, plan):

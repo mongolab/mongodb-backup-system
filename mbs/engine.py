@@ -27,7 +27,9 @@ from date_utils import  timedelta_total_seconds, date_now
 
 from backup import (STATE_SCHEDULED, STATE_IN_PROGRESS, STATE_FAILED,
                     STATE_SUCCEEDED, STATE_CANCELED,
-                    EVENT_TYPE_INFO, EVENT_TYPE_ERROR)
+                    EVENT_TYPE_ERROR, EVENT_STATE_CHANGE, state_change_log_entry)
+
+from persistence import update_backup
 
 from target import EbsSnapshotReference
 
@@ -203,10 +205,6 @@ class BackupEngine(Thread):
         # read next failed past due backup
         backup = self._read_next_failed_past_due_backup()
         if backup:
-            # set backup state to cancelled
-            msg = "Backup failed and is past due. Cancelling..."
-            backup.change_state(STATE_CANCELED, message=msg)
-
             # clean it
             worker_id = self.next_worker_id()
             self.info("Starting cleaner worker for backup '%s'" % backup.id)
@@ -237,8 +235,9 @@ class BackupEngine(Thread):
             log_msg = "Unexpected error. Please contact admin"
 
         details = "%s. Stack Trace: %s" % (exception, trace)
-        self.log_backup_event(worker.backup, event_type=EVENT_TYPE_ERROR,
-                              message=log_msg, details=details)
+        update_backup(worker.backup, event_type=EVENT_TYPE_ERROR,
+                      message=log_msg, details=details)
+
         self.worker_finished(worker, STATE_FAILED)
 
         backup = worker.backup
@@ -270,8 +269,9 @@ class BackupEngine(Thread):
                                                               exception)
     ###########################################################################
     def worker_success(self, worker):
-        self.log_backup_event(worker.backup,
-                              message="Backup completed successfully!")
+        update_backup(worker.backup,
+                      message="Backup completed successfully!")
+
         self.worker_finished(worker, STATE_SUCCEEDED)
 
     ###########################################################################
@@ -286,20 +286,9 @@ class BackupEngine(Thread):
             backup.end_date = date_now()
         # decrease worker count and update state
         self._worker_count -= 1
-        self.update_backup_state(backup, state, message=message)
-
-    ###########################################################################
-    def update_backup_state(self, backup, state, message=None):
-        backup.change_state(state, message)
-        self._backup_collection.save_document(backup.to_document())
-
-    ###########################################################################
-    def log_backup_event(self, backup, event_type=EVENT_TYPE_INFO,
-                                       name=None, message=None, details=None):
-        backup.log_event(event_type=event_type, name=name, message=message,
-                         details=details)
-        self._backup_collection.save_document(backup.to_document())
-
+        backup.state = state
+        update_backup(backup, properties=["state", "endDate"],
+                      event_name=EVENT_STATE_CHANGE, message=message)
 
     ###########################################################################
     def _recover(self):
@@ -316,11 +305,16 @@ class BackupEngine(Thread):
         }
 
         total_crashed = 0
+        msg = ("Engine crashed while backup was in progress. Failing...")
         for backup in self._backup_collection.find(q):
             # fail backup
             self.info("Recovery: Failing backup %s" % backup._id)
             backup.reschedulable = True
-            self.update_backup_state(backup, STATE_FAILED)
+            backup.state = STATE_FAILED
+            # update
+            update_backup(backup, properties=["state", "reschedulable"],
+                          event_type=EVENT_STATE_CHANGE, message=msg)
+
             total_crashed += 1
 
 
@@ -331,9 +325,11 @@ class BackupEngine(Thread):
     ###########################################################################
     def read_next_backup(self):
 
+        log_entry = state_change_log_entry(STATE_IN_PROGRESS)
         q = self._get_scheduled_backups_query()
         u = {"$set" : { "state" : STATE_IN_PROGRESS,
-                        "engineGuid": self.engine_guid}}
+                        "engineGuid": self.engine_guid},
+             "$push": {"logs":log_entry.to_document()}}
 
         # sort by priority except every third tick, we sort by created date to
         # avoid starvation
@@ -344,10 +340,7 @@ class BackupEngine(Thread):
 
         c = self._backup_collection
 
-        backup = c.find_and_modify(query=q, sort=s, update=u)
-
-        if backup:
-            backup.engine_guid = self.engine_guid
+        backup = c.find_and_modify(query=q, sort=s, update=u, new=True)
 
         return backup
 
@@ -369,9 +362,16 @@ class BackupEngine(Thread):
               ]
         }
 
-        u = {"$set" : { "state" : STATE_CANCELED}}
+        msg = "Backup failed and is past due. Cancelling..."
+        log_entry = state_change_log_entry(STATE_CANCELED, message=msg)
+        u = {"$set" : { "state" : STATE_CANCELED},
+             "$push": {
+                 "logs": log_entry.to_document()
+             }
+        }
 
-        return self._backup_collection.find_and_modify(query=q, update=u)
+        return self._backup_collection.find_and_modify(query=q, update=u,
+                                                       new=True)
 
     ###########################################################################
     def _get_scheduled_backups_query(self):
@@ -556,28 +556,29 @@ class BackupWorker(Thread):
     ###########################################################################
     def run(self):
         backup = self.backup
-        # increase # of tries
-        backup.try_count += 1
-
-        self.info("Running %s backup %s (try # %s)" %
-                  (backup.strategy, backup._id, backup.try_count))
-        # set start date
-        backup.start_date = date_now()
-        # set backup name
-        _set_backup_name(backup)
-
-        # apply the retention policy
-        # TODO Probably should be called somewhere else
-        self._apply_retention_policy(backup)
-
-        # set state to be in progress
-        backup.change_state(STATE_IN_PROGRESS)
 
         try:
+            # increase # of tries
+            backup.try_count += 1
+
+            self.info("Running %s backup %s (try # %s)" %
+                      (backup.strategy, backup._id, backup.try_count))
+            # set start date
+            backup.start_date = date_now()
+            # set backup name
+            _set_backup_name(backup)
 
             # set the workspace
             workspace_dir = self._get_backup_workspace_dir(backup)
             backup.workspace = workspace_dir
+
+            # UPDATE!
+            update_backup(backup, properties=["tryCount", "startDate", "name",
+                                              "workspace"])
+            # apply the retention policy
+            # TODO Probably should be called somewhere else
+            self._apply_retention_policy(backup)
+
             # run the backup
             self.backup.strategy.run_backup(backup)
 
@@ -616,6 +617,8 @@ class BackupWorker(Thread):
             size_mb = backup.source_stats["fileSize"] / (1024 * 1024)
             rate = size_mb/duration
             backup.backup_rate_in_mbps = round(rate, 2)
+            # save changes
+            update_backup(backup, properties="backupRateInMBPS")
 
     ###########################################################################
     # EBS Snapshot Strategy
@@ -627,19 +630,18 @@ class BackupWorker(Thread):
         self.info("Getting backup source volume '%s'" %
                   ebs_volume_source.volume_id)
 
-        self.engine.log_backup_event(backup,
-                                     name="GET_EBS_VOLUME",
-                                     message="Getting volume '%s'" %
-                                             ebs_volume_source.volume_id)
+        update_backup(backup, name="GET_EBS_VOLUME",
+                      message="Getting volume '%s'" %
+                                 ebs_volume_source.volume_id)
 
         volume = ebs_volume_source.get_volume()
 
         self.info("Kicking off ebs snapshot for backup '%s' volumeId '%s'" %
                   (backup.id, ebs_volume_source.volume_id))
 
-        self.engine.log_backup_event(backup,
-                                     name="START_EBS_SNAPSHOT",
-                                     message="Kicking off snapshot")
+        update_backup(backup,
+                      name="START_EBS_SNAPSHOT",
+                      message="Kicking off snapshot")
 
         snapshot_desc = self.backup_dir_name(backup)
         if not volume.create_snapshot(snapshot_desc):
@@ -654,9 +656,9 @@ class BackupWorker(Thread):
             msg = ("Snapshot kicked off successfully. Snapshot id '%s'. "
                    "Waiting for snapshot to complete..." % snapshot.id)
 
-            self.engine.log_backup_event(backup,
-                                         name="EBS_START_SUCCESS",
-                                         message=msg)
+            update_backup(backup,
+                          name="EBS_START_SUCCESS",
+                          message=msg)
 
             def log_func():
                 self.info("Waiting for snapshot '%s' status to be completed" %

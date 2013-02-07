@@ -46,9 +46,9 @@ class RetentionPolicy(MBSObject):
                             {"targetReference.expiredDate": None}
                     ]
                 }
-
+                expired_date = date_now()
                 u = {
-                    "$set": {"targetReference.expiredDate": date_now()}
+                    "$set": {"targetReference.expiredDate": expired_date}
                 }
                 backup = backup_collection.find_and_modify(query=q, update=u)
                 if backup:
@@ -56,8 +56,8 @@ class RetentionPolicy(MBSObject):
                                 "file" %
                                 (policy_name, backup.id))
                     backup.target.delete_file(backup.target_reference)
-                    backup.target_reference.expired_date = date_now()
-                    backup_collection.save_document(backup.to_document())
+                    backup.target_reference.expired_date = expired_date
+
                     logger.info("%s: Backup %s archived successfully!" %
                                 (policy_name, backup.id))
             except Exception, e:

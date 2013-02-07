@@ -84,7 +84,7 @@ class Backup(MBSObject):
         """
         if state != self.state:
             self.state = state
-            self.log_event(name=EVENT_STATE_CHANGE, message=message)
+            return self.log_event(name=EVENT_STATE_CHANGE, message=message)
 
     ###########################################################################
     @property
@@ -266,6 +266,7 @@ class Backup(MBSObject):
 
         logs.append(log_entry)
         self.logs = logs
+        return log_entry
 
     ###########################################################################
     def has_errors(self):
@@ -455,4 +456,17 @@ class BackupLogEntry(MBSObject):
 
         return doc
 
-    ###########################################################################
+###############################################################################
+# Helpers
+###############################################################################
+def state_change_log_entry(state, message=None):
+
+    log_entry = BackupLogEntry()
+    log_entry.event_type = EVENT_TYPE_INFO
+    log_entry.name = EVENT_STATE_CHANGE
+    log_entry.date = date_now()
+    log_entry.state = state
+    log_entry.message = message
+
+
+    return log_entry
