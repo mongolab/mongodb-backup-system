@@ -547,7 +547,7 @@ class PlanManager(Thread):
                        traceback.format_exc())
 
             nh = self._notification_handler
-            nh._send_error_notification(subject, message, exception)
+            nh.send_error_notification(subject, message, exception)
 
     ###########################################################################
     # Manager stopping
