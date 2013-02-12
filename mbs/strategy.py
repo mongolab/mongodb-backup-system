@@ -411,6 +411,10 @@ class DumpStrategy(BackupStrategy):
                 error_type = InvalidDBNameError
             elif "10320" in last_dump_line:
                 error_type = BadTypeError
+            elif "Cannot connect" in last_dump_line:
+                error_type = MongoctlConnectionError
+            elif "cursor didn't exist on server" in last_dump_line:
+                error_type = CursorDoesNotExistError
             else:
                 error_type = DumpError
 

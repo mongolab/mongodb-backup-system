@@ -169,6 +169,16 @@ class BadTypeError(DumpError, RetriableError):
     pass
 
 ###############################################################################
+class MongoctlConnectionError(DumpError, RetriableError):
+    """
+        Raised when mongoctl (used for dump) cannot connect to source
+    """
+
+###############################################################################
+class CursorDoesNotExistError(DumpError, RetriableError):
+    pass
+
+###############################################################################
 class ArchiveError(MBSError):
     """
         Base error for archive errors
