@@ -93,8 +93,9 @@ class BackupEngine(Thread):
         return self._id
 
     @id.setter
-    def id(self, id):
-        self._id = str(id)
+    def id(self, val):
+        if val:
+            self._id = val.encode('ascii', 'ignore')
 
     ###########################################################################
     @property
