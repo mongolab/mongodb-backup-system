@@ -6,6 +6,7 @@ from date_utils import (seconds_to_date, date_to_seconds, date_plus_seconds,
                         date_now, is_date_value, epoch_date)
 
 from backup import PRIORITY_LOW
+from tags import DynamicTag
 
 ###############################################################################
 # BackupPlan
@@ -127,6 +128,31 @@ class BackupPlan(MBSObject):
         self._tags = tags
 
     ###########################################################################
+    def generate_tags(self):
+        if self.tags:
+            tag_vals = {}
+            for name,value in self.tags.items():
+                if isinstance(value, DynamicTag):
+                    tag_vals[name] = value.generate_tag_value(self)
+                else:
+                    tag_vals[name] = value
+
+            return tag_vals
+
+
+    ###########################################################################
+    def _export_tags(self):
+        if self.tags:
+            exported_tags = {}
+            for name,value in self.tags.items():
+                if isinstance(value, DynamicTag):
+                    exported_tags[name]= value.to_document()
+                else:
+                    exported_tags[name] = value
+
+            return exported_tags
+
+    ###########################################################################
     @property
     def backup_naming_scheme(self):
         return self._backup_naming_scheme
@@ -222,7 +248,7 @@ class BackupPlan(MBSObject):
             doc["generator"] = self.generator
 
         if self.tags:
-            doc["tags"] = self.tags
+            doc["tags"] = self._export_tags()
 
         if self.backup_naming_scheme:
             doc["backupNamingScheme"] = self.backup_naming_scheme

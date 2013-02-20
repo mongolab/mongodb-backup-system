@@ -337,7 +337,11 @@ class PlanManager(Thread):
 
         self.info("Rescheduling backup %s" % backup._id)
         backup.state = STATE_SCHEDULED
-        update_backup(backup, properties="state",
+        # regenerate backup tags if backup belongs to a plan
+        if backup.plan:
+            backup.tags = backup.plan.generate_tags()
+
+        update_backup(backup, properties=["state", "tags"],
                       event_name=EVENT_STATE_CHANGE,
                       message="Rescheduling")
 
@@ -350,7 +354,7 @@ class PlanManager(Thread):
         backup.strategy = plan.strategy
         backup.source = plan.source
         backup.target = plan.target
-        backup.tags = plan.tags
+        backup.tags = plan.generate_tags()
         backup.priority = plan.priority
         backup.plan_occurrence = plan.next_occurrence
         backup.change_state(STATE_SCHEDULED)
