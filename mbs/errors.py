@@ -256,6 +256,22 @@ class RetentionPolicyError(MBSError):
     """
 
 ###############################################################################
+class DumpNotOnLocalhost(MBSError, RetriableError):
+    """
+        Thrown when strategy.ensureLocalHost is set and dump runs on a host
+        that is not localhost
+    """
+
+###############################################################################
+# Block Storage Snapshot Errors
+###############################################################################
+class BlockStorageSnapshotError(MBSError):
+    """
+        Base classes for all volume snapshot errors
+    """
+
+
+###############################################################################
 # UTILITY ERROR METHODS
 ###############################################################################
 def is_connection_exception(exception):

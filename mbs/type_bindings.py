@@ -9,12 +9,15 @@ TYPE_BINDINGS = {
     "Schedule": "mbs.plan.Schedule",
     "Strategy": "mbs.strategy.BackupStrategy",
     "DumpStrategy": "mbs.strategy.DumpStrategy",
+    "CloudBlockStorageStrategy": "mbs.strategy.CloudBlockStorageStrategy",
+    "HybridStrategy": "mbs.strategy.HybridStrategy",
+    "FileSizePredicate": "mbs.strategy.FileSizePredicate",
     "Source": "mbs.source.BackupSource",
     "SourceStats": "mbs.source.SourceStats",
     "Target": "mbs.target.BackupTarget",
     "TargetReference": "mbs.target.TargetReference",
     "MongoSource": "mbs.source.MongoSource",
-    "EbsVolumeSource": "mbs.source.EbsVolumeSource",
+    "EbsVolumeStorage": "mbs.source.EbsVolumeStorage",
     "S3BucketTarget": "mbs.target.S3BucketTarget",
     "EbsSnapshotTarget": "mbs.target.EbsSnapshotTarget",
     "RackspaceCloudFilesTarget": "mbs.target.RackspaceCloudFilesTarget",
@@ -27,6 +30,6 @@ TYPE_BINDINGS = {
     "PlanAuditReport": "mbs.audit.PlanAuditReport",
     "PlanAuditEntry": "mbs.audit.PlanAuditEntry",
     "EmailNotificationHandler": "mbs.notification.EmailNotificationHandler",
-    "Encryptor": "mbs.encryption.Encryptor"
+    "Encryptor": "mbs.encryption.Encryptor",
 
 }

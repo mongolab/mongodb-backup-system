@@ -31,8 +31,6 @@ from backup import (STATE_SCHEDULED, STATE_IN_PROGRESS, STATE_FAILED,
 
 from persistence import update_backup
 
-from target import EbsSnapshotReference
-
 ###############################################################################
 # CONSTANTS
 ###############################################################################
@@ -620,68 +618,6 @@ class BackupWorker(Thread):
             backup.backup_rate_in_mbps = round(rate, 2)
             # save changes
             update_backup(backup, properties="backupRateInMBPS")
-
-    ###########################################################################
-    # EBS Snapshot Strategy
-    ###########################################################################
-    def _run_ebs_snapshot_backup(self, backup):
-
-
-        ebs_volume_source = backup.source
-        self.info("Getting backup source volume '%s'" %
-                  ebs_volume_source.volume_id)
-
-        update_backup(backup, name="GET_EBS_VOLUME",
-                      message="Getting volume '%s'" %
-                                 ebs_volume_source.volume_id)
-
-        volume = ebs_volume_source.get_volume()
-
-        self.info("Kicking off ebs snapshot for backup '%s' volumeId '%s'" %
-                  (backup.id, ebs_volume_source.volume_id))
-
-        update_backup(backup,
-                      name="START_EBS_SNAPSHOT",
-                      message="Kicking off snapshot")
-
-        snapshot_desc = self.backup_dir_name(backup)
-        if not volume.create_snapshot(snapshot_desc):
-            raise BackupEngineError("Failed to create snapshot from backup"
-                                        " source :\n%s" % ebs_volume_source)
-        else:
-            # get the snapshot id and put it as a target reference
-            snapshot = ebs_volume_source.get_snapshot_by_desc(snapshot_desc)
-            self.info("Snapshot kicked off successfully. Snapshot id '%s'." %
-                      snapshot.id)
-
-            msg = ("Snapshot kicked off successfully. Snapshot id '%s'. "
-                   "Waiting for snapshot to complete..." % snapshot.id)
-
-            update_backup(backup,
-                          name="EBS_START_SUCCESS",
-                          message=msg)
-
-            def log_func():
-                self.info("Waiting for snapshot '%s' status to be completed" %
-                          snapshot.id)
-
-            def is_completed():
-                snapshot = ebs_volume_source.get_snapshot_by_desc(snapshot_desc)
-                return snapshot.status == 'completed'
-
-            # log a waiting msg
-            log_func() # :)
-             # wait until complete
-            wait_for(is_completed, timeout=300, log_func=log_func )
-
-            if is_completed():
-                self.info("Snapshot '%s' completed successfully!." %
-                          snapshot.id)
-                backup.target_reference = EbsSnapshotReference(snapshot.id)
-            else:
-                raise BackupEngineError("Snapshot Timeout error")
-
-
 
     ###########################################################################
     def _apply_retention_policy(self, backup):

@@ -8,6 +8,7 @@ from mongo_uri_tools import parse_mongo_uri
 from bson.son import SON
 from errors import *
 from date_utils import timedelta_total_seconds
+from utils import is_host_local
 
 
 ###############################################################################
@@ -412,6 +413,19 @@ class MongoServer(object):
             for mem_conf in mem_confs:
                 if mem_conf["host"] == host:
                     return mem_conf
+
+    ###########################################################################
+    def is_local(self):
+        """
+            Returns true if the server is running locally
+        """
+        try:
+            server_host = self.address.split(":")[0]
+            return server_host is None or is_host_local(server_host)
+        except Exception, e:
+            logger.error("Unable to resolve address for server '%s'."
+                         " Cause: %s" % (self, e))
+        return False
 
     ###########################################################################
     def __str__(self):

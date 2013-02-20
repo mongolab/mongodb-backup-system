@@ -917,12 +917,23 @@ class FileReference(TargetReference):
         return doc
 
 ###############################################################################
+# CloudBlockStorageSnapshotReference
+###############################################################################
+class CloudBlockStorageSnapshotReference(TargetReference):
+    """
+        Base class for cloud block storage snapshot references
+    """
+    ###########################################################################
+    def __init__(self):
+        pass
+
+###############################################################################
 # EbsSnapshotReference
 ###############################################################################
-class EbsSnapshotReference(TargetReference):
+class EbsSnapshotReference(CloudBlockStorageSnapshotReference):
 
     ###########################################################################
-    def __init__(self, snapshot_id):
+    def __init__(self, snapshot_id=None):
         TargetReference.__init__(self)
         self._snapshot_id = snapshot_id
 

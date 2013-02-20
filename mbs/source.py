@@ -1,11 +1,21 @@
 __author__ = 'abdul'
 
 from base import MBSObject
-from mongo_utils import MongoDatabase, MongoServer, MongoCluster
+from errors import BlockStorageSnapshotError
+from utils import wait_for
+from target import EbsSnapshotReference
+from mbs import get_mbs
+
 import mongo_uri_tools
+import mbs_logging
 
 from boto.ec2.connection import EC2Connection
 
+
+###############################################################################
+# LOGGER
+###############################################################################
+logger = mbs_logging.logger
 
 ###############################################################################
 # Backup Source Classes
@@ -15,6 +25,7 @@ class BackupSource(MBSObject):
     ###########################################################################
     def __init__(self):
         self._tags = None
+        self._cloud_block_storage = None
 
     ###########################################################################
     @property
@@ -33,6 +44,18 @@ class BackupSource(MBSObject):
 
     ###########################################################################
     @property
+    def cloud_block_storage(self):
+        """
+            OPTIONAL: Represents cloud block storage for the source
+        """
+        return self._cloud_block_storage
+
+    @cloud_block_storage.setter
+    def cloud_block_storage(self, val):
+        self._cloud_block_storage = val
+
+    ###########################################################################
+    @property
     def tags(self):
         return self._tags
 
@@ -42,12 +65,14 @@ class BackupSource(MBSObject):
 
     ###########################################################################
     def to_document(self, display_only=False):
-        doc = {
-
-        }
+        doc = {}
 
         if self.tags:
             doc["tags"] = self.tags
+
+        if self.cloud_block_storage:
+            doc["cloudBlockStorage"] = \
+                self.cloud_block_storage.to_document(display_only=display_only)
 
         return doc
 
@@ -106,22 +131,75 @@ class MongoSource(BackupSource):
         if not self.uri:
             errors.append("Missing 'uri' property")
         elif not mongo_uri_tools.is_mongo_uri(self.uri):
-            errors.append("Invalid 'uri'.%s" % e)
+            errors.append("Invalid uri '%s'" % self.uri)
 
         return errors
 
 ###############################################################################
-# EbsVolumeSource
+# CloudBlockStorageSource
 ###############################################################################
-class EbsVolumeSource(BackupSource):
+class CloudBlockStorage(MBSObject):
+    """
+        Base class for Cloud Block Storage
+    """
+    ###########################################################################
+    def __init__(self):
+        pass
+
+    ###########################################################################
+    def create_snapshot(self, description):
+        """
+            Create a snapshot for the volume with the specified description.
+            Returns a CloudBlockStorageSnapshotReference
+             Must be implemented by subclasses
+        """
+
+###############################################################################
+# EbsVolumeStorage
+###############################################################################
+class EbsVolumeStorage(CloudBlockStorage):
 
     ###########################################################################
     def __init__(self):
-        BackupSource.__init__(self)
-        self._access_key = None
-        self._secret_key = None
-        self._ec2_connection = None
+        CloudBlockStorage.__init__(self)
+        self._encrypted_access_key = None
+        self._encrypted_secret_key = None
         self._volume_id = None
+        self._ec2_connection = None
+
+    ###########################################################################
+    def create_snapshot(self, description):
+        ebs_volume = self._get_ebs_volume()
+
+        if not ebs_volume.create_snapshot(description):
+            raise BlockStorageSnapshotError("Failed to create snapshot from "
+                                            "backup source :\n%s" % self)
+
+        # get the snapshot id and put it as a target reference
+        ebs_snapshot = self._get_ebs_snapshot_by_desc(description)
+        logger.info("Snapshot kicked off successfully. Snapshot id '%s'." %
+                    ebs_snapshot.id)
+
+        def log_func():
+            logger.info("Waiting for snapshot '%s' status to be completed" %
+                        ebs_snapshot.id)
+
+        def is_completed():
+            ebs_snapshot = self._get_ebs_snapshot_by_desc(description)
+            return ebs_snapshot.status == 'completed'
+
+        # log a waiting msg
+        log_func() # :)
+        # wait until complete
+        wait_for(is_completed, timeout=300, log_func=log_func )
+
+        if is_completed():
+            logger.info("EBS Snapshot '%s' completed successfully!." %
+                         ebs_snapshot.id)
+            return EbsSnapshotReference(ebs_snapshot.id)
+
+        else:
+            raise BlockStorageSnapshotError("EBS Snapshot Timeout error")
 
     ###########################################################################
     @property
@@ -135,20 +213,46 @@ class EbsVolumeSource(BackupSource):
     ###########################################################################
     @property
     def access_key(self):
-        return self._access_key
+        if self.encrypted_access_key:
+            return get_mbs().encryptor.decrypt_string(self.encrypted_access_key)
 
     @access_key.setter
     def access_key(self, access_key):
-        self._access_key = str(access_key)
+        if access_key:
+            eak = get_mbs().encryptor.encrypt_string(str(access_key))
+            self.encrypted_access_key = eak
 
     ###########################################################################
     @property
     def secret_key(self):
-        return self._secret_key
+        if self.encrypted_secret_key:
+            return get_mbs().encryptor.decrypt_string(self.encrypted_secret_key)
 
     @secret_key.setter
     def secret_key(self, secret_key):
-        self._secret_key = str(secret_key)
+        if secret_key:
+            sak = get_mbs().encryptor.encrypt_string(str(secret_key))
+            self.encrypted_secret_key = sak
+
+    ###########################################################################
+    @property
+    def encrypted_access_key(self):
+        return self._encrypted_access_key
+
+    @encrypted_access_key.setter
+    def encrypted_access_key(self, val):
+        if val:
+            self._encrypted_access_key = val.encode('ascii', 'ignore')
+
+    ###########################################################################
+    @property
+    def encrypted_secret_key(self):
+        return self._encrypted_secret_key
+
+    @encrypted_secret_key.setter
+    def encrypted_secret_key(self, val):
+        if val:
+            self._encrypted_secret_key = val.encode('ascii', 'ignore')
 
     ###########################################################################
     @property
@@ -161,7 +265,7 @@ class EbsVolumeSource(BackupSource):
 
 
     ###########################################################################
-    def get_volume(self):
+    def _get_ebs_volume(self):
         volumes = self.ec2_connection.get_all_volumes([self.volume_id])
 
         if volumes is None or len(volumes) == 0:
@@ -170,22 +274,25 @@ class EbsVolumeSource(BackupSource):
         return volumes[0]
 
     ###########################################################################
-    def get_snapshots(self):
-        return self.get_volume().snapshots()
+    def _get_ebs_snapshots(self):
+        return self._get_ebs_volume().snapshots()
 
     ###########################################################################
-    def get_snapshot_by_desc(self, description):
+    def _get_ebs_snapshot_by_desc(self, description):
         snapshots = filter(lambda snapshot: snapshot.description == description,
-                      self.get_snapshots())
+                      self._get_ebs_snapshots())
 
         if snapshots:
             return snapshots[0]
 
     ###########################################################################
     def to_document(self, display_only=False):
+
+        ak = "xxxxx" if display_only else self.encrypted_access_key
+        sk = "xxxxx" if display_only else self.encrypted_secret_key
         return {
-            "_type": "EbsVolumeSource",
+            "_type": "EbsVolumeStorage",
             "volumeId": self.volume_id,
-            "accessKey": "xxxxx" if display_only else self.access_key,
-            "secretKey": "xxxxx" if display_only else self.secret_key
+            "encryptedAccessKey": ak,
+            "encryptedSecretKey": sk
         }

@@ -181,3 +181,40 @@ def wait_for(predicate, timeout=None, sleep_duration=2, log_func=None):
 ###############################################################################
 def get_local_host_name():
     return socket.gethostname()
+
+###############################################################################
+def is_host_local(host):
+    if (host == "localhost" or
+        host == "127.0.0.1"):
+        return True
+
+    return is_same_host(socket.gethostname(), host)
+
+###############################################################################
+def is_same_host(host1, host2):
+
+    """
+    Returns true if host1 == host2 OR map to the same host (using DNS)
+    """
+
+    if host1 == host2:
+        return True
+    else:
+        ips1 = get_host_ips(host1)
+        ips2 = get_host_ips(host2)
+        return len(set(ips1) & set(ips2)) > 0
+
+
+###############################################################################
+def get_host_ips(host):
+    try:
+
+        ips = []
+        addr_info = socket.getaddrinfo(host, None)
+        for elem in addr_info:
+            ip = elem[4]
+            if ip not in ips:
+                ips.append(ip)
+        return ips
+    except Exception, e:
+        raise Exception("Invalid host '%s'. Cause: %s" % (host, e))

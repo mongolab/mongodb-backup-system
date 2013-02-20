@@ -11,12 +11,13 @@ from persistence import update_backup
 from mongo_utils import MongoCluster, MongoDatabase, MongoServer
 from subprocess import CalledProcessError
 from errors import *
-from utils import (which, ensure_dir, execute_command, call_command)
+from utils import (which, ensure_dir, execute_command, call_command, wait_for)
 
 
 
 from backup import EVENT_TYPE_WARNING
 from robustify.robustify import robustify
+from target import EbsSnapshotReference
 
 ###############################################################################
 # CONSTANTS
@@ -54,6 +55,11 @@ def _raise_if_not_retriable(exception):
 
 
 ###############################################################################
+def _is_backup_reschedulable( backup, exception):
+        return (backup.try_count < MAX_NO_RETRIES and
+                _is_exception_retriable(exception))
+
+###############################################################################
 def _raise_on_failure():
     raise
 
@@ -68,6 +74,19 @@ class BackupStrategy(MBSObject):
 
     ###########################################################################
     def run_backup(self, backup):
+        try:
+            self._do_run_backup(backup)
+        except Exception, e:
+            # set reschedulable
+            backup.reschedulable = _is_backup_reschedulable(backup, e)
+            update_backup(backup, properties="reschedulable")
+            raise
+
+    ###########################################################################
+    def _do_run_backup(self, backup):
+        """
+            Does the actual work. Has to be overridden by subclasses
+        """
         pass
 
     ###########################################################################
@@ -87,6 +106,7 @@ class DumpStrategy(BackupStrategy):
     def __init__(self):
         self._primary_ok = True
         self._use_best_secondary = True
+        self._ensure_localhost = False
 
     ###########################################################################
     @property
@@ -107,22 +127,22 @@ class DumpStrategy(BackupStrategy):
         self._use_best_secondary = val
 
     ###########################################################################
+    @property
+    def ensure_localhost(self):
+        return self._ensure_localhost
+
+    @ensure_localhost.setter
+    def ensure_localhost(self, val):
+        self._ensure_localhost = val
+
+    ###########################################################################
     def to_document(self, display_only=False):
         return {
             "_type": "DumpStrategy",
             "primaryOk": self.primary_ok,
-            "useBestSecondary": self.use_best_secondary
+            "useBestSecondary": self.use_best_secondary,
+            "ensureLocalhost": self.ensure_localhost
         }
-
-    ###########################################################################
-    def run_backup(self, backup):
-        try:
-           self._do_run_backup(backup)
-        except Exception, e:
-            # set reschedulable
-            backup.reschedulable = self.is_backup_reschedulable(backup, e)
-            update_backup(backup, properties="reschedulable")
-            raise
 
     ###########################################################################
     @robustify(max_attempts=3, retry_interval=30,
@@ -235,6 +255,14 @@ class DumpStrategy(BackupStrategy):
 
     ###########################################################################
     def _do_dump_server(self, backup, mongo_server):
+
+        # ensure local host if specified
+        if self.ensure_localhost and not mongo_server.is_local():
+            details = ("Source host for dump source '%s' is not localhost and"
+                       " strategy.ensureLocalHost is set to true" %
+                       mongo_server)
+            raise DumpNotOnLocalhost(msg="Error while attempting to dump",
+                                     details=details)
         source = backup.source
         # record stats
         if source.database_name:
@@ -358,11 +386,6 @@ class DumpStrategy(BackupStrategy):
             logger.error("Cleanup error for backup '%s': %s" % (backup.id, e))
 
     ###########################################################################
-    def is_backup_reschedulable(self, backup, exception):
-        return (backup.try_count < MAX_NO_RETRIES and
-                _is_exception_retriable(exception))
-
-    ###########################################################################
     def _do_dump_backup(self, backup, uri):
 
         dest = self._get_backup_dump_dir(backup)
@@ -471,3 +494,192 @@ def _backup_dump_dir_name(backup):
 def _upload_file_dest(backup):
     return "%s.tgz" % backup.name
 
+
+
+###############################################################################
+# CloudBlockStorageStrategy
+###############################################################################
+class CloudBlockStorageStrategy(BackupStrategy):
+
+    ###########################################################################
+    def _do_run_backup(self, backup):
+
+        cloud_block_storage = backup.source.cloud_block_storage
+        # validate
+        if not cloud_block_storage:
+            msg = ("Cannot run a block storage snapshot backup for backup '%s'"
+                   ".Backup source does not have a cloudBlockStorage "
+                   "configured" % backup.id)
+            raise ConfigurationError(msg)
+
+        logger.info("Kicking off block storage snapshot for backup '%s'" %
+                    backup.id)
+
+        update_backup(backup, event_name="START_BLOCK_STORAGE_SNAPSHOT",
+                      message="Kicking off snapshot")
+
+        snapshot_desc = _backup_dump_dir_name(backup)
+        target_reference = cloud_block_storage.create_snapshot(snapshot_desc)
+        backup.target_reference = target_reference
+
+        msg = "Snapshot created successfully"
+
+        update_backup(backup, properties="targetReference",
+                      event_name="END_BLOCK_STORAGE_SNAPSHOT", message=msg)
+
+
+    ###########################################################################
+    def to_document(self, display_only=False):
+        return {
+            "_type": "CloudBlockStorageStrategy"
+        }
+
+###############################################################################
+# Hybrid Strategy Class
+###############################################################################
+DUMP_MAX_FILE_SIZE = 5 * 1024 * 1024 * 1024
+
+class HybridStrategy(BackupStrategy):
+
+    ###########################################################################
+    def __init__(self):
+        self._dump_strategy = DumpStrategy()
+        self._cloud_block_storage_strategy = CloudBlockStorageStrategy()
+        self._predicate = FileSizePredicate()
+
+    ###########################################################################
+    @property
+    def dump_strategy(self):
+        return self._dump_strategy
+
+    @dump_strategy.setter
+    def dump_strategy(self, val):
+        self._dump_strategy = val
+
+    ###########################################################################
+    @property
+    def predicate(self):
+        return self._predicate
+
+    @predicate.setter
+    def predicate(self, val):
+        self._predicate = val
+
+    ###########################################################################
+    @property
+    def cloud_block_storage_strategy(self):
+        return self._cloud_block_storage_strategy
+
+    @cloud_block_storage_strategy.setter
+    def cloud_block_storage_strategy(self, val):
+        self._cloud_block_storage_strategy = val
+
+    ###########################################################################
+    def _do_run_backup(self, backup):
+        selected_strategy = self.predicate.get_best_strategy(self, backup)
+        selected_strategy.run_backup(backup)
+
+    ###########################################################################
+    def to_document(self, display_only=False):
+        return {
+            "_type": "HybridStrategy",
+            "dumpStrategy":
+                self.dump_strategy.to_document(display_only=display_only),
+
+            "cloudBlockStorageStrategy":
+                self.cloud_block_storage_strategy.to_document(display_only=
+                                                               display_only),
+
+            "predicate": self.predicate.to_document(display_only=display_only)
+        }
+
+###############################################################################
+# HybridStrategyPredicate
+###############################################################################
+class HybridStrategyPredicate(MBSObject):
+
+    ###########################################################################
+    def __init__(self):
+        pass
+
+    ###########################################################################
+    def get_best_strategy(self, hybrid_strategy, backup):
+        """
+            Returns the best strategy to be used for running the specified
+            backup
+            Must be overridden by subclasses
+        """
+        pass
+
+###############################################################################
+# FileSizePredicate
+###############################################################################
+class FileSizePredicate(HybridStrategyPredicate):
+
+    ###########################################################################
+    def __init__(self):
+        self._dump_max_file_size = 10
+
+    ###########################################################################
+    def get_best_strategy(self, hybrid_strategy, backup):
+        """
+            Returns the best strategy to be used for running the specified
+            backup
+            Must be overridden by subclasses
+        """
+        file_size = self._get_backup_source_file_size(backup)
+        logger.info("Selecting best strategy for backup '%s', fileSize=%s, "
+                    "dump max file size=%s" %
+                    (backup.id, file_size, self.dump_max_file_size))
+
+        if file_size < self.dump_max_file_size:
+            logger.info("Selected dump strategy since fileSize %s is less"
+                        " than dump max size %s" %
+                        (file_size, self.dump_max_file_size))
+            return hybrid_strategy.dump_strategy
+        else:
+            logger.info("Selected cloud block storage strategy since "
+                        "fileSize %s is more than dump max size %s" %
+                        (file_size, self.dump_max_file_size))
+            return hybrid_strategy.cloud_block_storage_strategy
+
+
+    ###########################################################################
+    @property
+    def dump_max_file_size(self):
+        return self._dump_max_file_size
+
+    @dump_max_file_size.setter
+    def dump_max_file_size(self, val):
+        self._dump_max_file_size = val
+
+    ###########################################################################
+    def _get_backup_source_file_size(self, backup):
+        source = backup.source
+        uri_wrapper = mongo_uri_tools.parse_mongo_uri(source.uri)
+        if uri_wrapper.is_cluster_uri() and not uri_wrapper.database:
+            cluster = MongoCluster(source.uri)
+            if source.database_name:
+                stats = cluster.primary_member.get_stats(only_for_db=
+                                                          source.database_name)
+            else:
+                stats = cluster.primary_member.get_stats()
+        elif not uri_wrapper.database:
+            server = MongoServer(source.uri)
+            if source.database_name:
+                stats = server.primary_member.get_stats(only_for_db=
+                                                         source.database_name)
+            else:
+                stats = server.primary_member.get_stats()
+        else:
+            db = MongoDatabase(source.uri)
+            stats = db.get_stats()
+
+        return stats["fileSize"]
+
+    ###########################################################################
+    def to_document(self, display_only=False):
+        return {
+            "_type": "FileSizePredicate",
+            "dumpMaxFileSize":self.dump_max_file_size
+        }
