@@ -5,6 +5,7 @@ from errors import BlockStorageSnapshotError
 from utils import wait_for
 from target import EbsSnapshotReference
 from mbs import get_mbs
+from errors import *
 
 import mongo_uri_tools
 import mbs_logging
@@ -55,6 +56,18 @@ class BackupSource(MBSObject):
         self._cloud_block_storage = val
 
     ###########################################################################
+    def get_block_storage_by_address(self, address):
+        block_storage = self.cloud_block_storage
+        if isinstance(block_storage, dict):
+            return block_storage.get(address)
+        elif isinstance(block_storage, CloudBlockStorage):
+            return block_storage
+        else:
+            msg = ("Invalid cloudBlockStorageConfig. Must be a "
+                   "CloudBlockStorage or a dict of address=>CloudBlockStorage")
+            raise ConfigurationError(msg)
+
+    ###########################################################################
     @property
     def tags(self):
         return self._tags
@@ -71,10 +84,22 @@ class BackupSource(MBSObject):
             doc["tags"] = self.tags
 
         if self.cloud_block_storage:
-            doc["cloudBlockStorage"] = \
-                self.cloud_block_storage.to_document(display_only=display_only)
+            doc["cloudBlockStorage"] = self._export_cloud_block_storage()
 
         return doc
+
+    ###########################################################################
+    def _export_cloud_block_storage(self, display_only=False):
+        cbs = self.cloud_block_storage
+        if isinstance(cbs, CloudBlockStorage):
+            return cbs.to_document(display_only=display_only)
+        elif isinstance(cbs, dict):
+            return dict((key, value.to_document(display_only=display_only))
+                            for (key, value) in cbs.items())
+        else:
+            msg = ("Invalid cloudBlockStorageConfig. Must be a "
+                   "CloudBlockStorage or a dict of address=>CloudBlockStorage")
+            raise ConfigurationError(msg)
 
     ###########################################################################
     def is_valid(self):
@@ -103,7 +128,6 @@ class MongoSource(BackupSource):
     def __init__(self):
         BackupSource.__init__(self)
         self._uri = None
-
 
     ###########################################################################
     @property

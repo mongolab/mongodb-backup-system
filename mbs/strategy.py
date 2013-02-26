@@ -33,6 +33,11 @@ EVENT_END_ARCHIVE = "END_ARCHIVE"
 EVENT_START_UPLOAD = "START_UPLOAD"
 EVENT_END_UPLOAD = "END_UPLOAD"
 
+# Member mode selection values
+MODE_PRIMARY_ONLY = "PRIMARY_ONLY"
+MODE_SECONDARY_ONLY = "SECONDARY_ONLY"
+MODE_BEST = "BEST"
+
 ###############################################################################
 # LOGGER
 ###############################################################################
@@ -70,7 +75,16 @@ class BackupStrategy(MBSObject):
 
     ###########################################################################
     def __init__(self):
-        pass
+        self._member_selection_mode = MODE_BEST
+
+    ###########################################################################
+    @property
+    def member_selection_mode(self):
+        return self._member_selection_mode
+
+    @member_selection_mode.setter
+    def member_selection_mode(self, val):
+        self._member_selection_mode = val
 
     ###########################################################################
     def run_backup(self, backup):
@@ -84,18 +98,115 @@ class BackupStrategy(MBSObject):
 
     ###########################################################################
     def _do_run_backup(self, backup):
+
+        mongo_connector = self.get_backup_mongo_connector(backup)
+        self.backup_mongo_connector(backup, mongo_connector)
+
+    ###########################################################################
+    def get_backup_mongo_connector(self, backup):
+        uri_wrapper = mongo_uri_tools.parse_mongo_uri(backup.source.uri)
+        if uri_wrapper.is_cluster_uri() and not uri_wrapper.database:
+            return self._select_backup_cluster_member(backup)
+        elif not uri_wrapper.database:
+            return MongoServer(backup.source.uri)
+        else:
+            return MongoDatabase(backup.source.uri)
+
+    ###########################################################################
+    def _select_backup_cluster_member(self, backup):
+        source = backup.source
+        mongo_cluster = MongoCluster(source.uri)
+
+        # compute max lag
+        if backup.plan:
+            max_lag_seconds = int(backup.plan.schedule.frequency_in_seconds / 2)
+        else:
+            # One Off backup : no max lag!
+            max_lag_seconds = 0
+
+        # find a server to dump from
+
+        primary_member = mongo_cluster.primary_member
+        selected_member = None
+        # dump from best secondary if configured and found
+        if (self.member_selection_mode in [MODE_BEST, MODE_SECONDARY_ONLY] and
+            backup.try_count < MAX_NO_RETRIES):
+
+            best_secondary = mongo_cluster.get_best_secondary(max_lag_seconds=
+                                                               max_lag_seconds)
+
+            if best_secondary:
+                selected_member = best_secondary
+                # log warning if secondary is too stale
+                if best_secondary.is_too_stale():
+                    logger.warning("Backup '%s' will be extracted from a "
+                                   "too stale member!" % backup.id)
+
+                    msg = ("Warning! The dump will be extracted from a too "
+                           "stale member")
+                    update_backup(backup, event_type=EVENT_TYPE_WARNING,
+                                  event_name="USING_TOO_STALE_WARNING",
+                                  message=msg)
+
+
+        if (not selected_member and
+            self.member_selection_mode in [MODE_BEST, MODE_PRIMARY_ONLY]):
+            # otherwise dump from primary if primary ok or if this is the
+            # last try. log warning because we are dumping from a primary
+            selected_member = primary_member
+            logger.warning("Backup '%s' will be extracted from the "
+                           "primary!" % backup.id)
+
+            msg = "Warning! The dump will be extracted from the  primary"
+            update_backup(backup, event_type=EVENT_TYPE_WARNING,
+                          event_name="USING_PRIMARY_WARNING",
+                          message=msg)
+
+        if selected_member:
+            return selected_member
+        else:
+            # error out
+            raise NoEligibleMembersFound(source.uri)
+
+    ###########################################################################
+    def backup_mongo_connector(self, backup, mongo_connector):
+
+        source = backup.source
+        dbname = source.database_name
+        # record stats
+        backup.source_stats = mongo_connector.get_stats(only_for_db=dbname)
+
+        # save source stats
+        update_backup(backup, properties="sourceStats",
+            event_name="COMPUTED_SOURCE_STATS",
+            message="Computed source stats")
+
+        self.do_backup_mongo_connector(backup, mongo_connector)
+
+    ###########################################################################
+    def do_backup_mongo_connector(self, backup, mongo_connector):
         """
             Does the actual work. Has to be overridden by subclasses
         """
-        pass
+
 
     ###########################################################################
     def cleanup_backup(self, backup):
-        pass
+        """
+            Does the actual work. Has to be overridden by subclasses
+        """
 
     ###########################################################################
     def restore_backup(self, backup):
-        pass
+        """
+            Does the actual work. Has to be overridden by subclasses
+        """
+
+    ###########################################################################
+    def to_document(self, display_only=False):
+        return {
+            "memberSelectionMode": self.member_selection_mode
+        }
 
 ###############################################################################
 # Dump Strategy Classes
@@ -104,27 +215,8 @@ class DumpStrategy(BackupStrategy):
 
     ###########################################################################
     def __init__(self):
-        self._primary_ok = True
-        self._use_best_secondary = True
+        BackupStrategy.__init__(self)
         self._ensure_localhost = False
-
-    ###########################################################################
-    @property
-    def primary_ok(self):
-        return self._primary_ok
-
-    @primary_ok.setter
-    def primary_ok(self, val):
-        self._primary_ok = val
-
-    ###########################################################################
-    @property
-    def use_best_secondary(self):
-        return self._use_best_secondary
-
-    @use_best_secondary.setter
-    def use_best_secondary(self, val):
-        self._use_best_secondary = val
 
     ###########################################################################
     @property
@@ -137,25 +229,46 @@ class DumpStrategy(BackupStrategy):
 
     ###########################################################################
     def to_document(self, display_only=False):
-        return {
+        doc =  BackupStrategy.to_document(self, display_only=display_only)
+        doc.update({
             "_type": "DumpStrategy",
-            "primaryOk": self.primary_ok,
-            "useBestSecondary": self.use_best_secondary,
             "ensureLocalhost": self.ensure_localhost
-        }
+        })
+
+        return doc
 
     ###########################################################################
     @robustify(max_attempts=3, retry_interval=30,
                do_on_exception=_raise_if_not_retriable,
                do_on_failure=_raise_on_failure)
-    def _do_run_backup(self, backup):
+    def do_backup_mongo_connector(self, backup, mongo_connector):
+        """
+            Override
+        """
+        # ensure local host if specified
+        if self.ensure_localhost and not mongo_connector.is_local():
+            details = ("Source host for dump source '%s' is not localhost and"
+                       " strategy.ensureLocalHost is set to true" %
+                       mongo_connector)
+            raise DumpNotOnLocalhost(msg="Error while attempting to dump",
+                                     details=details)
+        source = backup.source
+
+        # dump the the server
+        uri = mongo_connector.uri
+        uri_wrapper = mongo_uri_tools.parse_mongo_uri(uri)
+        if source.database_name and not uri_wrapper.database:
+            if not uri.endswith("/"):
+                uri += "/"
+            uri += source.database_name
+
         # ensure backup workspace
         ensure_dir(backup.workspace)
 
         # run mongoctl dump
         if not backup.is_event_logged(EVENT_END_EXTRACT):
             try:
-                self._dump_source(backup)
+                self._do_dump_backup(backup, uri)
             except DumpError, e:
                 # still tar and upload failed dumps
                 logger.error("Dumping backup '%s' failed. Will still tar"
@@ -170,138 +283,6 @@ class DumpStrategy(BackupStrategy):
         # upload back file to the target
         if not backup.is_event_logged(EVENT_END_UPLOAD):
             self._upload_dump(backup)
-
-    ###########################################################################
-    def _dump_source(self, backup):
-
-        logger.info("Dumping source %s " % backup.source)
-        update_backup(backup,
-                      event_name=EVENT_START_EXTRACT,
-                      message="Dumping source")
-
-        # log warning if dumping from a cluster's primary or from a too
-        # stale member
-
-        uri_wrapper = mongo_uri_tools.parse_mongo_uri(backup.source.uri)
-        if uri_wrapper.is_cluster_uri() and not uri_wrapper.database:
-            self._dump_cluster_source(backup)
-        elif not uri_wrapper.database:
-            self._dump_server_source(backup)
-        else:
-            self._dump_database_source(backup)
-
-
-        update_backup(backup,
-                      event_name=EVENT_END_EXTRACT,
-                      message="Dump completed")
-
-    ###########################################################################
-    def _dump_cluster_source(self, backup):
-
-        source = backup.source
-        mongo_cluster = MongoCluster(source.uri)
-
-        # compute minimum required lag
-        if backup.plan:
-            min_lag_seconds = int(backup.plan.schedule.frequency_in_seconds / 2)
-        else:
-            # One Off backup : no min lag and primary OK!
-            min_lag_seconds = 0
-
-        # find a server to dump from
-
-        primary_member = mongo_cluster.primary_member
-        selected_member = None
-        # dump from best secondary if configured and found
-        if (self.use_best_secondary and
-            backup.try_count < MAX_NO_RETRIES):
-
-            best_secondary = mongo_cluster.get_best_secondary(min_lag_seconds=
-                                                               min_lag_seconds)
-
-            if best_secondary:
-                selected_member = best_secondary
-                # log warning if secondary is too stale
-                if best_secondary.is_too_stale():
-                    logger.warning("Backup '%s' will be extracted from a "
-                                   "too stale member!" % backup.id)
-
-                    msg = ("Warning! The dump will be extracted from a too "
-                           "stale member")
-                    update_backup(backup,
-                                  event_type=EVENT_TYPE_WARNING,
-                                  event_name="USING_TOO_STALE_WARNING",
-                                  message=msg)
-
-
-        if not selected_member and self.primary_ok:
-            # otherwise dump from primary if primary ok or if this is the
-            # last try. log warning because we are dumping from a primary
-            selected_member = primary_member
-            logger.warning("Backup '%s' will be extracted from the "
-                           "primary!" % backup.id)
-
-            msg = "Warning! The dump will be extracted from the  primary"
-            update_backup(backup,
-                          event_type=EVENT_TYPE_WARNING,
-                          event_name="USING_PRIMARY_WARNING",
-                          message=msg)
-
-        if not selected_member:
-            # error out
-            raise NoEligibleMembersFound(source.uri)
-
-        self._do_dump_server(backup, selected_member)
-
-    ###########################################################################
-    def _do_dump_server(self, backup, mongo_server):
-
-        # ensure local host if specified
-        if self.ensure_localhost and not mongo_server.is_local():
-            details = ("Source host for dump source '%s' is not localhost and"
-                       " strategy.ensureLocalHost is set to true" %
-                       mongo_server)
-            raise DumpNotOnLocalhost(msg="Error while attempting to dump",
-                                     details=details)
-        source = backup.source
-        # record stats
-        if source.database_name:
-            backup.source_stats = mongo_server.get_stats(only_for_db=
-                                                          source.database_name)
-        else:
-            backup.source_stats = mongo_server.get_stats()
-
-        # save source stats
-        update_backup(backup, properties="sourceStats",
-                      event_name="COMPUTED_SOURCE_STATS",
-                      message="Computed source stats")
-
-        # dump the the server
-        uri = mongo_server.uri
-        if source.database_name:
-            if not uri.endswith("/"):
-                uri += "/"
-            uri += source.database_name
-
-        self._do_dump_backup(backup, uri)
-
-    ###########################################################################
-    def _dump_server_source(self, backup):
-        mongo_server = MongoServer(backup.source.uri)
-        self._do_dump_server(backup, mongo_server)
-
-    ###########################################################################
-    def _dump_database_source(self, backup):
-        mongo_database = MongoDatabase(backup.source.uri)
-        # record stats
-        backup.source_stats = mongo_database.get_stats()
-
-        # save source stats
-        update_backup(backup, properties="sourceStats",
-                      event_name="COMPUTED_SOURCE_STATS",
-                      message="Computed source stats")
-
-        self._do_dump_backup(backup, backup.source.uri)
 
     ###########################################################################
     def _archive_dump(self, backup):
@@ -388,6 +369,9 @@ class DumpStrategy(BackupStrategy):
     ###########################################################################
     def _do_dump_backup(self, backup, uri):
 
+        update_backup(backup, event_name=EVENT_START_EXTRACT,
+                      message="Dumping backup")
+
         dest = self._get_backup_dump_dir(backup)
         dump_cmd = ["/usr/local/bin/mongoctl",
                     "--noninteractive", # always run with noninteractive
@@ -408,16 +392,21 @@ class DumpStrategy(BackupStrategy):
         dump_cmd_display[3] = uri_wrapper.masked_uri
         logger.info("Running dump command: %s" % " ".join(dump_cmd_display))
 
+        ensure_dir(dest)
+        dump_log_path = os.path.join(os.path.dirname(dest), 'dump.log')
+        ## IMPORTANT: TEMPORARILY EXCLUDE DUMP FILES FROM DEST FOLDER
+        # dump_log_path = os.path.join(dest, 'dump.log')
+        # TODO: uncomment the line above and remove the line bellow
+
+        dump_log_file = open(dump_log_path, 'w')
         try:
             # execute dump command and redirect stdout and stderr to log file
-            ensure_dir(dest)
-            ## IMPORTANT: TEMPORARILY EXCLUDE DUMP FILES FROM DEST FOLDER
-            # dump_log_path = os.path.join(dest, 'dump.log')
-            # TODO: uncomment the line above and remove the line bellow
-            dump_log_path = os.path.join(os.path.dirname(dest), 'dump.log')
-            dump_log_file = open(dump_log_path, 'w')
+
             call_command(dump_cmd, stdout=dump_log_file,
                 stderr=dump_log_file)
+
+            update_backup(backup, event_name=EVENT_END_EXTRACT,
+                          message="Dump completed")
 
         except CalledProcessError, e:
             # read the last dump log line
@@ -446,14 +435,14 @@ class DumpStrategy(BackupStrategy):
     ###########################################################################
     def _execute_tar_command(self, path, filename):
 
+        tar_exe = which("tar")
+        working_dir = os.path.dirname(path)
+        target_dirname = os.path.basename(path)
+
+        tar_cmd = [tar_exe, "-cvzf", filename, target_dirname]
+        cmd_display = " ".join(tar_cmd)
+
         try:
-            tar_exe = which("tar")
-            working_dir = os.path.dirname(path)
-            target_dirname = os.path.basename(path)
-
-            tar_cmd = [tar_exe, "-cvzf", filename, target_dirname]
-            cmd_display = " ".join(tar_cmd)
-
             logger.info("Running tar command: %s" % cmd_display)
             execute_command(tar_cmd, cwd=working_dir)
 
@@ -474,7 +463,6 @@ class DumpStrategy(BackupStrategy):
         return os.path.join(backup.workspace,
                             _tar_file_name(backup))
 
-
 ###############################################################################
 # Helpers
 ###############################################################################
@@ -489,12 +477,9 @@ def _backup_dump_dir_name(backup):
     # TODO do the right thing
     return os.path.basename(backup.name)
 
-
 ###############################################################################
 def _upload_file_dest(backup):
     return "%s.tgz" % backup.name
-
-
 
 ###############################################################################
 # CloudBlockStorageStrategy
@@ -502,14 +487,20 @@ def _upload_file_dest(backup):
 class CloudBlockStorageStrategy(BackupStrategy):
 
     ###########################################################################
-    def _do_run_backup(self, backup):
+    def __init__(self):
+        BackupStrategy.__init__(self)
 
-        cloud_block_storage = backup.source.cloud_block_storage
+    ###########################################################################
+    def do_backup_mongo_connector(self, backup, mongo_connector):
+
+        source = backup.source
+        address = mongo_connector.address
+        cloud_block_storage = source.get_block_storage_by_address(address)
         # validate
         if not cloud_block_storage:
             msg = ("Cannot run a block storage snapshot backup for backup '%s'"
                    ".Backup source does not have a cloudBlockStorage "
-                   "configured" % backup.id)
+                   "configured for address '%s'" % (backup.id, address))
             raise ConfigurationError(msg)
 
         logger.info("Kicking off block storage snapshot for backup '%s'" %
@@ -530,9 +521,12 @@ class CloudBlockStorageStrategy(BackupStrategy):
 
     ###########################################################################
     def to_document(self, display_only=False):
-        return {
+        doc =  BackupStrategy.to_document(self, display_only=display_only)
+        doc.update({
             "_type": "CloudBlockStorageStrategy"
-        }
+        })
+
+        return doc
 
 ###############################################################################
 # Hybrid Strategy Class
@@ -543,6 +537,7 @@ class HybridStrategy(BackupStrategy):
 
     ###########################################################################
     def __init__(self):
+        BackupStrategy.__init__(self)
         self._dump_strategy = DumpStrategy()
         self._cloud_block_storage_strategy = CloudBlockStorageStrategy()
         self._predicate = FileSizePredicate()
@@ -576,12 +571,15 @@ class HybridStrategy(BackupStrategy):
 
     ###########################################################################
     def _do_run_backup(self, backup):
-        selected_strategy = self.predicate.get_best_strategy(self, backup)
-        selected_strategy.run_backup(backup)
+        mongo_connector = self.get_backup_mongo_connector(backup)
+        selected_strategy = self.predicate.get_best_strategy(self, backup,
+                                                             mongo_connector)
+        selected_strategy.backup_mongo_connector(backup, mongo_connector)
 
     ###########################################################################
     def to_document(self, display_only=False):
-        return {
+        doc =  BackupStrategy.to_document(self, display_only=display_only)
+        doc.update({
             "_type": "HybridStrategy",
             "dumpStrategy":
                 self.dump_strategy.to_document(display_only=display_only),
@@ -591,7 +589,9 @@ class HybridStrategy(BackupStrategy):
                                                                display_only),
 
             "predicate": self.predicate.to_document(display_only=display_only)
-        }
+        })
+
+        return doc
 
 ###############################################################################
 # HybridStrategyPredicate
@@ -603,7 +603,7 @@ class HybridStrategyPredicate(MBSObject):
         pass
 
     ###########################################################################
-    def get_best_strategy(self, hybrid_strategy, backup):
+    def get_best_strategy(self, hybrid_strategy, backup, mongo_connector):
         """
             Returns the best strategy to be used for running the specified
             backup
@@ -618,16 +618,16 @@ class FileSizePredicate(HybridStrategyPredicate):
 
     ###########################################################################
     def __init__(self):
-        self._dump_max_file_size = 10
+        self._dump_max_file_size = DUMP_MAX_FILE_SIZE
 
     ###########################################################################
-    def get_best_strategy(self, hybrid_strategy, backup):
+    def get_best_strategy(self, hybrid_strategy, backup, mongo_connector):
         """
             Returns the best strategy to be used for running the specified
             backup
             Must be overridden by subclasses
         """
-        file_size = self._get_backup_source_file_size(backup)
+        file_size = self._get_backup_source_file_size(backup, mongo_connector)
         logger.info("Selecting best strategy for backup '%s', fileSize=%s, "
                     "dump max file size=%s" %
                     (backup.id, file_size, self.dump_max_file_size))
@@ -643,7 +643,6 @@ class FileSizePredicate(HybridStrategyPredicate):
                         (file_size, self.dump_max_file_size))
             return hybrid_strategy.cloud_block_storage_strategy
 
-
     ###########################################################################
     @property
     def dump_max_file_size(self):
@@ -654,26 +653,9 @@ class FileSizePredicate(HybridStrategyPredicate):
         self._dump_max_file_size = val
 
     ###########################################################################
-    def _get_backup_source_file_size(self, backup):
-        source = backup.source
-        uri_wrapper = mongo_uri_tools.parse_mongo_uri(source.uri)
-        if uri_wrapper.is_cluster_uri() and not uri_wrapper.database:
-            cluster = MongoCluster(source.uri)
-            if source.database_name:
-                stats = cluster.primary_member.get_stats(only_for_db=
-                                                          source.database_name)
-            else:
-                stats = cluster.primary_member.get_stats()
-        elif not uri_wrapper.database:
-            server = MongoServer(source.uri)
-            if source.database_name:
-                stats = server.primary_member.get_stats(only_for_db=
-                                                         source.database_name)
-            else:
-                stats = server.primary_member.get_stats()
-        else:
-            db = MongoDatabase(source.uri)
-            stats = db.get_stats()
+    def _get_backup_source_file_size(self, backup, mongo_connector):
+        database_name = backup.source.database_name
+        stats = mongo_connector.get_stats(only_for_db=database_name)
 
         return stats["fileSize"]
 

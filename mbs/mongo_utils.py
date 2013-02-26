@@ -45,11 +45,58 @@ def mongo_connect(uri):
             raise
 
 ###############################################################################
-class MongoDatabase(object):
+class MongoConnector(object):
 
     ###########################################################################
     def __init__(self, uri):
         self._uri_wrapper = parse_mongo_uri(uri)
+
+    ###########################################################################
+    @property
+    def uri(self):
+        return self._uri_wrapper.raw_uri
+
+    ###########################################################################
+    def get_stats(self, only_for_db=None):
+        """
+            Must be overridden
+        """
+
+    ###########################################################################
+    @property
+    def address(self):
+        return self._uri_wrapper.addresses[0]
+
+    ###########################################################################
+    def is_local(self):
+        """
+            Returns true if the connector is running locally.
+            Raises a ConfigurationError if called on a cluster.
+
+        """
+
+        if self._uri_wrapper.is_cluster_uri():
+            raise ConfigurationError("Cannot call is_local() on '%s' because"
+                                     " it is a cluster" % self)
+        try:
+
+            server_host = self.address.split(":")[0]
+            return server_host is None or is_host_local(server_host)
+        except Exception, e:
+            logger.error("Unable to resolve address for server '%s'."
+                         " Cause: %s" % (self, e))
+        return False
+
+    ###########################################################################
+    def __str__(self):
+        return self._uri_wrapper.masked_uri
+
+###############################################################################
+class MongoDatabase(MongoConnector):
+
+    ###########################################################################
+    def __init__(self, uri):
+        MongoConnector.__init__(self, uri)
         # validate that uri has a database
         if not self._uri_wrapper.database:
             raise ConfigurationError("Uri must contain a database")
@@ -61,7 +108,8 @@ class MongoDatabase(object):
     def database(self):
         return self._database
 
-    def get_stats(self):
+    ###########################################################################
+    def get_stats(self, only_for_db=None):
         try:
             return _calculate_database_stats(self._database)
         except Exception, e:
@@ -74,21 +122,16 @@ class MongoDatabase(object):
 
 
 ###############################################################################
-class MongoCluster(object):
+class MongoCluster(MongoConnector):
     ###########################################################################
     def __init__(self, uri):
-        self._uri_wrapper = parse_mongo_uri(uri)
+        MongoConnector.__init__(self, uri)
         self._init_members()
 
     ###########################################################################
     @property
     def members(self):
         return self._members
-
-    ###########################################################################
-    @property
-    def uri(self):
-        return self._uri_wrapper.raw_uri
 
     ###########################################################################
     @property
@@ -116,14 +159,21 @@ class MongoCluster(object):
         self._primary_member = primary_member
 
     ###########################################################################
-    def get_best_secondary(self, min_lag_seconds=0):
+    def get_best_secondary(self, max_lag_seconds=0):
         """
             Returns the best source member to get the pull from.
             This only applicable for cluster connections.
             best = passives with least lags, if no passives then least lag
         """
         members = self.members
-        secondaries = []
+
+        all_secondaries = []
+        hidden_secondaries = []
+        p0_secondaries = []
+        other_secondaries = []
+
+        master_status = self.primary_member.rs_status
+
         # find secondaries
         for member in members:
             if not member.is_online():
@@ -131,50 +181,45 @@ class MongoCluster(object):
                             member)
                 continue
             elif member.is_secondary():
-                secondaries.append(member)
+                all_secondaries.append(member)
+                # compute lags
+                member.compute_lag(master_status)
+                if member.hidden:
+                    hidden_secondaries.append(member)
+                elif member.priority == 0:
+                    p0_secondaries.append(member)
+                else:
+                    other_secondaries.append(member)
 
 
-        if not secondaries:
+        if not all_secondaries:
             logger.info("No secondaries found for cluster '%s'" % self)
 
-        master_status = self.primary_member.rs_status
-        # compute lags
-        for secondary in secondaries:
-            secondary.compute_lag(master_status)
+        # sort each list by member address
+        def sort_key(member):
+            return member.address
 
-        def best_secondary_comp(member1, member2):
+        sorted(hidden_secondaries, key=sort_key)
+        sorted(p0_secondaries, key=sort_key)
+        sorted(other_secondaries, key=sort_key)
 
-            if member1.is_passive():
-                if member2.is_passive():
-                    return int(member1.lag_in_seconds - member2.lag_in_seconds)
-                else:
-                    return -1
-            elif member2.is_passive():
-                return 1
-            else:
-                return int(member1.lag_in_seconds - member2.lag_in_seconds)
+        # merge results into one list
+        merged_list = hidden_secondaries + p0_secondaries + other_secondaries
 
-
-        secondaries.sort(best_secondary_comp)
-        if secondaries:
-            best_secondary = secondaries[0]
-            if (min_lag_seconds and
-                best_secondary.lag_in_seconds > min_lag_seconds):
-                return None
-            else:
+        if merged_list:
+            best_secondary = merged_list[0]
+            if not max_lag_seconds:
+                return best_secondary
+            elif best_secondary.lag_in_seconds < max_lag_seconds:
                 return best_secondary
 
-    ###########################################################################
-    def __str__(self):
-        return self._uri_wrapper.masked_uri
-
 ###############################################################################
-class MongoServer(object):
+class MongoServer(MongoConnector):
 ###############################################################################
 
     ###########################################################################
     def __init__(self, uri):
-        self._uri_wrapper = parse_mongo_uri(uri)
+        MongoConnector.__init__(self, uri)
         self._connection = None
         self._is_online = False
 
@@ -221,18 +266,8 @@ class MongoServer(object):
         return self._admin_db
 
     ###########################################################################
-    @property
-    def uri(self):
-        return self._uri_wrapper.raw_uri
-
-    ###########################################################################
     def is_online(self):
         return self._is_online
-
-    ###########################################################################
-    @property
-    def address(self):
-        return self._uri_wrapper.addresses[0]
 
     ###########################################################################
     @property
@@ -402,8 +437,14 @@ class MongoServer(object):
 
 
     ###########################################################################
-    def is_passive(self):
-        return self.member_config.get("priority") == 0
+    @property
+    def priority(self):
+        return self.member_config.get("priority")
+
+    ###########################################################################
+    @property
+    def hidden(self):
+        return self.member_config.get("hidden")
 
     ###########################################################################
     def _get_member_config(self):
@@ -413,23 +454,6 @@ class MongoServer(object):
             for mem_conf in mem_confs:
                 if mem_conf["host"] == host:
                     return mem_conf
-
-    ###########################################################################
-    def is_local(self):
-        """
-            Returns true if the server is running locally
-        """
-        try:
-            server_host = self.address.split(":")[0]
-            return server_host is None or is_host_local(server_host)
-        except Exception, e:
-            logger.error("Unable to resolve address for server '%s'."
-                         " Cause: %s" % (self, e))
-        return False
-
-    ###########################################################################
-    def __str__(self):
-        return self.address
 
 ###############################################################################
 def database_connection_stats(db_uri):
