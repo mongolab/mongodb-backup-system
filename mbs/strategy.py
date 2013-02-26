@@ -531,7 +531,7 @@ class CloudBlockStorageStrategy(BackupStrategy):
 ###############################################################################
 # Hybrid Strategy Class
 ###############################################################################
-DUMP_MAX_FILE_SIZE = 5 * 1024 * 1024 * 1024
+DUMP_MAX_FILE_SIZE = 5 #* 1024 * 1024 * 1024
 
 class HybridStrategy(BackupStrategy):
 

@@ -924,8 +924,25 @@ class CloudBlockStorageSnapshotReference(TargetReference):
         Base class for cloud block storage snapshot references
     """
     ###########################################################################
-    def __init__(self):
-        pass
+    def __init__(self, cloud_block_storage=None):
+        TargetReference.__init__(self)
+        self._cloud_block_storage = cloud_block_storage
+
+    ###########################################################################
+    @property
+    def cloud_block_storage(self):
+        return self._cloud_block_storage
+
+    @cloud_block_storage.setter
+    def cloud_block_storage(self, val):
+        self._cloud_block_storage = val
+
+    ###########################################################################
+    def to_document(self, display_only=False):
+        return {
+            "cloudBlockStorage":
+                self.cloud_block_storage.to_document(display_only=display_only)
+        }
 
 ###############################################################################
 # EbsSnapshotReference
@@ -933,8 +950,9 @@ class CloudBlockStorageSnapshotReference(TargetReference):
 class EbsSnapshotReference(CloudBlockStorageSnapshotReference):
 
     ###########################################################################
-    def __init__(self, snapshot_id=None):
-        TargetReference.__init__(self)
+    def __init__(self, snapshot_id=None, cloud_block_storage=None):
+        CloudBlockStorageSnapshotReference.__init__(self, cloud_block_storage=
+                                                           cloud_block_storage)
         self._snapshot_id = snapshot_id
 
     ###########################################################################
@@ -948,14 +966,16 @@ class EbsSnapshotReference(CloudBlockStorageSnapshotReference):
 
     ###########################################################################
     def to_document(self, display_only=False):
-        doc = {
+        doc = CloudBlockStorageSnapshotReference.to_document(self,display_only=
+                                                                  display_only)
+        doc.update({
             "_type": "EbsSnapshotReference",
             "snapshotId": self.snapshot_id
-        }
+        })
         if self.expired_date:
             doc["expiredDate"] = self.expired_date
-        return doc
 
+        return doc
 
 ###############################################################################
 # HELPERS

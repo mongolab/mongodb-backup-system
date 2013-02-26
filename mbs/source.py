@@ -178,6 +178,12 @@ class CloudBlockStorage(MBSObject):
              Must be implemented by subclasses
         """
 
+    ###########################################################################
+    def delete_snapshot(self, snapshot_ref):
+        """
+            deletes the snapshot reference
+            Must be implemented by subclasses
+        """
 ###############################################################################
 # EbsVolumeStorage
 ###############################################################################
@@ -195,14 +201,16 @@ class EbsVolumeStorage(CloudBlockStorage):
     def create_snapshot(self, description):
         ebs_volume = self._get_ebs_volume()
 
+        logger.info("Creating EBS snapshot for volume '%s'" % self.volume_id)
+
         if not ebs_volume.create_snapshot(description):
             raise BlockStorageSnapshotError("Failed to create snapshot from "
                                             "backup source :\n%s" % self)
 
         # get the snapshot id and put it as a target reference
         ebs_snapshot = self._get_ebs_snapshot_by_desc(description)
-        logger.info("Snapshot kicked off successfully. Snapshot id '%s'." %
-                    ebs_snapshot.id)
+        logger.info("Snapshot kicked off successfully for volume '%s'. "
+                    "Snapshot id '%s'." % (self.volume_id, ebs_snapshot.id))
 
         def log_func():
             logger.info("Waiting for snapshot '%s' status to be completed" %
@@ -218,12 +226,24 @@ class EbsVolumeStorage(CloudBlockStorage):
         wait_for(is_completed, timeout=300, log_func=log_func )
 
         if is_completed():
-            logger.info("EBS Snapshot '%s' completed successfully!." %
-                         ebs_snapshot.id)
-            return EbsSnapshotReference(ebs_snapshot.id)
+            logger.info("EBS Snapshot '%s' for volume '%s' completed "
+                        "successfully!." % (ebs_snapshot.id, self.volume_id))
+            return EbsSnapshotReference(snapshot_id=ebs_snapshot.id,
+                                            cloud_block_storage=self)
 
         else:
             raise BlockStorageSnapshotError("EBS Snapshot Timeout error")
+
+    ###########################################################################
+    def delete_snapshot(self, snapshot_ref):
+        snapshot_id = snapshot_ref.snapshot_id
+        try:
+            logger.info("Deleting snapshot '%s' " % snapshot_id)
+            self.ec2_connection.delete_snapshot(snapshot_id)
+            logger.info("Snapshot '%s' deleted successfully!" % snapshot_id)
+        except Exception, e:
+            msg = "Error while deleting snapshot '%s'" % snapshot_id
+            raise BlockStorageSnapshotError(msg, cause=e)
 
     ###########################################################################
     @property
@@ -305,6 +325,14 @@ class EbsVolumeStorage(CloudBlockStorage):
     def _get_ebs_snapshot_by_desc(self, description):
         snapshots = filter(lambda snapshot: snapshot.description == description,
                       self._get_ebs_snapshots())
+
+        if snapshots:
+            return snapshots[0]
+
+    ###########################################################################
+    def _get_ebs_snapshot_by_id(self, id):
+        snapshots = filter(lambda snapshot: snapshot.id == id,
+            self._get_ebs_snapshots())
 
         if snapshots:
             return snapshots[0]

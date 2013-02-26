@@ -4,6 +4,7 @@ import traceback
 import mbs_logging
 from mbs import get_mbs
 from errors import RetentionPolicyError
+from target import CloudBlockStorageSnapshotReference
 from base import MBSObject
 from date_utils import date_now, date_minus_seconds
 
@@ -52,14 +53,8 @@ class RetentionPolicy(MBSObject):
                 }
                 backup = backup_collection.find_and_modify(query=q, update=u)
                 if backup:
-                    logger.info("%s: Expiring backup %s and deleting backup "
-                                "file" %
-                                (policy_name, backup.id))
-                    backup.target.delete_file(backup.target_reference)
-                    backup.target_reference.expired_date = expired_date
+                    self._expire_backup(backup, expired_date)
 
-                    logger.info("%s: Backup %s archived successfully!" %
-                                (policy_name, backup.id))
             except Exception, e:
                 logger.error("%s: Error while archiving backup %s. "
                              "Trace: %s" %
@@ -78,6 +73,29 @@ class RetentionPolicy(MBSObject):
         """
         return []
 
+    ###########################################################################
+    def _expire_backup(self, backup, expired_date):
+        """
+            expires the backup
+        """
+        policy_name = self.__class__.__name__
+        target_ref = backup.target_reference
+
+        logger.info("%s: Expiring backup '%s'" % (policy_name, backup.id))
+        # if the target reference is a cloud storage one then make the cloud
+        # storage object take care of it
+        if isinstance(target_ref, CloudBlockStorageSnapshotReference):
+            logger.info("%s: Deleting backup '%s' snapshot " %
+                        (policy_name, backup.id))
+            target_ref.cloud_block_storage.delete_snapshot(target_ref)
+        else:
+            logger.info("%s: Deleting backup '%s file" %
+                        (policy_name, backup.id))
+            backup.target.delete_file(target_ref)
+            backup.target_reference.expired_date = expired_date
+
+        logger.info("%s: Backup %s archived successfully!" %
+                    (policy_name, backup.id))
 
 ###############################################################################
 # RetainLastNPolicy
