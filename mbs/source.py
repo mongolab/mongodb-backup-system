@@ -10,8 +10,7 @@ from errors import *
 import mongo_uri_tools
 import mbs_logging
 
-from boto.ec2.connection import EC2Connection
-
+from boto.ec2 import connect_to_region
 
 ###############################################################################
 # LOGGER
@@ -197,6 +196,7 @@ class EbsVolumeStorage(CloudBlockStorage):
         self._encrypted_access_key = None
         self._encrypted_secret_key = None
         self._volume_id = None
+        self._region = None
         self._ec2_connection = None
 
     ###########################################################################
@@ -258,6 +258,15 @@ class EbsVolumeStorage(CloudBlockStorage):
 
     ###########################################################################
     @property
+    def region(self):
+        return self._region
+
+    @region.setter
+    def region(self, region):
+        self._region = str(region)
+
+    ###########################################################################
+    @property
     def access_key(self):
         if self.encrypted_access_key:
             return get_mbs().encryptor.decrypt_string(self.encrypted_access_key)
@@ -304,7 +313,12 @@ class EbsVolumeStorage(CloudBlockStorage):
     @property
     def ec2_connection(self):
         if not self._ec2_connection:
-            conn = EC2Connection(self.access_key, self.secret_key)
+            conn = connect_to_region(self.region,
+                                     aws_access_key_id=self.access_key,
+                                     aws_secret_access_key=self.secret_key)
+            if not conn:
+                raise ConfigurationError("Invalid region in block storage %s" %
+                                         self)
             self._ec2_connection = conn
 
         return self._ec2_connection
@@ -347,6 +361,7 @@ class EbsVolumeStorage(CloudBlockStorage):
         return {
             "_type": "EbsVolumeStorage",
             "volumeId": self.volume_id,
+            "region": self.region,
             "encryptedAccessKey": ak,
             "encryptedSecretKey": sk
         }
