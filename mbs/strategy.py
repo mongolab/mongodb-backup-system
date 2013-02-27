@@ -531,7 +531,7 @@ class CloudBlockStorageStrategy(BackupStrategy):
 ###############################################################################
 # Hybrid Strategy Class
 ###############################################################################
-DUMP_MAX_FILE_SIZE = 5 #* 1024 * 1024 * 1024
+DUMP_MAX_FILE_SIZE = 5 * 1024 * 1024 * 1024
 
 class HybridStrategy(BackupStrategy):
 
@@ -573,20 +573,8 @@ class HybridStrategy(BackupStrategy):
     def _do_run_backup(self, backup):
         mongo_connector = self.get_backup_mongo_connector(backup)
 
-        # if there is no cloud block storage for the selected connector
-        # then choose dump and warn
-
-        address = mongo_connector.address
-        block_storage = backup.source.get_block_storage_by_address(address)
-
-        if block_storage is None:
-            logger.warning("HybridStrategy: No cloud block storage found for"
-                           " '%s'. Using dump strategy ..." % address)
-            selected_strategy  = self.dump_strategy
-
-        else:
-            selected_strategy = self.predicate.get_best_strategy(self, backup,
-                                                               mongo_connector)
+        selected_strategy = self.predicate.get_best_strategy(self, backup,
+                                                             mongo_connector)
         selected_strategy.backup_mongo_connector(backup, mongo_connector)
 
     ###########################################################################
@@ -651,6 +639,15 @@ class FileSizePredicate(HybridStrategyPredicate):
                         (file_size, self.dump_max_file_size))
             return hybrid_strategy.dump_strategy
         else:
+            # if there is no cloud block storage for the selected connector
+            # then choose dump and warn
+            address = mongo_connector.address
+            block_storage = backup.source.get_block_storage_by_address(address)
+            if block_storage is None:
+                logger.warning("HybridStrategy: No cloud block storage found "
+                               "for '%s'. Using dump strategy ..." % address)
+                return hybrid_strategy.dump_strategy
+
             logger.info("Selected cloud block storage strategy since "
                         "fileSize %s is more than dump max size %s" %
                         (file_size, self.dump_max_file_size))
