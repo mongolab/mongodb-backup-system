@@ -572,8 +572,21 @@ class HybridStrategy(BackupStrategy):
     ###########################################################################
     def _do_run_backup(self, backup):
         mongo_connector = self.get_backup_mongo_connector(backup)
-        selected_strategy = self.predicate.get_best_strategy(self, backup,
-                                                             mongo_connector)
+
+        # if there is no cloud block storage for the selected connector
+        # then choose dump and warn
+
+        address = mongo_connector.address
+        block_storage = backup.source.get_block_storage_by_address(address)
+
+        if block_storage is None:
+            logger.warning("HybridStrategy: No cloud block storage found for"
+                           " '%s'. Using dump strategy ..." % address)
+            selected_strategy  = self.dump_strategy
+
+        else:
+            selected_strategy = self.predicate.get_best_strategy(self, backup,
+                                                               mongo_connector)
         selected_strategy.backup_mongo_connector(backup, mongo_connector)
 
     ###########################################################################

@@ -58,7 +58,9 @@ class BackupSource(MBSObject):
     ###########################################################################
     def get_block_storage_by_address(self, address):
         block_storage = self.cloud_block_storage
-        if isinstance(block_storage, dict):
+        if block_storage is None:
+            return None
+        elif isinstance(block_storage, dict):
             return block_storage.get(address)
         elif isinstance(block_storage, CloudBlockStorage):
             return block_storage
