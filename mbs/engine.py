@@ -613,11 +613,13 @@ class BackupWorker(Thread):
     def _calculate_backup_rate(self, backup):
         duration = timedelta_total_seconds(date_now() - backup.start_date)
         if backup.source_stats and backup.source_stats.get("dataSize"):
-            size_mb = backup.source_stats["dataSize"] / (1024 * 1024)
+            size_mb = float(backup.source_stats["dataSize"]) / (1024 * 1024)
             rate = size_mb/duration
-            backup.backup_rate_in_mbps = round(rate, 2)
-            # save changes
-            update_backup(backup, properties="backupRateInMBPS")
+            rate = round(rate, 2)
+            if rate:
+                backup.backup_rate_in_mbps = rate
+                # save changes
+                update_backup(backup, properties="backupRateInMBPS")
 
     ###########################################################################
     def _apply_retention_policy(self, backup):
