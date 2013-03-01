@@ -11,7 +11,7 @@ TYPE_BINDINGS = {
     "DumpStrategy": "mbs.strategy.DumpStrategy",
     "CloudBlockStorageStrategy": "mbs.strategy.CloudBlockStorageStrategy",
     "HybridStrategy": "mbs.strategy.HybridStrategy",
-    "FileSizePredicate": "mbs.strategy.FileSizePredicate",
+    "DataSizePredicate": "mbs.strategy.DataSizePredicate",
     "Source": "mbs.source.BackupSource",
     "SourceStats": "mbs.source.SourceStats",
     "Target": "mbs.target.BackupTarget",
