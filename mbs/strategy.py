@@ -33,10 +33,10 @@ EVENT_END_ARCHIVE = "END_ARCHIVE"
 EVENT_START_UPLOAD = "START_UPLOAD"
 EVENT_END_UPLOAD = "END_UPLOAD"
 
-# Member mode selection values
-MODE_PRIMARY_ONLY = "PRIMARY_ONLY"
-MODE_SECONDARY_ONLY = "SECONDARY_ONLY"
-MODE_BEST = "BEST"
+# Member preference values
+PREF_PRIMARY_ONLY = "PRIMARY_ONLY"
+PREF_SECONDARY_ONLY = "SECONDARY_ONLY"
+PREF_BEST = "BEST"
 
 ###############################################################################
 # LOGGER
@@ -75,16 +75,16 @@ class BackupStrategy(MBSObject):
 
     ###########################################################################
     def __init__(self):
-        self._member_selection_mode = MODE_BEST
+        self._member_preference = PREF_BEST
 
     ###########################################################################
     @property
-    def member_selection_mode(self):
-        return self._member_selection_mode
+    def member_preference(self):
+        return self._member_preference
 
-    @member_selection_mode.setter
-    def member_selection_mode(self, val):
-        self._member_selection_mode = val
+    @member_preference.setter
+    def member_preference(self, val):
+        self._member_preference = val
 
     ###########################################################################
     def run_backup(self, backup):
@@ -129,7 +129,7 @@ class BackupStrategy(MBSObject):
         primary_member = mongo_cluster.primary_member
         selected_member = None
         # dump from best secondary if configured and found
-        if (self.member_selection_mode in [MODE_BEST, MODE_SECONDARY_ONLY] and
+        if (self.member_preference in [PREF_BEST, PREF_SECONDARY_ONLY] and
             backup.try_count < MAX_NO_RETRIES):
 
             best_secondary = mongo_cluster.get_best_secondary(max_lag_seconds=
@@ -150,7 +150,7 @@ class BackupStrategy(MBSObject):
 
 
         if (not selected_member and
-            self.member_selection_mode in [MODE_BEST, MODE_PRIMARY_ONLY]):
+            self.member_preference in [PREF_BEST, PREF_PRIMARY_ONLY]):
             # otherwise dump from primary if primary ok or if this is the
             # last try. log warning because we are dumping from a primary
             selected_member = primary_member
@@ -205,7 +205,7 @@ class BackupStrategy(MBSObject):
     ###########################################################################
     def to_document(self, display_only=False):
         return {
-            "memberSelectionMode": self.member_selection_mode
+            "memberPreference": self.member_preference
         }
 
 ###############################################################################
@@ -531,7 +531,7 @@ class CloudBlockStorageStrategy(BackupStrategy):
 ###############################################################################
 # Hybrid Strategy Class
 ###############################################################################
-DUMP_MAX_FILE_SIZE = 5 * 1024 * 1024 * 1024
+DUMP_MAX_DATA_SIZE = 50  * 1024 * 1024 * 1024
 
 class HybridStrategy(BackupStrategy):
 
@@ -540,7 +540,7 @@ class HybridStrategy(BackupStrategy):
         BackupStrategy.__init__(self)
         self._dump_strategy = DumpStrategy()
         self._cloud_block_storage_strategy = CloudBlockStorageStrategy()
-        self._predicate = FileSizePredicate()
+        self._predicate = DataSizePredicate()
 
     ###########################################################################
     @property
@@ -613,13 +613,13 @@ class HybridStrategyPredicate(MBSObject):
         pass
 
 ###############################################################################
-# FileSizePredicate
+# DataSizePredicate
 ###############################################################################
-class FileSizePredicate(HybridStrategyPredicate):
+class DataSizePredicate(HybridStrategyPredicate):
 
     ###########################################################################
     def __init__(self):
-        self._dump_max_file_size = DUMP_MAX_FILE_SIZE
+        self._dump_max_data_size = DUMP_MAX_DATA_SIZE
 
     ###########################################################################
     def get_best_strategy(self, hybrid_strategy, backup, mongo_connector):
@@ -628,15 +628,15 @@ class FileSizePredicate(HybridStrategyPredicate):
             backup
             Must be overridden by subclasses
         """
-        file_size = self._get_backup_source_file_size(backup, mongo_connector)
-        logger.info("Selecting best strategy for backup '%s', fileSize=%s, "
-                    "dump max file size=%s" %
-                    (backup.id, file_size, self.dump_max_file_size))
+        data_size = self._get_backup_source_data_size(backup, mongo_connector)
+        logger.info("Selecting best strategy for backup '%s', dataSize=%s, "
+                    "dump max data size=%s" %
+                    (backup.id, data_size, self.dump_max_data_size))
 
-        if file_size < self.dump_max_file_size:
-            logger.info("Selected dump strategy since fileSize %s is less"
+        if data_size < self.dump_max_data_size:
+            logger.info("Selected dump strategy since dataSize %s is less"
                         " than dump max size %s" %
-                        (file_size, self.dump_max_file_size))
+                        (data_size, self.dump_max_data_size))
             return hybrid_strategy.dump_strategy
         else:
             # if there is no cloud block storage for the selected connector
@@ -649,29 +649,29 @@ class FileSizePredicate(HybridStrategyPredicate):
                 return hybrid_strategy.dump_strategy
 
             logger.info("Selected cloud block storage strategy since "
-                        "fileSize %s is more than dump max size %s" %
-                        (file_size, self.dump_max_file_size))
+                        "dataSize %s is more than dump max size %s" %
+                        (data_size, self.dump_max_data_size))
             return hybrid_strategy.cloud_block_storage_strategy
 
     ###########################################################################
     @property
-    def dump_max_file_size(self):
-        return self._dump_max_file_size
+    def dump_max_data_size(self):
+        return self._dump_max_data_size
 
-    @dump_max_file_size.setter
-    def dump_max_file_size(self, val):
-        self._dump_max_file_size = val
+    @dump_max_data_size.setter
+    def dump_max_data_size(self, val):
+        self._dump_max_data_size = val
 
     ###########################################################################
-    def _get_backup_source_file_size(self, backup, mongo_connector):
+    def _get_backup_source_data_size(self, backup, mongo_connector):
         database_name = backup.source.database_name
         stats = mongo_connector.get_stats(only_for_db=database_name)
 
-        return stats["fileSize"]
+        return stats["dataSize"]
 
     ###########################################################################
     def to_document(self, display_only=False):
         return {
-            "_type": "FileSizePredicate",
-            "dumpMaxFileSize":self.dump_max_file_size
+            "_type": "DataSizePredicate",
+            "dumpMaxDataSize":self.dump_max_data_size
         }
