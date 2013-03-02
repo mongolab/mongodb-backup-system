@@ -29,6 +29,6 @@ class MBSObject(object):
 
     ###########################################################################
     def __eq__(self, other):
-        if other:
+        if isinstance(other, MBSObject):
             return self.to_document() == other.to_document()
 
