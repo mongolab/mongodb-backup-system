@@ -185,7 +185,12 @@ class PlanManager(Thread):
     ###########################################################################
     def _process_plans_considered_now(self):
         for plan in self._get_plans_to_consider_now():
-            self._process_plan(plan)
+            try:
+                self._process_plan(plan)
+            except Exception, e:
+                logger.error("Error while processing plan '%s'. Cause: %s" %
+                             (plan.id, e))
+                self._notify_error(e)
 
     ###########################################################################
     def _process_plan(self, plan):

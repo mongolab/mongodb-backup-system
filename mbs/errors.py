@@ -272,6 +272,15 @@ class BlockStorageSnapshotError(MBSError):
 
 
 ###############################################################################
+# Dynamic Tag Errors
+###############################################################################
+class TagError(MBSError):
+    """
+        Base classes for all volume snapshot errors
+    """
+
+
+###############################################################################
 # UTILITY ERROR METHODS
 ###############################################################################
 def is_connection_exception(exception):
