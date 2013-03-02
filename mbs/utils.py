@@ -215,6 +215,11 @@ def get_host_ips(host):
             ip = elem[4]
             if ip not in ips:
                 ips.append(ip)
+
+        # TODO remove this temp hack that works around the case where
+        # host X has more IPs than X.foo.com.
+        if len(host.split(".")) == 3:
+            ips.extend(get_host_ips(host.split(".")[0]))
         return ips
     except Exception, e:
         raise Exception("Invalid host '%s'. Cause: %s" % (host, e))
