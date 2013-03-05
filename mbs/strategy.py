@@ -430,7 +430,7 @@ class DumpStrategy(BackupStrategy):
             else:
                 error_type = DumpError
 
-            raise error_type(dump_cmd_display, e.returncode, last_dump_line, e)
+            raise error_type(dump_cmd_display, e.returncode, last_dump_line)
 
     ###########################################################################
     def _execute_tar_command(self, path, filename):

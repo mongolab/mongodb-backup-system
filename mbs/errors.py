@@ -121,14 +121,18 @@ class NoEligibleMembersFound(ReplicasetError):
 class DumpError(MBSError):
     """
         Base error for dump errors
+        IMPORTANT NOTE! note that all dump errors DOES NOT pass the cause since
+        the cause is a CalledProcessError that contains the full un-censored
+        dump command (which might contain username/password). It has been
+        omitted to avoid logging credentials
     """
     ###########################################################################
-    def __init__(self, dump_cmd, return_code, last_dump_line, cause):
+    def __init__(self, dump_cmd, return_code, last_dump_line):
         msg = ("Failed to mongodump")
         details = ("Failed to dump. Dump command '%s' returned a non-zero "
                    "exit status %s.Check dump logs. Last dump log line: "
                    "%s" % (dump_cmd, return_code, last_dump_line))
-        super(DumpError, self).__init__(msg=msg, details=details, cause=cause)
+        super(DumpError, self).__init__(msg=msg, details=details)
 
 
 ###############################################################################
