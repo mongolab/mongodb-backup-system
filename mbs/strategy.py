@@ -192,9 +192,22 @@ class BackupStrategy(MBSObject):
 
     ###########################################################################
     def cleanup_backup(self, backup):
-        """
-            Does the actual work. Has to be overridden by subclasses
-        """
+
+        # delete the temp dir
+        workspace = backup.workspace
+        logger.info("Cleanup: deleting workspace dir %s" % workspace)
+        update_backup(backup,
+            event_name="CLEANUP",
+            message="Running cleanup")
+
+        try:
+
+            if os.path.exists(workspace):
+                shutil.rmtree(workspace)
+            else:
+                logger.error("workspace dir %s does not exist!" % workspace)
+        except Exception, e:
+            logger.error("Cleanup error for backup '%s': %s" % (backup.id, e))
 
     ###########################################################################
     def restore_backup(self, backup):
@@ -346,25 +359,6 @@ class DumpStrategy(BackupStrategy):
         update_backup(backup, properties="targetReference",
                       event_name="ERROR_HANDLING_END_UPLOAD",
                       message="Finished uploading bad tar")
-
-    ###########################################################################
-    def cleanup_backup(self, backup):
-
-        # delete the temp dir
-        workspace = backup.workspace
-        logger.info("Cleanup: deleting workspace dir %s" % workspace)
-        update_backup(backup,
-                      event_name="CLEANUP",
-                      message="Running cleanup")
-
-        try:
-
-            if os.path.exists(workspace):
-                shutil.rmtree(workspace)
-            else:
-                logger.error("workspace dir %s does not exist!" % workspace)
-        except Exception, e:
-            logger.error("Cleanup error for backup '%s': %s" % (backup.id, e))
 
     ###########################################################################
     def _do_dump_backup(self, backup, uri):
