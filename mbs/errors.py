@@ -173,6 +173,10 @@ class BadTypeError(DumpError, RetriableError):
     pass
 
 ###############################################################################
+class ExhaustReceiveError(DumpError, RetriableError):
+    pass
+
+###############################################################################
 class MongoctlConnectionError(DumpError, RetriableError):
     """
         Raised when mongoctl (used for dump) cannot connect to source

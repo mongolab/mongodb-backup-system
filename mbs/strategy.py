@@ -427,6 +427,8 @@ class DumpStrategy(BackupStrategy):
                 error_type = MongoctlConnectionError
             elif "cursor didn't exist on server" in last_dump_line:
                 error_type = CursorDoesNotExistError
+            elif "16465" in last_dump_line:
+                error_type = ExhaustReceiveError
             else:
                 error_type = DumpError
 
