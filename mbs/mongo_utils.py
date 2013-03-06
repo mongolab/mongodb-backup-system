@@ -283,7 +283,7 @@ class MongoServer(MongoConnector):
     ###########################################################################
     @property
     def rs_status(self):
-        if not self._rs_status:
+        if not self._rs_status and self.is_replica_member():
             self._rs_status = self._get_rs_status()
 
         return self._rs_status
@@ -347,6 +347,22 @@ class MongoServer(MongoConnector):
         """
         master_result = self._is_master_command()
         return master_result and master_result.get("arbiterOnly")
+
+    ###########################################################################
+    def is_replica_member(self):
+        """
+            Returns true if this is a replica member
+        """
+
+        return self.get_replicaset_name() is not None
+
+    ###########################################################################
+    def get_replicaset_name(self):
+        """
+            Returns true if the member is secondary
+        """
+        master_result = self._is_master_command()
+        return master_result and master_result.get("setName")
 
     ###########################################################################
     def _is_master_command(self):
