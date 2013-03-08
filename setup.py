@@ -2,7 +2,10 @@ import sys
 import os
 import pwd
 
-from setuptools import setup
+from distribute_setup import use_setuptools
+use_setuptools()
+
+from setuptools import setup, find_packages
 
 MBS_CONF = os.path.expanduser("~/.mbs/mbs.config")
 
@@ -13,7 +16,7 @@ setup(
         'bin/mbs',
         'bin/st'
     ],
-    packages=['mbs'],
+    packages=find_packages(),
     install_requires=[
         "dargparse",
         "pymongo==2.4.1",
