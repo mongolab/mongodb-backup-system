@@ -14,7 +14,7 @@ from utils import document_pretty_string
 
 from date_utils import date_now, date_minus_seconds, time_str_to_datetime_today
 from errors import MBSError
-from audit import GlobalAuditor, PlanAuditor
+from auditors import GlobalAuditor
 from backup import (Backup, STATE_SCHEDULED, STATE_IN_PROGRESS, STATE_FAILED,
                     STATE_CANCELED, EVENT_STATE_CHANGE)
 
@@ -58,7 +58,7 @@ class PlanManager(Thread):
         self._backup_collection = None
         self._sleep_time = sleep_time
 
-        self._registered_plan_generators = []
+        self._plan_generators = []
         self._tick_count = 0
         self._notification_handler = None
         self._stopped = False
@@ -70,8 +70,8 @@ class PlanManager(Thread):
 
         # init global editor
         self._audit_notification_handler = None
+        self._auditors = None
         self._global_auditor = None
-        self._plan_auditor = None
         self._audit_schedule = None
         self._audit_next_occurrence = None
 
@@ -97,6 +97,15 @@ class PlanManager(Thread):
 
     ###########################################################################
     @property
+    def plan_generators(self):
+        return self._plan_generators
+
+    @plan_generators.setter
+    def plan_generators(self, value):
+        self._plan_generators = value
+
+    ###########################################################################
+    @property
     def notification_handler(self):
         return self._notification_handler
 
@@ -112,6 +121,15 @@ class PlanManager(Thread):
     @audit_collection.setter
     def audit_collection(self, ac):
         self._audit_collection = ac
+
+    ###########################################################################
+    @property
+    def auditors(self):
+        return self._auditors
+
+    @auditors.setter
+    def auditors(self, value):
+        self._auditors = value
 
     ###########################################################################
     @property
@@ -139,10 +157,10 @@ class PlanManager(Thread):
             nh = self.audit_notification_handler
             self._global_auditor = GlobalAuditor(audit_collection=ac,
                                                  notification_handler=nh)
-            # create / register plan auditor
-            plan_auditor = PlanAuditor(self.plan_collection,
-                                       self.backup_collection)
-            self._global_auditor.register_auditor(plan_auditor)
+            # register auditors with global auditor
+            if self.auditors:
+                for auditor in self.auditors:
+                    self._global_auditor.register_auditor(auditor)
 
         return self._global_auditor
 
@@ -448,15 +466,11 @@ class PlanManager(Thread):
             return time_str_to_datetime_today(self._audit_schedule)
 
     ###########################################################################
-    # plan generators methods a
-    ###########################################################################
-    def register_plan_generator(self, generator):
-        self._registered_plan_generators.append(generator)
-
+    # plan generators methods
     ###########################################################################
     def _run_plan_generators(self):
         self.info("Running ALL plan generators")
-        for generator in self._registered_plan_generators:
+        for generator in self.plan_generators:
                 self._run_generator(generator)
 
     ###########################################################################

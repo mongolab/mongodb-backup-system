@@ -25,6 +25,7 @@ TYPE_BINDINGS = {
     "EbsSnapshotReference": "mbs.target.EbsSnapshotReference",
     "RetainLastNPolicy": "mbs.policies.RetainLastNPolicy",
     "RetainMaxTimePolicy": "mbs.policies.RetainMaxTimePolicy",
+    "PlanAuditor": "mbs.auditors.PlanAuditor",
     "AuditReport": "mbs.audit.AuditReport",
     "AuditEntry": "mbs.audit.AuditEntry",
     "PlanAuditReport": "mbs.audit.PlanAuditReport",

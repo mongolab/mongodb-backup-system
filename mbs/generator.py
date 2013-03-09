@@ -15,8 +15,8 @@ logger = mbs_logging.logger
 class PlanGenerator(object):
 
     ###########################################################################
-    def __init__(self, plan_collection):
-        self._plan_collection = plan_collection
+    def __init__(self):
+        pass
 
     ###########################################################################
     @property
