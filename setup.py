@@ -18,6 +18,7 @@ setup(
     ],
     packages=find_packages(),
     install_requires=[
+        "distribute",
         "dargparse",
         "pymongo==2.4.1",
         "maker-py==0.1.1",
