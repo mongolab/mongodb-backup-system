@@ -66,6 +66,7 @@ def _do_start_engine(engine, fork=False):
         if child_pid:
             # parent process. return
             print "Forked engine process %s" % child_pid
+            return
         else:
             # need to disown yourself, Son
             os.setsid()
@@ -169,6 +170,12 @@ def _do_start_plan_manager(fork=False):
             # parent process. return
             print "Forked plan manager process %s" % child_pid
             return
+        else:
+            # need to disown yourself, Son
+            os.setsid()
+            os.umask(0)
+    else: # log to stdout
+        mbs_logging.log_to_stdout()
 
     # forked child process
     manager = get_mbs().plan_manager
