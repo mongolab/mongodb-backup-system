@@ -11,7 +11,7 @@ MBS_CONF = os.path.expanduser("~/.mbs/mbs.config")
 
 setup(
     name='mbs',
-    version='0.1.0',
+    version='0.1.1',
     scripts=[
         'bin/mbs',
         'bin/st'
@@ -20,7 +20,7 @@ setup(
     install_requires=[
         "dargparse",
         "pymongo==2.4.1",
-        "maker-py",
+        "maker-py==0.1.1",
         'boto==2.6.0',
         'Flask==0.8',
         'python-dateutil==1.5',
@@ -28,7 +28,7 @@ setup(
         'azure==0.6'
     ],
     dependency_links=[
-        "git+ssh://git@github.com/objectlabs/maker-py.git#egg=maker-py-0.1.0"
+        "git+ssh://git@github.com/objectlabs/maker-py.git#egg=maker-py-0.1.1"
     ]
 
 
