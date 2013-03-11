@@ -12,6 +12,7 @@ from bson.objectid import ObjectId
 from mbs.mbs import get_mbs
 from mbs.engine import STATUS_STOPPED, STATUS_STOPPING, STATUS_RUNNING
 from mbs.utils import wait_for, document_pretty_string
+from mbs import mbs_logging
 
 ###############################################################################
 # MAIN
@@ -66,6 +67,8 @@ def _do_start_engine(engine, fork=False):
             # parent process. return
             print "Forked engine process %s" % child_pid
             return
+    else: # log to stdout
+        mbs_logging.log_to_stdout()
 
     # forked child process
     engine.start()
