@@ -26,6 +26,9 @@ def main(args):
 
     # Parse the arguments and call the function of the selected cmd
     parsed_args = parser.parse_args(args)
+
+    if not hasattr(parsed_args, "fork") or not getattr(parsed_args, "fork"):
+        mbs_logging.log_to_stdout()
     # get the function to call from the parser framework
     command_function = parsed_args.func
 
@@ -71,8 +74,6 @@ def _do_start_engine(engine, fork=False):
             # need to disown yourself, Son
             os.setsid()
             os.umask(0)
-    else: # log to stdout
-        mbs_logging.log_to_stdout()
 
     # forked child process
     engine.start()
