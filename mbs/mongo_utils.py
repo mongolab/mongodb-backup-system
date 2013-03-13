@@ -491,7 +491,8 @@ def _calculate_database_stats(db):
         "indexes": db_stats["indexes"],
         "indexSize":db_stats["indexSize"],
         "fileSize": db_stats["fileSize"],
-        "nsSizeMB": db_stats["nsSizeMB"]
+        "nsSizeMB": db_stats["nsSizeMB"],
+        "databaseName": db.name
     }
 
     return result
