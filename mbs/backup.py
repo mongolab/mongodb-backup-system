@@ -270,16 +270,23 @@ class Backup(MBSObject):
 
     ###########################################################################
     def has_errors(self):
-        return self._has_event_type(EVENT_TYPE_ERROR)
+        return len(self.get_errors()) > 0
 
     ###########################################################################
     def has_warnings(self):
-        return self._has_event_type(EVENT_TYPE_WARNING)
+        return len(self.get_warnings()) > 0
 
     ###########################################################################
-    def _has_event_type(self, event_type):
-        logs = filter(lambda entry: entry.event_type == event_type, self.logs)
-        return len(logs) > 0
+    def get_errors(self):
+        return self._get_logs_by_event_type(EVENT_TYPE_ERROR)
+
+    ###########################################################################
+    def get_warnings(self):
+        return self._get_logs_by_event_type(EVENT_TYPE_WARNING)
+
+    ###########################################################################
+    def _get_logs_by_event_type(self, event_type):
+        return filter(lambda entry: entry.event_type == event_type, self.logs)
 
     ###########################################################################
     def is_event_logged(self, event_name):

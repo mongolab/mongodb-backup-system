@@ -150,8 +150,10 @@ class PlanAuditor(BackupAuditor):
         audit_entry = PlanAuditEntry()
 
         if backup:
-            audit_entry.backup = backup
+            audit_entry.backup_id = backup.id
             audit_entry.state = backup.state
+            audit_entry.errors = backup.get_errors()
+            audit_entry.warnings = backup.get_warnings()
         else:
             audit_entry.state = "NEVER SCHEDULED"
 

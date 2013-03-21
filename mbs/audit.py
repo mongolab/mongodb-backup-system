@@ -160,7 +160,9 @@ class AuditEntry(MBSObject):
     ###########################################################################
     def __init__(self):
         self._state = None
-        self._backup = None
+        self._backup_id = None
+        self._errors = None
+        self._warnings = None
 
     ###########################################################################
     @property
@@ -177,7 +179,7 @@ class AuditEntry(MBSObject):
 
     ###########################################################################
     def warned(self):
-        return self.backup and self.backup.has_warnings()
+        return self.warnings is not None and len(self.warnings) > 0
 
     ###########################################################################
     def succeeded(self):
@@ -185,22 +187,44 @@ class AuditEntry(MBSObject):
 
     ###########################################################################
     @property
-    def backup(self):
-        return self._backup
+    def backup_id(self):
+        return self._backup_id
+
+    @backup_id.setter
+    def backup_id(self, backup_id):
+        self._backup_id = backup_id
 
     ###########################################################################
-    @backup.setter
-    def backup(self, backup):
-        self._backup = backup
+    @property
+    def errors(self):
+        return self._errors
+
+    @errors.setter
+    def errors(self, errors):
+        self._errors = errors
+
+    ###########################################################################
+    @property
+    def warnings(self):
+        return self._warnings
+
+    @warnings.setter
+    def warnings(self, warnings):
+        self._warnings = warnings
 
     ###########################################################################
     def to_document(self, display_only=False):
-        doc =  {
+        doc= {
             "state": self.state,
+
         }
 
-        if self.backup:
-            doc["backup"] = self.backup.to_document(display_only=display_only)
+        if self.backup_id:
+            doc["backupId"] = self.backup_id
+        if self.errors:
+            doc["errors"] = self.errors
+        if self.warnings:
+            doc["warnings"] = self.warnings
 
         return doc
 
