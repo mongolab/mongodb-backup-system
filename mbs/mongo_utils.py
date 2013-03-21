@@ -427,14 +427,15 @@ class MongoServer(MongoConnector):
         try:
             server_status_cmd = SON([('serverStatus', 1)])
             server_status =  self.get_auth_admin_db().command(server_status_cmd)
-
+            ignored_props = ["locks", "recordStats"]
             # IMPORTANT NOTE: We remove the "locks" property
             # which is introduced in 2.2.0 to avoid having issues if a client
             # tries to save the returned document. this is because "locks"
             # contain a key "." which is not allowed by mongodb. Also "locks"
             # Could be very big and is not really needed anyways...
-            if "locks" in server_status:
-                del server_status["locks"]
+            for prop in ignored_props:
+                if prop in server_status:
+                    del server_status[prop]
             return server_status
         except Exception, e:
             details = "Cannot get server status for member '%s'. " % self
