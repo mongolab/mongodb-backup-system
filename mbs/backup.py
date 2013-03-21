@@ -368,9 +368,13 @@ class Backup(MBSObject):
         return doc
 
     ###########################################################################
-    def export_logs(self):
+    def export_logs(self, event_type=None):
         result = []
-        for log_entry in self.logs:
+        logs = self.logs
+        if event_type:
+            logs = self._get_logs_by_event_type(event_type=event_type)
+
+        for log_entry in logs:
             result.append(log_entry.to_document())
 
         return result

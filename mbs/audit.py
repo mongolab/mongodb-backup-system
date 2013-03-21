@@ -213,6 +213,23 @@ class AuditEntry(MBSObject):
         self._warnings = warnings
 
     ###########################################################################
+    def _export_errors(self):
+        return self._export_logs(self.errors)
+
+    ###########################################################################
+    def _export_warnings(self):
+        return self._export_logs(self.errors)
+
+    ###########################################################################
+    def _export_logs(self, logs):
+        result = []
+
+        for log_entry in logs:
+            result.append(log_entry.to_document())
+
+        return result
+
+    ###########################################################################
     def to_document(self, display_only=False):
         doc= {
             "state": self.state,
@@ -222,9 +239,9 @@ class AuditEntry(MBSObject):
         if self.backup_id:
             doc["backupId"] = self.backup_id
         if self.errors:
-            doc["errors"] = self.errors
+            doc["errors"] = self._export_errors()
         if self.warnings:
-            doc["warnings"] = self.warnings
+            doc["warnings"] = self._export_warnings()
 
         return doc
 
