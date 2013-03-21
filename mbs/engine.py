@@ -19,8 +19,10 @@ from threading import Thread
 
 from errors import MBSError
 
-from utils import (ensure_dir, wait_for, resolve_path, get_local_host_name,
+from utils import (ensure_dir, resolve_path, get_local_host_name,
                    document_pretty_string)
+
+from mbs import get_mbs
 
 from date_utils import  timedelta_total_seconds, date_now
 
@@ -65,7 +67,7 @@ logger = mbs_logging.logger
 class BackupEngine(Thread):
 
     ###########################################################################
-    def __init__(self, id=None, backup_collection=None, max_workers=10,
+    def __init__(self, id=None, max_workers=10,
                        sleep_time=10,
                        temp_dir=None,
                        notification_handler=None,
@@ -73,7 +75,6 @@ class BackupEngine(Thread):
         Thread.__init__(self)
         self._id = id
         self._engine_guid = None
-        self._backup_collection = backup_collection
         self._sleep_time = sleep_time
         self._worker_count = 0
         self._max_workers = int(max_workers)
@@ -105,11 +106,7 @@ class BackupEngine(Thread):
     ###########################################################################
     @property
     def backup_collection(self):
-        return self._backup_collection
-
-    @backup_collection.setter
-    def backup_collection(self, val):
-        self._backup_collection = val
+        return get_mbs().backup_collection
 
     ###########################################################################
     @property
@@ -305,7 +302,7 @@ class BackupEngine(Thread):
 
         total_crashed = 0
         msg = ("Engine crashed while backup was in progress. Failing...")
-        for backup in self._backup_collection.find(q):
+        for backup in self.backup_collection.find(q):
             # fail backup
             self.info("Recovery: Failing backup %s" % backup._id)
             backup.reschedulable = True
@@ -337,7 +334,7 @@ class BackupEngine(Thread):
         else:
             s = [("priority", 1)]
 
-        c = self._backup_collection
+        c = self.backup_collection
 
         backup = c.find_and_modify(query=q, sort=s, update=u, new=True)
 
@@ -369,7 +366,7 @@ class BackupEngine(Thread):
              }
         }
 
-        return self._backup_collection.find_and_modify(query=q, update=u,
+        return self.backup_collection.find_and_modify(query=q, update=u,
                                                        new=True)
 
     ###########################################################################

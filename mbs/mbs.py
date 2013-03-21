@@ -35,34 +35,21 @@ class MBS(object):
 
         # init config and database
         self._config = config
-        self._database = mongo_connect(self._get_database_uri())
-        # ensure indexes
-        self._ensure_indexes(self._database)
+        self._database = None
 
-        type_bindings = self._get_type_bindings()
+        self._type_bindings = self._get_type_bindings()
 
         # make the maker
-        self._maker =  Maker(type_bindings=type_bindings)
+        self._maker =  Maker(type_bindings=self._type_bindings)
 
         # init notification handler
         self._notification_handler = self.get_notification_handler()
 
         # init object collections
-        bc = ObjectCollection(self._database["backups"],
-                              clazz=Backup,
-                              type_bindings=type_bindings)
-        self._backup_collection = bc
+        self._backup_collection = None
+        self._plan_collection = None
+        self._audit_collection = None
 
-        pc = ObjectCollection(self._database["plans"],
-                              clazz=BackupPlan,
-                              type_bindings=type_bindings)
-        self._plan_collection = pc
-
-        ac = ObjectCollection(self._database["audits"],
-                              clazz=AuditReport,
-                              type_bindings=type_bindings)
-
-        self._audit_collection = ac
         # load manager/engines lazily
         self._plan_manager = None
 
@@ -99,20 +86,51 @@ class MBS(object):
     def _get_database_uri(self):
         return self._get_config_value("databaseURI")
 
+
+    ###########################################################################
+    @property
+    def database(self):
+        if not self._database:
+            self._database = mongo_connect(self._get_database_uri())
+            # ensure indexes
+            self._ensure_indexes(self._database)
+
+        return self._database
+
     ###########################################################################
     @property
     def backup_collection(self):
+        if not self._backup_collection:
+            bc = ObjectCollection(self.database["backups"],
+                clazz=Backup,
+                type_bindings=self._type_bindings)
+            self._backup_collection = bc
+
         return self._backup_collection
 
     ###########################################################################
     @property
-    def audit_collection(self):
-        return self._audit_collection
+    def plan_collection(self):
+
+        if not self._plan_collection:
+            pc = ObjectCollection(self.database["plans"],
+                clazz=BackupPlan,
+                type_bindings=self._type_bindings)
+            self._plan_collection = pc
+
+        return self._plan_collection
 
     ###########################################################################
     @property
-    def plan_collection(self):
-        return self._plan_collection
+    def audit_collection(self):
+        if not self._audit_collection:
+            ac = ObjectCollection(self.database["audits"],
+                clazz=AuditReport,
+                type_bindings=self._type_bindings)
+
+            self._audit_collection = ac
+
+        return self._audit_collection
 
     ###########################################################################
     @property
@@ -133,7 +151,6 @@ class MBS(object):
 
         engines = self._maker.make(engines_conf)
         for engine in engines:
-            engine.backup_collection = self.backup_collection
             engine.notification_handler = self._notification_handler
 
         return engines
