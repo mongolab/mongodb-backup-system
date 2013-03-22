@@ -215,23 +215,28 @@ class EbsVolumeStorage(CloudBlockStorage):
                     "Snapshot id '%s'." % (self.volume_id, ebs_snapshot.id))
 
         def log_func():
-            logger.info("Waiting for snapshot '%s' status to be completed" %
-                        ebs_snapshot.id)
+            logger.info("Waiting for snapshot '%s' status to be pending or "
+                        "completed" % ebs_snapshot.id)
 
         def is_completed():
             ebs_snapshot = self._get_ebs_snapshot_by_desc(description)
-            return ebs_snapshot.status == 'completed'
+            return ebs_snapshot.status in ['pending', 'completed']
 
         # log a waiting msg
         log_func() # :)
         # wait until complete
-        wait_for(is_completed, timeout=300, log_func=log_func )
+        wait_for(is_completed, timeout=120, log_func=log_func,
+                 sleep_duration=5)
 
         if is_completed():
             logger.info("EBS Snapshot '%s' for volume '%s' completed "
                         "successfully!." % (ebs_snapshot.id, self.volume_id))
             return EbsSnapshotReference(snapshot_id=ebs_snapshot.id,
-                                            cloud_block_storage=self)
+                                        cloud_block_storage=self,
+                                        status=ebs_snapshot.status,
+                                        start_time=ebs_snapshot.start_time,
+                                        volume_size=ebs_snapshot.volume_size,
+            )
 
         else:
             raise BlockStorageSnapshotError("EBS Snapshot Timeout error")
