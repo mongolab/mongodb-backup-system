@@ -22,7 +22,7 @@ from errors import MBSError
 from utils import (ensure_dir, resolve_path, get_local_host_name,
                    document_pretty_string)
 
-from mbs import get_mbs
+from mbs import MBS_CONF_DIR, get_mbs
 
 from date_utils import  timedelta_total_seconds, date_now
 
@@ -157,8 +157,10 @@ class BackupEngine(Thread):
     ###########################################################################
     def run(self):
         self.info("Starting up... ")
+        self.info("PID is %s" % os.getpid())
         self.info("TEMP DIR is '%s'" % self.temp_dir)
         ensure_dir(self._temp_dir)
+        self._update_pid_file()
         # Start the command server
         self._start_command_server()
         self._recover()
@@ -420,14 +422,46 @@ class BackupEngine(Thread):
         return value
 
     ###########################################################################
+    def _kill_engine_process(self):
+        self.info("Attempting to kill engine process")
+        pid = self._read_process_pid()
+        if pid:
+            self.info("Killing engine process '%s' using signal 9" % pid)
+            os.kill(int(pid), 9)
+        else:
+            raise BackupEngineError("Unable to determine engine process id")
+
+    ###########################################################################
+    def _update_pid_file(self):
+        pid_file = open(self._get_pid_file_path(), 'w')
+        pid_file.write(str(os.getpid()))
+        pid_file.close()
+
+    ###########################################################################
+    def _read_process_pid(self):
+        pid_file = open(self._get_pid_file_path(), 'r')
+        pid = pid_file.read()
+        if pid:
+            return int(pid)
+
+    ###########################################################################
+    def _get_pid_file_path(self):
+        pid_file_name = "engine_%s_pid.txt" % self.id
+        return resolve_path(os.path.join(MBS_CONF_DIR, pid_file_name))
+
+    ###########################################################################
     # Engine stopping
     ###########################################################################
-    def stop(self):
+    def stop(self, force=False):
         """
             Sends a stop request to the engine using the command port
             This should be used by other processes (copies of the engine
             instance) but not the actual running engine process
         """
+
+        if force:
+            self._kill_engine_process()
+            return
 
         url = "http://0.0.0.0:%s/stop" % self.command_port
         try:

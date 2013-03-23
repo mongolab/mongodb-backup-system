@@ -5,12 +5,14 @@ import mbs_logging
 import traceback
 import urllib
 import json
+import os
 
 from threading import Thread
 
 from flask import Flask
 from flask.globals import request
-from utils import document_pretty_string
+from utils import document_pretty_string, resolve_path
+from mbs import MBS_CONF_DIR
 
 from date_utils import date_now, date_minus_seconds, time_str_to_datetime_today
 from errors import MBSError
@@ -169,6 +171,9 @@ class PlanManager(Thread):
     ###########################################################################
     def run(self):
         self.info("Starting up... ")
+        self.info("PID is %s" % os.getpid())
+        self._update_pid_file()
+
         # Start the command server
         self._start_command_server()
 
@@ -573,14 +578,47 @@ class PlanManager(Thread):
             nh.send_error_notification(subject, message, exception)
 
     ###########################################################################
+    def _kill_manager_process(self):
+        self.info("Attempting to kill plan manager process")
+        pid = self._read_process_pid()
+        if pid:
+            self.info("Killing plan manager process '%s' using signal 9" % pid)
+            os.kill(int(pid), 9)
+        else:
+            raise PlanManagerError("Unable to determine plan manager process"
+                                   " id")
+
+    ###########################################################################
+    def _update_pid_file(self):
+        pid_file = open(self._get_pid_file_path(), 'w')
+        pid_file.write(str(os.getpid()))
+        pid_file.close()
+
+    ###########################################################################
+    def _read_process_pid(self):
+        pid_file = open(self._get_pid_file_path(), 'r')
+        pid = pid_file.read()
+        if pid:
+            return int(pid)
+
+    ###########################################################################
+    def _get_pid_file_path(self):
+        pid_file_name = "plan_manager_pid.txt"
+        return resolve_path(os.path.join(MBS_CONF_DIR, pid_file_name))
+
+    ###########################################################################
     # Manager stopping
     ###########################################################################
-    def stop(self):
+    def stop(self, force=False):
         """
             Sends a stop request to the manager using the command port
             This should be used by other processes (copy of the manager
             instance) but not the actual running manager process
         """
+
+        if force:
+            self._kill_manager_process()
+            return
 
         url = "http://0.0.0.0:%s/stop" % self._command_port
         try:

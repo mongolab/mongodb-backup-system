@@ -18,6 +18,7 @@ from audit import AuditReport
 from encryption import Encryptor
 
 ###############################################################################
+MBS_CONF_DIR = "~/.mbs"
 MBS_CONFIG = "~/.mbs/mbs.config"
 
 ###############################################################################

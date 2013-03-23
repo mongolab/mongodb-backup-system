@@ -108,7 +108,7 @@ def stop_engine(parsed_args):
         print "Engine is not running"
         return
 
-    engine.stop()
+    engine.stop(force=parsed_args.force)
 
 ###############################################################################
 def restart_engine(parsed_args):
@@ -197,7 +197,7 @@ def stop_plan_manager(parsed_args):
         print "Plan Manager is not running"
         return
 
-    manager.stop()
+    manager.stop(force=parsed_args.force)
 
     # register signal handler
     def manager_stopped():
@@ -375,6 +375,15 @@ PARSER_DEF = {
                     "nargs": "?",
                     "displayName": "ENGINE_ID",
                     "help": "An engine id"
+                } ,
+                    {
+                    "name": "force",
+                    "type" : "optional",
+                    "cmd_arg":  ["--force", "-f"],
+                    "nargs": 0,
+                    "help": "force stop engine",
+                    "action": "store_true",
+                    "default": False
                 }
             ]
         },
@@ -443,7 +452,18 @@ PARSER_DEF = {
             "prog": "stop-plan-manager",
             "shortDescription" : "stops the plan manager",
             "description" : "stops the plan manager",
-            "function": stop_plan_manager
+            "function": stop_plan_manager,
+            "args": [
+                    {
+                    "name": "force",
+                    "type" : "optional",
+                    "cmd_arg":  ["--force", "-f"],
+                    "nargs": 0,
+                    "help": "force stop manager",
+                    "action": "store_true",
+                    "default": False
+                }
+            ]
         },
         #### status-plan-manager ####
             {
