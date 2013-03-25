@@ -595,6 +595,9 @@ class BackupWorker(Thread):
                       (backup.strategy, backup._id, backup.try_count))
             # set start date
             backup.start_date = date_now()
+            # clear end date
+            backup.end_date = None
+
             # set backup name
             _set_backup_name(backup)
 
@@ -603,8 +606,8 @@ class BackupWorker(Thread):
             backup.workspace = workspace_dir
 
             # UPDATE!
-            update_backup(backup, properties=["tryCount", "startDate", "name",
-                                              "workspace"])
+            update_backup(backup, properties=["tryCount", "startDate",
+                                              "endDate", "name", "workspace"])
             # apply the retention policy
             # TODO Probably should be called somewhere else
             self._apply_retention_policy(backup)

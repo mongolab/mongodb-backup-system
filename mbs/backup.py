@@ -319,6 +319,8 @@ class Backup(MBSObject):
             "_type": "Backup",
             "createdDate": self.created_date,
             "state": self.state,
+            "startDate": self.start_date,
+            "endDate": self.end_date,
             "strategy": self.strategy.to_document(display_only=display_only),
             "source": self.source.to_document(display_only=display_only),
             "target": self.target.to_document(display_only=display_only),
@@ -346,12 +348,6 @@ class Backup(MBSObject):
 
         if self.backup_rate_in_mbps:
             doc["backupRateInMBPS"] = self.backup_rate_in_mbps
-
-        if self.start_date:
-            doc["startDate"] = self.start_date
-
-        if self.end_date:
-            doc["endDate"] = self.end_date
 
         if self.tags:
             doc["tags"] = self.tags
