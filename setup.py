@@ -11,7 +11,7 @@ MBS_CONF = os.path.expanduser("~/.mbs/mbs.config")
 
 setup(
     name='mbs',
-    version='0.1.1',
+    version='0.1.2',
     scripts=[
         'bin/mbs',
         'bin/st'
