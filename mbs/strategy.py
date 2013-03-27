@@ -8,10 +8,11 @@ import mongo_uri_tools
 
 from base import MBSObject
 from persistence import update_backup
-from mongo_utils import MongoCluster, MongoDatabase, MongoServer
+from mongo_utils import (MongoCluster, MongoDatabase, MongoServer,
+                         MongoNormalizedVersion)
 from subprocess import CalledProcessError
 from errors import *
-from utils import (which, ensure_dir, execute_command, call_command, wait_for)
+from utils import (which, ensure_dir, execute_command, call_command)
 
 
 
@@ -267,21 +268,14 @@ class DumpStrategy(BackupStrategy):
                                      details=details)
         source = backup.source
 
-        # dump the the server
-        uri = mongo_connector.uri
-        uri_wrapper = mongo_uri_tools.parse_mongo_uri(uri)
-        if source.database_name and not uri_wrapper.database:
-            if not uri.endswith("/"):
-                uri += "/"
-            uri += source.database_name
-
         # ensure backup workspace
         ensure_dir(backup.workspace)
 
         # run mongoctl dump
         if not backup.is_event_logged(EVENT_END_EXTRACT):
             try:
-                self._do_dump_backup(backup, uri)
+                self._do_dump_backup(backup, mongo_connector,
+                                     database_name=source.database_name)
             except DumpError, e:
                 # still tar and upload failed dumps
                 logger.error("Dumping backup '%s' failed. Will still tar"
@@ -361,10 +355,18 @@ class DumpStrategy(BackupStrategy):
                       message="Finished uploading bad tar")
 
     ###########################################################################
-    def _do_dump_backup(self, backup, uri):
+    def _do_dump_backup(self, backup, mongo_connector, database_name=None):
 
         update_backup(backup, event_name=EVENT_START_EXTRACT,
                       message="Dumping backup")
+
+        # dump the the server
+        uri = mongo_connector.uri
+        uri_wrapper = mongo_uri_tools.parse_mongo_uri(uri)
+        if database_name and not uri_wrapper.database:
+            if not uri.endswith("/"):
+                uri += "/"
+            uri += database_name
 
         dest = self._get_backup_dump_dir(backup)
         dump_cmd = ["/usr/local/bin/mongoctl",
@@ -379,6 +381,16 @@ class DumpStrategy(BackupStrategy):
                 "--oplog",
                 "--forceTableScan"]
             )
+
+        # if mongo version is >= 2.4 and we are using admin creds then pass
+        # --authenticationDatabase
+        mongo_version = mongo_connector.get_mongo_version()
+        if (mongo_version >= MongoNormalizedVersion("2.4.0") and
+            isinstance(mongo_connector, (MongoServer, MongoCluster))) :
+            dump_cmd.extend([
+                "--authenticationDatabase",
+                "admin"
+            ])
 
         dump_cmd_display= dump_cmd[:]
         # if the source uri is a mongo uri then mask it

@@ -9,6 +9,7 @@ from bson.son import SON
 from errors import *
 from date_utils import timedelta_total_seconds
 from utils import is_host_local
+from verlib import NormalizedVersion, suggest_normalized_version
 
 
 ###############################################################################
@@ -55,6 +56,15 @@ class MongoConnector(object):
     @property
     def uri(self):
         return self._uri_wrapper.raw_uri
+
+    ###########################################################################
+    @property
+    def connection(self):
+        pass
+
+    ###########################################################################
+    def get_mongo_version(self):
+        return MongoNormalizedVersion(self.connection.server_info()['version'])
 
     ###########################################################################
     def get_stats(self, only_for_db=None):
@@ -109,6 +119,11 @@ class MongoDatabase(MongoConnector):
         return self._database
 
     ###########################################################################
+    @property
+    def connection(self):
+        self._database.connection
+
+    ###########################################################################
     def get_stats(self, only_for_db=None):
         try:
             return _calculate_database_stats(self._database)
@@ -137,6 +152,11 @@ class MongoCluster(MongoConnector):
     @property
     def primary_member(self):
         return self._primary_member
+
+    ###########################################################################
+    @property
+    def connection(self):
+        raise Exception("Unsupported operation")
 
     ###########################################################################
     def _init_members(self):
@@ -264,6 +284,11 @@ class MongoServer(MongoConnector):
 
         self._authed_to_admin = True
         return self._admin_db
+
+    ###########################################################################
+    @property
+    def connection(self):
+        return self._connection
 
     ###########################################################################
     def is_online(self):
@@ -522,3 +547,22 @@ def _calculate_connection_databases_stats(connection):
             total_stats[key] += db_stats.get(key) or 0
 
     return total_stats
+
+
+
+###############################################################################
+# MongoNormalizedVersion class
+# we had to inherit and override __str__ because the suggest_normalized_version
+# method does not maintain the release candidate version properly
+###############################################################################
+class MongoNormalizedVersion(NormalizedVersion):
+    def __init__(self, version_str):
+        sugg_ver = suggest_normalized_version(version_str)
+        super(MongoNormalizedVersion,self).__init__(sugg_ver)
+        self.version_str = version_str
+
+    def __str__(self):
+        return self.version_str
+
+
+

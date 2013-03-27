@@ -26,7 +26,8 @@ setup(
         'Flask==0.8',
         'python-dateutil==1.5',
         'python-cloudfiles==1.7.10',
-        'azure==0.6'
+        'azure==0.6',
+        'verlib==0.1'
     ],
     dependency_links=[
         "git+ssh://git@github.com/objectlabs/maker-py.git#egg=maker-py-0.1.1"
