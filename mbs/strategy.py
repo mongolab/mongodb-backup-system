@@ -530,8 +530,15 @@ class CloudBlockStorageStrategy(BackupStrategy):
         # wait until snapshot is completed and keep target ref up to date
         while snapshot_ref.status not in [CBS_STATUS_ERROR,
                                           CBS_STATUS_COMPLETED]:
-            snapshot_updated = cloud_block_storage.check_snapshot_updates(snapshot_ref)
-            if snapshot_updated:
+            logger.debug("Checking updates for backup '%s' snapshot '%s' " %
+                        (backup.id, snapshot_ref.snapshot_id))
+            new_snapshot_ref = cloud_block_storage.check_snapshot_updates(snapshot_ref)
+            if new_snapshot_ref:
+                logger.info("Detected updates for backup '%s' snapshot '%s' " %
+                            (backup.id, snapshot_ref.snapshot_id))
+                logger.info("Old: \n%s\nNew:\n%s" % (snapshot_ref,
+                                                     new_snapshot_ref))
+                snapshot_ref = new_snapshot_ref
                 backup.target_reference = snapshot_ref
                 msg = "Snapshot status updates: '%s'" % snapshot_ref.status
                 update_backup(backup, properties="targetReference",
@@ -542,6 +549,8 @@ class CloudBlockStorageStrategy(BackupStrategy):
 
 
         if snapshot_ref.status == CBS_STATUS_COMPLETED:
+            logger.info("Successfully completed backup '%s' snapshot '%s' " %
+                        (backup.id, snapshot_ref.snapshot_id))
             msg = "Snapshot completed successfully"
             update_backup(backup, properties="targetReference",
                 event_name="END_BLOCK_STORAGE_SNAPSHOT", message=msg)
@@ -560,7 +569,7 @@ class CloudBlockStorageStrategy(BackupStrategy):
 ###############################################################################
 # Hybrid Strategy Class
 ###############################################################################
-DUMP_MAX_DATA_SIZE = 50  * 1024 * 1024 * 1024
+DUMP_MAX_DATA_SIZE = 50 # * 1024 * 1024 * 1024
 
 class HybridStrategy(BackupStrategy):
 

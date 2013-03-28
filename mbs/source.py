@@ -226,11 +226,9 @@ class EbsVolumeStorage(CloudBlockStorage):
 
         logger.info("EBS Snapshot '%s' for volume '%s' created "
                     "successfully!." % (ebs_snapshot.id, self.volume_id))
-        ebs_ref = EbsSnapshotReference(snapshot_id=ebs_snapshot.id,
-                                       cloud_block_storage=self,
-                                       status=ebs_snapshot.status,
-                                       start_time=ebs_snapshot.start_time,
-                                       volume_size=ebs_snapshot.volume_size)
+
+
+        ebs_ref = self._new_ebs_snapshot_reference(ebs_snapshot)
 
         return ebs_ref
 
@@ -251,9 +249,17 @@ class EbsVolumeStorage(CloudBlockStorage):
             Detects changes in snapshot
         """
         ebs_snapshot = self._get_ebs_snapshot_by_id(ebs_ref.snapshot_id)
-        if ebs_ref.status != ebs_snapshot.status:
-            ebs_ref.status = ebs_snapshot.status
-            return True
+        new_ebs_ref = self._new_ebs_snapshot_reference(ebs_snapshot)
+        if new_ebs_ref != ebs_ref:
+            return new_ebs_ref
+
+    ###########################################################################
+    def _new_ebs_snapshot_reference(self, ebs_snapshot):
+        return EbsSnapshotReference(snapshot_id=ebs_snapshot.id,
+                                    cloud_block_storage=self,
+                                    status=ebs_snapshot.status,
+                                    start_time=ebs_snapshot.start_time,
+                                    volume_size=ebs_snapshot.volume_size)
 
     ###########################################################################
     @property
