@@ -25,12 +25,6 @@ fh = TimedRotatingFileHandler(logfile, backupCount=50, when="midnight")
 fh.setFormatter(formatter)
 logger.addHandler(fh)
 
-try:
-    fh.doRollover()
-except Exception, e:
-    logger.error("MBS LOGGER: Error while doing rollover. %s" % e)
-
-
 def log_to_stdout():
     sh = logging.StreamHandler(sys.stdout)
     sh.setFormatter(formatter)
