@@ -142,9 +142,9 @@ class BadCollectionNameError(DumpError):
         containing "/"
     """
     ###########################################################################
-    def __init__(self, dump_cmd, return_code, last_dump_line, cause):
+    def __init__(self, dump_cmd, return_code, last_dump_line):
         super(BadCollectionNameError, self).__init__(dump_cmd, return_code,
-                                                     last_dump_line, cause)
+                                                     last_dump_line)
         self._message = ("Failed to mongodump... possibly because you "
                          "have collection name(s) with invalid "
                          "characters (e.g. '/'). If so, please rename or "
