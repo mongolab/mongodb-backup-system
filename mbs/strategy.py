@@ -2,6 +2,8 @@ __author__ = 'abdul'
 
 
 import os
+import time
+
 import shutil
 import mbs_logging
 import mongo_uri_tools
@@ -13,12 +15,11 @@ from mongo_utils import (MongoCluster, MongoDatabase, MongoServer,
 from subprocess import CalledProcessError
 from errors import *
 from utils import (which, ensure_dir, execute_command, call_command)
-
+from target import CBS_STATUS_COMPLETED, CBS_STATUS_ERROR
 
 
 from backup import EVENT_TYPE_WARNING
 from robustify.robustify import robustify
-from target import EbsSnapshotReference
 
 ###############################################################################
 # CONSTANTS
@@ -518,14 +519,34 @@ class CloudBlockStorageStrategy(BackupStrategy):
                       message="Kicking off snapshot")
 
         snapshot_desc = _backup_dump_dir_name(backup)
-        target_reference = cloud_block_storage.create_snapshot(snapshot_desc)
-        backup.target_reference = target_reference
+        snapshot_ref = cloud_block_storage.create_snapshot(snapshot_desc)
+        backup.target_reference = snapshot_ref
 
         msg = "Snapshot created successfully"
 
         update_backup(backup, properties="targetReference",
-                      event_name="END_BLOCK_STORAGE_SNAPSHOT", message=msg)
+                      event_name="PENDING_BLOCK_STORAGE_SNAPSHOT", message=msg)
 
+        # wait until snapshot is completed and keep target ref up to date
+        while snapshot_ref.status not in [CBS_STATUS_ERROR,
+                                          CBS_STATUS_COMPLETED]:
+            snapshot_updated = cloud_block_storage.check_snapshot_updates(snapshot_ref)
+            if snapshot_updated:
+                backup.target_reference = snapshot_ref
+                msg = "Snapshot status updates: '%s'" % snapshot_ref.status
+                update_backup(backup, properties="targetReference",
+                    event_name="UPDATE_BLOCK_STORAGE_SNAPSHOT", message=msg)
+
+            else:
+                time.sleep(5)
+
+
+        if snapshot_ref.status == CBS_STATUS_COMPLETED:
+            msg = "Snapshot completed successfully"
+            update_backup(backup, properties="targetReference",
+                event_name="END_BLOCK_STORAGE_SNAPSHOT", message=msg)
+        else:
+            raise BlockStorageSnapshotError("Snapshot error")
 
     ###########################################################################
     def to_document(self, display_only=False):
@@ -539,7 +560,7 @@ class CloudBlockStorageStrategy(BackupStrategy):
 ###############################################################################
 # Hybrid Strategy Class
 ###############################################################################
-DUMP_MAX_DATA_SIZE = 50  * 1024 * 1024 * 1024
+DUMP_MAX_DATA_SIZE = 50 # * 1024 * 1024 * 1024
 
 class HybridStrategy(BackupStrategy):
 

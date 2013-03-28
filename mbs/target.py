@@ -30,6 +30,11 @@ MULTIPART_MIN_SIZE = 100 * 1024 * 1024
 CF_MULTIPART_MIN_SIZE = 5 * 1024 * 1024 * 1024
 MAX_SPLIT_SIZE = 1024 * 1024 * 1024
 
+# Cloud block storage statuses
+CBS_STATUS_PENDING = "pending"
+CBS_STATUS_COMPLETED = "completed"
+CBS_STATUS_ERROR = "error"
+
 ###############################################################################
 # Target Classes
 ###############################################################################
@@ -924,9 +929,10 @@ class CloudBlockStorageSnapshotReference(TargetReference):
         Base class for cloud block storage snapshot references
     """
     ###########################################################################
-    def __init__(self, cloud_block_storage=None):
+    def __init__(self, cloud_block_storage=None, status=None):
         TargetReference.__init__(self)
         self._cloud_block_storage = cloud_block_storage
+        self._status = status
 
     ###########################################################################
     @property
@@ -938,10 +944,20 @@ class CloudBlockStorageSnapshotReference(TargetReference):
         self._cloud_block_storage = val
 
     ###########################################################################
+    @property
+    def status(self):
+        return self._status
+
+    @status.setter
+    def status(self, status):
+        self._status = status
+
+    ###########################################################################
     def to_document(self, display_only=False):
         return {
             "cloudBlockStorage":
-                self.cloud_block_storage.to_document(display_only=display_only)
+                self.cloud_block_storage.to_document(display_only=display_only),
+            "status": self.status
         }
 
 ###############################################################################
@@ -953,9 +969,9 @@ class EbsSnapshotReference(CloudBlockStorageSnapshotReference):
     def __init__(self, snapshot_id=None, cloud_block_storage=None, status=None,
                  volume_size=None, progress=None, start_time=None ):
         CloudBlockStorageSnapshotReference.__init__(self, cloud_block_storage=
-                                                           cloud_block_storage)
+                                                           cloud_block_storage,
+                                                          status=status)
         self._snapshot_id = snapshot_id
-        self._status = status
         self._volume_size = volume_size
         self._progress = progress
         self._start_time = start_time
@@ -968,15 +984,6 @@ class EbsSnapshotReference(CloudBlockStorageSnapshotReference):
     @snapshot_id.setter
     def snapshot_id(self, snapshot_id):
         self._snapshot_id = snapshot_id
-
-    ###########################################################################
-    @property
-    def status(self):
-        return self._status
-
-    @status.setter
-    def status(self, status):
-        self._status = status
 
     ###########################################################################
     @property
@@ -1012,7 +1019,6 @@ class EbsSnapshotReference(CloudBlockStorageSnapshotReference):
         doc.update({
             "_type": "EbsSnapshotReference",
             "snapshotId": self.snapshot_id,
-            "status": self.status,
             "volumeSize": self.volume_size,
             "progress": self.progress,
             "startTime": self.start_time
