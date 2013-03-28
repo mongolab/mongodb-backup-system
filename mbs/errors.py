@@ -162,9 +162,9 @@ class CappedCursorOverrunError(DumpError, RetriableError):
 class InvalidDBNameError(DumpError):
 
     ###########################################################################
-    def __init__(self, dump_cmd, return_code, last_dump_line, cause):
+    def __init__(self, dump_cmd, return_code, last_dump_line):
         super(InvalidDBNameError, self).__init__(dump_cmd, return_code,
-            last_dump_line, cause)
+                                                 last_dump_line)
         self._message = ("Failed to mongodump because the name of your "
                          "database is invalid")
 
