@@ -259,7 +259,8 @@ class EbsVolumeStorage(CloudBlockStorage):
                                     cloud_block_storage=self,
                                     status=ebs_snapshot.status,
                                     start_time=ebs_snapshot.start_time,
-                                    volume_size=ebs_snapshot.volume_size)
+                                    volume_size=ebs_snapshot.volume_size,
+                                    progress=ebs_snapshot.progress)
 
     ###########################################################################
     @property

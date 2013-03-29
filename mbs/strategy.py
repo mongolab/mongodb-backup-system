@@ -540,9 +540,7 @@ class CloudBlockStorageStrategy(BackupStrategy):
                                                      new_snapshot_ref))
                 snapshot_ref = new_snapshot_ref
                 backup.target_reference = snapshot_ref
-                msg = "Snapshot status updates: '%s'" % snapshot_ref.status
-                update_backup(backup, properties="targetReference",
-                    event_name="UPDATE_BLOCK_STORAGE_SNAPSHOT", message=msg)
+                update_backup(backup, properties="targetReference")
 
             else:
                 time.sleep(5)
