@@ -32,3 +32,7 @@ class MBSObject(object):
         if isinstance(other, MBSObject):
             return self.to_document() == other.to_document()
 
+    ###########################################################################
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
