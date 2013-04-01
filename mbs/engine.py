@@ -240,12 +240,13 @@ class BackupEngine(Thread):
 
         backup = worker.backup
         # send a notification only if the backup is not reschedulable
-        if not backup.reschedulable:
+        if not backup.reschedulable and self.notification_handler:
             subject = "Backup failed"
             message = ("Backup '%s' failed.\n%s\n\nCause: \n%s\nStack Trace:"
                        "\n%s" % (backup.id, backup, exception, trace))
 
-            self._send_error_notification(subject, message, exception)
+            nh = self.notification_handler
+            nh.notify_on_backup_failure(backup, exception, trace)
 
     ###########################################################################
     def _notify_error(self, exception):
