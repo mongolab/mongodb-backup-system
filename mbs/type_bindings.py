@@ -32,5 +32,6 @@ TYPE_BINDINGS = {
     "PlanAuditEntry": "mbs.audit.PlanAuditEntry",
     "EmailNotificationHandler": "mbs.notification.EmailNotificationHandler",
     "Encryptor": "mbs.encryption.Encryptor",
+    "BackupContact": "mbs.contact.BackupContact"
 
 }
