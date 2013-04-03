@@ -8,13 +8,16 @@ import shutil
 import mbs_logging
 import mongo_uri_tools
 
+from mbs import get_mbs
+
 from base import MBSObject
 from persistence import update_backup
 from mongo_utils import (MongoCluster, MongoDatabase, MongoServer,
                          MongoNormalizedVersion)
+
 from subprocess import CalledProcessError
 from errors import *
-from utils import (which, ensure_dir, execute_command, call_command)
+from utils import (which, ensure_dir, execute_command, execute_command_wrapper)
 from target import CBS_STATUS_COMPLETED, CBS_STATUS_ERROR
 
 
@@ -400,46 +403,58 @@ class DumpStrategy(BackupStrategy):
         logger.info("Running dump command: %s" % " ".join(dump_cmd_display))
 
         ensure_dir(dest)
-        dump_log_path = os.path.join(os.path.dirname(dest), 'dump.log')
-        ## IMPORTANT: TEMPORARILY EXCLUDE DUMP FILES FROM DEST FOLDER
-        # dump_log_path = os.path.join(dest, 'dump.log')
-        # TODO: uncomment the line above and remove the line bellow
+        dump_log_path = os.path.join(dest, 'dump.log')
+        def on_dump_output(line):
+            if "ERROR" in line:
+                msg = "Caught a dump error: %s" % line
+                update_backup(backup, event_type=EVENT_TYPE_WARNING,
+                    event_name="DUMP_ERROR", message=msg)
 
-        dump_log_file = open(dump_log_path, 'w')
-        try:
-            # execute dump command and redirect stdout and stderr to log file
 
-            call_command(dump_cmd, stdout=dump_log_file,
-                stderr=dump_log_file)
+        # execute dump command
+        log_filter_func = get_mbs().dump_line_filter_function
+        returncode = execute_command_wrapper(dump_cmd,
+                                             output_path=dump_log_path,
+                                             on_output=on_dump_output,
+                                             output_line_filter=log_filter_func
+                                            )
 
+        # read the last dump log line
+        last_line_tail_cmd = [which('tail'), '-1', dump_log_path]
+        last_dump_line = execute_command(last_line_tail_cmd)
+
+        # raise an error if return code is not 0
+        if returncode:
+            self._raise_dump_error(dump_cmd_display, returncode,
+                                   last_dump_line)
+
+        else:
             update_backup(backup, event_name=EVENT_END_EXTRACT,
                           message="Dump completed")
 
-        except CalledProcessError, e:
-            # read the last dump log line
-            last_line_tail_cmd = [which('tail'), '-1', dump_log_path]
-            last_dump_line = execute_command(last_line_tail_cmd)
-            # select proper error type to raise
-            if e.returncode == 245:
-                error_type = BadCollectionNameError
-            elif "10334" in last_dump_line:
-                error_type = InvalidBSONObjSizeError
-            elif "13338" in last_dump_line:
-                error_type = CappedCursorOverrunError
-            elif "13280" in last_dump_line:
-                error_type = InvalidDBNameError
-            elif "10320" in last_dump_line:
-                error_type = BadTypeError
-            elif "Cannot connect" in last_dump_line:
-                error_type = MongoctlConnectionError
-            elif "cursor didn't exist on server" in last_dump_line:
-                error_type = CursorDoesNotExistError
-            elif "16465" in last_dump_line:
-                error_type = ExhaustReceiveError
-            else:
-                error_type = DumpError
 
-            raise error_type(dump_cmd_display, e.returncode, last_dump_line)
+    ###########################################################################
+    def _raise_dump_error(self, dump_command, returncode, last_dump_line):
+        if returncode == 245:
+            error_type = BadCollectionNameError
+        elif "10334" in last_dump_line:
+            error_type = InvalidBSONObjSizeError
+        elif "13338" in last_dump_line:
+            error_type = CappedCursorOverrunError
+        elif "13280" in last_dump_line:
+            error_type = InvalidDBNameError
+        elif "10320" in last_dump_line:
+            error_type = BadTypeError
+        elif "Cannot connect" in last_dump_line:
+            error_type = MongoctlConnectionError
+        elif "cursor didn't exist on server" in last_dump_line:
+            error_type = CursorDoesNotExistError
+        elif "16465" in last_dump_line:
+            error_type = ExhaustReceiveError
+        else:
+            error_type = DumpError
+
+        raise error_type(dump_command, returncode, last_dump_line)
 
     ###########################################################################
     def _execute_tar_command(self, path, filename):

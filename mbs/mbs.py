@@ -8,7 +8,7 @@ from type_bindings import TYPE_BINDINGS
 from indexes import MBS_INDEXES
 from errors import MBSError
 
-from utils import read_config_json
+from utils import read_config_json, resolve_function
 from mongo_utils import mongo_connect
 
 from backup import Backup
@@ -197,6 +197,13 @@ class MBS(object):
     @property
     def encryptor(self):
         return self._encryptor
+
+    ###########################################################################
+    @property
+    def dump_line_filter_function(self):
+        func_name = self._get_config_value("dumpLineFilterFunction")
+        if func_name:
+            return resolve_function(func_name)
 
 ###############################################################################
 # MBS Singleton

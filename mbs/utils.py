@@ -7,6 +7,8 @@ import pwd
 
 import json
 import time
+import select
+import sys
 
 from date_utils import (datetime_to_bson, is_date_value, seconds_now,
                         utc_str_to_datetime)
@@ -58,6 +60,44 @@ def execute_command(command, **popen_kwargs):
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             **popen_kwargs).communicate()[0]
+
+###############################################################################
+def execute_command_wrapper(command, on_output=None, output_path=None,
+                            output_line_filter=None):
+    """
+        Executes the specified command and allows processing/filtering output
+        of command
+    """
+    process = subprocess.Popen(command, stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE)
+
+    output_file = None
+    if output_path:
+        output_file = open(output_path, 'w')
+
+    while True:
+        reads = [process.stdout.fileno(), process.stderr.fileno()]
+        ret = select.select(reads, [], [])
+
+        for fd in ret[0]:
+            if fd == process.stdout.fileno():
+                line = process.stdout.readline()
+
+            elif fd == process.stderr.fileno():
+                line = process.stderr.readline()
+
+            if line:
+                if on_output:
+                    on_output(line.rstrip())
+            if output_file:
+                line = output_line_filter(line) if output_line_filter else line
+                output_file.write(line)
+
+        if process.poll() is not None:
+            break
+
+
+    return process.returncode
 
 ###############################################################################
 def which(program):
@@ -178,6 +218,18 @@ def wait_for(predicate, timeout=None, sleep_duration=2, log_func=None):
             time.sleep(sleep_duration)
 
     return False
+
+###############################################################################
+def resolve_function(full_func_name):
+    names = full_func_name.split(".")
+    module_name = names[0]
+    module_obj = sys.modules[module_name]
+    result = module_obj
+    for name in names[1:]:
+        result = getattr(result, name)
+
+    return result
+
 ###############################################################################
 def get_local_host_name():
     return socket.gethostname()
