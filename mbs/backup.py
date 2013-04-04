@@ -218,6 +218,11 @@ class Backup(MBSObject):
         self._tags = tags
 
     ###########################################################################
+    def get_tag(self, name):
+        if self.tags:
+            return self.tags.get(name)
+
+    ###########################################################################
     @property
     def try_count(self):
         return self._try_count
