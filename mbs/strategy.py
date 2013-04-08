@@ -110,7 +110,7 @@ class BackupStrategy(MBSObject):
     ###########################################################################
     def get_backup_mongo_connector(self, backup):
         uri_wrapper = mongo_uri_tools.parse_mongo_uri(backup.source.uri)
-        if uri_wrapper.is_cluster_uri() and not backup.source.database_name:
+        if uri_wrapper.is_cluster_uri() and not uri_wrapper.database:
             return self._select_backup_cluster_member(backup)
         elif not uri_wrapper.database:
             return MongoServer(backup.source.uri)
