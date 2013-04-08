@@ -121,7 +121,7 @@ class MongoDatabase(MongoConnector):
     ###########################################################################
     @property
     def connection(self):
-        self._database.connection
+        return self._database.connection
 
     ###########################################################################
     def get_stats(self, only_for_db=None):

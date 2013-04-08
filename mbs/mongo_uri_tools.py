@@ -109,7 +109,7 @@ class MongoUriWrapper:
     ###########################################################################
     def _get_member_uri_list(self, mask=False):
         # build db string
-        db_str = "/%s" % self.database if self.database else ""
+        db_str = "%s" % self.database if self.database else ""
         username = self.username
         password = "****" if mask else self.password
 
