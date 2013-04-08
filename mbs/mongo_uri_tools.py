@@ -1,6 +1,6 @@
 __author__ = 'abdul'
 
-from pymongo import uri_parser, errors, Connection
+from pymongo import uri_parser, errors
 
 ###############################################################################
 # mongo uri tool. Contains utility functions for dealing with mongo uris
