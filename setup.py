@@ -21,7 +21,7 @@ setup(
         "distribute",
         "dargparse",
         "pymongo==2.4.1",
-        "maker-py==0.1.1",
+        "maker-py==0.1.2",
         'boto==2.6.0',
         'Flask==0.8',
         'python-dateutil==1.5',
@@ -30,7 +30,7 @@ setup(
         'verlib==0.1'
     ],
     dependency_links=[
-        "git+ssh://git@github.com/objectlabs/maker-py.git#egg=maker-py-0.1.1"
+        "git+ssh://git@github.com/objectlabs/maker-py.git#egg=maker-py-0.1.2"
     ]
 
 
