@@ -23,9 +23,11 @@ logfile = os.path.join(MBS_LOG_DIR, "mbs.log")
 fh = TimedRotatingFileHandler(logfile, backupCount=50, when="midnight")
 
 fh.setFormatter(formatter)
-logger.addHandler(fh)
+# add the handler to the root logger
+logging.getLogger().addHandler(fh)
 
 def log_to_stdout():
     sh = logging.StreamHandler(sys.stdout)
     sh.setFormatter(formatter)
-    logger.addHandler(sh)
+    logging.getLogger().addHandler(sh)
+
