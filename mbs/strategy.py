@@ -322,41 +322,55 @@ class DumpStrategy(BackupStrategy):
         target_reference = backup.target.put_file(tar_file_path,
             destination_path=upload_dest_path)
 
+        # keep old target reference if it exists to delete it because it would
+        # be the failed file reference
+        failed_reference = backup.target_reference
         backup.target_reference = target_reference
 
         update_backup(backup, properties="targetReference",
                       event_name=EVENT_END_UPLOAD,
                       message="Upload completed!")
 
+        # remove failed reference if exists
+        if failed_reference:
+            try:
+                backup.target.delete_file(failed_reference)
+            except Exception, ex:
+                logger.error("Exception while deleting failed backup file: %s"
+                             % ex)
+
     ###########################################################################
     def _tar_and_upload_failed_dump(self, backup):
         logger.info("Taring up failed backup '%s' ..." % backup.id)
         update_backup(backup,
                       event_name="ERROR_HANDLING_START_TAR",
-                      message="Taring bad dump")
+                      message="Taring failed dump")
 
         dump_dir = self._get_backup_dump_dir(backup)
-        tar_filename = _tar_file_name(backup)
-        tar_file_path = self._get_tar_file_path(backup)
-
+        failed_tar_filename = _failed_tar_file_name(backup)
+        failed_tar_file_path = self._get_failed_tar_file_path(backup)
+        failed_dest = _failed_upload_file_dest(backup)
         # tar up
-        self._execute_tar_command(dump_dir, tar_filename)
+        self._execute_tar_command(dump_dir, failed_tar_filename)
         update_backup(backup,
                       event_name="ERROR_HANDLING_END_TAR",
-                      message="Finished taring bad dump")
+                      message="Finished taring failed dump")
 
         # upload
         logger.info("Uploading tar for failed backup '%s' ..." % backup.id)
         update_backup(backup,
                       event_name="ERROR_HANDLING_START_UPLOAD",
-                      message="Uploading bad tar")
+                      message="Uploading failed dump tar")
 
-        target_reference = backup.target.put_file(tar_file_path)
+        # upload failed tar file and allow overwriting existing
+        target_reference = backup.target.put_file(failed_tar_file_path,
+                                                  destination_path=failed_dest,
+                                                  overwrite_existing=True)
         backup.target_reference = target_reference
 
         update_backup(backup, properties="targetReference",
                       event_name="ERROR_HANDLING_END_UPLOAD",
-                      message="Finished uploading bad tar")
+                      message="Finished uploading failed tar")
 
     ###########################################################################
     def _do_dump_backup(self, backup, mongo_connector, database_name=None):
@@ -487,12 +501,21 @@ class DumpStrategy(BackupStrategy):
         return os.path.join(backup.workspace,
                             _tar_file_name(backup))
 
+    ###########################################################################
+    def _get_failed_tar_file_path(self, backup):
+        return os.path.join(backup.workspace,
+            _failed_tar_file_name(backup))
+
 ###############################################################################
 # Helpers
 ###############################################################################
 
 def _tar_file_name(backup):
     return "%s.tgz" % _backup_dump_dir_name(backup)
+
+###############################################################################
+def _failed_tar_file_name(backup):
+    return "FAILED_%s.tgz" % _backup_dump_dir_name(backup)
 
 ###############################################################################
 def _backup_dump_dir_name(backup):
@@ -504,6 +527,14 @@ def _backup_dump_dir_name(backup):
 ###############################################################################
 def _upload_file_dest(backup):
     return "%s.tgz" % backup.name
+
+###############################################################################
+def _failed_upload_file_dest(backup):
+    dest =  "%s.tgz" % backup.name
+    # append FAILED as a prefix for the file name  + handle the case where
+    # backup name is a path (as appose to just a file name)
+    parts = dest.rpartition("/")
+    return "%s%sFAILED_%s" % (parts[0], parts[1], parts[2])
 
 ###############################################################################
 # CloudBlockStorageStrategy
