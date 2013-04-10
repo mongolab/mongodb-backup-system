@@ -58,7 +58,8 @@ class BackupTarget(MBSObject):
         """
         return self.__class__.__name__
     ###########################################################################
-    def put_file(self, file_path, destination_path=None):
+    def put_file(self, file_path, destination_path=None,
+                 overwrite_existing=False):
         """
             Uploads the specified file path under destination_path.
              destination_path defaults to base name (file name) of file_path
@@ -75,6 +76,16 @@ class BackupTarget(MBSObject):
                                            file_size, destination_path,
                                            self.container_name))
 
+
+            if not overwrite_existing:
+                logger.info("%s: Verifying file '%s' does not exist in "
+                            "container '%s' before attempting to upload"%
+                            (self.target_type, destination_path,
+                             self.container_name))
+                if self.file_exists(destination_path):
+                    msg = ("File '%s' already exists in container '%s'" %
+                           (destination_path, self.container_name))
+                    raise TargetError(msg)
 
 
             target_ref = self.do_put_file(file_path, destination_path=
@@ -164,6 +175,12 @@ class BackupTarget(MBSObject):
                    " exists in container '%s'" %
                    (self.target_type, file_path, self.container_name))
             raise TargetDeleteError(msg)
+
+    ###########################################################################
+    def file_exists(self, file_path):
+
+        file_exists, file_size = self._fetch_file_info(file_path)
+        return file_exists
 
     ###########################################################################
     def _fetch_file_info(self, destination_path):
