@@ -203,6 +203,22 @@ class ArchiveError(MBSError):
 class NoSpaceLeftError(ArchiveError):
     pass
 
+
+###############################################################################
+class SourceDataSizeExceedsLimits(MBSError):
+    """
+        Raised when source data size exceeds the limit defined in the strategy
+    """
+    def __init__(self, data_size, max_size, database_name=None):
+        if database_name:
+            db_str = "database '%s'" % database_name
+        else:
+            db_str = "all databases"
+        msg = ("Data size of %s (%s bytes) exceeds the maximum limit "
+               "(%s bytes)" % (db_str, data_size, max_size))
+
+        super(SourceDataSizeExceedsLimits, self).__init__(msg=msg)
+
 ###############################################################################
 class TargetError(MBSError):
     """

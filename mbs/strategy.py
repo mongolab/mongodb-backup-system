@@ -81,6 +81,7 @@ class BackupStrategy(MBSObject):
     ###########################################################################
     def __init__(self):
         self._member_preference = PREF_BEST
+        self._max_data_size = None
 
     ###########################################################################
     @property
@@ -90,6 +91,15 @@ class BackupStrategy(MBSObject):
     @member_preference.setter
     def member_preference(self, val):
         self._member_preference = val
+
+    ###########################################################################
+    @property
+    def max_data_size(self):
+        return self._max_data_size
+
+    @max_data_size.setter
+    def max_data_size(self, val):
+        self._max_data_size = val
 
     ###########################################################################
     def run_backup(self, backup):
@@ -186,6 +196,10 @@ class BackupStrategy(MBSObject):
             event_name="COMPUTED_SOURCE_STATS",
             message="Computed source stats")
 
+        # validate max data size if set
+        self._validate_max_data_size(backup)
+
+        # backup the mongo connector
         self.do_backup_mongo_connector(backup, mongo_connector)
 
     ###########################################################################
@@ -221,10 +235,29 @@ class BackupStrategy(MBSObject):
         """
 
     ###########################################################################
+    def _validate_max_data_size(self, backup):
+        if (self.max_data_size and
+            backup.source_stats and
+            backup.source_stats.get("dataSize") and
+            backup.source_stats.get("dataSize") > self.max_data_size):
+
+            data_size = backup.source_stats.get("dataSize")
+            database_name = backup.source.database_name
+            raise SourceDataSizeExceedsLimits(data_size=data_size,
+                                              max_size=self.max_data_size,
+                                              database_name=database_name)
+
+
+    ###########################################################################
     def to_document(self, display_only=False):
-        return {
+        doc = {
             "memberPreference": self.member_preference
         }
+
+        if self.max_data_size:
+            doc["maxDataSize"] = self.max_data_size
+
+        return doc
 
 ###############################################################################
 # Dump Strategy Classes
