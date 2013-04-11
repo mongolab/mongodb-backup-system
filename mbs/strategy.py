@@ -452,7 +452,7 @@ class DumpStrategy(BackupStrategy):
         ensure_dir(dest)
         dump_log_path = os.path.join(dest, 'dump.log')
         def on_dump_output(line):
-            if "ERROR" in line:
+            if "ERROR:" in line:
                 msg = "Caught a dump error: %s" % line
                 update_backup(backup, event_type=EVENT_TYPE_WARNING,
                     event_name="DUMP_ERROR", message=msg)
