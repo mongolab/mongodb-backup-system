@@ -92,13 +92,11 @@ def execute_command_wrapper(command, on_output=None, output_path=None,
             if output_file:
                 line = output_line_filter(line) if output_line_filter else line
                 output_file.write(line)
-
+                # flush the output
+                output_file.flush()
         if process.poll() is not None:
             break
 
-    # flush the output
-    if output_path:
-        output_file.flush()
     return process.returncode
 
 ###############################################################################
