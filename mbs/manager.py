@@ -15,7 +15,7 @@ from utils import document_pretty_string, resolve_path
 from mbs import MBS_CONF_DIR
 
 from date_utils import date_now, date_minus_seconds, time_str_to_datetime_today
-from errors import MBSError
+from errors import *
 from auditors import GlobalAuditor
 from backup import (Backup, STATE_SCHEDULED, STATE_IN_PROGRESS, STATE_FAILED,
                     STATE_CANCELED, EVENT_STATE_CHANGE)
@@ -228,8 +228,7 @@ class PlanManager(Thread):
         if errors:
             err_msg = ("Plan '%s' is invalid.Please correct the following"
                        " errors.\n%s" % (plan.id, errors))
-            self.error(err_msg)
-            return
+            raise InvalidPlanError(err_msg)
             # TODO disable plan ???
 
         now = date_now()
