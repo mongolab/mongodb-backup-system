@@ -318,6 +318,23 @@ def reschedule_all_backups(parsed_args):
         print "%s" % e
         exit(1)
 
+
+###############################################################################
+def schedule_plan_backup(parsed_args):
+    try:
+        plan_id = parsed_args.planId
+        pc = get_mbs().plan_collection
+        plan = pc.find_one({"_id": ObjectId(plan_id)})
+
+        if plan:
+            get_mbs().plan_manager.schedule_new_backup(plan, one_time=True)
+        else:
+            print "No such backup '%s'" % plan_id
+            exit(1)
+    except Exception, e:
+        print "%s" % e
+        exit(1)
+
 ###############################################################################
 # Helpers
 ###############################################################################
@@ -543,6 +560,23 @@ PARSER_DEF = {
             "shortDescription" : "Reschedules all failed backups",
             "description" : "Reschedules all failed backups",
             "function": reschedule_all_backups
+        },
+
+            {
+            "prog": "schedule-plan-backup",
+            "shortDescription" : "Schedules a one-time backup for the "
+                                 "specified plan",
+            "description" : "Schedules a one-time backup for the "
+                            "specified plan",
+            "args": [
+                    {
+                    "name": "planId",
+                    "type" : "positional",
+                    "nargs": 1,
+                    "displayName": "PLAN_ID",
+                    "help": "Plan id"
+                }],
+            "function": schedule_plan_backup
         }
     ]
 }

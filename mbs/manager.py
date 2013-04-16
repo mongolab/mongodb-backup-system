@@ -255,7 +255,7 @@ class PlanManager(Thread):
                       " now. Scheduling a backup!!!" %
                       (plan._id, plan.next_occurrence))
 
-            self._schedule_new_backup(plan)
+            self.schedule_new_backup(plan)
 
 
         else:
@@ -373,7 +373,7 @@ class PlanManager(Thread):
                       message="Rescheduling")
 
     ###########################################################################
-    def _schedule_new_backup(self, plan):
+    def schedule_new_backup(self, plan, one_time=False):
         self.info("Scheduling plan '%s'" % plan._id)
 
         backup = Backup()
@@ -385,11 +385,11 @@ class PlanManager(Thread):
         backup.priority = plan.priority
         backup.admin_contact = plan.admin_contact
         backup.owner_contact = plan.owner_contact
-        backup.plan_occurrence = plan.next_occurrence
         backup.change_state(STATE_SCHEDULED)
-        self._set_plan_next_occurrence(plan)
-
-        backup.plan = plan
+        if not one_time:
+            backup.plan_occurrence = plan.next_occurrence
+            self._set_plan_next_occurrence(plan)
+            backup.plan = plan
         backup_doc = backup.to_document()
         self._backup_collection.save_document(backup_doc)
         # set the backup id from the saved doc
