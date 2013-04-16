@@ -352,25 +352,28 @@ class DumpStrategy(BackupStrategy):
                       event_name=EVENT_START_UPLOAD,
                       message="Upload tar to target")
         upload_dest_path = _upload_file_dest(backup)
-        target_reference = backup.target.put_file(tar_file_path,
-            destination_path=upload_dest_path)
 
         # keep old target reference if it exists to delete it because it would
         # be the failed file reference
         failed_reference = backup.target_reference
-        backup.target_reference = target_reference
-
-        update_backup(backup, properties="targetReference",
-                      event_name=EVENT_END_UPLOAD,
-                      message="Upload completed!")
-
         # remove failed reference if exists
         if failed_reference:
             try:
                 backup.target.delete_file(failed_reference)
             except Exception, ex:
                 logger.error("Exception while deleting failed backup file: %s"
-                             % ex)
+                % ex)
+
+        target_reference = backup.target.put_file(tar_file_path,
+            destination_path=upload_dest_path)
+
+        backup.target_reference = target_reference
+
+        update_backup(backup, properties="targetReference",
+                      event_name=EVENT_END_UPLOAD,
+                      message="Upload completed!")
+
+
 
     ###########################################################################
     def _tar_and_upload_failed_dump(self, backup):
