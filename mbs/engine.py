@@ -159,6 +159,11 @@ class BackupEngine(Thread):
         self.info("Starting up... ")
         self.info("PID is %s" % os.getpid())
         self.info("TEMP DIR is '%s'" % self.temp_dir)
+        if self.tags:
+            self.info("Tags are: %s" % document_pretty_string(self.tags))
+        else:
+            self.info("No tags configured")
+
         ensure_dir(self._temp_dir)
         self._update_pid_file()
         # Start the command server
