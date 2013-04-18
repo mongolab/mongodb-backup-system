@@ -72,6 +72,20 @@ class MongoUriWrapper:
 
     ###########################################################################
     @property
+    def host(self):
+        return self.hosts[0]
+
+    ###########################################################################
+    @property
+    def hosts(self):
+        hosts = []
+        for node in self.node_list:
+            hosts.append(node[0])
+
+        return hosts
+
+    ###########################################################################
+    @property
     def username(self):
         return self._uri_obj["username"]
 
