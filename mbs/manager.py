@@ -336,7 +336,7 @@ class PlanManager(Thread):
             self.reschedule_backup(backup)
 
     ###########################################################################
-    def reschedule_all_failed_backups(self):
+    def reschedule_all_failed_backups(self, from_scratch=False):
         self.info("Rescheduling all failed backups")
 
         q = {
@@ -344,10 +344,10 @@ class PlanManager(Thread):
         }
 
         for backup in self._backup_collection.find(q):
-            self.reschedule_backup(backup)
+            self.reschedule_backup(backup, from_scratch=from_scratch)
 
     ###########################################################################
-    def reschedule_backup(self, backup):
+    def reschedule_backup(self, backup, from_scratch=False):
         """
             Reschedules the backup IF backup state is FAILED and
                         backup is still within it's plan current cycle
@@ -367,6 +367,11 @@ class PlanManager(Thread):
         # regenerate backup tags if backup belongs to a plan
         if backup.plan:
             backup.tags = backup.plan.generate_tags()
+
+        # if from_scratch is set then clear backup log
+        if from_scratch:
+            backup.logs = []
+            update_backup(backup, properties=["logs"])
 
         update_backup(backup, properties=["state", "tags"],
                       event_name=EVENT_STATE_CHANGE,

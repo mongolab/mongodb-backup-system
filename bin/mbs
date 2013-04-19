@@ -296,12 +296,14 @@ def download_backup(parsed_args):
 def reschedule_backup(parsed_args):
 
     try:
+        from_scratch = parsed_args.fromScratch
         backup_id = parsed_args.backupId
         bc = get_mbs().backup_collection
         backup = bc.find_one({"_id": ObjectId(backup_id)})
 
         if backup:
-           get_mbs().plan_manager.reschedule_backup(backup)
+           get_mbs().plan_manager.reschedule_backup(backup, from_scratch=
+                                                             from_scratch)
         else:
             print "No such backup '%s'" % backup_id
             exit(1)
@@ -313,7 +315,9 @@ def reschedule_backup(parsed_args):
 def reschedule_all_backups(parsed_args):
 
     try:
-        get_mbs().plan_manager.reschedule_all_failed_backups()
+        from_scratch = parsed_args.fromScratch
+        get_mbs().plan_manager.reschedule_all_failed_backups(from_scratch=
+                                                              from_scratch)
     except Exception, e:
         print "%s" % e
         exit(1)
@@ -551,7 +555,18 @@ PARSER_DEF = {
                     "nargs": 1,
                     "displayName": "BACKUP_ID",
                     "help": "Backup id"
-                }],
+                },
+                    {
+                    "name": "fromScratch",
+                    "type" : "optional",
+                    "cmd_arg":  ["--from-scratch"],
+                    "nargs": 0,
+                    "help": "clears backup log",
+                    "action": "store_true",
+                    "default": False
+                }
+
+            ],
             "function": reschedule_backup
         },
 
@@ -559,7 +574,19 @@ PARSER_DEF = {
             "prog": "reschedule-all-backups",
             "shortDescription" : "Reschedules all failed backups",
             "description" : "Reschedules all failed backups",
-            "function": reschedule_all_backups
+            "args": [
+                    {
+                    "name": "fromScratch",
+                    "type" : "optional",
+                    "cmd_arg":  ["--from-scratch"],
+                    "nargs": 0,
+                    "help": "clears backup log",
+                    "action": "store_true",
+                    "default": False
+                }
+
+            ],
+            "function": reschedule_all_backups,
         },
 
             {
