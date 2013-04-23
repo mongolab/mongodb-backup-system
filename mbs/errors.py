@@ -187,6 +187,10 @@ class CursorDoesNotExistError(DumpError, RetriableError):
     pass
 
 ###############################################################################
+class DumpSocketError(DumpError, RetriableError):
+    pass
+
+###############################################################################
 class ArchiveError(MBSError):
     """
         Base error for archive errors
