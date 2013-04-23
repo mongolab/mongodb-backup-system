@@ -541,6 +541,9 @@ def _calculate_connection_databases_stats(connection):
     database_names = connection.database_names()
 
     for dbname in database_names:
+        if dbname == "local":
+            continue
+
         db = connection[dbname]
         db_stats = _calculate_database_stats(db)
         for key in total_stats.keys():
