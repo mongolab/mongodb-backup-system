@@ -187,7 +187,7 @@ class CursorDoesNotExistError(DumpError, RetriableError):
     pass
 
 ###############################################################################
-class DumpSocketError(DumpError, RetriableError):
+class DumpConnectivityError(DumpError, RetriableError):
     pass
 
 ###############################################################################

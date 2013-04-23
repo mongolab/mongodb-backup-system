@@ -498,8 +498,10 @@ class DumpStrategy(BackupStrategy):
             error_type = CursorDoesNotExistError
         elif "16465" in last_dump_line:
             error_type = ExhaustReceiveError
-        elif "SocketException" in last_dump_line:
-            error_type = DumpSocketError
+        elif ("SocketException" in last_dump_line or
+              "socket error" in last_dump_line or
+              "transport error" in last_dump_line):
+            error_type = DumpConnectivityError
         else:
             error_type = DumpError
 
