@@ -502,6 +502,8 @@ class DumpStrategy(BackupStrategy):
               "socket error" in last_dump_line or
               "transport error" in last_dump_line):
             error_type = DumpConnectivityError
+        elif "DBClientCursor" in last_dump_line and "failed" in last_dump_line:
+            error_type = DBClientCursorFailError
         else:
             error_type = DumpError
 

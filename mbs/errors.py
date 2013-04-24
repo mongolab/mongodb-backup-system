@@ -191,6 +191,10 @@ class DumpConnectivityError(DumpError, RetriableError):
     pass
 
 ###############################################################################
+class DBClientCursorFailError(DumpError, RetriableError):
+    pass
+
+###############################################################################
 class ArchiveError(MBSError):
     """
         Base error for archive errors
