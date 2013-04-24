@@ -126,7 +126,11 @@ class MongoDatabase(MongoConnector):
     ###########################################################################
     def get_stats(self, only_for_db=None):
         try:
-            return _calculate_database_stats(self._database)
+            stats =  _calculate_database_stats(self._database)
+            # capture host in stats
+            conn = self._database.connection
+            stats["host"] = "%s:%s" % (conn.host, conn.port)
+            return stats
         except Exception, e:
             if is_connection_exception(e):
                 raise ConnectionError(self._uri_wrapper.masked_uri,
