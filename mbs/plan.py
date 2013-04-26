@@ -26,8 +26,6 @@ class BackupPlan(MBSObject):
         self._tags = None
         self._backup_naming_scheme = None
         self._priority = PRIORITY_LOW
-        self._admin_contact = None
-        self._owner_contact = None
 
     ###########################################################################
     @property
@@ -129,23 +127,6 @@ class BackupPlan(MBSObject):
     def tags(self, tags):
         self._tags = tags
 
-    ###########################################################################
-    @property
-    def admin_contact(self):
-        return self._admin_contact
-
-    @admin_contact.setter
-    def admin_contact(self, val):
-        self._admin_contact = val
-
-    ###########################################################################
-    @property
-    def owner_contact(self):
-        return self._owner_contact
-
-    @owner_contact.setter
-    def owner_contact(self, val):
-        self._owner_contact = val
     ###########################################################################
     def generate_tags(self):
         if self.tags:
@@ -275,13 +256,6 @@ class BackupPlan(MBSObject):
         if self.priority:
             doc["priority"] = self.priority
 
-        if self.admin_contact:
-            doc["adminContact"] = self.admin_contact.to_document(display_only=
-                                                                  display_only)
-
-        if self.owner_contact:
-            doc["ownerContact"] = self.owner_contact.to_document(display_only=
-                                                                  display_only)
         return doc
 
     ###########################################################################

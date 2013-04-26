@@ -388,8 +388,6 @@ class PlanManager(Thread):
         backup.target = plan.target
         backup.tags = plan.generate_tags()
         backup.priority = plan.priority
-        backup.admin_contact = plan.admin_contact
-        backup.owner_contact = plan.owner_contact
         backup.change_state(STATE_SCHEDULED)
         if not one_time:
             backup.plan_occurrence = plan.next_occurrence

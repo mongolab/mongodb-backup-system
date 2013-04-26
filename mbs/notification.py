@@ -3,7 +3,7 @@ __author__ = 'abdul'
 import traceback
 import mbs_logging
 from utils import listify
-from contact import BackupContact
+
 
 import smtplib
 
@@ -28,7 +28,6 @@ class NotificationHandler(object):
     ###########################################################################
     def __init__(self):
         self._error_recipient_mapping = None
-        self._default_admin_contact = None
 
     ###########################################################################
     def send_notification(self, subject, message, recipient=None):
@@ -42,25 +41,11 @@ class NotificationHandler(object):
 
     ###########################################################################
     def notify_on_backup_failure(self, backup, exception, trace):
-
-        self._notify_admin_on_backup_failure(backup, exception, trace)
-        if backup.owner_contact:
-            self._notify_owner_on_backup_failure(backup, exception)
-
-    ###########################################################################
-    def _notify_admin_on_backup_failure(self, backup, exception, trace):
         subject = "Backup failed"
         message = ("Backup '%s' failed.\n%s\n\nCause: \n%s\nStack Trace:"
                    "\n%s" % (backup.id, backup, exception, trace))
 
-        admin_contact = backup.admin_contact or self.default_admin_contact
-        self.send_notification(subject, message, admin_contact)
-
-    ###########################################################################
-    def _notify_owner_on_backup_failure(self, backup, exception):
-        subject = "Owner backup failed"
-        message = "Hi owner, your backup failed. Reason: %s" % exception.message
-        #self.send_notification(subject, message, backup.owner_contact)
+        self.send_notification(subject, message)
 
     ###########################################################################
     def get_recipient_by_error_class(self, error_class):
@@ -84,15 +69,6 @@ class NotificationHandler(object):
     def error_recipient_mapping(self, val):
         self._error_recipient_mapping = val
 
-    ###########################################################################
-    @property
-    def default_admin_contact(self):
-        return self._default_admin_contact
-
-    @default_admin_contact.setter
-    def default_admin_contact(self, val):
-        self._default_admin_contact = val
-
 ###############################################################################
 # EmailNotificationHandler
 ###############################################################################
@@ -112,8 +88,6 @@ class EmailNotificationHandler(NotificationHandler):
 
     def send_notification(self, subject, message, recipient=None):
 
-        if isinstance(recipient, BackupContact):
-            recipient = recipient.email
         try:
 
             logger.info("Sending notification email...")
