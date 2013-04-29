@@ -64,7 +64,18 @@ class MongoConnector(object):
 
     ###########################################################################
     def get_mongo_version(self):
-        return MongoNormalizedVersion(self.connection.server_info()['version'])
+        try:
+            version = self.connection.server_info()['version']
+            return MongoNormalizedVersion(version)
+        except Exception, e:
+            if is_connection_exception(e):
+                raise ConnectionError(self._uri_wrapper.masked_uri, cause=e,
+                      details="Error while trying to grab mongo version "
+                              "for '%s'" % self._uri_wrapper.masked_uri)
+            else:
+                raise
+
+
 
     ###########################################################################
     def get_stats(self, only_for_db=None):

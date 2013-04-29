@@ -49,8 +49,6 @@ class Backup(MBSObject):
         self._reschedulable = None
         self._workspace = None
         self._priority = PRIORITY_LOW
-        self._admin_contact = None
-        self._owner_contact = None
 
     ###########################################################################
     @property
@@ -259,24 +257,6 @@ class Backup(MBSObject):
         self._priority = val
 
     ###########################################################################
-    @property
-    def admin_contact(self):
-        return self._admin_contact
-
-    @admin_contact.setter
-    def admin_contact(self, val):
-        self._admin_contact = val
-
-    ###########################################################################
-    @property
-    def owner_contact(self):
-        return self._owner_contact
-
-    @owner_contact.setter
-    def owner_contact(self, val):
-        self._owner_contact = val
-
-    ###########################################################################
     def log_event(self, event_type=EVENT_TYPE_INFO, name=None, message=None,
                         details=None):
         logs = self.logs
@@ -386,13 +366,6 @@ class Backup(MBSObject):
         if self.priority is not None:
             doc["priority"] = self.priority
 
-        if self.admin_contact:
-            doc["adminContact"] = self.admin_contact.to_document(display_only=
-                                                                  display_only)
-
-        if self.owner_contact:
-            doc["ownerContact"] = self.owner_contact.to_document(display_only=
-                                                                  display_only)
         return doc
 
     ###########################################################################
