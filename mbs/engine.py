@@ -775,6 +775,7 @@ class EngineCommandServer(Thread):
         logger.info("EngineCommandServer: Running flask server ")
         self._flask_server.run(host="0.0.0.0", port=self._engine._command_port,
                                threaded=True)
+
     ###########################################################################
     def stop(self):
 

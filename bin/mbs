@@ -7,11 +7,13 @@ import traceback
 import os
 import signal
 
+from functools import partial
+
 from dargparse import dargparse
 from bson.objectid import ObjectId
 from mbs.mbs import get_mbs
 from mbs.engine import STATUS_STOPPED, STATUS_STOPPING, STATUS_RUNNING
-from mbs.utils import wait_for, document_pretty_string
+from mbs.utils import wait_for, document_pretty_string, SignalWatcher
 from mbs import mbs_logging
 
 ###############################################################################
@@ -41,29 +43,34 @@ def start_engine(parsed_args):
     engine_id = parsed_args.engineId
     engine = _get_engine(engine_id)
 
-    status = engine.get_status()
-    if status["status"] == STATUS_RUNNING:
-        print "Engine already started"
-        return
-    elif status["status"] == STATUS_STOPPING:
-        print ("Engine is stopping now. Please wait until it is completely "
-               "stopped then try starting again")
-        return
+    handlers = {signal.SIGINT:  partial(engine.stop, force=False),
+                signal.SIGTERM: partial(engine.stop, force=True)}
+    with SignalWatcher(handlers) as watcher:
+        status = engine.get_status()
+        if status["status"] == STATUS_RUNNING:
+            print "Engine already started"
+            return
+        elif status["status"] == STATUS_STOPPING:
+            print ("Engine is stopping now. Please wait until it is "
+                   "completely stopped then try starting again")
+            return
 
-    _do_start_engine(engine, fork=parsed_args.fork)
+        _do_start_engine(engine, fork=parsed_args.fork)
 
-    def engine_started():
-        return engine.get_status()["status"] == STATUS_RUNNING
-    wait_for(engine_started, timeout=5)
+        wait_for(partial(_engine_started, engine), timeout=5)
 
-    if engine_started():
-        print "Engine started successfully!"
-    else:
-        print "Engine did not start. Please check logs"
+        if _engine_started(engine):
+            print "Engine started successfully!"
+        else:
+            print "Engine did not start. Please check logs"
+            return
+
+        wait_for(lambda: watcher.signaled or not engine.is_alive(),
+                 log_func=lambda: True)
+
 
 ###############################################################################
 def _do_start_engine(engine, fork=False):
-
     if fork:
         child_pid = os.fork()
         if child_pid:
@@ -78,23 +85,9 @@ def _do_start_engine(engine, fork=False):
     # forked child process
     engine.start()
 
-    # register signal handler
-    def engine_stopped():
-        return engine.get_status()["status"] == STATUS_STOPPED
-
-    def stop_this_engine(signal_val, frame):
-        print "Received a SIGTERM signal. Stopping engine"
-        engine.stop()
-        print "Waiting for engine to stop"
-        wait_for(engine_stopped, timeout=100)
-        if engine_stopped():
-            exit(0)
-        else:
-            print "Unable to stop engine within 100 seconds"
-            exit(1)
-
-    # register a signal handler to stop this engine
-    signal.signal(signal.SIGTERM, stop_this_engine)
+###############################################################################
+def _engine_started(engine):
+    return engine.get_status()["status"] == STATUS_RUNNING
 
 ###############################################################################
 def stop_engine(parsed_args):
@@ -108,7 +101,24 @@ def stop_engine(parsed_args):
         print "Engine is not running"
         return
 
-    engine.stop(force=parsed_args.force)
+    _do_stop_engine(engine, parsed_args.force)
+
+###############################################################################
+def _engine_stopped(engine):
+    return engine.get_status()["status"] == STATUS_STOPPED
+
+###############################################################################
+def _do_stop_engine(engine, force=False):
+    print "stopping engine"
+    engine.stop(force=force)
+    print "Waiting for engine to stop"
+    wait_for(partial(_engine_stopped, engine), timeout=100)
+    print "Done waiting for engine to stop"
+    if _engine_stopped(engine):
+        exit(0)
+    else:
+        print "Unable to stop engine within 100 seconds"
+        exit(1)
 
 ###############################################################################
 def restart_engine(parsed_args):
@@ -117,12 +127,10 @@ def restart_engine(parsed_args):
 
     # stop the engine and wait for it is completely stopped
     engine.stop()
-    def engine_stopped():
-        return engine.get_status()["status"] == STATUS_STOPPED
 
-    wait_for(engine_stopped, timeout=100)
+    wait_for(partial(_engine_stopped, engine), timeout=100)
 
-    if engine_stopped():
+    if _engine_stopped(engine):
         start_engine(parsed_args)
     else:
         print "Engine did not stop yet. Please try later"
@@ -143,25 +151,31 @@ def start_plan_manager(parsed_args):
         print "No plan manager configured"
         exit(1)
 
-    status = manager.get_status()
-    if status["status"] == STATUS_RUNNING:
-        print "Plan Manager already started"
-        return
-    elif status["status"] == STATUS_STOPPING:
-        print ("Plan Manager is stopping now. Please wait until it is "
-               "completely stopped then try starting again")
-        return
+    handlers = {signal.SIGINT:  partial(manager.stop, force=False),
+                signal.SIGTERM: partial(manager.stop, force=True)}
+    with SignalWatcher(handlers) as watcher:
+        status = manager.get_status()
+        if status["status"] == STATUS_RUNNING:
+            print "Plan Manager already started"
+            return
+        elif status["status"] == STATUS_STOPPING:
+            print ("Plan Manager is stopping now. Please wait until it is "
+                   "completely stopped then try starting again")
+            return
 
-    _do_start_plan_manager(fork=parsed_args.fork)
+        _do_start_plan_manager(fork=parsed_args.fork)
 
-    def manager_started():
-        return manager.get_status()["status"] == STATUS_RUNNING
-    wait_for(manager_started, timeout=5)
+        def manager_started():
+            return manager.get_status()["status"] == STATUS_RUNNING
+        wait_for(manager_started, timeout=5)
 
-    if manager_started():
-        print "Plan Manager started successfully!"
-    else:
-        print "Plan Manager did not start. Please check logs"
+        if manager_started():
+            print "Plan Manager started successfully!"
+        else:
+            print "Plan Manager did not start. Please check logs"
+
+        wait_for(lambda: watcher.signaled or not manager.is_alive(),
+                 log_func=lambda: True)
 
 ###############################################################################
 def _do_start_plan_manager(fork=False):
@@ -175,8 +189,6 @@ def _do_start_plan_manager(fork=False):
             # need to disown yourself, Son
             os.setsid()
             os.umask(0)
-    else: # log to stdout
-        mbs_logging.log_to_stdout()
 
     # forked child process
     manager = get_mbs().plan_manager
@@ -198,24 +210,6 @@ def stop_plan_manager(parsed_args):
         return
 
     manager.stop(force=parsed_args.force)
-
-    # register signal handler
-    def manager_stopped():
-        return manager.get_status()["status"] == STATUS_STOPPED
-
-    def stop_this_manager(signal_val, frame):
-        print "Received a SIGTERM signal. Stopping plan manager"
-        manager.stop()
-        print "Waiting for plan manager to stop"
-        wait_for(manager_stopped, timeout=100)
-        if manager_stopped():
-            exit(0)
-        else:
-            print "Unable to stop plan manager within 100 seconds"
-            exit(1)
-
-    # register a signal handler to stop this manager
-    signal.signal(signal.SIGTERM, stop_this_manager)
 
 ###############################################################################
 def restart_plan_manager(parsed_args):
@@ -620,7 +614,7 @@ if __name__ == '__main__':
 
         main(sys.argv[1:])
     except (SystemExit, KeyboardInterrupt) , e:
-        if e.code == 0:
+        if hasattr(e, 'code') and e.code == 0:
             pass
         else:
             raise
