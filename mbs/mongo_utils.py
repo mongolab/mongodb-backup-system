@@ -109,6 +109,56 @@ class MongoConnector(object):
         return False
 
     ###########################################################################
+    def is_primary(self):
+        """
+            Returns true if member is primary
+        """
+        master_result = self._is_master_command()
+        return master_result and master_result.get("ismaster")
+
+    ###########################################################################
+    def is_secondary(self):
+        """
+            Returns true if the member is secondary
+        """
+        master_result = self._is_master_command()
+        return master_result and master_result.get("secondary")
+
+    ###########################################################################
+    def is_arbiter(self):
+        """
+            Returns true if the member is an arbiter
+        """
+        master_result = self._is_master_command()
+        return master_result and master_result.get("arbiterOnly")
+
+    ###########################################################################
+    def is_replica_member(self):
+        """
+            Returns true if this is a replica member
+        """
+
+        return self.get_replicaset_name() is not None
+
+    ###########################################################################
+    def get_replicaset_name(self):
+        """
+            Returns true if the member is secondary
+        """
+        master_result = self._is_master_command()
+        return master_result and master_result.get("setName")
+
+    ###########################################################################
+    @property
+    def me(self):
+        master_result = self._is_master_command()
+        return self.address if not master_result else master_result["me"]
+
+    ###########################################################################
+    def _is_master_command(self):
+        return self.connection["admin"].command({"isMaster" : 1})
+
+    ###########################################################################
     def __str__(self):
         return self._uri_wrapper.masked_uri
 
@@ -363,56 +413,6 @@ class MongoServer(MongoConnector):
 
         self._lag_in_seconds = lag_in_seconds
         return self._lag_in_seconds
-
-    ###########################################################################
-    def is_primary(self):
-        """
-            Returns true if member is primary
-        """
-        master_result = self._is_master_command()
-        return master_result and master_result.get("ismaster")
-
-    ###########################################################################
-    def is_secondary(self):
-        """
-            Returns true if the member is secondary
-        """
-        master_result = self._is_master_command()
-        return master_result and master_result.get("secondary")
-
-    ###########################################################################
-    def is_arbiter(self):
-        """
-            Returns true if the member is an arbiter
-        """
-        master_result = self._is_master_command()
-        return master_result and master_result.get("arbiterOnly")
-
-    ###########################################################################
-    def is_replica_member(self):
-        """
-            Returns true if this is a replica member
-        """
-
-        return self.get_replicaset_name() is not None
-
-    ###########################################################################
-    def get_replicaset_name(self):
-        """
-            Returns true if the member is secondary
-        """
-        master_result = self._is_master_command()
-        return master_result and master_result.get("setName")
-
-    ###########################################################################
-    @property
-    def me(self):
-        master_result = self._is_master_command()
-        return self.address if not master_result else master_result["me"]
-
-    ###########################################################################
-    def _is_master_command(self):
-        return self._admin_db.command({"isMaster" : 1})
 
     ###########################################################################
     def is_too_stale(self):
