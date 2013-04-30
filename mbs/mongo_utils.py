@@ -405,6 +405,12 @@ class MongoServer(MongoConnector):
         return master_result and master_result.get("setName")
 
     ###########################################################################
+    @property
+    def me(self):
+        master_result = self._is_master_command()
+        return self.address if not master_result else master_result["me"]
+
+    ###########################################################################
     def _is_master_command(self):
         return self._admin_db.command({"isMaster" : 1})
 
@@ -506,7 +512,7 @@ class MongoServer(MongoConnector):
     ###########################################################################
     def _get_member_config(self):
         if self.rs_conf:
-            host = self.address
+            host = self.me
             mem_confs = self.rs_conf["members"]
             for mem_conf in mem_confs:
                 if mem_conf["host"] == host:
