@@ -1,6 +1,8 @@
 __author__ = 'abdul'
 
 # Contains mongo db utility functions
+import operator
+
 import pymongo
 import mbs_logging
 
@@ -230,13 +232,9 @@ class MongoCluster(MongoConnector):
         if not all_secondaries:
             logger.info("No secondaries found for cluster '%s'" % self)
 
-        # sort each list by member address
-        def sort_key(member):
-            return member.address
-
-        sorted(hidden_secondaries, key=sort_key)
-        sorted(p0_secondaries, key=sort_key)
-        sorted(other_secondaries, key=sort_key)
+        hidden_secondaries.sort(key=operator.attrgetter('address'))
+        p0_secondaries.sort(key=operator.attrgetter('address'))
+        other_secondaries.sort(key=operator.attrgetter('address'))
 
         # merge results into one list
         merged_list = hidden_secondaries + p0_secondaries + other_secondaries
