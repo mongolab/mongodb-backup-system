@@ -428,10 +428,9 @@ class DumpStrategy(BackupStrategy):
         # if its a server level backup then add forceTableScan and oplog
         uri_wrapper = mongo_uri_tools.parse_mongo_uri(uri)
         if not uri_wrapper.database:
-            dump_cmd.extend([
-                "--oplog",
-                "--forceTableScan"]
-            )
+            dump_cmd.append("--forceTableScan")
+            if mongo_connector.is_replica_member():
+                dump_cmd.append("--oplog")
 
         # if mongo version is >= 2.4 and we are using admin creds then pass
         # --authenticationDatabase
