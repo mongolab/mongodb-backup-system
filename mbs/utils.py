@@ -284,6 +284,10 @@ def get_host_ips(host):
 
 ###############################################################################
 class SignalWatcher(object):
+    """
+        Watches signals :)
+    """
+    ###########################################################################
     def __init__(self, sig_handlers, on_exit=None, wait=False, poll_time=1):
         self._sig_handlers = sig_handlers
         self._on_exit = [] if on_exit is None else on_exit
@@ -296,19 +300,23 @@ class SignalWatcher(object):
         for sig in self._sig_handlers:
             signal.signal(sig, _handler)
 
+    ###########################################################################
     @property
     def signaled(self):
         return self._sig_received is not None
 
+    ###########################################################################
     def __enter__(self):
         return self
 
+    ###########################################################################
     def watch(self):
         while self._wait and not self.signaled:
             time.sleep(self._poll_time)
         if self.signaled:
             self._sig_handlers[self._sig_received]()
 
+    ###########################################################################
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.watch()
         for f in self._on_exit:
