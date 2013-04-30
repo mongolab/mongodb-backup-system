@@ -10,6 +10,8 @@ import time
 import select
 import sys
 
+import signal
+
 from date_utils import (datetime_to_bson, is_date_value, seconds_now,
                         utc_str_to_datetime)
 from bson import json_util
@@ -279,3 +281,36 @@ def get_host_ips(host):
         return ips
     except Exception, e:
         raise Exception("Invalid host '%s'. Cause: %s" % (host, e))
+
+###############################################################################
+class SignalWatcher(object):
+    def __init__(self, sig_handlers, on_exit=None, wait=False, poll_time=1):
+        self._sig_handlers = sig_handlers
+        self._on_exit = [] if on_exit is None else on_exit
+        self._sig_received = None
+        self._wait = wait
+        self._poll_time = poll_time
+
+        def _handler(sig, frame):
+            self._sig_received = sig
+        for sig in self._sig_handlers:
+            signal.signal(sig, _handler)
+
+    @property
+    def signaled(self):
+        return self._sig_received is not None
+
+    def __enter__(self):
+        return self
+
+    def watch(self):
+        while self._wait and not self.signaled:
+            time.sleep(self._poll_time)
+        if self.signaled:
+            self._sig_handlers[self._sig_received]()
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.watch()
+        for f in self._on_exit:
+            f()
+
