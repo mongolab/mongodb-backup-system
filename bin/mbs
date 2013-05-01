@@ -9,11 +9,15 @@ import signal
 
 from functools import partial
 
+import mbs.mbs
+
 from dargparse import dargparse
 from bson.objectid import ObjectId
 from mbs.mbs import get_mbs
 from mbs.engine import STATUS_STOPPED, STATUS_STOPPING, STATUS_RUNNING
-from mbs.utils import wait_for, document_pretty_string, SignalWatcher
+from mbs.utils import (
+    wait_for, document_pretty_string, resolve_path, SignalWatcher
+)
 from mbs import mbs_logging
 
 ###############################################################################
@@ -31,6 +35,10 @@ def main(args):
 
     if not hasattr(parsed_args, "fork") or not getattr(parsed_args, "fork"):
         mbs_logging.log_to_stdout()
+
+    mbs.mbs.MBS_CONFIG = resolve_path(parsed_args.config)
+    mbs.mbs.MBS_CONF_DIR = resolve_path(parsed_args.config_dir)
+
     # get the function to call from the parser framework
     command_function = parsed_args.func
 
@@ -350,6 +358,25 @@ PARSER_DEF = {
     "prog": "mbs",
     "usage": "Usage: mbs [<options>] <command> [<command-args>]",
     "description" : "contains commands for the mongodb-backup-system",
+    "args": [
+            {
+            "name": "config",
+            "type": "optional",
+            "cmd_arg": ["--config", "-c"],
+            "displayName": "CONFIG",
+            "help": "specify the config to use [default: %(default)s]",
+            "default": mbs.mbs.MBS_CONFIG
+        },
+            {
+            "name": "config_dir",
+            "type": "optional",
+            "cmd_arg": "--config-dir",
+            "displayName": "CONF_DIR",
+            "help": "specify the config directory to use [default: "
+                    "%(default)s]",
+            "default": mbs.mbs.MBS_CONF_DIR
+        }
+    ],
     "children":[
         #### start-engine ####
             {

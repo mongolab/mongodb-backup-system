@@ -420,7 +420,7 @@ class DumpStrategy(BackupStrategy):
             uri += database_name
 
         dest = self._get_backup_dump_dir(backup)
-        dump_cmd = ["/usr/local/bin/mongoctl",
+        dump_cmd = [which("mongoctl"),
                     "--noninteractive", # always run with noninteractive
                     "dump", uri,
                     "-o", dest]
