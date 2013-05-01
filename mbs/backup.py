@@ -49,6 +49,7 @@ class Backup(MBSObject):
         self._reschedulable = None
         self._workspace = None
         self._priority = PRIORITY_LOW
+        self._queue_latency_in_minutes = None
 
     ###########################################################################
     @property
@@ -257,6 +258,15 @@ class Backup(MBSObject):
         self._priority = val
 
     ###########################################################################
+    @property
+    def queue_latency_in_minutes(self):
+        return self._queue_latency_in_minutes
+
+    @queue_latency_in_minutes.setter
+    def queue_latency_in_minutes(self, val):
+        self._queue_latency_in_minutes = val
+
+    ###########################################################################
     def log_event(self, event_type=EVENT_TYPE_INFO, name=None, message=None,
                         details=None):
         logs = self.logs
@@ -365,6 +375,9 @@ class Backup(MBSObject):
 
         if self.priority is not None:
             doc["priority"] = self.priority
+
+        if self.queue_latency_in_minutes is not None:
+            doc["queueLatencyInMinutes"] = self.queue_latency_in_minutes
 
         return doc
 
