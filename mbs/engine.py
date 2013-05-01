@@ -668,8 +668,10 @@ class BackupWorker(Thread):
 
     ###########################################################################
     def _calculate_queue_latency(self, backup):
+        occurrence_date = backup.plan_occurrence or backup.created_date
+
         latency_secs = timedelta_total_seconds(backup.start_date -
-                                               backup.created_date)
+                                               occurrence_date)
 
         return round(latency_secs/60, 2)
 
