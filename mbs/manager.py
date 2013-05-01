@@ -371,7 +371,8 @@ class PlanManager(Thread):
         # if from_scratch is set then clear backup log
         if from_scratch:
             backup.logs = []
-            update_backup(backup, properties=["logs"])
+            backup.try_count = 0
+            update_backup(backup, properties=["logs", "tryCount"])
 
         update_backup(backup, properties=["state", "tags"],
                       event_name=EVENT_STATE_CHANGE,
