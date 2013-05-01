@@ -1,5 +1,6 @@
 __author__ = 'abdul'
 
+import mongo_uri_tools
 
 ###############################################################################
 ########################                       ################################
@@ -113,7 +114,8 @@ class NoEligibleMembersFound(ReplicasetError):
 
     ###########################################################################
     def __init__(self, uri):
-        details = "No eligible members in '%s' found to take dump from" % uri
+        details = ("No eligible members in '%s' found to take dump from" %
+                   mongo_uri_tools.mask_mongo_uri(uri))
         super(NoEligibleMembersFound, self).__init__(details=details)
 
 
