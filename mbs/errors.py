@@ -251,6 +251,13 @@ class TargetUploadError(TargetError):
 
 
 ###############################################################################
+class UploadedFileAlreadyExistError(TargetError):
+    """
+        Raised when the uploaded file already exists in container and
+        overwrite_existing is set to False
+    """
+
+###############################################################################
 class UploadedFileDoesNotExistError(TargetUploadError, RetriableError):
 
     ###########################################################################

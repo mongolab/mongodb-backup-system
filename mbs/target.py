@@ -85,7 +85,7 @@ class BackupTarget(MBSObject):
                 if self.file_exists(destination_path):
                     msg = ("File '%s' already exists in container '%s'" %
                            (destination_path, self.container_name))
-                    raise TargetError(msg)
+                    raise UploadedFileAlreadyExistError(msg)
 
 
             target_ref = self.do_put_file(file_path, destination_path=
