@@ -18,7 +18,8 @@ from mbs.engine import STATUS_STOPPED, STATUS_STOPPING, STATUS_RUNNING
 from mbs.utils import (
     wait_for, document_pretty_string, resolve_path, SignalWatcher
 )
-from mbs import mbs_logging
+from mbs import mbs_config
+from mbs.mbs_logging import setup_logging
 
 ###############################################################################
 # MAIN
@@ -33,11 +34,9 @@ def main(args):
     # Parse the arguments and call the function of the selected cmd
     parsed_args = parser.parse_args(args)
 
-    if not hasattr(parsed_args, "fork") or not getattr(parsed_args, "fork"):
-        mbs_logging.log_to_stdout()
+    mbs_config.MBS_CONF_DIR = resolve_path(parsed_args.config_root)
 
-    mbs.mbs.MBS_CONFIG = resolve_path(parsed_args.config)
-    mbs.mbs.MBS_CONF_DIR = resolve_path(parsed_args.config_dir)
+    setup_logging(not getattr(parsed_args, "fork", False))
 
     # get the function to call from the parser framework
     command_function = parsed_args.func
@@ -360,21 +359,12 @@ PARSER_DEF = {
     "description" : "contains commands for the mongodb-backup-system",
     "args": [
             {
-            "name": "config",
+            "name": "config_root",
             "type": "optional",
-            "cmd_arg": ["--config", "-c"],
-            "displayName": "CONFIG",
-            "help": "specify the config to use [default: %(default)s]",
-            "default": mbs.mbs.MBS_CONFIG
-        },
-            {
-            "name": "config_dir",
-            "type": "optional",
-            "cmd_arg": "--config-dir",
-            "displayName": "CONF_DIR",
-            "help": "specify the config directory to use [default: "
-                    "%(default)s]",
-            "default": mbs.mbs.MBS_CONF_DIR
+            "cmd_arg": "--config-root",
+            "displayName": "CONFIGROOT",
+            "help": "path to mbs config root; defaults to %(default)s",
+            "default": mbs_config.MBS_CONF_DIR
         }
     ],
     "children":[

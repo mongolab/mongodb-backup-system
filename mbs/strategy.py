@@ -419,11 +419,18 @@ class DumpStrategy(BackupStrategy):
                 uri += "/"
             uri += database_name
 
-        dest = self._get_backup_dump_dir(backup)
         dump_cmd = [which("mongoctl"),
-                    "--noninteractive", # always run with noninteractive
-                    "dump", uri,
-                    "-o", dest]
+                    "--noninteractive"] # always run with noninteractive
+
+        mongoctl_config_root = get_mbs().mongoctl_config_root
+        if mongoctl_config_root:
+            dump_cmd.extend([
+                "--config-root",
+                mongoctl_config_root]
+            )
+
+        dest = self._get_backup_dump_dir(backup)
+        dump_cmd.extend(["dump", uri, "-o", dest])
 
         # if its a server level backup then add forceTableScan and oplog
         uri_wrapper = mongo_uri_tools.parse_mongo_uri(uri)
@@ -432,7 +439,6 @@ class DumpStrategy(BackupStrategy):
                 "--oplog",
                 "--forceTableScan"]
             )
-
         # if mongo version is >= 2.4 and we are using admin creds then pass
         # --authenticationDatabase
         mongo_version = mongo_connector.get_mongo_version()
@@ -445,8 +451,8 @@ class DumpStrategy(BackupStrategy):
 
         dump_cmd_display= dump_cmd[:]
         # if the source uri is a mongo uri then mask it
-
-        dump_cmd_display[3] = uri_wrapper.masked_uri
+        dump_cmd_display[dump_cmd_display.index("dump") + 1] = \
+            uri_wrapper.masked_uri
         logger.info("Running dump command: %s" % " ".join(dump_cmd_display))
 
         ensure_dir(dest)

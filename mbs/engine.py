@@ -5,6 +5,7 @@ import traceback
 import os
 
 import time
+import mbs_config
 import mbs_logging
 
 import urllib
@@ -22,7 +23,7 @@ from errors import MBSError
 from utils import (ensure_dir, resolve_path, get_local_host_name,
                    document_pretty_string)
 
-from mbs import MBS_CONF_DIR, get_mbs
+from mbs import get_mbs
 
 from date_utils import  timedelta_total_seconds, date_now
 
@@ -453,7 +454,8 @@ class BackupEngine(Thread):
     ###########################################################################
     def _get_pid_file_path(self):
         pid_file_name = "engine_%s_pid.txt" % self.id
-        return resolve_path(os.path.join(MBS_CONF_DIR, pid_file_name))
+        return resolve_path(os.path.join(mbs_config.MBS_CONF_DIR, 
+                                         pid_file_name))
 
     ###########################################################################
     # Engine stopping

@@ -7,8 +7,6 @@ use_setuptools()
 
 from setuptools import setup, find_packages
 
-MBS_CONF = os.path.expanduser("~/.mbs/mbs.config")
-
 setup(
     name='mbs',
     version='0.1.2',
@@ -38,16 +36,20 @@ setup(
 
 ###############################################################################
 def create_default_config():
+    from mbs.config import MBS_CONF_DIR, MBS_CONFIG
+
+    mbs_conf = os.path.expanduser(os.path.join(MBS_CONF_DIR, MBS_CONFIG))
+
     # do nothing if conf already exists
-    print "Checking if configuration '%s' exists..." % MBS_CONF
-    if os.path.exists(MBS_CONF):
-        print "Config '%s' already exists" % MBS_CONF
+    print "Checking if configuration '%s' exists..." % mbs_conf
+    if os.path.exists(mbs_conf):
+        print "Config '%s' already exists" % mbs_conf
         return
 
-    print "Configuration '%s' does not exist. Creating default..." % MBS_CONF
+    print "Configuration '%s' does not exist. Creating default..." % mbs_conf
 
     login = os.getlogin()
-    conf_dir = os.path.dirname(MBS_CONF)
+    conf_dir = os.path.dirname(mbs_conf)
     owner = pwd.getpwnam(login)
     owner_uid = owner[2]
     owner_gid = owner[3]
@@ -76,13 +78,13 @@ def create_default_config():
 
     from mbs.utils import document_pretty_string
 
-    conf_file = open(MBS_CONF, mode="w")
+    conf_file = open(mbs_conf, mode="w")
     conf_file.write(document_pretty_string(default_conf))
     # chown conf file
-    os.chown(MBS_CONF, owner_uid, owner_gid)
-    os.chmod(MBS_CONF, 00644)
+    os.chown(mbs_conf, owner_uid, owner_gid)
+    os.chmod(mbs_conf, 00644)
 
-    print "Successfully created configuration '%s'!" % MBS_CONF
+    print "Successfully created configuration '%s'!" % mbs_conf
 
 ### execute this block after setup "install" command is complete
 if "install" in sys.argv:

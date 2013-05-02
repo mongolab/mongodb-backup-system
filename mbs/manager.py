@@ -12,7 +12,8 @@ from threading import Thread
 from flask import Flask
 from flask.globals import request
 from utils import document_pretty_string, resolve_path
-from mbs import MBS_CONF_DIR
+
+import mbs_config
 
 from date_utils import date_now, date_minus_seconds, time_str_to_datetime_today
 from errors import *
@@ -608,7 +609,8 @@ class PlanManager(Thread):
     ###########################################################################
     def _get_pid_file_path(self):
         pid_file_name = "plan_manager_pid.txt"
-        return resolve_path(os.path.join(MBS_CONF_DIR, pid_file_name))
+        return resolve_path(os.path.join(mbs_config.MBS_CONF_DIR,
+                                         pid_file_name))
 
     ###########################################################################
     # Manager stopping
