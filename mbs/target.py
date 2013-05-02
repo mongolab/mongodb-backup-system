@@ -176,7 +176,6 @@ class BackupTarget(MBSObject):
     @robustify(max_attempts=3, retry_interval=5,
                do_on_exception=raise_if_not_retriable,
                do_on_failure=raise_exception)
-
     def _verify_file_deleted(self, file_path):
 
         file_exists, file_size = self._fetch_file_info(file_path)
@@ -557,6 +556,9 @@ class RackspaceCloudFilesTarget(BackupTarget):
         self._encrypted_api_key = None
 
     ###########################################################################
+    @robustify(max_attempts=3, retry_interval=5,
+               do_on_exception=raise_if_not_retriable,
+               do_on_failure=raise_exception)
     def do_put_file(self, file_path, destination_path):
 
         # determine single/multi part upload
