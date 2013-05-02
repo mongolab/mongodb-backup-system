@@ -23,6 +23,7 @@ from target import CBS_STATUS_COMPLETED, CBS_STATUS_ERROR
 
 from backup import EVENT_TYPE_WARNING
 from robustify.robustify import robustify
+from naming_scheme import *
 
 ###############################################################################
 # CONSTANTS
@@ -63,6 +64,7 @@ class BackupStrategy(MBSObject):
     def __init__(self):
         self._member_preference = PREF_BEST
         self._max_data_size = None
+        self._backup_naming_scheme = None
 
     ###########################################################################
     @property
@@ -81,6 +83,15 @@ class BackupStrategy(MBSObject):
     @max_data_size.setter
     def max_data_size(self, val):
         self._max_data_size = val
+
+    ###########################################################################
+    @property
+    def backup_naming_scheme(self):
+        return self._backup_naming_scheme
+
+    @backup_naming_scheme.setter
+    def backup_naming_scheme(self, naming_scheme):
+        self._backup_naming_scheme = naming_scheme
 
     ###########################################################################
     def run_backup(self, backup):
@@ -230,6 +241,17 @@ class BackupStrategy(MBSObject):
 
 
     ###########################################################################
+    def get_backup_name(self, backup):
+        naming_scheme = self.backup_naming_scheme
+        if not naming_scheme:
+            naming_scheme = DefaultBackupNamingScheme()
+        elif type(naming_scheme) in [unicode, str]:
+            name_template = naming_scheme
+            naming_scheme = TemplateBackupNamingScheme(template=name_template)
+
+        return naming_scheme.get_backup_name(backup)
+
+    ###########################################################################
     def to_document(self, display_only=False):
         doc = {
             "memberPreference": self.member_preference
@@ -237,6 +259,9 @@ class BackupStrategy(MBSObject):
 
         if self.max_data_size:
             doc["maxDataSize"] = self.max_data_size
+
+        if self.backup_naming_scheme:
+            doc["backupNamingScheme"] = self.backup_naming_scheme
 
         return doc
 

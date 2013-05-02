@@ -726,10 +726,7 @@ class BackupCleanerWorker(BackupWorker):
 ###############################################################################
 def _set_backup_name(backup):
     if not backup.name:
-        if backup.plan:
-            backup.name = backup.plan.get_backup_name(backup)
-        else:
-            backup.name = str(backup.id)
+            backup.name = backup.strategy.get_backup_name(backup)
 
 ###############################################################################
 # EngineCommandServer
