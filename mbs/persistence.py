@@ -20,7 +20,7 @@ def update_backup(backup, properties=None, event_name=None,
         properties = listify(properties)
         u["$set"] = {}
         for prop in properties:
-            u["$set"][prop] = backup_doc[prop]
+            u["$set"][prop] = backup_doc.get(prop)
 
 
     # construct the $push
