@@ -50,28 +50,9 @@ PREF_BEST = "BEST"
 logger = mbs_logging.logger
 
 ###############################################################################
-# Error Handling Helpers
-###############################################################################
-
-def _is_exception_retriable(exception):
-    return isinstance(exception, RetriableError)
-
-def _raise_if_not_retriable(exception):
-    if _is_exception_retriable(exception):
-        logger.warn("Caught a retriable exception: %s" % exception)
-    else:
-        logger.debug("Re-raising a a NON-retriable exception: %s" % exception)
-        raise
-
-
-###############################################################################
 def _is_backup_reschedulable( backup, exception):
         return (backup.try_count < MAX_NO_RETRIES and
-                _is_exception_retriable(exception))
-
-###############################################################################
-def _raise_on_failure():
-    raise
+                is_exception_retriable(exception))
 
 ###############################################################################
 # BackupStrategy Classes
@@ -290,8 +271,8 @@ class DumpStrategy(BackupStrategy):
 
     ###########################################################################
     @robustify(max_attempts=3, retry_interval=30,
-               do_on_exception=_raise_if_not_retriable,
-               do_on_failure=_raise_on_failure)
+               do_on_exception=raise_if_not_retriable,
+               do_on_failure=raise_exception)
     def do_backup_mongo_connector(self, backup, mongo_connector):
         """
             Override

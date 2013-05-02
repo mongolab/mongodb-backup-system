@@ -2,12 +2,21 @@ __author__ = 'abdul'
 
 import mongo_uri_tools
 
+import mbs_logging
+
 ###############################################################################
 ########################                       ################################
 ########################  Backup System Errors ################################
 ########################                       ################################
 ###############################################################################
 
+
+
+###############################################################################
+# LOGGER
+###############################################################################
+
+logger = mbs_logging.logger
 
 ###############################################################################
 # MBSError
@@ -344,3 +353,22 @@ def is_connection_exception(exception):
     msg = str(exception)
     return ("timed out" in msg or "refused" in msg or "reset" in msg or
             "Broken pipe" in msg or "closed" in msg)
+
+
+###############################################################################
+def is_exception_retriable(exception):
+    return isinstance(exception, RetriableError)
+
+###############################################################################
+
+def raise_if_not_retriable(exception):
+    if is_exception_retriable(exception):
+        logger.warn("Caught a retriable exception: %s" % exception)
+    else:
+        logger.debug("Re-raising a a NON-retriable exception: %s" % exception)
+        raise
+
+###############################################################################
+def raise_exception():
+    raise
+
