@@ -1,5 +1,8 @@
 __author__ = 'abdul'
 
+import os
+
+import mbs_config as config
 import mbs_logging
 
 from makerpy.object_collection import ObjectCollection
@@ -17,9 +20,6 @@ from audit import AuditReport
 
 from encryption import Encryptor
 
-###############################################################################
-MBS_CONF_DIR = "~/.mbs"
-MBS_CONFIG = "~/.mbs/mbs.config"
 
 ###############################################################################
 # LOGGER
@@ -205,6 +205,12 @@ class MBS(object):
         if func_name:
             return resolve_function(func_name)
 
+    ###########################################################################
+    @property
+    def mongoctl_config_root(self):
+        return self._get_config_value("mongoctlConfigRoot")
+
+
 ###############################################################################
 # MBS Singleton
 ###############################################################################
@@ -213,7 +219,9 @@ mbs_singleton = None
 def get_mbs():
     global mbs_singleton
     if not mbs_singleton:
-        mbs_config = read_config_json("mbs", MBS_CONFIG)
+        mbs_config = read_config_json("mbs",
+                                      os.path.join(config.MBS_CONF_DIR,
+                                                   config.MBS_CONFIG))
         mbs_type = mbs_config.get("_type")
         mbs_class = MBS
         if mbs_type:
