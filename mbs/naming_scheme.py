@@ -14,7 +14,7 @@ class BackupNamingScheme(MBSObject):
         pass
 
     ###########################################################################
-    def get_backup_name(self, backup):
+    def generate_name(self, backup):
         pass
 
 ###############################################################################
@@ -27,7 +27,7 @@ class DefaultBackupNamingScheme(BackupNamingScheme):
         BackupNamingScheme.__init__(self)
 
     ###########################################################################
-    def get_backup_name(self, backup):
+    def generate_name(self, backup):
         return "%s" % backup.id
 
 ###############################################################################
@@ -41,7 +41,7 @@ class TemplateBackupNamingScheme(BackupNamingScheme):
         self._template = template
 
     ###########################################################################
-    def get_backup_name(self, backup):
+    def generate_name(self, backup):
         return self.template.format(backup=backup)
 
     ###########################################################################

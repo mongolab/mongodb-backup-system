@@ -242,14 +242,17 @@ class BackupStrategy(MBSObject):
 
     ###########################################################################
     def get_backup_name(self, backup):
-        naming_scheme = self.backup_naming_scheme
+        return self._generate_name(backup, self.backup_naming_scheme)
+
+    ###########################################################################
+    def _generate_name(self, backup, naming_scheme):
         if not naming_scheme:
             naming_scheme = DefaultBackupNamingScheme()
         elif type(naming_scheme) in [unicode, str]:
             name_template = naming_scheme
             naming_scheme = TemplateBackupNamingScheme(template=name_template)
 
-        return naming_scheme.get_backup_name(backup)
+        return naming_scheme.generate_name(backup)
 
     ###########################################################################
     def to_document(self, display_only=False):
