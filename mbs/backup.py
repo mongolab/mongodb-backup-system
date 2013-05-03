@@ -342,7 +342,8 @@ class Backup(MBSObject):
             "planOccurrence": self.plan_occurrence,
             "engineGuid": self.engine_guid,
             "logs": self.export_logs(),
-            "workspace": self.workspace
+            "workspace": self.workspace,
+            "tryCount": self.try_count
         }
 
         if self.id:
@@ -366,9 +367,6 @@ class Backup(MBSObject):
 
         if self.tags:
             doc["tags"] = self.tags
-
-        if self.try_count:
-            doc["tryCount"] = self.try_count
 
         if self.reschedulable is not None:
             doc["reschedulable"] = self.reschedulable
