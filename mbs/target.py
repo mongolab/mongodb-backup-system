@@ -1,6 +1,6 @@
 __author__ = 'abdul'
 
-import traceback
+
 import os
 import sys
 import shutil
@@ -17,6 +17,7 @@ from boto.s3.connection import S3Connection
 from boto.s3.key import Key
 from boto.ec2 import EC2Connection
 from errors import *
+from robustify.robustify import robustify
 
 ###############################################################################
 # LOGGER
@@ -51,12 +52,14 @@ class BackupTarget(MBSObject):
             Should be implemented by subclasses
         """
 
+    ###########################################################################
     @property
     def target_type(self):
         """
             returns the target type which is the class name
         """
         return self.__class__.__name__
+
     ###########################################################################
     def put_file(self, file_path, destination_path=None,
                  overwrite_existing=False):
@@ -85,7 +88,7 @@ class BackupTarget(MBSObject):
                 if self.file_exists(destination_path):
                     msg = ("File '%s' already exists in container '%s'" %
                            (destination_path, self.container_name))
-                    raise TargetError(msg)
+                    raise UploadedFileAlreadyExistError(msg)
 
 
             target_ref = self.do_put_file(file_path, destination_path=
@@ -155,6 +158,9 @@ class BackupTarget(MBSObject):
         return []
 
     ###########################################################################
+    @robustify(max_attempts=3, retry_interval=5,
+               do_on_exception=raise_if_not_retriable,
+               do_on_failure=raise_exception)
     def _verify_file_uploaded(self, destination_path, file_size):
 
         dest_exists, dest_size = self._fetch_file_info(destination_path)
@@ -167,6 +173,9 @@ class BackupTarget(MBSObject):
                                              dest_size, file_size)
 
     ###########################################################################
+    @robustify(max_attempts=3, retry_interval=5,
+               do_on_exception=raise_if_not_retriable,
+               do_on_failure=raise_exception)
     def _verify_file_deleted(self, file_path):
 
         file_exists, file_size = self._fetch_file_info(file_path)
@@ -547,6 +556,9 @@ class RackspaceCloudFilesTarget(BackupTarget):
         self._encrypted_api_key = None
 
     ###########################################################################
+    @robustify(max_attempts=3, retry_interval=5,
+               do_on_exception=raise_if_not_retriable,
+               do_on_failure=raise_exception)
     def do_put_file(self, file_path, destination_path):
 
         # determine single/multi part upload

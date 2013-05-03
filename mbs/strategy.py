@@ -23,6 +23,7 @@ from target import CBS_STATUS_COMPLETED, CBS_STATUS_ERROR
 
 from backup import EVENT_TYPE_WARNING
 from robustify.robustify import robustify
+from naming_scheme import *
 
 ###############################################################################
 # CONSTANTS
@@ -50,28 +51,9 @@ PREF_BEST = "BEST"
 logger = mbs_logging.logger
 
 ###############################################################################
-# Error Handling Helpers
-###############################################################################
-
-def _is_exception_retriable(exception):
-    return isinstance(exception, RetriableError)
-
-def _raise_if_not_retriable(exception):
-    if _is_exception_retriable(exception):
-        logger.warn("Caught a retriable exception: %s" % exception)
-    else:
-        logger.debug("Re-raising a a NON-retriable exception: %s" % exception)
-        raise
-
-
-###############################################################################
 def _is_backup_reschedulable( backup, exception):
         return (backup.try_count < MAX_NO_RETRIES and
-                _is_exception_retriable(exception))
-
-###############################################################################
-def _raise_on_failure():
-    raise
+                is_exception_retriable(exception))
 
 ###############################################################################
 # BackupStrategy Classes
@@ -82,6 +64,7 @@ class BackupStrategy(MBSObject):
     def __init__(self):
         self._member_preference = PREF_BEST
         self._max_data_size = None
+        self._backup_naming_scheme = None
 
     ###########################################################################
     @property
@@ -100,6 +83,15 @@ class BackupStrategy(MBSObject):
     @max_data_size.setter
     def max_data_size(self, val):
         self._max_data_size = val
+
+    ###########################################################################
+    @property
+    def backup_naming_scheme(self):
+        return self._backup_naming_scheme
+
+    @backup_naming_scheme.setter
+    def backup_naming_scheme(self, naming_scheme):
+        self._backup_naming_scheme = naming_scheme
 
     ###########################################################################
     def run_backup(self, backup):
@@ -249,6 +241,20 @@ class BackupStrategy(MBSObject):
 
 
     ###########################################################################
+    def get_backup_name(self, backup):
+        return self._generate_name(backup, self.backup_naming_scheme)
+
+    ###########################################################################
+    def _generate_name(self, backup, naming_scheme):
+        if not naming_scheme:
+            naming_scheme = DefaultBackupNamingScheme()
+        elif type(naming_scheme) in [unicode, str]:
+            name_template = naming_scheme
+            naming_scheme = TemplateBackupNamingScheme(template=name_template)
+
+        return naming_scheme.generate_name(backup)
+
+    ###########################################################################
     def to_document(self, display_only=False):
         doc = {
             "memberPreference": self.member_preference
@@ -256,6 +262,9 @@ class BackupStrategy(MBSObject):
 
         if self.max_data_size:
             doc["maxDataSize"] = self.max_data_size
+
+        if self.backup_naming_scheme:
+            doc["backupNamingScheme"] = self.backup_naming_scheme
 
         return doc
 
@@ -290,8 +299,8 @@ class DumpStrategy(BackupStrategy):
 
     ###########################################################################
     @robustify(max_attempts=3, retry_interval=30,
-               do_on_exception=_raise_if_not_retriable,
-               do_on_failure=_raise_on_failure)
+               do_on_exception=raise_if_not_retriable,
+               do_on_failure=raise_exception)
     def do_backup_mongo_connector(self, backup, mongo_connector):
         """
             Override
@@ -435,10 +444,10 @@ class DumpStrategy(BackupStrategy):
         # if its a server level backup then add forceTableScan and oplog
         uri_wrapper = mongo_uri_tools.parse_mongo_uri(uri)
         if not uri_wrapper.database:
-            dump_cmd.extend([
-                "--oplog",
-                "--forceTableScan"]
-            )
+            dump_cmd.append("--forceTableScan")
+            if mongo_connector.is_replica_member():
+                dump_cmd.append("--oplog")
+
         # if mongo version is >= 2.4 and we are using admin creds then pass
         # --authenticationDatabase
         mongo_version = mongo_connector.get_mongo_version()

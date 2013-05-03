@@ -1,5 +1,8 @@
 __author__ = 'abdul'
 
+import mongo_uri_tools
+
+import mbs_logging
 
 ###############################################################################
 ########################                       ################################
@@ -7,6 +10,13 @@ __author__ = 'abdul'
 ########################                       ################################
 ###############################################################################
 
+
+
+###############################################################################
+# LOGGER
+###############################################################################
+
+logger = mbs_logging.logger
 
 ###############################################################################
 # MBSError
@@ -113,7 +123,8 @@ class NoEligibleMembersFound(ReplicasetError):
 
     ###########################################################################
     def __init__(self, uri):
-        details = "No eligible members in '%s' found to take dump from" % uri
+        details = ("No eligible members in '%s' found to take dump from" %
+                   mongo_uri_tools.mask_mongo_uri(uri))
         super(NoEligibleMembersFound, self).__init__(details=details)
 
 
@@ -251,6 +262,13 @@ class TargetUploadError(TargetError):
 
 
 ###############################################################################
+class UploadedFileAlreadyExistError(TargetError):
+    """
+        Raised when the uploaded file already exists in container and
+        overwrite_existing is set to False
+    """
+
+###############################################################################
 class UploadedFileDoesNotExistError(TargetUploadError, RetriableError):
 
     ###########################################################################
@@ -335,3 +353,22 @@ def is_connection_exception(exception):
     msg = str(exception)
     return ("timed out" in msg or "refused" in msg or "reset" in msg or
             "Broken pipe" in msg or "closed" in msg)
+
+
+###############################################################################
+def is_exception_retriable(exception):
+    return isinstance(exception, RetriableError)
+
+###############################################################################
+
+def raise_if_not_retriable(exception):
+    if is_exception_retriable(exception):
+        logger.warn("Caught a retriable exception: %s" % exception)
+    else:
+        logger.debug("Re-raising a a NON-retriable exception: %s" % exception)
+        raise
+
+###############################################################################
+def raise_exception():
+    raise
+

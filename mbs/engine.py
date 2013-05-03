@@ -603,6 +603,10 @@ class BackupWorker(Thread):
                       (backup.strategy, backup._id, backup.try_count))
             # set start date
             backup.start_date = date_now()
+
+            # set queue_latency_in_minutes
+            latency = self._calculate_queue_latency(backup)
+            backup.queue_latency_in_minutes = latency
             # clear end date
             backup.end_date = None
 
@@ -615,7 +619,8 @@ class BackupWorker(Thread):
 
             # UPDATE!
             update_backup(backup, properties=["tryCount", "startDate",
-                                              "endDate", "name", "workspace"])
+                                              "endDate", "name", "workspace",
+                                              "queueLatencyInMinutes"])
             # apply the retention policy
             # TODO Probably should be called somewhere else
             self._apply_retention_policy(backup)
@@ -662,6 +667,15 @@ class BackupWorker(Thread):
                 backup.backup_rate_in_mbps = rate
                 # save changes
                 update_backup(backup, properties="backupRateInMBPS")
+
+    ###########################################################################
+    def _calculate_queue_latency(self, backup):
+        occurrence_date = backup.plan_occurrence or backup.created_date
+
+        latency_secs = timedelta_total_seconds(backup.start_date -
+                                               occurrence_date)
+
+        return round(latency_secs/60, 2)
 
     ###########################################################################
     def _apply_retention_policy(self, backup):
@@ -714,10 +728,7 @@ class BackupCleanerWorker(BackupWorker):
 ###############################################################################
 def _set_backup_name(backup):
     if not backup.name:
-        if backup.plan:
-            backup.name = backup.plan.get_backup_name(backup)
-        else:
-            backup.name = str(backup.id)
+            backup.name = backup.strategy.get_backup_name(backup)
 
 ###############################################################################
 # EngineCommandServer
