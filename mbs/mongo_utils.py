@@ -307,13 +307,14 @@ class MongoServer(MongoConnector):
         MongoConnector.__init__(self, uri)
         self._connection = None
         self._is_online = False
+        self._authed_to_admin = False
 
         try:
             self._connection = pymongo.Connection(self._uri_wrapper.address,
                                                 socketTimeoutMS=CONN_TIMEOUT,
                                                 connectTimeoutMS=CONN_TIMEOUT)
             self._admin_db = self._connection["admin"]
-            self._authed_to_admin = False
+
             # connection success! set online to true
             self._is_online = True
 
