@@ -172,7 +172,7 @@ class CloudBlockStorage(MBSObject):
         pass
 
     ###########################################################################
-    def create_snapshot(self, description):
+    def create_snapshot(self, name, description):
         """
             Create a snapshot for the volume with the specified description.
             Returns a CloudBlockStorageSnapshotReference
@@ -209,7 +209,7 @@ class EbsVolumeStorage(CloudBlockStorage):
         self._ec2_connection = None
 
     ###########################################################################
-    def create_snapshot(self, description):
+    def create_snapshot(self, name, description):
         ebs_volume = self._get_ebs_volume()
 
         logger.info("Creating EBS snapshot for volume '%s'" % self.volume_id)
@@ -220,6 +220,10 @@ class EbsVolumeStorage(CloudBlockStorage):
 
         # get the snapshot id and put it as a target reference
         ebs_snapshot = self._get_ebs_snapshot_by_desc(description)
+
+        # add name tag
+        ebs_snapshot.add_tag("Name", name)
+
         logger.info("Snapshot kicked off successfully for volume '%s'. "
                     "Snapshot id '%s'." % (self.volume_id, ebs_snapshot.id))
 

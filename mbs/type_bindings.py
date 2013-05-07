@@ -32,6 +32,8 @@ TYPE_BINDINGS = {
     "PlanAuditEntry": "mbs.audit.PlanAuditEntry",
     "EmailNotificationHandler": "mbs.notification.EmailNotificationHandler",
     "Encryptor": "mbs.encryption.Encryptor",
-    "SourceIPTag": "mbs.tags.SourceIPTag"
+    "SourceIPTag": "mbs.tags.SourceIPTag",
+    "DefaultBackupNamingScheme": "mbs.naming_scheme.DefaultBackupNamingScheme",
+    "TemplateBackupNamingScheme": "mbs.naming_scheme.TemplateBackupNamingScheme"
 
 }

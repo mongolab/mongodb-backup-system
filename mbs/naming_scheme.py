@@ -30,6 +30,12 @@ class DefaultBackupNamingScheme(BackupNamingScheme):
     def generate_name(self, backup):
         return "%s" % backup.id
 
+    ###########################################################################
+    def to_document(self, display_only=False):
+        return {
+            "_type": "DefaultBackupNamingScheme"
+        }
+
 ###############################################################################
 # TemplateBackupNamingScheme
 ###############################################################################
@@ -54,3 +60,8 @@ class TemplateBackupNamingScheme(BackupNamingScheme):
         self._template = template
 
     ###########################################################################
+    def to_document(self, display_only=False):
+        return {
+            "_type": "TemplateBackupNamingScheme",
+            "template": self.template
+        }

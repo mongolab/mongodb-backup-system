@@ -64,7 +64,8 @@ class BackupStrategy(MBSObject):
     def __init__(self):
         self._member_preference = PREF_BEST
         self._max_data_size = None
-        self._backup_naming_scheme = None
+        self._backup_name_scheme = None
+        self._backup_description_scheme = None
 
     ###########################################################################
     @property
@@ -86,12 +87,27 @@ class BackupStrategy(MBSObject):
 
     ###########################################################################
     @property
-    def backup_naming_scheme(self):
-        return self._backup_naming_scheme
+    def backup_name_scheme(self):
+        return self._backup_name_scheme
 
-    @backup_naming_scheme.setter
-    def backup_naming_scheme(self, naming_scheme):
-        self._backup_naming_scheme = naming_scheme
+    @backup_name_scheme.setter
+    def backup_name_scheme(self, naming_scheme):
+        if isinstance(naming_scheme, (unicode, str)):
+            naming_scheme = TemplateBackupNamingScheme(template=naming_scheme)
+
+        self._backup_name_scheme = naming_scheme
+
+    ###########################################################################
+    @property
+    def backup_description_scheme(self):
+        return self._backup_description_scheme
+
+    @backup_description_scheme.setter
+    def backup_description_scheme(self, naming_scheme):
+        if isinstance(naming_scheme, (unicode, str)):
+            naming_scheme = TemplateBackupNamingScheme(template=naming_scheme)
+
+        self._backup_description_scheme = naming_scheme
 
     ###########################################################################
     def run_backup(self, backup):
@@ -188,6 +204,9 @@ class BackupStrategy(MBSObject):
             event_name="COMPUTED_SOURCE_STATS",
             message="Computed source stats")
 
+        # set backup name and description
+        self._set_backup_name_and_desc(backup)
+
         # validate max data size if set
         self._validate_max_data_size(backup)
 
@@ -241,8 +260,22 @@ class BackupStrategy(MBSObject):
 
 
     ###########################################################################
+    def _set_backup_name_and_desc(self, backup):
+        if not backup.name:
+            backup.name = self.get_backup_name(backup)
+
+        if not backup.description:
+            backup.description = self.get_backup_description(backup)
+
+        update_backup(backup, properties=["name", "description"])
+
+    ###########################################################################
     def get_backup_name(self, backup):
-        return self._generate_name(backup, self.backup_naming_scheme)
+        return self._generate_name(backup, self.backup_name_scheme)
+
+    ###########################################################################
+    def get_backup_description(self, backup):
+        return self._generate_name(backup, self.backup_description_scheme)
 
     ###########################################################################
     def _generate_name(self, backup, naming_scheme):
@@ -263,8 +296,13 @@ class BackupStrategy(MBSObject):
         if self.max_data_size:
             doc["maxDataSize"] = self.max_data_size
 
-        if self.backup_naming_scheme:
-            doc["backupNamingScheme"] = self.backup_naming_scheme
+        if self.backup_name_scheme:
+            doc["backupNameScheme"] = \
+                self.backup_name_scheme.to_document(display_only=False)
+
+        if self.backup_description_scheme:
+            doc["backupDescriptionScheme"] =\
+                self.backup_description_scheme.to_document(display_only=False)
 
         return doc
 
@@ -618,8 +656,9 @@ class CloudBlockStorageStrategy(BackupStrategy):
         update_backup(backup, event_name="START_BLOCK_STORAGE_SNAPSHOT",
                       message="Kicking off snapshot")
 
-        snapshot_desc = _backup_dump_dir_name(backup)
-        snapshot_ref = cloud_block_storage.create_snapshot(snapshot_desc)
+
+        snapshot_ref = cloud_block_storage.create_snapshot(backup.name,
+                                                           backup.description)
         backup.target_reference = snapshot_ref
 
         msg = "Snapshot created successfully"
@@ -712,6 +751,13 @@ class HybridStrategy(BackupStrategy):
         selected_strategy = self.predicate.get_best_strategy(self, backup,
                                                              mongo_connector)
         selected_strategy.backup_mongo_connector(backup, mongo_connector)
+
+    ###########################################################################
+    def _set_backup_name_and_desc(self, backup):
+        """
+         Do nothing so that the selected strategy will take care of that
+         instead
+        """
 
     ###########################################################################
     def to_document(self, display_only=False):

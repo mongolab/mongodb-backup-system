@@ -610,16 +610,13 @@ class BackupWorker(Thread):
             # clear end date
             backup.end_date = None
 
-            # set backup name
-            _set_backup_name(backup)
-
             # set the workspace
             workspace_dir = self._get_backup_workspace_dir(backup)
             backup.workspace = workspace_dir
 
             # UPDATE!
             update_backup(backup, properties=["tryCount", "startDate",
-                                              "endDate", "name", "workspace",
+                                              "endDate", "workspace",
                                               "queueLatencyInMinutes"])
             # apply the retention policy
             # TODO Probably should be called somewhere else
@@ -724,11 +721,6 @@ class BackupCleanerWorker(BackupWorker):
             self.backup.strategy.cleanup_backup(self.backup)
         finally:
             self.engine.cleaner_finished(self)
-
-###############################################################################
-def _set_backup_name(backup):
-    if not backup.name:
-            backup.name = backup.strategy.get_backup_name(backup)
 
 ###############################################################################
 # EngineCommandServer
