@@ -25,7 +25,7 @@ from utils import (ensure_dir, resolve_path, get_local_host_name,
 
 from mbs import get_mbs
 
-from date_utils import  timedelta_total_seconds, date_now
+from date_utils import  timedelta_total_seconds, date_now, date_minus_seconds
 
 
 from backup import (STATE_SCHEDULED, STATE_IN_PROGRESS, STATE_FAILED,
@@ -50,6 +50,9 @@ EVENT_END_UPLOAD = "END_UPLOAD"
 STATUS_RUNNING = "running"
 STATUS_STOPPING = "stopping"
 STATUS_STOPPED = "stopped"
+
+# Failed one-off max due time (2 hours)
+MAX_FAIL_DUE_TIME = 2 * 60 * 60
 
 ###############################################################################
 # LOGGER
@@ -352,6 +355,7 @@ class BackupEngine(Thread):
 
     ###########################################################################
     def _read_next_failed_past_due_backup(self):
+        min_fail_end_date = date_minus_seconds(date_now(), MAX_FAIL_DUE_TIME)
         q = { "state": STATE_FAILED,
               "engineGuid": self.engine_guid,
               "$or": [
@@ -361,7 +365,8 @@ class BackupEngine(Thread):
 
                   {
                       "plan": {"$exists": False},
-                       "reschedulable": False
+                      "reschedulable": False,
+                      "endDate": {"$lte": min_fail_end_date}
                   }
 
 
