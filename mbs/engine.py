@@ -286,9 +286,8 @@ class BackupEngine(Thread):
     ###########################################################################
     def worker_finished(self, worker, state, message=None):
         backup = worker.backup
-        # set end date if not set already
-        if not backup.end_date:
-            backup.end_date = date_now()
+        # set end date
+        backup.end_date = date_now()
         # decrease worker count and update state
         self._worker_count -= 1
         backup.state = state
