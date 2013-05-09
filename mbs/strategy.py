@@ -13,7 +13,7 @@ from mbs import get_mbs
 from base import MBSObject
 from persistence import update_backup
 from mongo_utils import (MongoCluster, MongoDatabase, MongoServer,
-                         MongoNormalizedVersion)
+                         MongoNormalizedVersion, build_mongo_connector)
 
 from subprocess import CalledProcessError
 from errors import *
@@ -127,18 +127,49 @@ class BackupStrategy(MBSObject):
 
     ###########################################################################
     def get_backup_mongo_connector(self, backup):
-        uri_wrapper = mongo_uri_tools.parse_mongo_uri(backup.source.uri)
-        if uri_wrapper.is_cluster_uri() and not uri_wrapper.database:
-            return self._select_backup_cluster_member(backup)
-        elif not uri_wrapper.database:
-            return MongoServer(backup.source.uri)
+        connector = build_mongo_connector(backup.source.uri)
+        if isinstance(connector, MongoCluster):
+            return self._select_backup_cluster_member(backup, connector)
         else:
-            return MongoDatabase(backup.source.uri)
+            return connector
 
     ###########################################################################
-    def _select_backup_cluster_member(self, backup):
+    def _select_backup_cluster_member(self, backup, mongo_cluster):
+
+        if not self._needs_new_member_selection(backup):
+            return self.get_mongo_connector_used_by(backup)
+        else:
+            return self._select_new_cluster_member(backup, mongo_cluster)
+
+    ###########################################################################
+    def _needs_new_member_selection(self, backup):
+        """
+            Needs to be implemented by subclasses
+        """
+        return True
+
+    ###########################################################################
+    def get_mongo_connector_used_by(self, backup):
+        uri_wrapper = mongo_uri_tools.parse_mongo_uri(backup.source.uri)
+        if backup.source_stats and backup.source_stats.get("host"):
+            host = backup.source_stats["host"]
+            if uri_wrapper.username:
+                credz = "%s:%s@" % (uri_wrapper.username, uri_wrapper.password)
+            else:
+                credz = ""
+
+
+            if uri_wrapper.database:
+                db_str = "/%s" % uri_wrapper.database
+            else:
+                db_str = ""
+            uri = "mongodb://%s%s%s" % (credz, host, db_str)
+
+            return build_mongo_connector(uri)
+
+    ###########################################################################
+    def _select_new_cluster_member(self, backup, mongo_cluster):
         source = backup.source
-        mongo_cluster = MongoCluster(source.uri)
 
         # compute max lag
         if backup.plan:
@@ -197,12 +228,13 @@ class BackupStrategy(MBSObject):
         source = backup.source
         dbname = source.database_name
         # record stats
-        backup.source_stats = mongo_connector.get_stats(only_for_db=dbname)
+        if not backup.source_stats or self._needs_new_source_stats(backup):
+            backup.source_stats = mongo_connector.get_stats(only_for_db=dbname)
 
-        # save source stats
-        update_backup(backup, properties="sourceStats",
-            event_name="COMPUTED_SOURCE_STATS",
-            message="Computed source stats")
+            # save source stats
+            update_backup(backup, properties="sourceStats",
+                          event_name="COMPUTED_SOURCE_STATS",
+                          message="Computed source stats")
 
         # set backup name and description
         self._set_backup_name_and_desc(backup)
@@ -212,6 +244,13 @@ class BackupStrategy(MBSObject):
 
         # backup the mongo connector
         self.do_backup_mongo_connector(backup, mongo_connector)
+
+    ###########################################################################
+    def _needs_new_source_stats(self, backup):
+        """
+            Needs to be implemented by subclasses
+        """
+        return True
 
     ###########################################################################
     def do_backup_mongo_connector(self, backup, mongo_connector):
@@ -608,6 +647,24 @@ class DumpStrategy(BackupStrategy):
             raise error_type(cmd_display, e.returncode, e.output, e)
 
     ###########################################################################
+    def _needs_new_member_selection(self, backup):
+        """
+          @Override
+          If the backup has been dumped already then there is no need for
+          selecting a new member
+        """
+        return not backup.is_event_logged(EVENT_END_EXTRACT)
+
+    ###########################################################################
+    def _needs_new_source_stats(self, backup):
+        """
+          @Override
+          If the backup has been dumped already then there is no need for
+          recording new source stats
+        """
+        return not backup.is_event_logged(EVENT_END_EXTRACT)
+
+    ###########################################################################
     def _get_backup_dump_dir(self, backup):
         return os.path.join(backup.workspace, _backup_dump_dir_name(backup))
 
@@ -718,6 +775,24 @@ class CloudBlockStorageStrategy(BackupStrategy):
             raise BlockStorageSnapshotError("Snapshot error")
 
     ###########################################################################
+    def _needs_new_source_stats(self, backup):
+        """
+          @Override
+          If the backup has been snapshoted already then there is no need for
+          recording new source stats
+        """
+        return not backup.is_event_logged("END_BLOCK_STORAGE_SNAPSHOT")
+
+    ###########################################################################
+    def _needs_new_member_selection(self, backup):
+        """
+          @Override
+          If the backup has been snapshoted already then there is no need for
+          selecting a new member
+        """
+        return not backup.is_event_logged("END_BLOCK_STORAGE_SNAPSHOT")
+
+    ###########################################################################
     def to_document(self, display_only=False):
         doc =  BackupStrategy.to_document(self, display_only=display_only)
         doc.update({
@@ -770,9 +845,12 @@ class HybridStrategy(BackupStrategy):
     ###########################################################################
     def _do_run_backup(self, backup):
         mongo_connector = self.get_backup_mongo_connector(backup)
+        # TODO Maybe tag backup with selected strategy so that we dont need
+        # to re-determine that again
 
         selected_strategy = self.predicate.get_best_strategy(self, backup,
                                                              mongo_connector)
+
         selected_strategy.backup_mongo_connector(backup, mongo_connector)
 
     ###########################################################################
@@ -781,6 +859,30 @@ class HybridStrategy(BackupStrategy):
          Do nothing so that the selected strategy will take care of that
          instead
         """
+
+    ###########################################################################
+    def _needs_new_member_selection(self, backup):
+        """
+          @Override
+          If the backup has been dumped/snapshoted already then there is no
+          need for selecting a new member
+        """
+        ds = self.dump_strategy
+        cs = self.cloud_block_storage_strategy
+        return (ds._needs_new_member_selection(backup) and
+                cs._needs_new_member_selection(backup))
+
+    ###########################################################################
+    def _needs_new_source_stats(self, backup):
+        """
+          @Override
+          If the backup has been dumped or snapshoted already then there is
+          no need for re-recording source stats
+        """
+        ds = self.dump_strategy
+        cs = self.cloud_block_storage_strategy
+        return (ds._needs_new_source_stats(backup) and
+                cs._needs_new_source_stats(backup))
 
     ###########################################################################
     def to_document(self, display_only=False):

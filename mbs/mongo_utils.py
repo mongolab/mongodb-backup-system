@@ -296,6 +296,10 @@ class MongoCluster(MongoConnector):
             elif best_secondary.lag_in_seconds < max_lag_seconds:
                 return best_secondary
 
+    ###########################################################################
+    def get_stats(self, only_for_db=None):
+        return self.primary_member.get_stats(only_for_db=only_for_db)
+
 ###############################################################################
 class MongoServer(MongoConnector):
 ###############################################################################
@@ -572,6 +576,19 @@ def _calculate_connection_databases_stats(connection):
     return total_stats
 
 
+
+###############################################################################
+def build_mongo_connector(uri):
+    """
+        Creates a mongo connector based on the URI passed
+    """
+    uri_wrapper = mongo_uri_tools.parse_mongo_uri(uri)
+    if uri_wrapper.is_cluster_uri() and not uri_wrapper.database:
+        return MongoCluster(uri)
+    elif not uri_wrapper.database:
+        return MongoServer(uri)
+    else:
+        return MongoDatabase(uri)
 
 ###############################################################################
 # MongoNormalizedVersion class
