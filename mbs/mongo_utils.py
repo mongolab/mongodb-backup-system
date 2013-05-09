@@ -20,8 +20,8 @@ from verlib import NormalizedVersion, suggest_normalized_version
 logger = mbs_logging.logger
 
 # CONSTS
-# db connection timeout, 90 seconds
-CONN_TIMEOUT = 90000
+# db connection timeout, 160 seconds
+CONN_TIMEOUT = 160000
 
 ###############################################################################
 def mongo_connect(uri):
