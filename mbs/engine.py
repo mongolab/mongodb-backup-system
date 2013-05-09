@@ -315,8 +315,10 @@ class BackupEngine(Thread):
             self.info("Recovery: Failing backup %s" % backup._id)
             backup.reschedulable = True
             backup.state = STATE_FAILED
+            backup.end_date = date_now()
             # update
-            update_backup(backup, properties=["state", "reschedulable"],
+            update_backup(backup, properties=["state", "reschedulable",
+                                              "endDate"],
                           event_type=EVENT_STATE_CHANGE, message=msg)
 
             total_crashed += 1
