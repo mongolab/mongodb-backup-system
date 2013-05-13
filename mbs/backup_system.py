@@ -791,7 +791,7 @@ class BackupSystemCommandServer(Thread):
                 shutdown()
                 return "success"
             except Exception, e:
-                return "Error while trying to get backup systemstatus: %s" % e
+                return "Error while trying to get backup system status: %s" % e
 
         return flask_server
 
