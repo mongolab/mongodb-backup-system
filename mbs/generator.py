@@ -10,7 +10,7 @@ logger = mbs_logging.logger
 ###############################################################################
 # PlanGenerator
 # An abstraction of something that generate/removes backup plans. This is used
-# By the plan manager
+# By the backup system
 ###############################################################################
 class PlanGenerator(object):
 

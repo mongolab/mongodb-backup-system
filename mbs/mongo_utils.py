@@ -12,7 +12,7 @@ from errors import *
 from date_utils import timedelta_total_seconds
 from utils import is_host_local
 from verlib import NormalizedVersion, suggest_normalized_version
-
+from bson.objectid import ObjectId
 
 ###############################################################################
 # LOGGER
@@ -589,6 +589,15 @@ def build_mongo_connector(uri):
         return MongoServer(uri)
     else:
         return MongoDatabase(uri)
+
+###############################################################################
+def objectiditify(id):
+    """
+        Returns the specified id as an object id
+    """
+    if not isinstance(id, ObjectId):
+        id = ObjectId(str(id))
+    return id
 
 ###############################################################################
 # MongoNormalizedVersion class

@@ -51,8 +51,8 @@ class MBS(object):
         self._plan_collection = None
         self._audit_collection = None
 
-        # load manager/engines lazily
-        self._plan_manager = None
+        # load backup system/engines lazily
+        self._backup_system = None
 
 
         self._engines = None
@@ -167,17 +167,17 @@ class MBS(object):
 
     ###########################################################################
     @property
-    def plan_manager(self):
-        manager_conf = self._get_config_value("planManager")
-        if not self._plan_manager and manager_conf:
-            self._plan_manager = self._maker.make(manager_conf)
-            self._plan_manager.plan_collection = self.plan_collection
-            self._plan_manager.backup_collection = self.backup_collection
-            self._plan_manager.audit_collection = self.audit_collection
-            self._plan_manager.notification_handler = \
+    def backup_system(self):
+        backup_system_conf = self._get_config_value("backupSystem")
+        if not self._backup_system and backup_system_conf:
+            self._backup_system = self._maker.make(backup_system_conf)
+            self._backup_system.plan_collection = self.plan_collection
+            self._backup_system.backup_collection = self.backup_collection
+            self._backup_system.audit_collection = self.audit_collection
+            self._backup_system.notification_handler = \
                                                     self._notification_handler
 
-        return self._plan_manager
+        return self._backup_system
 
     ###########################################################################
     def get_notification_handler(self):

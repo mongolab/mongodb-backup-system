@@ -21,10 +21,13 @@ from auditors import GlobalAuditor
 from backup import (Backup, STATE_SCHEDULED, STATE_IN_PROGRESS, STATE_FAILED,
                     STATE_CANCELED, EVENT_STATE_CHANGE)
 
-from persistence import update_backup
+from persistence import update_backup, expire_backup
+
+from mongo_utils import objectiditify
+
 ###############################################################################
 ########################                                #######################
-######################## Plan Management and Scheduling #######################
+########################           Backup System        #######################
 ########################                                #######################
 ###############################################################################
 
@@ -44,14 +47,14 @@ ONE_OFF_BACKUP_MAX_WAIT_TIME = 60
 RESCHEDULE_PERIOD = 5 * 60
 RESCHEDULE_PERIOD_MILLS = RESCHEDULE_PERIOD * 1000
 
-MANAGER_STATUS_RUNNING = "running"
-MANAGER_STATUS_STOPPING = "stopping"
-MANAGER_STATUS_STOPPED = "stopped"
+BACKUP_SYSTEM_STATUS_RUNNING = "running"
+BACKUP_SYSTEM_STATUS_STOPPING = "stopping"
+BACKUP_SYSTEM_STATUS_STOPPED = "stopped"
 
 ###############################################################################
-# PlanManager
+# BackupSystem
 ###############################################################################
-class PlanManager(Thread):
+class BackupSystem(Thread):
     ###########################################################################
     def __init__(self, sleep_time=10,
                        command_port=9003):
@@ -66,7 +69,7 @@ class PlanManager(Thread):
         self._notification_handler = None
         self._stopped = False
         self._command_port = command_port
-        self._command_server = ManagerCommandServer(self)
+        self._command_server = BackupSystemCommandServer(self)
 
         # auditing stuff
         self._audit_collection = None
@@ -357,11 +360,11 @@ class PlanManager(Thread):
             msg = ("Cannot reschedule backup ('%s', '%s'). Rescheduling is "
                    "only allowed for backups whose state is '%s'." %
                    (backup.id, backup.state, STATE_FAILED))
-            raise PlanManagerError(msg)
+            raise BackupSystemError(msg)
         elif backup.plan and backup.plan.next_occurrence <= date_now():
             msg = ("Cannot reschedule backup '%s' because its occurrence is"
                    " in the past of the current cycle" % backup.id)
-            raise PlanManagerError(msg)
+            raise BackupSystemError(msg)
 
         self.info("Rescheduling backup %s" % backup._id)
         backup.state = STATE_SCHEDULED
@@ -425,7 +428,7 @@ class PlanManager(Thread):
                            "Please correct the following errors and then try"
                            " saving again.\n%s" % (plan, errors))
 
-                raise PlanManagerError(err_msg)
+                raise BackupSystemError(err_msg)
 
             # set plan created date if its not set
             if not plan.created_date:
@@ -440,13 +443,28 @@ class PlanManager(Thread):
 
             self.info("Plan saved successfully")
         except Exception, e:
-            raise PlanManagerError("Error while saving plan %s. %s" %
+            raise BackupSystemError("Error while saving plan %s. %s" %
                                        (plan, e))
 
     ###########################################################################
     def remove_plan(self, plan):
         logger.info("Removing plan '%s' " % plan.id)
         self._plan_collection.remove_by_id(plan.id)
+
+    ###########################################################################
+    def delete_backup(self, backup_id):
+        """
+            Deletes the specified backup. Deleting here means expiring
+        """
+        backup_id = objectiditify(backup_id)
+
+        backup = self.backup_collection.find_one(backup_id)
+        if (backup.target_reference and
+            not backup.target_reference.expired_date):
+            expire_backup(backup, date_now())
+            return True
+
+        return False
 
     ###########################################################################
     def _check_audit(self):
@@ -576,22 +594,23 @@ class PlanManager(Thread):
     ###########################################################################
     def _notify_error(self, exception):
         if self._notification_handler:
-            subject = "PlanManager Error"
-            message = ("PlanManager Error!.\n\nStack Trace:\n%s" %
+            subject = "BackupSystem Error"
+            message = ("BackupSystem Error!.\n\nStack Trace:\n%s" %
                        traceback.format_exc())
 
             nh = self._notification_handler
             nh.send_error_notification(subject, message, exception)
 
     ###########################################################################
-    def _kill_manager_process(self):
-        self.info("Attempting to kill plan manager process")
+    def _kill_backup_system_process(self):
+        self.info("Attempting to kill backup system process")
         pid = self._read_process_pid()
         if pid:
-            self.info("Killing plan manager process '%s' using signal 9" % pid)
+            self.info("Killing backup system process '%s' using signal 9" %
+                      pid)
             os.kill(int(pid), 9)
         else:
-            raise PlanManagerError("Unable to determine plan manager process"
+            raise BackupSystemError("Unable to determine backup system process"
                                    " id")
 
     ###########################################################################
@@ -609,22 +628,22 @@ class PlanManager(Thread):
 
     ###########################################################################
     def _get_pid_file_path(self):
-        pid_file_name = "plan_manager_pid.txt"
+        pid_file_name = "backup_system_pid.txt"
         return resolve_path(os.path.join(mbs_config.MBS_CONF_DIR,
                                          pid_file_name))
 
     ###########################################################################
-    # Manager stopping
+    # BackupSystem stopping
     ###########################################################################
     def stop(self, force=False):
         """
-            Sends a stop request to the manager using the command port
-            This should be used by other processes (copy of the manager
-            instance) but not the actual running manager process
+            Sends a stop request to the backup system using the command port
+            This should be used by other processes (copy of the backup system
+            instance) but not the actual running backup system process
         """
 
         if force:
-            self._kill_manager_process()
+            self._kill_backup_system_process()
             return
 
         url = "http://0.0.0.0:%s/stop" % self._command_port
@@ -633,19 +652,19 @@ class PlanManager(Thread):
             if response.getcode() == 200:
                 print response.read().strip()
             else:
-                msg =  ("Error while trying to stop manager URL %s "
+                msg =  ("Error while trying to stop backup systemURL %s "
                         "(Response"" code %)" %
                         ( url, response.getcode()))
-                raise PlanManagerError(msg)
+                raise BackupSystemError(msg)
         except IOError, e:
-            logger.error("Manager is not running")
+            logger.error("BackupSystem is not running")
 
     ###########################################################################
     def get_status(self):
         """
-            Sends a status request to the manager using the command port
-            This should be used by other processes (copy of the manager
-            instance) but not the actual running manager process
+            Sends a status request to the backup system using the command port
+            This should be used by other processes (copy of the backup system
+            instance) but not the actual running backup system process
         """
         url = "http://0.0.0.0:%s/status" % self._command_port
         try:
@@ -653,32 +672,32 @@ class PlanManager(Thread):
             if response.getcode() == 200:
                 return json.loads(response.read().strip())
             else:
-                msg =  ("Error while trying to get status manager URL %s "
-                        "(Response code %)" % (url, response.getcode()))
-                raise PlanManagerError(msg)
+                msg =  ("Error while trying to get status backup system URL"
+                        " %s (Response code %)" % (url, response.getcode()))
+                raise BackupSystemError(msg)
 
         except IOError, ioe:
             return {
-                "status": MANAGER_STATUS_STOPPED
+                "status": BACKUP_SYSTEM_STATUS_STOPPED
             }
 
     ###########################################################################
     def _do_stop(self):
         """
-            Triggers the manager to gracefully stop
+            Triggers the backup system to gracefully stop
         """
-        self.info("Stopping manager gracefully")
+        self.info("Stopping backup system gracefully")
         self._stopped = True
 
     ###########################################################################
     def _do_get_status(self):
         """
-            Gets the status of the manager
+            Gets the status of the backup system
         """
         if self._stopped:
-            status = MANAGER_STATUS_STOPPING
+            status = BACKUP_SYSTEM_STATUS_STOPPING
         else:
-            status = MANAGER_STATUS_RUNNING
+            status = BACKUP_SYSTEM_STATUS_RUNNING
 
         return {
             "status": status
@@ -706,53 +725,62 @@ class PlanManager(Thread):
     # logging
     ###########################################################################
     def info(self, msg):
-        logger.info("PlanManager: %s" % msg)
+        logger.info("BackupSystem: %s" % msg)
 
     ###########################################################################
     def error(self, msg):
-        logger.error("PlanManager: %s" % msg)
+        logger.error("BackupSystem: %s" % msg)
 
     ###########################################################################
     def debug(self, msg):
-        logger.debug("PlanManager: %s" % msg)
+        logger.debug("BackupSystem: %s" % msg)
 
 
 ###############################################################################
-# ManagerCommandServer
+# BackupSystemCommandServer
 ###############################################################################
-class ManagerCommandServer(Thread):
+class BackupSystemCommandServer(Thread):
 
     ###########################################################################
-    def __init__(self, manager):
+    def __init__(self, backup_system):
         Thread.__init__(self)
-        self._manager = manager
+        self._backup_system = backup_system
         self._flask_server = self._build_flask_server()
 
     ###########################################################################
     def _build_flask_server(self):
         flask_server = Flask(__name__)
-        manager = self._manager
+        backup_system = self._backup_system
 
-        ## build stop method
+        ########## build stop method
         @flask_server.route('/stop', methods=['GET'])
-        def stop_manager():
+        def stop_backup_system():
             logger.info("Command Server: Received a stop command")
             try:
-                manager._do_stop()
-                return "Manager stopped successfully"
+                backup_system._do_stop()
+                return "BackupSystem stopped successfully"
             except Exception, e:
-                return "Error while trying to stop manager: %s" % e
+                return "Error while trying to stop backup system: %s" % e
 
-        ## build status method
+        ########## build status method
         @flask_server.route('/status', methods=['GET'])
         def status():
             logger.info("Command Server: Received a status command")
             try:
-                return document_pretty_string(manager._do_get_status())
+                return document_pretty_string(backup_system._do_get_status())
             except Exception, e:
-                return "Error while trying to get manager status: %s" % e
+                return "Error while trying to get backup system status: %s" % e
 
-        ## build stop-command-server method
+        ########## build delete backup method
+        @flask_server.route('/delete-backup/<backup_id>', methods=['GET'])
+        def delete_backup(backup_id):
+            logger.info("Command Server: Received a delete-backup command")
+            try:
+                return str(backup_system.delete_backup(backup_id))
+            except Exception, e:
+                return "Error while trying to get backup system status: %s" % e
+
+        ########## build stop-command-server method
         @flask_server.route('/stop-command-server', methods=['GET'])
         def stop_command_server():
             logger.info("Stopping command server")
@@ -763,40 +791,34 @@ class ManagerCommandServer(Thread):
                 shutdown()
                 return "success"
             except Exception, e:
-                return "Error while trying to get manager status: %s" % e
+                return "Error while trying to get backup systemstatus: %s" % e
 
         return flask_server
 
     ###########################################################################
     def run(self):
-        logger.info("ManagerCommandServer: Running flask server ")
+        logger.info("BackupSystemCommandServer: Running flask server ")
         self._flask_server.run(host="0.0.0.0",
-                               port=self._manager._command_port,
+                               port=self._backup_system._command_port,
                                threaded=True)
 
     ###########################################################################
     def stop(self):
 
-        logger.info("ManagerCommandServer: Stopping flask server ")
-        port = self._manager._command_port
+        logger.info("BackupSystemCommandServer: Stopping flask server ")
+        port = self._backup_system._command_port
         url = "http://0.0.0.0:%s/stop-command-server" % port
         try:
             response = urllib.urlopen(url)
             if response.getcode() == 200:
-                logger.info("ManagerCommandServer: Flask server stopped "
+                logger.info("BackupSystemCommandServer: Flask server stopped "
                             "successfully")
                 return response.read().strip()
             else:
                 msg =  ("Error while trying to send command of URL %s "
                         "(Response code %)" % (url, response.getcode()))
-                raise PlanManagerError(msg)
+                raise BackupSystemError(msg)
 
         except Exception, e:
-            raise PlanManagerError("Error while stopping flask server:"
+            raise BackupSystemError("Error while stopping flask server:"
                                         " %s" %e)
-
-###############################################################################
-# PlanManagerError
-###############################################################################
-class PlanManagerError(MBSError):
-    pass

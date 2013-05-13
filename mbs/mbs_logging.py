@@ -7,7 +7,7 @@ import sys
 
 import mbs_config
 
-from utils import resolve_path, ensure_dir
+from utils import ensure_dir
 from logging.handlers import TimedRotatingFileHandler
 import logging
 

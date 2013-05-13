@@ -62,6 +62,18 @@ class MBSError(Exception):
         return self.detailed_message
 
 ###############################################################################
+# BackupSystemError
+###############################################################################
+class BackupSystemError(MBSError):
+    pass
+
+###############################################################################
+# BackupEngineError
+###############################################################################
+class BackupEngineError(MBSError):
+    pass
+
+###############################################################################
 # ConfigurationError
 ###############################################################################
 class ConfigurationError(MBSError):
@@ -343,7 +355,7 @@ class PlanError(MBSError):
 ###############################################################################
 class InvalidPlanError(PlanError):
     """
-        raised by manager when plan config is invalid
+        raised by backup system when plan config is invalid
     """
 
 ###############################################################################

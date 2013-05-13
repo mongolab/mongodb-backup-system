@@ -9,7 +9,6 @@ import signal
 
 from functools import partial
 
-import mbs.mbs
 
 from dargparse import dargparse
 from bson.objectid import ObjectId
@@ -150,47 +149,47 @@ def status_engine(parsed_args):
     print document_pretty_string(engine.get_status())
 
 ###############################################################################
-# Plan Manager Commands
+# Backup System Commands
 ###############################################################################
-def start_plan_manager(parsed_args):
-    manager = get_mbs().plan_manager
-    if not manager:
-        print "No plan manager configured"
+def start_backup_system(parsed_args):
+    backup_system = get_mbs().backup_system
+    if not backup_system:
+        print "No backup system configured"
         exit(1)
 
-    handlers = {signal.SIGINT:  partial(manager.stop, force=False),
-                signal.SIGTERM: partial(manager.stop, force=True)}
+    handlers = {signal.SIGINT:  partial(backup_system.stop, force=False),
+                signal.SIGTERM: partial(backup_system.stop, force=True)}
     with SignalWatcher(handlers) as watcher:
-        status = manager.get_status()
+        status = backup_system.get_status()
         if status["status"] == STATUS_RUNNING:
-            print "Plan Manager already started"
+            print "Backup System already started"
             return
         elif status["status"] == STATUS_STOPPING:
-            print ("Plan Manager is stopping now. Please wait until it is "
+            print ("Backup System is stopping now. Please wait until it is "
                    "completely stopped then try starting again")
             return
 
-        _do_start_plan_manager(fork=parsed_args.fork)
+        _do_start_backup_system(fork=parsed_args.fork)
 
-        def manager_started():
-            return manager.get_status()["status"] == STATUS_RUNNING
-        wait_for(manager_started, timeout=5)
+        def backup_system_started():
+            return backup_system.get_status()["status"] == STATUS_RUNNING
+        wait_for(backup_system_started, timeout=5)
 
-        if manager_started():
-            print "Plan Manager started successfully!"
+        if backup_system_started():
+            print "Backup System started successfully!"
         else:
-            print "Plan Manager did not start. Please check logs"
+            print "Backup System did not start. Please check logs"
 
-        wait_for(lambda: watcher.signaled or not manager.is_alive(),
+        wait_for(lambda: watcher.signaled or not backup_system.is_alive(),
                  log_func=lambda: True)
 
 ###############################################################################
-def _do_start_plan_manager(fork=False):
+def _do_start_backup_system(fork=False):
     if fork:
         child_pid = os.fork()
         if child_pid:
             # parent process. return
-            print "Forked plan manager process %s" % child_pid
+            print "Forked backup system process %s" % child_pid
             return
         else:
             # need to disown yourself, Son
@@ -198,70 +197,70 @@ def _do_start_plan_manager(fork=False):
             os.umask(0)
 
     # forked child process
-    manager = get_mbs().plan_manager
-    manager.start()
+    backup_system = get_mbs().backup_system
+    backup_system.start()
 
 ###############################################################################
-def stop_plan_manager(parsed_args):
-    manager = get_mbs().plan_manager
-    if not manager:
-        print "No plan manager configured"
+def stop_backup_system(parsed_args):
+    backup_system = get_mbs().backup_system
+    if not backup_system:
+        print "No backup system configured"
         exit(1)
 
-    status = manager.get_status()
+    status = backup_system.get_status()
     if status["status"] == STATUS_STOPPING:
         print "A stop request has already been made"
         return
     elif status["status"] == STATUS_STOPPED:
-        print "Plan Manager is not running"
+        print "Backup System is not running"
         return
 
-    manager.stop(force=parsed_args.force)
+    backup_system.stop(force=parsed_args.force)
 
 ###############################################################################
-def restart_plan_manager(parsed_args):
-    manager = get_mbs().plan_manager
+def restart_backup_system(parsed_args):
+    backup_system = get_mbs().backup_system
 
-    if not manager:
-        print "No plan manager configured"
+    if not backup_system:
+        print "No backup system configured"
         exit(1)
-    # stop the manager and wait for it is completely stopped
-    manager.stop()
-    def manager_stopped():
-        return manager.get_status()["status"] == STATUS_STOPPED
+    # stop the backup_system and wait for it is completely stopped
+    backup_system.stop()
+    def backup_system_stopped():
+        return backup_system.get_status()["status"] == STATUS_STOPPED
 
-    wait_for(manager_stopped, timeout=100)
+    wait_for(backup_system_stopped, timeout=100)
 
-    if manager_stopped():
-        start_plan_manager(parsed_args)
+    if backup_system_stopped():
+        start_backup_system(parsed_args)
     else:
-        print "Manager did not stop yet. Please try later"
+        print "Backup System did not stop yet. Please try later"
         exit(1)
 
 ###############################################################################
-def status_plan_manager(parsed_args):
-    manager = get_mbs().plan_manager
-    if not manager:
-        print "No plan manager configured"
+def status_backup_system(parsed_args):
+    backup_system = get_mbs().backup_system
+    if not backup_system:
+        print "No backup system configured"
         exit(1)
 
-    print document_pretty_string(manager.get_status())
+    print document_pretty_string(backup_system.get_status())
 
 ###############################################################################
 def run_plan_generators(parsed_args):
-    manager = get_mbs().plan_manager
-    if not manager:
-        print "No plan manager configured"
+    backup_system = get_mbs().backup_system
+    if not backup_system:
+        print "No backup system configured"
         exit(1)
 
-    manager._run_plan_generators()
+    backup_system._run_plan_generators()
 
 
 ###############################################################################
 # Other Commands
 ###############################################################################
 def generate_audit_reports(parsed_args):
-    global_auditor = get_mbs().plan_manager.global_auditor
+    global_auditor = get_mbs().backup_system.global_auditor
     global_auditor.generate_yesterday_audit_reports()
 
 ###############################################################################
@@ -303,7 +302,7 @@ def reschedule_backup(parsed_args):
         backup = bc.find_one({"_id": ObjectId(backup_id)})
 
         if backup:
-           get_mbs().plan_manager.reschedule_backup(backup, from_scratch=
+           get_mbs().backup_system.reschedule_backup(backup, from_scratch=
                                                              from_scratch)
         else:
             print "No such backup '%s'" % backup_id
@@ -317,7 +316,7 @@ def reschedule_all_backups(parsed_args):
 
     try:
         from_scratch = parsed_args.fromScratch
-        get_mbs().plan_manager.reschedule_all_failed_backups(from_scratch=
+        get_mbs().backup_system.reschedule_all_failed_backups(from_scratch=
                                                               from_scratch)
     except Exception, e:
         print "%s" % e
@@ -332,7 +331,7 @@ def schedule_plan_backup(parsed_args):
         plan = pc.find_one({"_id": ObjectId(plan_id)})
 
         if plan:
-            get_mbs().plan_manager.schedule_new_backup(plan, one_time=True)
+            get_mbs().backup_system.schedule_new_backup(plan, one_time=True)
         else:
             print "No such backup '%s'" % plan_id
             exit(1)
@@ -462,10 +461,10 @@ PARSER_DEF = {
             ]
         },
             {
-            "prog": "start-plan-manager",
-            "shortDescription" : "starts the plan manager",
-            "description" : "starts the plan manager",
-            "function": start_plan_manager,
+            "prog": "start-backup-system",
+            "shortDescription" : "starts the backup system",
+            "description" : "starts the backup system",
+            "function": start_backup_system,
             "args": [
                     {
                     "name": "fork",
@@ -479,38 +478,38 @@ PARSER_DEF = {
             ]
         },
 
-        #### stop-plan-manager ####
+        #### stop-backup-system ####
             {
-            "prog": "stop-plan-manager",
-            "shortDescription" : "stops the plan manager",
-            "description" : "stops the plan manager",
-            "function": stop_plan_manager,
+            "prog": "stop-backup-system",
+            "shortDescription" : "stops the backup system",
+            "description" : "stops the backup system",
+            "function": stop_backup_system,
             "args": [
                     {
                     "name": "force",
                     "type" : "optional",
                     "cmd_arg":  ["--force", "-f"],
                     "nargs": 0,
-                    "help": "force stop manager",
+                    "help": "force stop backup_system",
                     "action": "store_true",
                     "default": False
                 }
             ]
         },
-        #### status-plan-manager ####
+        #### status-backup-system ####
             {
-            "prog": "status-plan-manager",
-            "shortDescription" : "gets the status of the plan manager",
-            "description" : "gets the status of the plan manager",
-            "function": status_plan_manager
+            "prog": "status-backup-system",
+            "shortDescription" : "gets the status of the backup system",
+            "description" : "gets the status of the backup system",
+            "function": status_backup_system
         },
 
-        #### restart-plan-manager ####
+        #### restart-backup-system ####
             {
-            "prog": "restart-plan-manager",
-            "shortDescription" : "restart plan manager",
-            "description" : "restart plan manager",
-            "function": restart_plan_manager,
+            "prog": "restart-backup-system",
+            "shortDescription" : "restart backup system",
+            "description" : "restart backup system",
+            "function": restart_backup_system,
             "args": [
                     {
                     "name": "fork",
@@ -523,7 +522,7 @@ PARSER_DEF = {
                 }
             ]
         },
-        #### restart-plan-manager ####
+        #### run-plan-generators ####
             {
             "prog": "run-plan-generators",
             "shortDescription" : "Runs plans generators",

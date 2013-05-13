@@ -301,7 +301,7 @@ class BackupEngine(Thread):
     def _recover(self):
         """
         Does necessary recovery work on crashes. Fails all backups that crashed
-        while in progress and makes them reschedulable. Plan manager will
+        while in progress and makes them reschedulable. Backup System will
         decide to cancel them or reschedule them.
         """
         self.info("Running recovery..")
@@ -808,10 +808,3 @@ class EngineCommandServer(Thread):
         except Exception, e:
             raise BackupEngineError("Error while stopping flask server:"
                                         " %s" %e)
-
-
-###############################################################################
-# BackupEngineError
-###############################################################################
-class BackupEngineError(MBSError):
-    pass
