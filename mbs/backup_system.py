@@ -776,7 +776,8 @@ class BackupSystemCommandServer(Thread):
         def delete_backup(backup_id):
             logger.info("Command Server: Received a delete-backup command")
             try:
-                return str(backup_system.delete_backup(backup_id))
+                result = backup_system.delete_backup(backup_id)
+                return document_pretty_string(result)
             except Exception, e:
                 return "Error while trying to get backup system status: %s" % e
 
