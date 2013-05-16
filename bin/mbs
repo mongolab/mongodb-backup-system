@@ -333,7 +333,7 @@ def schedule_plan_backup(parsed_args):
         if plan:
             get_mbs().backup_system.schedule_new_backup(plan, one_time=True)
         else:
-            print "No such backup '%s'" % plan_id
+            print "No such plan '%s'" % plan_id
             exit(1)
     except Exception, e:
         print "%s" % e
