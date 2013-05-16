@@ -891,11 +891,11 @@ class CloudBlockStorageStrategy(BackupStrategy):
                 self._fsyncunlock(backup, mongo_connector)
                 fsync_unlocked = True
 
-            snapshot_ref = backup.target_reference
-
             # wait until snapshot is completed or error
             wait_status = [CBS_STATUS_COMPLETED, CBS_STATUS_ERROR]
             self._wait_for_snapshot_status(backup, cbs, wait_status)
+
+            snapshot_ref = backup.target_reference
 
             if snapshot_ref.status == CBS_STATUS_COMPLETED:
                 logger.info("Successfully completed backup '%s' snapshot '%s' "
