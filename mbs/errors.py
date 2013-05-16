@@ -318,9 +318,9 @@ class RetentionPolicyError(MBSError):
     """
 
 ###############################################################################
-class DumpNotOnLocalhost(MBSError, RetriableError):
+class BackupNotOnLocalhost(MBSError, RetriableError):
     """
-        Thrown when strategy.ensureLocalHost is set and dump runs on a host
+        Raised when strategy.ensureLocalHost is set and dump runs on a host
         that is not localhost
     """
 
@@ -332,6 +332,22 @@ class BlockStorageSnapshotError(MBSError):
         Base classes for all volume snapshot errors
     """
 
+
+###############################################################################
+# MongoLockError
+###############################################################################
+class MongoLockError(MBSError):
+    """
+        Raised when there is an fsynclock/fsyncunlock error
+    """
+
+###############################################################################
+# VolumeError
+###############################################################################
+class VolumeError(MBSError):
+    """
+        Raised when there is a volume error
+    """
 
 ###############################################################################
 # Dynamic Tag Errors

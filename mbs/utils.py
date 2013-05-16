@@ -283,6 +283,31 @@ def get_host_ips(host):
         raise Exception("Invalid host '%s'. Cause: %s" % (host, e))
 
 ###############################################################################
+def get_volume_for_path(path):
+    """
+        Returns the volume that the specified path is under
+    """
+    df_cmd = [
+        "df",
+        path
+    ]
+    lines = execute_command(df_cmd).split("\n")
+
+    if len(lines) > 1:
+        volume_info = lines[1]
+        return volume_info.split(" ")[0]
+
+###############################################################################
+def suspend_volume(volume):
+    #TODO implement
+    pass
+
+###############################################################################
+def resume_volume(volume):
+    #TODO implement
+    pass
+
+###############################################################################
 class SignalWatcher(object):
     """
         Watches signals :)

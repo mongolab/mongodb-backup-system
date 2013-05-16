@@ -12,13 +12,15 @@ from mbs import get_mbs
 
 from base import MBSObject
 from persistence import update_backup
-from mongo_utils import (MongoCluster, MongoDatabase, MongoServer,
+from mongo_utils import (MongoCluster, MongoServer,
                          MongoNormalizedVersion, build_mongo_connector)
 
 from subprocess import CalledProcessError
 from errors import *
-from utils import (which, ensure_dir, execute_command, execute_command_wrapper)
-from target import CBS_STATUS_COMPLETED, CBS_STATUS_ERROR
+from utils import (which, ensure_dir, execute_command, execute_command_wrapper,
+                   get_volume_for_path, suspend_volume, resume_volume, listify)
+
+from target import CBS_STATUS_PENDING, CBS_STATUS_COMPLETED, CBS_STATUS_ERROR
 
 
 from backup import EVENT_TYPE_WARNING
@@ -63,9 +65,13 @@ class BackupStrategy(MBSObject):
     ###########################################################################
     def __init__(self):
         self._member_preference = PREF_BEST
+        self._ensure_localhost = False
         self._max_data_size = None
         self._backup_name_scheme = None
         self._backup_description_scheme = None
+        # TODO this flag is temporary and should not be used unless you know
+        # what you are doing
+        self._use_fsynclock = False
 
     ###########################################################################
     @property
@@ -75,6 +81,15 @@ class BackupStrategy(MBSObject):
     @member_preference.setter
     def member_preference(self, val):
         self._member_preference = val
+
+    ###########################################################################
+    @property
+    def ensure_localhost(self):
+        return self._ensure_localhost
+
+    @ensure_localhost.setter
+    def ensure_localhost(self, val):
+        self._ensure_localhost = val
 
     ###########################################################################
     @property
@@ -110,6 +125,15 @@ class BackupStrategy(MBSObject):
         self._backup_description_scheme = naming_scheme
 
     ###########################################################################
+    @property
+    def use_fsynclock(self):
+        return self._use_fsynclock
+
+    @use_fsynclock.setter
+    def use_fsynclock(self, val):
+        self._use_fsynclock = val
+
+    ###########################################################################
     def run_backup(self, backup):
         try:
             self._do_run_backup(backup)
@@ -121,7 +145,6 @@ class BackupStrategy(MBSObject):
 
     ###########################################################################
     def _do_run_backup(self, backup):
-
         mongo_connector = self.get_backup_mongo_connector(backup)
         self.backup_mongo_connector(backup, mongo_connector)
 
@@ -227,6 +250,14 @@ class BackupStrategy(MBSObject):
     ###########################################################################
     def backup_mongo_connector(self, backup, mongo_connector):
 
+        # ensure local host if specified
+        if self.ensure_localhost and not mongo_connector.is_local():
+            details = ("Source host for dump source '%s' is not running "
+                       "locally and strategy.ensureLocalHost is set to true" %
+                       mongo_connector)
+            raise BackupNotOnLocalhost(msg="Error while attempting to dump",
+                                       details=details)
+
         source = backup.source
         dbname = source.database_name
         # record stats
@@ -267,9 +298,7 @@ class BackupStrategy(MBSObject):
         # delete the temp dir
         workspace = backup.workspace
         logger.info("Cleanup: deleting workspace dir %s" % workspace)
-        update_backup(backup,
-            event_name="CLEANUP",
-            message="Running cleanup")
+        update_backup(backup, event_name="CLEANUP", message="Running cleanup")
 
         try:
 
@@ -299,6 +328,70 @@ class BackupStrategy(MBSObject):
                                               max_size=self.max_data_size,
                                               database_name=database_name)
 
+
+    ###########################################################################
+    def is_use_fsynclock(self, backup, mongo_connector):
+        return self.use_fsynclock
+
+    ###########################################################################
+    def is_use_suspend_volume(self, backup, mongo_connector):
+        return False
+
+    ###########################################################################
+    def _fsynclock(self, backup, mongo_connector):
+        if isinstance(mongo_connector, MongoServer):
+            msg = "Running fsynclock on '%s'" % mongo_connector
+            update_backup(backup, event_name="FSYNCLOCK", message=msg)
+            mongo_connector.fsynclock()
+        else:
+            raise ConfigurationError("Invalid fsynclock attempt. '%s' has to"
+                                     " be a MongoServer" % mongo_connector)
+
+    ###########################################################################
+    def _fsyncunlock(self, backup, mongo_connector):
+        if isinstance(mongo_connector, MongoServer):
+            msg = "Running fsyncunlock on '%s'" % mongo_connector
+            update_backup(backup, event_name="FSYNCUNLOCK", message=msg)
+            mongo_connector.fsyncunlock()
+        else:
+            raise ConfigurationError("Invalid fsyncunlock attempt. '%s' has to"
+                                     " be a MongoServer" % mongo_connector)
+
+    ###########################################################################
+    def _suspend_volume(self, backup, mongo_connector):
+
+        if isinstance(mongo_connector, MongoServer):
+            if not mongo_connector.is_local():
+                err = ("Cannot suspend volume for '%s' because is not local to"
+                       " this box" % mongo_connector)
+                raise ConfigurationError(err)
+
+            msg = "Suspend volume for '%s'" % mongo_connector
+            update_backup(backup, event_name="SUSPEND_VOLUME", message=msg)
+            dbpath = mongo_connector.get_db_path()
+            volume = get_volume_for_path(dbpath)
+            suspend_volume(volume)
+        else:
+            raise ConfigurationError("Invalid suspend volume attempt. '%s' has to"
+                                     " be a MongoServer" % mongo_connector)
+
+    ###########################################################################
+    def _resume_volume(self, backup, mongo_connector):
+
+        if isinstance(mongo_connector, MongoServer):
+            if not mongo_connector.is_local():
+                err = ("Cannot resume volume for '%s' because is not local to "
+                       "this box" % mongo_connector)
+                raise ConfigurationError(err)
+
+            msg = "Starting volume for '%s'" % mongo_connector
+            update_backup(backup, event_name="RESUME_VOLUME", message=msg)
+            dbpath = mongo_connector.get_db_path()
+            volume = get_volume_for_path(dbpath)
+            resume_volume(volume)
+        else:
+            raise ConfigurationError("Invalid resume volume attempt. '%s' has "
+                                     "to be a MongoServer" % mongo_connector)
 
     ###########################################################################
     def _set_backup_name_and_desc(self, backup):
@@ -331,7 +424,9 @@ class BackupStrategy(MBSObject):
     ###########################################################################
     def to_document(self, display_only=False):
         doc = {
-            "memberPreference": self.member_preference
+            "memberPreference": self.member_preference,
+            "ensureLocalhost": self.ensure_localhost,
+            "useFsynclock": self.use_fsynclock
         }
 
         if self.max_data_size:
@@ -355,23 +450,12 @@ class DumpStrategy(BackupStrategy):
     ###########################################################################
     def __init__(self):
         BackupStrategy.__init__(self)
-        self._ensure_localhost = False
-
-    ###########################################################################
-    @property
-    def ensure_localhost(self):
-        return self._ensure_localhost
-
-    @ensure_localhost.setter
-    def ensure_localhost(self, val):
-        self._ensure_localhost = val
 
     ###########################################################################
     def to_document(self, display_only=False):
         doc =  BackupStrategy.to_document(self, display_only=display_only)
         doc.update({
-            "_type": "DumpStrategy",
-            "ensureLocalhost": self.ensure_localhost
+            "_type": "DumpStrategy"
         })
 
         return doc
@@ -384,13 +468,6 @@ class DumpStrategy(BackupStrategy):
         """
             Override
         """
-        # ensure local host if specified
-        if self.ensure_localhost and not mongo_connector.is_local():
-            details = ("Source host for dump source '%s' is not localhost and"
-                       " strategy.ensureLocalHost is set to true" %
-                       mongo_connector)
-            raise DumpNotOnLocalhost(msg="Error while attempting to dump",
-                                     details=details)
         source = backup.source
 
         # ensure backup workspace
@@ -399,8 +476,8 @@ class DumpStrategy(BackupStrategy):
         # run mongoctl dump
         if not backup.is_event_logged(EVENT_END_EXTRACT):
             try:
-                self._do_dump_backup(backup, mongo_connector,
-                                     database_name=source.database_name)
+                self.dump_backup(backup, mongo_connector,
+                                 database_name=source.database_name)
             except DumpError, e:
                 # still tar and upload failed dumps
                 logger.error("Dumping backup '%s' failed. Will still tar"
@@ -515,6 +592,50 @@ class DumpStrategy(BackupStrategy):
         update_backup(backup, properties="targetReference",
                       event_name="ERROR_HANDLING_END_UPLOAD",
                       message="Finished uploading failed tar")
+
+    ###########################################################################
+    def dump_backup(self, backup, mongo_connector, database_name=None):
+        """
+            Decorator around the actual dumping of backup. decorates with
+            fsynclock/unlock suspend/resume volume
+        """
+        use_fsynclock = False
+        fsync_unlocked = False
+
+        use_suspend_volume = False
+        resumed_volume = False
+        try:
+            # run fsync lock if needed
+            use_fsynclock = self.is_use_fsynclock(backup, mongo_connector)
+            use_suspend_volume = self.is_use_suspend_volume(backup, mongo_connector)
+
+            if use_fsynclock:
+                self._fsynclock(backup, mongo_connector)
+
+            # suspend volume if needed
+            if use_suspend_volume:
+                self._suspend_volume(backup, mongo_connector)
+
+            # backup the mongo connector
+            self._do_dump_backup(backup, mongo_connector, database_name=
+                                                           database_name)
+
+
+            # resume volume/unlock as needed
+            if use_suspend_volume:
+                self._resume_volume(backup, mongo_connector)
+                resumed_volume = True
+            if use_fsynclock:
+                self._fsyncunlock(backup, mongo_connector)
+                fsync_unlocked = True
+
+        finally:
+            # resume volume/unlock as needed
+            if use_suspend_volume and not resumed_volume:
+                self._resume_volume(backup, mongo_connector)
+
+            if use_fsynclock and not fsync_unlocked:
+                self._fsyncunlock(backup, mongo_connector)
 
     ###########################################################################
     def _do_dump_backup(self, backup, mongo_connector, database_name=None):
@@ -721,39 +842,107 @@ class CloudBlockStorageStrategy(BackupStrategy):
 
     ###########################################################################
     def do_backup_mongo_connector(self, backup, mongo_connector):
+        self._snapshot_backup(backup, mongo_connector)
+
+    ###########################################################################
+    def _snapshot_backup(self, backup, mongo_connector):
 
         source = backup.source
         address = mongo_connector.address
-        cloud_block_storage = source.get_block_storage_by_address(address)
+        cbs = source.get_block_storage_by_address(address)
+
         # validate
-        if not cloud_block_storage:
+        if not cbs:
             msg = ("Cannot run a block storage snapshot backup for backup '%s'"
                    ".Backup source does not have a cloudBlockStorage "
                    "configured for address '%s'" % (backup.id, address))
             raise ConfigurationError(msg)
 
+        use_fsynclock = False
+        fsync_unlocked = False
+
+        use_suspend_volume = False
+        resumed_volume = False
+        try:
+            # run fsync lock if needed
+            use_fsynclock = self.is_use_fsynclock(backup, mongo_connector)
+            use_suspend_volume = self.is_use_suspend_volume(backup, mongo_connector)
+
+            if use_fsynclock:
+                self._fsynclock(backup, mongo_connector)
+
+            # suspend volume if needed
+            if use_suspend_volume:
+                self._suspend_volume(backup, mongo_connector)
+
+            # backup the mongo connector
+            self._kickoff_snapshot(backup, cbs)
+
+            # wait until snapshot is pending or completed
+            wait_status = [CBS_STATUS_PENDING, CBS_STATUS_COMPLETED,
+                           CBS_STATUS_ERROR]
+            self._wait_for_snapshot_status(backup, cbs, wait_status)
+
+            # resume volume/unlock as needed
+            if use_suspend_volume:
+                self._resume_volume(backup, mongo_connector)
+                resumed_volume = True
+            if use_fsynclock:
+                self._fsyncunlock(backup, mongo_connector)
+                fsync_unlocked = True
+
+            snapshot_ref = backup.target_reference
+
+            # wait until snapshot is completed or error
+            wait_status = [CBS_STATUS_COMPLETED, CBS_STATUS_ERROR]
+            self._wait_for_snapshot_status(backup, cbs, wait_status)
+
+            if snapshot_ref.status == CBS_STATUS_COMPLETED:
+                logger.info("Successfully completed backup '%s' snapshot '%s' "
+                            % (backup.id, snapshot_ref.snapshot_id))
+                msg = "Snapshot completed successfully"
+                update_backup(backup, event_name="END_BLOCK_STORAGE_SNAPSHOT",
+                              message=msg)
+            else:
+                raise BlockStorageSnapshotError("Snapshot error")
+
+        finally:
+            # resume volume/unlock as needed
+            if use_suspend_volume and not resumed_volume:
+                self._resume_volume(backup, mongo_connector)
+
+            if use_fsynclock and not fsync_unlocked:
+                self._fsyncunlock(backup, mongo_connector)
+
+    ###########################################################################
+    def _kickoff_snapshot(self, backup, cbs):
+
         logger.info("Kicking off block storage snapshot for backup '%s'" %
                     backup.id)
 
         update_backup(backup, event_name="START_BLOCK_STORAGE_SNAPSHOT",
-                      message="Kicking off snapshot")
+            message="Kicking off snapshot")
 
 
-        snapshot_ref = cloud_block_storage.create_snapshot(backup.name,
-                                                           backup.description)
+        snapshot_ref = cbs.create_snapshot(backup.name, backup.description)
         backup.target_reference = snapshot_ref
 
-        msg = "Snapshot created successfully"
+        msg = "Snapshot kicked off successfully"
 
         update_backup(backup, properties="targetReference",
-                      event_name="PENDING_BLOCK_STORAGE_SNAPSHOT", message=msg)
+                      event_name="KICKED_OFF_BLOCK_STORAGE_SNAPSHOT",
+                      message=msg)
 
+
+    ###########################################################################
+    def _wait_for_snapshot_status(self, backup, cbs, wait_status):
         # wait until snapshot is completed and keep target ref up to date
-        while snapshot_ref.status not in [CBS_STATUS_ERROR,
-                                          CBS_STATUS_COMPLETED]:
+        snapshot_ref = backup.target_reference
+        wait_status = listify(wait_status)
+        while snapshot_ref.status not in wait_status:
             logger.debug("Checking updates for backup '%s' snapshot '%s' " %
-                        (backup.id, snapshot_ref.snapshot_id))
-            new_snapshot_ref = cloud_block_storage.check_snapshot_updates(snapshot_ref)
+                         (backup.id, snapshot_ref.snapshot_id))
+            new_snapshot_ref = cbs.check_snapshot_updates(snapshot_ref)
             if new_snapshot_ref:
                 logger.info("Detected updates for backup '%s' snapshot '%s' " %
                             (backup.id, snapshot_ref.snapshot_id))
@@ -765,16 +954,6 @@ class CloudBlockStorageStrategy(BackupStrategy):
 
             else:
                 time.sleep(5)
-
-
-        if snapshot_ref.status == CBS_STATUS_COMPLETED:
-            logger.info("Successfully completed backup '%s' snapshot '%s' " %
-                        (backup.id, snapshot_ref.snapshot_id))
-            msg = "Snapshot completed successfully"
-            update_backup(backup, properties="targetReference",
-                event_name="END_BLOCK_STORAGE_SNAPSHOT", message=msg)
-        else:
-            raise BlockStorageSnapshotError("Snapshot error")
 
     ###########################################################################
     def _needs_new_source_stats(self, backup):

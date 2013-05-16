@@ -10,7 +10,7 @@ from mongo_uri_tools import parse_mongo_uri
 from bson.son import SON
 from errors import *
 from date_utils import timedelta_total_seconds
-from utils import is_host_local
+from utils import is_host_local, document_pretty_string
 from verlib import NormalizedVersion, suggest_normalized_version
 from bson.objectid import ObjectId
 
@@ -62,7 +62,7 @@ class MongoConnector(object):
     ###########################################################################
     @property
     def connection(self):
-        pass
+        return None
 
     ###########################################################################
     def get_mongo_version(self):
@@ -348,7 +348,7 @@ class MongoServer(MongoConnector):
             auth = self._admin_db.authenticate(self._uri_wrapper.username,
                 self._uri_wrapper.password)
             if not auth:
-                raise AuthenticationFailedError(self.uri_wrapper.masked_uri)
+                raise AuthenticationFailedError(self._uri_wrapper.masked_uri)
 
         self._authed_to_admin = True
         return self._admin_db
@@ -520,6 +520,62 @@ class MongoServer(MongoConnector):
             for mem_conf in mem_confs:
                 if mem_conf["host"] == host:
                     return mem_conf
+
+    ###########################################################################
+    def fsynclock(self):
+        """
+            Runs fsynclock command on the server
+        """
+
+        try:
+            logger.info("Attempting to run fsynclock on %s" % self)
+            result = self._admin_db.command(SON([("fsync", 1),("lock", True)]))
+
+
+            if result["ok"]:
+                logger.info("fsynclock ran successfully on %s" % self)
+            else:
+                msg = ("fsynclock was not successful on '%s'. Result: %s" %
+                       document_pretty_string(result))
+                raise MongoLockError(msg)
+        except Exception, e:
+            if not isinstance(e, MongoLockError):
+                msg = "Error while executing fsynclock on '%s'."
+                raise MongoLockError(msg=msg, cause=e)
+            else:
+                raise
+
+    ###########################################################################
+    def fsyncunlock(self):
+        """
+            Runs fsynclock command on the server
+        """
+
+        try:
+            logger.info("Attempting to run fsyncunlock on %s" % self)
+
+            result = self._admin_db["$cmd.sys.unlock"].find_one()
+
+            if result["ok"]:
+                logger.info("fsyncunlock ran successfully on %s" % self)
+            else:
+                msg = ("fsyncunlock was not successful on '%s'. Result: %s" %
+                       document_pretty_string(result))
+                raise MongoLockError(msg)
+        except Exception, e:
+            if not isinstance(e, MongoLockError):
+                msg = "Error while executing fsyncunlock on '%s'."
+                raise MongoLockError(msg=msg, cause=e)
+            else:
+                raise
+
+    ###########################################################################
+    def get_db_path(self):
+        return self.get_cmd_line_opts()["dbpath"]
+
+    ###########################################################################
+    def get_cmd_line_opts(self):
+        return self._admin_db.command({ "getCmdLineOpts": 1 })["parsed"]
 
 ###############################################################################
 def database_connection_stats(db_uri):
