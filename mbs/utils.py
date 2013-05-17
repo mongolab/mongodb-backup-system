@@ -342,7 +342,7 @@ def os_supports_freeze():
     """
     distribution = platform.dist()
     dist_name = distribution[0].lower()
-    dist_version_str = distribution[0]
+    dist_version_str = distribution[1]
     if dist_name and dist_version_str:
         dist_version = verlib.NormalizedVersion(dist_version_str)
         min_version = verlib.NormalizedVersion('12.04')
