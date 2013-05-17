@@ -9,7 +9,8 @@ import json
 import time
 import select
 import sys
-
+import verlib
+import platform
 import signal
 
 from date_utils import (datetime_to_bson, is_date_value, seconds_now,
@@ -283,29 +284,73 @@ def get_host_ips(host):
         raise Exception("Invalid host '%s'. Cause: %s" % (host, e))
 
 ###############################################################################
-def get_volume_for_path(path):
+def find_mount_point(path):
     """
         Returns the volume that the specified path is under
     """
-    df_cmd = [
-        "df",
-        path
+    path = os.path.abspath(path)
+    while not os.path.ismount(path):
+        path = os.path.dirname(path)
+    return path
+
+###############################################################################
+def freeze_mount_point(mount_point):
+    """
+        Freezes the specified mount point using fsfreeze
+    """
+    validate_fsfreeze()
+    freeze_cmd = [
+        get_fsfreeze_exe(),
+        "-f",
+        mount_point
     ]
-    lines = execute_command(df_cmd).split("\n")
 
-    if len(lines) > 1:
-        volume_info = lines[1]
-        return volume_info.split(" ")[0]
+    print "Executing freeze command: %s" % freeze_cmd
+    execute_command(freeze_cmd)
+    print "Freeze command: %s\n executed successfully!" % freeze_cmd
+###############################################################################
+def unfreeze_mount_point(mount_point):
+    """
+        Unfreezes the specified mount point using fsfreeze
+    """
+    validate_fsfreeze()
+    unfreeze_cmd = [
+        get_fsfreeze_exe(),
+        "-u",
+        mount_point
+    ]
+    print "Executing unfreeze command: %s" % unfreeze_cmd
+    execute_command(unfreeze_cmd)
+    print "Unfreeze command: %s\n executed successfully!" % unfreeze_cmd
 
 ###############################################################################
-def suspend_volume(volume):
-    #TODO implement
-    pass
+def validate_fsfreeze():
+    if not os_supports_freeze():
+        err = ("Your OS is not fsfreeze compatible. fsfreeze requirese Ubunto"
+              " 12.04 or later and a fsfreeze exe available in your path.")
+        raise Exception(err)
 
 ###############################################################################
-def resume_volume(volume):
-    #TODO implement
-    pass
+def get_fsfreeze_exe():
+    return which("fsfreeze")
+
+###############################################################################
+def os_supports_freeze():
+    """
+        Returns true if the current os supports fsfreeze that is os running
+        Ubuntu 12.04 or later and there is an fsfreeze exe in PATH
+    """
+    distribution = platform.dist()
+    dist_name = distribution[0].lower()
+    dist_version_str = distribution[0]
+    if dist_name and dist_version_str:
+        dist_version = verlib.NormalizedVersion(dist_version_str)
+        min_version = verlib.NormalizedVersion('12.04')
+
+        return (dist_name == "ubuntu" and dist_version >= min_version and
+                get_fsfreeze_exe() is not None)
+    else:
+        return False
 
 ###############################################################################
 class SignalWatcher(object):

@@ -18,7 +18,8 @@ from mongo_utils import (MongoCluster, MongoServer,
 from subprocess import CalledProcessError
 from errors import *
 from utils import (which, ensure_dir, execute_command, execute_command_wrapper,
-                   get_volume_for_path, suspend_volume, resume_volume, listify)
+                   find_mount_point, freeze_mount_point, unfreeze_mount_point,
+                   listify)
 
 from target import CBS_STATUS_PENDING, CBS_STATUS_COMPLETED, CBS_STATUS_ERROR
 
@@ -69,9 +70,10 @@ class BackupStrategy(MBSObject):
         self._max_data_size = None
         self._backup_name_scheme = None
         self._backup_description_scheme = None
-        # TODO this flag is temporary and should not be used unless you know
+        # TODO these flag are temporary and should not be used unless you know
         # what you are doing
         self._use_fsynclock = False
+        self._use_suspend_io = False
 
     ###########################################################################
     @property
@@ -132,6 +134,15 @@ class BackupStrategy(MBSObject):
     @use_fsynclock.setter
     def use_fsynclock(self, val):
         self._use_fsynclock = val
+
+    ###########################################################################
+    @property
+    def use_suspend_io(self):
+        return self._use_suspend_io
+
+    @use_suspend_io.setter
+    def use_suspend_io(self, val):
+        self._use_suspend_io = val
 
     ###########################################################################
     def run_backup(self, backup):
@@ -334,8 +345,8 @@ class BackupStrategy(MBSObject):
         return self.use_fsynclock
 
     ###########################################################################
-    def is_use_suspend_volume(self, backup, mongo_connector):
-        return False
+    def is_use_suspend_io(self, backup, mongo_connector):
+        return self.use_suspend_io
 
     ###########################################################################
     def _fsynclock(self, backup, mongo_connector):
@@ -358,39 +369,39 @@ class BackupStrategy(MBSObject):
                                      " be a MongoServer" % mongo_connector)
 
     ###########################################################################
-    def _suspend_volume(self, backup, mongo_connector):
+    def _suspend_io(self, backup, mongo_connector):
 
         if isinstance(mongo_connector, MongoServer):
             if not mongo_connector.is_local():
-                err = ("Cannot suspend volume for '%s' because is not local to"
+                err = ("Cannot suspend io for '%s' because is not local to"
                        " this box" % mongo_connector)
                 raise ConfigurationError(err)
 
-            msg = "Suspend volume for '%s'" % mongo_connector
-            update_backup(backup, event_name="SUSPEND_VOLUME", message=msg)
+            msg = "Suspend IO for '%s' using fsfreeze" % mongo_connector
+            update_backup(backup, event_name="SUSPEND_IO", message=msg)
             dbpath = mongo_connector.get_db_path()
-            volume = get_volume_for_path(dbpath)
-            suspend_volume(volume)
+            mount_point = find_mount_point(dbpath)
+            freeze_mount_point(mount_point)
         else:
-            raise ConfigurationError("Invalid suspend volume attempt. '%s' has to"
+            raise ConfigurationError("Invalid suspend io attempt. '%s' has to"
                                      " be a MongoServer" % mongo_connector)
 
     ###########################################################################
-    def _resume_volume(self, backup, mongo_connector):
+    def _resume_io(self, backup, mongo_connector):
 
         if isinstance(mongo_connector, MongoServer):
             if not mongo_connector.is_local():
-                err = ("Cannot resume volume for '%s' because is not local to "
+                err = ("Cannot resume io for '%s' because is not local to "
                        "this box" % mongo_connector)
                 raise ConfigurationError(err)
 
-            msg = "Starting volume for '%s'" % mongo_connector
-            update_backup(backup, event_name="RESUME_VOLUME", message=msg)
+            msg = "Resume io for '%s' using fsfreeze" % mongo_connector
+            update_backup(backup, event_name="RESUME_IO", message=msg)
             dbpath = mongo_connector.get_db_path()
-            volume = get_volume_for_path(dbpath)
-            resume_volume(volume)
+            mount_point = find_mount_point(dbpath)
+            unfreeze_mount_point(mount_point)
         else:
-            raise ConfigurationError("Invalid resume volume attempt. '%s' has "
+            raise ConfigurationError("Invalid resume io attempt. '%s' has "
                                      "to be a MongoServer" % mongo_connector)
 
     ###########################################################################
@@ -426,7 +437,8 @@ class BackupStrategy(MBSObject):
         doc = {
             "memberPreference": self.member_preference,
             "ensureLocalhost": self.ensure_localhost,
-            "useFsynclock": self.use_fsynclock
+            "useFsynclock": self.use_fsynclock,
+            "useSuspendIo": self.use_suspend_io
         }
 
         if self.max_data_size:
@@ -596,44 +608,29 @@ class DumpStrategy(BackupStrategy):
     ###########################################################################
     def dump_backup(self, backup, mongo_connector, database_name=None):
         """
-            Decorator around the actual dumping of backup. decorates with
-            fsynclock/unlock suspend/resume volume
+            Wraps the actual dump command with fsynclock/unlock if needed
         """
         use_fsynclock = False
         fsync_unlocked = False
 
-        use_suspend_volume = False
-        resumed_volume = False
         try:
             # run fsync lock if needed
             use_fsynclock = self.is_use_fsynclock(backup, mongo_connector)
-            use_suspend_volume = self.is_use_suspend_volume(backup, mongo_connector)
 
             if use_fsynclock:
                 self._fsynclock(backup, mongo_connector)
-
-            # suspend volume if needed
-            if use_suspend_volume:
-                self._suspend_volume(backup, mongo_connector)
 
             # backup the mongo connector
             self._do_dump_backup(backup, mongo_connector, database_name=
                                                            database_name)
 
-
-            # resume volume/unlock as needed
-            if use_suspend_volume:
-                self._resume_volume(backup, mongo_connector)
-                resumed_volume = True
+            # unlock as needed
             if use_fsynclock:
                 self._fsyncunlock(backup, mongo_connector)
                 fsync_unlocked = True
 
         finally:
-            # resume volume/unlock as needed
-            if use_suspend_volume and not resumed_volume:
-                self._resume_volume(backup, mongo_connector)
-
+            # unlock as needed
             if use_fsynclock and not fsync_unlocked:
                 self._fsyncunlock(backup, mongo_connector)
 
@@ -861,19 +858,19 @@ class CloudBlockStorageStrategy(BackupStrategy):
         use_fsynclock = False
         fsync_unlocked = False
 
-        use_suspend_volume = False
-        resumed_volume = False
+        use_suspend_io = False
+        resumed_io = False
         try:
             # run fsync lock if needed
             use_fsynclock = self.is_use_fsynclock(backup, mongo_connector)
-            use_suspend_volume = self.is_use_suspend_volume(backup, mongo_connector)
+            use_suspend_io = self.is_use_suspend_io(backup, mongo_connector)
 
             if use_fsynclock:
                 self._fsynclock(backup, mongo_connector)
 
-            # suspend volume if needed
-            if use_suspend_volume:
-                self._suspend_volume(backup, mongo_connector)
+            # suspend io if needed
+            if use_suspend_io:
+                self._suspend_io(backup, mongo_connector)
 
             # backup the mongo connector
             self._kickoff_snapshot(backup, cbs)
@@ -883,10 +880,10 @@ class CloudBlockStorageStrategy(BackupStrategy):
                            CBS_STATUS_ERROR]
             self._wait_for_snapshot_status(backup, cbs, wait_status)
 
-            # resume volume/unlock as needed
-            if use_suspend_volume:
-                self._resume_volume(backup, mongo_connector)
-                resumed_volume = True
+            # resume io/unlock as needed
+            if use_suspend_io:
+                self._resume_io(backup, mongo_connector)
+                resumed_io = True
             if use_fsynclock:
                 self._fsyncunlock(backup, mongo_connector)
                 fsync_unlocked = True
@@ -907,9 +904,9 @@ class CloudBlockStorageStrategy(BackupStrategy):
                 raise BlockStorageSnapshotError("Snapshot error")
 
         finally:
-            # resume volume/unlock as needed
-            if use_suspend_volume and not resumed_volume:
-                self._resume_volume(backup, mongo_connector)
+            # resume io/unlock as needed
+            if use_suspend_io and not resumed_io:
+                self._resume_io(backup, mongo_connector)
 
             if use_fsynclock and not fsync_unlocked:
                 self._fsyncunlock(backup, mongo_connector)
