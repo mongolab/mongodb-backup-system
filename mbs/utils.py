@@ -9,13 +9,13 @@ import json
 import time
 import select
 import sys
-import verlib
 import platform
 import signal
 
 from date_utils import (datetime_to_bson, is_date_value, seconds_now,
                         utc_str_to_datetime)
 from bson import json_util
+from distutils.version import StrictVersion
 
 ###############################################################################
 ##################################         ####################################
@@ -344,8 +344,8 @@ def os_supports_freeze():
     dist_name = distribution[0].lower()
     dist_version_str = distribution[1]
     if dist_name and dist_version_str:
-        dist_version = verlib.NormalizedVersion(dist_version_str)
-        min_version = verlib.NormalizedVersion('12.04')
+        dist_version = StrictVersion(dist_version_str)
+        min_version = StrictVersion('12.04')
 
         return (dist_name == "ubuntu" and dist_version >= min_version and
                 get_fsfreeze_exe() is not None)
