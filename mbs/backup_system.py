@@ -376,7 +376,9 @@ class BackupSystem(Thread):
         if from_scratch:
             backup.logs = []
             backup.try_count = 0
-            update_backup(backup, properties=["logs", "tryCount"])
+            backup.engine_guid = None
+            update_backup(backup, properties=["logs", "tryCount",
+                                              "engineGuid"])
 
         update_backup(backup, properties=["state", "tags"],
                       event_name=EVENT_STATE_CHANGE,
