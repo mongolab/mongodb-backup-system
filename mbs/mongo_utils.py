@@ -282,9 +282,15 @@ class MongoCluster(MongoConnector):
         if not all_secondaries:
             logger.info("No secondaries found for cluster '%s'" % self)
 
-        hidden_secondaries.sort(key=operator.attrgetter('address'))
-        p0_secondaries.sort(key=operator.attrgetter('address'))
-        other_secondaries.sort(key=operator.attrgetter('address'))
+        # NOTE: we use member_host property to sort instead of address since
+        # a member might have multiple addresses mapped to it but member_host
+        # will always be the same regardless which address you use to connect
+        # to the member. This is to ensure that this algorithm produces
+        # consistent results
+
+        hidden_secondaries.sort(key=operator.attrgetter('member_host'))
+        p0_secondaries.sort(key=operator.attrgetter('member_host'))
+        other_secondaries.sort(key=operator.attrgetter('member_host'))
 
         # merge results into one list
         merged_list = hidden_secondaries + p0_secondaries + other_secondaries
@@ -511,6 +517,14 @@ class MongoServer(MongoConnector):
     @property
     def hidden(self):
         return self.member_config.get("hidden")
+
+    ###########################################################################
+    @property
+    def member_host(self):
+        """
+            returns the "host" property from the rs member config
+        """
+        return self.member_config.get("host")
 
     ###########################################################################
     def _get_member_config(self):
