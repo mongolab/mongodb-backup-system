@@ -323,7 +323,7 @@ class MongoServer(MongoConnector):
             # if this is an arbiter then this is the farthest that we can get
             # to
             if self.is_arbiter():
-                return;
+                return
 
         except Exception, e:
             if is_connection_exception(e):
