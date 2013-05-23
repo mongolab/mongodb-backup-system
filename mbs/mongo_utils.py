@@ -656,7 +656,12 @@ def build_mongo_connector(uri):
     if uri_wrapper.is_cluster_uri() and not uri_wrapper.database:
         return MongoCluster(uri)
     elif not uri_wrapper.database:
-        return MongoServer(uri)
+        mongo_server =  MongoServer(uri)
+        # if the server is a replica member then this is a cluster uri
+        if mongo_server.is_online() and mongo_server.is_replica_member():
+            return MongoCluster(uri)
+        else:
+            return mongo_server
     else:
         return MongoDatabase(uri)
 
