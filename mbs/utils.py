@@ -297,9 +297,13 @@ def find_mount_point(path):
 def freeze_mount_point(mount_point):
     """
         Freezes the specified mount point using fsfreeze
+        NOTE: This requires that current login can sudo fsfreeze without
+        needing as password.
     """
     validate_fsfreeze()
     freeze_cmd = [
+        "sudo",
+        "-n",
         get_fsfreeze_exe(),
         "-f",
         mount_point
@@ -311,10 +315,14 @@ def freeze_mount_point(mount_point):
 ###############################################################################
 def unfreeze_mount_point(mount_point):
     """
-        Unfreezes the specified mount point using fsfreeze
+        Unfreezes the specified mount point using fsfreeze.
+        NOTE: This requires that current login can sudo fsfreeze without
+        needing as password.
     """
     validate_fsfreeze()
     unfreeze_cmd = [
+        "sudo",
+        "-n",
         get_fsfreeze_exe(),
         "-u",
         mount_point
