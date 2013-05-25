@@ -337,6 +337,8 @@ def validate_fsfreeze():
         err = ("Your OS is not fsfreeze compatible. fsfreeze requirese Ubunto"
               " 12.04 or later and a fsfreeze exe available in your path.")
         raise Exception(err)
+    # validate fsfreeze against sudo
+    validate_fsfreeze_sudo()
 
 ###############################################################################
 def get_fsfreeze_exe():
@@ -359,6 +361,26 @@ def os_supports_freeze():
                 get_fsfreeze_exe() is not None)
     else:
         return False
+
+###############################################################################
+def validate_fsfreeze_sudo():
+    """
+        Ensures that fsfreeze could be run with sudo without needing a password
+    """
+    try:
+        cmd = [
+            "sudo",
+            "-n",
+            get_fsfreeze_exe(),
+            "--help"
+        ]
+        execute_command(cmd)
+        # we are ok here
+    except subprocess.CalledProcessError, e:
+        msg = ("Error while validating fsfreeze. Your sudoers config does not "
+               "support running 'sudo fsfreeze' without passing a password. "
+               "Please tag your fsfreeze with a NOPASSWD tag")
+        raise Exception(msg)
 
 ###############################################################################
 class SignalWatcher(object):
