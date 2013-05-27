@@ -158,7 +158,7 @@ class BackupTarget(MBSObject):
         return []
 
     ###########################################################################
-    @robustify(max_attempts=3, retry_interval=5,
+    @robustify(max_attempts=10, retry_interval=5,
                do_on_exception=raise_if_not_retriable,
                do_on_failure=raise_exception)
     def _verify_file_uploaded(self, destination_path, file_size):
@@ -173,7 +173,7 @@ class BackupTarget(MBSObject):
                                              dest_size, file_size)
 
     ###########################################################################
-    @robustify(max_attempts=3, retry_interval=5,
+    @robustify(max_attempts=10, retry_interval=5,
                do_on_exception=raise_if_not_retriable,
                do_on_failure=raise_exception)
     def _verify_file_deleted(self, file_path):
