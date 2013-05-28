@@ -16,6 +16,7 @@ MBS_LOG_DIR = "logs"
 
 logger = logging.getLogger("MBSLogger")
 
+###############################################################################
 def setup_logging(log_to_stdout=False):
     log_dir = os.path.join(mbs_config.MBS_CONF_DIR, MBS_LOG_DIR)
     ensure_dir(log_dir)
@@ -36,3 +37,19 @@ def setup_logging(log_to_stdout=False):
         sh.setFormatter(formatter)
         logging.getLogger().addHandler(sh)
 
+###############################################################################
+class StdRedirectToLogger(object):
+
+    def __init__(self, prefix=""):
+        self.prefix = prefix
+
+    def write(self, message):
+        logger.info("%s: %s" % (self.prefix, message))
+
+
+###############################################################################
+def redirect_std_to_logger():
+    # redirect stdout/stderr to log file
+    sys.stdout = StdRedirectToLogger("STDOUT")
+    sys.stderr = StdRedirectToLogger("STDERR")
+    pass

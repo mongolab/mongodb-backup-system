@@ -18,7 +18,7 @@ from mbs.utils import (
     wait_for, document_pretty_string, resolve_path, SignalWatcher
 )
 from mbs import mbs_config
-from mbs.mbs_logging import setup_logging
+from mbs.mbs_logging import setup_logging, redirect_std_to_logger
 
 ###############################################################################
 # MAIN
@@ -87,6 +87,9 @@ def _do_start_engine(engine, fork=False):
             # need to disown yourself, Son
             os.setsid()
             os.umask(0)
+            # redirect std out/err to logger
+            redirect_std_to_logger()
+
 
     # forked child process
     engine.start()
@@ -195,6 +198,8 @@ def _do_start_backup_system(fork=False):
             # need to disown yourself, Son
             os.setsid()
             os.umask(0)
+            # redirect std out/err to logger
+            redirect_std_to_logger()
 
     # forked child process
     backup_system = get_mbs().backup_system
