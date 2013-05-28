@@ -904,12 +904,13 @@ class CloudBlockStorageStrategy(BackupStrategy):
                 raise BlockStorageSnapshotError("Snapshot error")
 
         finally:
-            # resume io/unlock as needed
-            if use_suspend_io and not resumed_io:
-                self._resume_io(backup, mongo_connector)
-
-            if use_fsynclock and not fsync_unlocked:
-                self._fsyncunlock(backup, mongo_connector)
+            try:
+                # resume io/unlock as needed
+                if use_suspend_io and not resumed_io:
+                    self._resume_io(backup, mongo_connector)
+            finally:
+                if use_fsynclock and not fsync_unlocked:
+                    self._fsyncunlock(backup, mongo_connector)
 
     ###########################################################################
     def _kickoff_snapshot(self, backup, cbs):
