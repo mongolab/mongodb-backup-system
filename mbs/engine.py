@@ -610,9 +610,11 @@ class BackupWorker(Thread):
             # set start date
             backup.start_date = date_now()
 
-            # set queue_latency_in_minutes
-            latency = self._calculate_queue_latency(backup)
-            backup.queue_latency_in_minutes = latency
+            # set queue_latency_in_minutes if its not already set
+            if not backup.queue_latency_in_minutes:
+                latency = self._calculate_queue_latency(backup)
+                backup.queue_latency_in_minutes = latency
+
             # clear end date
             backup.end_date = None
 
