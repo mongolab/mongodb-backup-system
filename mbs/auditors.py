@@ -4,7 +4,7 @@ __author__ = 'abdul'
 from mbs import get_mbs
 from audit import *
 import mbs_logging
-from date_utils import yesterday_date, datetime_to_string
+from date_utils import yesterday_date, datetime_to_string, date_plus_seconds
 
 ###############################################################################
 # LOGGER
@@ -54,6 +54,8 @@ class PlanAuditor(BackupAuditor):
 
         logger.info("PlanAuditor: Generating %s audit report for '%s'" %
                     (TYPE_PLAN_AUDIT,  datetime_to_string(audit_date)))
+
+        audit_end_date = date_plus_seconds(audit_date, 3600 * 24)
         all_plans_report = AuditReport()
         all_plans_report.audit_date = audit_date
         all_plans_report.audit_type = TYPE_PLAN_AUDIT
@@ -64,7 +66,9 @@ class PlanAuditor(BackupAuditor):
         total_warnings = 0
         for plan in get_mbs().plan_collection.find():
             # skip recently added plans whose created date is after audit date
-            if plan.created_date > audit_date:
+            # and their next occurrence is not in auditing range
+            if (plan.created_date > audit_date and plan.next_occurrence and
+                plan.next_occurrence > audit_end_date) :
                 logger.info("PlanAuditor: Skipping auditing plan '%s' since"
                             " its created date '%s' is later than audit date "
                             "'%s'" % (plan.id,
