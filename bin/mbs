@@ -279,7 +279,38 @@ def download_backup(parsed_args):
         if backup:
             if backup.target_reference:
                 if not backup.target_reference.expired:
-                    backup.target.get_file(backup.target_reference, os.getcwd())
+                    backup.target.get_file(backup.target_reference,
+                                           os.getcwd())
+                else:
+                    print ("Failed to download. Backup '%s' is expired." %
+                           backup_id)
+                    exit(1)
+
+
+            else:
+                print ("Failed to download. Backup '%s' never uploaded."
+                       % backup_id)
+                exit(1)
+        else:
+            print "No such backup '%s'" % backup_id
+            exit(1)
+    except Exception, e:
+        print "%s" % e
+        exit(1)
+
+###############################################################################
+def download_backup_log(parsed_args):
+
+    try:
+        backup_id = parsed_args.backupId
+        bc = get_mbs().backup_collection
+        backup = bc.find_one({"_id": ObjectId(backup_id)})
+
+        if backup:
+            if backup.backup_log_target_reference:
+                if not backup.backup_log_target_reference.expired:
+                    backup.target.get_file(backup.backup_log_target_reference,
+                                           os.getcwd())
                 else:
                     print ("Failed to download. Backup '%s' is expired." %
                            backup_id)
@@ -559,6 +590,24 @@ PARSER_DEF = {
         },
 
             {
+            "prog": "download-backup-log",
+            "shortDescription" : "Downloads backup log file from target to "
+                                 "current working directory",
+            "description" : "Downloads backup log file from target to "
+                            "current working directory",
+            "args": [
+                    {
+                    "name": "backupId",
+                    "type" : "positional",
+                    "nargs": 1,
+                    "displayName": "BACKUP_ID",
+                    "help": "Backup id"
+                }],
+            "function": download_backup_log
+        },
+
+
+        {
             "prog": "reschedule-backup",
             "shortDescription" : "Reschedules specified backup",
             "description" : "Reschedules specified backup. "
