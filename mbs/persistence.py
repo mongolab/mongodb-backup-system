@@ -77,8 +77,14 @@ def expire_backup(backup, expired_date):
             logger.info("Deleting backup '%s file" % backup.id)
             backup.target.delete_file(target_ref)
 
+        # expire log file
+        if backup.backup_log_target_reference:
+            backup.target.delete_file(backup.backup_log_target_reference)
+            backup.backup_log_target_reference.expired_date = expired_date
+
         backup.target_reference.expired_date = expired_date
         # no need to persist the expiredDate since
-        update_backup(backup, event_name="EXPIRING", message="Expiring")
+        update_backup(backup, event_name="EXPIRING", message="Expiring",
+                      properties=["backupLogTargetReference"])
 
         logger.info("Backup %s archived successfully!" % backup.id)

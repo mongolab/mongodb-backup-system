@@ -496,6 +496,9 @@ class DumpStrategy(BackupStrategy):
                              "up and upload to keep dump logs" % backup.id)
                 self._tar_and_upload_failed_dump(backup)
                 raise
+            finally:
+                # upload log file
+                self._upload_dump_log_file(backup)
 
         # tar the dump
         if not backup.is_event_logged(EVENT_END_ARCHIVE):
@@ -569,6 +572,28 @@ class DumpStrategy(BackupStrategy):
             except Exception, ex:
                 logger.error("Exception while deleting failed backup file: %s"
                              % ex)
+
+    ###########################################################################
+    def _upload_dump_log_file(self, backup):
+        log_file_path = self._get_dump_log_path(backup)
+        logger.info("Uploading log file for %s to target" % backup.id)
+
+        update_backup(backup, event_name="START_UPLOAD_LOG_FILE",
+                      message="Upload log file to target")
+        log_dest_path = _upload_log_file_dest(backup)
+        log_target_reference = backup.target.put_file(log_file_path,
+                                                      destination_path=
+                                                        log_dest_path,
+                                                      overwrite_existing=True)
+
+        backup.backup_log_target_reference = log_target_reference
+
+        update_backup(backup, properties="backupLogTargetReference",
+                      event_name="END_UPLOAD_LOG_FILE",
+                      message="Log file upload completed!")
+
+        logger.info("Upload log file for %s completed successfully!" %
+                    backup.id)
 
     ###########################################################################
     def _tar_and_upload_failed_dump(self, backup):
@@ -685,7 +710,7 @@ class DumpStrategy(BackupStrategy):
         logger.info("Running dump command: %s" % " ".join(dump_cmd_display))
 
         ensure_dir(dest)
-        dump_log_path = os.path.join(dest, 'dump.log')
+        dump_log_path = self._get_dump_log_path(backup)
         def on_dump_output(line):
             if "ERROR:" in line:
                 msg = "Caught a dump error: %s" % line
@@ -789,19 +814,25 @@ class DumpStrategy(BackupStrategy):
         return os.path.join(backup.workspace, _backup_dump_dir_name(backup))
 
     ###########################################################################
+    def _get_dump_log_path(self, backup):
+        return os.path.join(backup.workspace, _log_file_name(backup))
+
+    ###########################################################################
     def _get_tar_file_path(self, backup):
-        return os.path.join(backup.workspace,
-                            _tar_file_name(backup))
+        return os.path.join(backup.workspace, _tar_file_name(backup))
 
     ###########################################################################
     def _get_failed_tar_file_path(self, backup):
-        return os.path.join(backup.workspace,
-            _failed_tar_file_name(backup))
+        return os.path.join(backup.workspace, _failed_tar_file_name(backup))
 
 ###############################################################################
 # Helpers
 ###############################################################################
 
+def _log_file_name(backup):
+    return "%s.log" % _backup_dump_dir_name(backup)
+
+###############################################################################
 def _tar_file_name(backup):
     return "%s.tgz" % _backup_dump_dir_name(backup)
 
@@ -819,6 +850,10 @@ def _backup_dump_dir_name(backup):
 ###############################################################################
 def _upload_file_dest(backup):
     return "%s.tgz" % backup.name
+
+###############################################################################
+def _upload_log_file_dest(backup):
+    return "%s.log" % backup.name
 
 ###############################################################################
 def _failed_upload_file_dest(backup):

@@ -38,6 +38,7 @@ class Backup(MBSObject):
         self._source_stats = None
         self._target = None
         self._target_reference = None
+        self._backup_log_target_reference = None
         self._plan = None
         self._plan_occurrence = None
         self._engine_guid = None
@@ -152,6 +153,16 @@ class Backup(MBSObject):
     @target_reference.setter
     def target_reference(self, target_reference):
         self._target_reference = target_reference
+
+    ###########################################################################
+    @property
+    def backup_log_target_reference(self):
+        return self._backup_log_target_reference
+
+
+    @backup_log_target_reference.setter
+    def backup_log_target_reference(self, target_reference):
+        self._backup_log_target_reference = target_reference
 
     ###########################################################################
     @property
@@ -371,6 +382,11 @@ class Backup(MBSObject):
         if self.target_reference:
             doc["targetReference"] = self.target_reference.to_document(
                                                      display_only=display_only)
+
+        if self.backup_log_target_reference:
+            doc["backupLogTargetReference"] = \
+                self.backup_log_target_reference.to_document(display_only=
+                                                                display_only)
 
         if self.source_stats:
             doc["sourceStats"] = self.source_stats
