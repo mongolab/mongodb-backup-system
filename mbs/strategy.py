@@ -969,6 +969,8 @@ class CloudBlockStorageStrategy(BackupStrategy):
 
     ###########################################################################
     def _wait_for_snapshot_status(self, backup, cbs, wait_status):
+        logger.info("Waiting for backup '%s' snapshot status to be in %s" %
+                    (backup.id, wait_status))
         # wait until snapshot is completed and keep target ref up to date
         snapshot_ref = backup.target_reference
         wait_status = listify(wait_status)
