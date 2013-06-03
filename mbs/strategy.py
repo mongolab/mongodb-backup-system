@@ -70,10 +70,6 @@ class BackupStrategy(MBSObject):
         self._max_data_size = None
         self._backup_name_scheme = None
         self._backup_description_scheme = None
-        # TODO these flag are temporary and should not be used unless you know
-        # what you are doing
-        self._use_fsynclock = False
-        self._use_suspend_io = False
 
     ###########################################################################
     @property
@@ -125,24 +121,6 @@ class BackupStrategy(MBSObject):
             naming_scheme = TemplateBackupNamingScheme(template=naming_scheme)
 
         self._backup_description_scheme = naming_scheme
-
-    ###########################################################################
-    @property
-    def use_fsynclock(self):
-        return self._use_fsynclock
-
-    @use_fsynclock.setter
-    def use_fsynclock(self, val):
-        self._use_fsynclock = val
-
-    ###########################################################################
-    @property
-    def use_suspend_io(self):
-        return self._use_suspend_io
-
-    @use_suspend_io.setter
-    def use_suspend_io(self, val):
-        self._use_suspend_io = val
 
     ###########################################################################
     def run_backup(self, backup):
@@ -341,14 +319,6 @@ class BackupStrategy(MBSObject):
 
 
     ###########################################################################
-    def is_use_fsynclock(self, backup, mongo_connector):
-        return self.use_fsynclock
-
-    ###########################################################################
-    def is_use_suspend_io(self, backup, mongo_connector):
-        return self.use_suspend_io
-
-    ###########################################################################
     def _fsynclock(self, backup, mongo_connector):
         if isinstance(mongo_connector, MongoServer):
             msg = "Running fsynclock on '%s'" % mongo_connector
@@ -436,9 +406,7 @@ class BackupStrategy(MBSObject):
     def to_document(self, display_only=False):
         doc = {
             "memberPreference": self.member_preference,
-            "ensureLocalhost": self.ensure_localhost,
-            "useFsynclock": self.use_fsynclock,
-            "useSuspendIo": self.use_suspend_io
+            "ensureLocalhost": self.ensure_localhost
         }
 
         if self.max_data_size:
@@ -462,6 +430,16 @@ class DumpStrategy(BackupStrategy):
     ###########################################################################
     def __init__(self):
         BackupStrategy.__init__(self)
+        self._use_fsynclock = False
+
+    ###########################################################################
+    @property
+    def use_fsynclock(self):
+        return self._use_fsynclock
+
+    @use_fsynclock.setter
+    def use_fsynclock(self, val):
+        self._use_fsynclock = val
 
     ###########################################################################
     def to_document(self, display_only=False):
@@ -469,6 +447,9 @@ class DumpStrategy(BackupStrategy):
         doc.update({
             "_type": "DumpStrategy"
         })
+
+        if self.use_fsynclock:
+            doc["useFsynclock"] = self.use_fsynclock
 
         return doc
 
@@ -635,14 +616,11 @@ class DumpStrategy(BackupStrategy):
         """
             Wraps the actual dump command with fsynclock/unlock if needed
         """
-        use_fsynclock = False
         fsync_unlocked = False
-
         try:
             # run fsync lock if needed
-            use_fsynclock = self.is_use_fsynclock(backup, mongo_connector)
 
-            if use_fsynclock:
+            if self.use_fsynclock:
                 self._fsynclock(backup, mongo_connector)
 
             # backup the mongo connector
@@ -650,13 +628,13 @@ class DumpStrategy(BackupStrategy):
                                                            database_name)
 
             # unlock as needed
-            if use_fsynclock:
+            if self.use_fsynclock:
                 self._fsyncunlock(backup, mongo_connector)
                 fsync_unlocked = True
 
         finally:
             # unlock as needed
-            if use_fsynclock and not fsync_unlocked:
+            if self.use_fsynclock and not fsync_unlocked:
                 self._fsyncunlock(backup, mongo_connector)
 
     ###########################################################################
@@ -890,22 +868,16 @@ class CloudBlockStorageStrategy(BackupStrategy):
                    "configured for address '%s'" % (backup.id, address))
             raise ConfigurationError(msg)
 
-        use_fsynclock = False
+
         fsync_unlocked = False
 
-        use_suspend_io = False
         resumed_io = False
         try:
-            # run fsync lock if needed
-            use_fsynclock = self.is_use_fsynclock(backup, mongo_connector)
-            use_suspend_io = self.is_use_suspend_io(backup, mongo_connector)
+            # run fsync lock
+            self._fsynclock(backup, mongo_connector)
 
-            if use_fsynclock:
-                self._fsynclock(backup, mongo_connector)
-
-            # suspend io if needed
-            if use_suspend_io:
-                self._suspend_io(backup, mongo_connector)
+            # suspend io
+            self._suspend_io(backup, mongo_connector)
 
             # backup the mongo connector
             self._kickoff_snapshot(backup, cbs)
@@ -915,13 +887,13 @@ class CloudBlockStorageStrategy(BackupStrategy):
                            CBS_STATUS_ERROR]
             self._wait_for_snapshot_status(backup, cbs, wait_status)
 
-            # resume io/unlock as needed
-            if use_suspend_io:
-                self._resume_io(backup, mongo_connector)
-                resumed_io = True
-            if use_fsynclock:
-                self._fsyncunlock(backup, mongo_connector)
-                fsync_unlocked = True
+            # resume io/unlock
+
+            self._resume_io(backup, mongo_connector)
+            resumed_io = True
+
+            self._fsyncunlock(backup, mongo_connector)
+            fsync_unlocked = True
 
             # wait until snapshot is completed or error
             wait_status = [CBS_STATUS_COMPLETED, CBS_STATUS_ERROR]
@@ -941,10 +913,10 @@ class CloudBlockStorageStrategy(BackupStrategy):
         finally:
             try:
                 # resume io/unlock as needed
-                if use_suspend_io and not resumed_io:
+                if not resumed_io:
                     self._resume_io(backup, mongo_connector)
             finally:
-                if use_fsynclock and not fsync_unlocked:
+                if not fsync_unlocked:
                     self._fsyncunlock(backup, mongo_connector)
 
     ###########################################################################
