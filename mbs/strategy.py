@@ -163,8 +163,11 @@ class BackupStrategy(MBSObject):
     ###########################################################################
     def get_mongo_connector_used_by(self, backup):
         uri_wrapper = mongo_uri_tools.parse_mongo_uri(backup.source.uri)
-        if backup.source_stats and backup.source_stats.get("host"):
-            host = backup.source_stats["host"]
+        if backup.source_stats:
+            if backup.source_stats.get("repl"):
+                host = backup.source_stats["repl"]["me"]
+            else:
+                host = backup.source_stats["host"]
             if uri_wrapper.username:
                 credz = "%s:%s@" % (uri_wrapper.username, uri_wrapper.password)
             else:
