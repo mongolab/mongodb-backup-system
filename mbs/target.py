@@ -329,6 +329,8 @@ class S3BucketTarget(BackupTarget):
         try:
 
             file_path = file_reference.file_path
+            file_name = file_reference.file_name
+
             print("Downloading '%s' from s3 bucket '%s'" %
                   (file_path, self.bucket_name))
 
@@ -340,7 +342,7 @@ class S3BucketTarget(BackupTarget):
                                               "'%s'" % (file_path,
                                                         self.bucket_name))
 
-            file_obj = open(os.path.join(destination, file_path), mode="w")
+            file_obj = open(os.path.join(destination, file_name), mode="w")
 
             num_call_backs = key.size / 1000
             key.get_contents_to_file(file_obj, cb=_download_progress,
@@ -645,7 +647,8 @@ class RackspaceCloudFilesTarget(BackupTarget):
                                 (file_path, self.container_name))
 
 
-            des_file = os.path.join(destination, file_path)
+            file_name = file_reference.file_name
+            des_file = os.path.join(destination, file_name)
             container_obj.save_to_filename(des_file,
                                            callback=_download_progress)
             print("\nDownload completed successfully!!")
@@ -938,6 +941,11 @@ class FileReference(TargetReference):
     @file_path.setter
     def file_path(self, file_path):
         self._file_path = file_path
+
+    ###########################################################################
+    @property
+    def file_name(self):
+        return os.path.basename(self.file_path)
 
     ###########################################################################
     def to_document(self, display_only=False):
