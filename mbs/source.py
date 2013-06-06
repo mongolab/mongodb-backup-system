@@ -126,9 +126,9 @@ class BackupSource(MBSObject):
 class MongoSource(BackupSource):
 
     ###########################################################################
-    def __init__(self):
+    def __init__(self, uri=None):
         BackupSource.__init__(self)
-        self._uri = None
+        self._uri = uri
 
     ###########################################################################
     @property
