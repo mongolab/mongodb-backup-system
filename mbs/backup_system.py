@@ -18,10 +18,13 @@ import mbs_config
 from date_utils import date_now, date_minus_seconds, time_str_to_datetime_today
 from errors import *
 from auditors import GlobalAuditor
-from backup import (Backup, STATE_SCHEDULED, STATE_IN_PROGRESS, STATE_FAILED,
-                    STATE_CANCELED, EVENT_STATE_CHANGE)
+from task import (STATE_SCHEDULED, STATE_IN_PROGRESS, STATE_FAILED,
+                  STATE_CANCELED, EVENT_STATE_CHANGE)
 
-from persistence import update_backup, expire_backup
+from mbs import get_mbs
+from backup import Backup
+from restore import Restore
+from target import CloudBlockStorageSnapshotReference
 
 from mongo_utils import objectiditify
 
@@ -60,19 +63,15 @@ class BackupSystem(Thread):
                        command_port=9003):
 
         Thread.__init__(self)
-        self._plan_collection = None
-        self._backup_collection = None
         self._sleep_time = sleep_time
 
         self._plan_generators = []
         self._tick_count = 0
-        self._notification_handler = None
         self._stopped = False
         self._command_port = command_port
         self._command_server = BackupSystemCommandServer(self)
 
         # auditing stuff
-        self._audit_collection = None
 
         # init global editor
         self._audit_notification_handler = None
@@ -82,26 +81,6 @@ class BackupSystem(Thread):
         self._audit_next_occurrence = None
 
     ###########################################################################
-    # Properties
-    ###########################################################################
-    @property
-    def plan_collection(self):
-        return self._plan_collection
-
-    @plan_collection.setter
-    def plan_collection(self, pc):
-        self._plan_collection = pc
-
-    ###########################################################################
-    @property
-    def backup_collection(self):
-        return self._backup_collection
-
-    @backup_collection.setter
-    def backup_collection(self, bc):
-        self._backup_collection = bc
-
-    ###########################################################################
     @property
     def plan_generators(self):
         return self._plan_generators
@@ -109,24 +88,6 @@ class BackupSystem(Thread):
     @plan_generators.setter
     def plan_generators(self, value):
         self._plan_generators = value
-
-    ###########################################################################
-    @property
-    def notification_handler(self):
-        return self._notification_handler
-
-    @notification_handler.setter
-    def notification_handler(self, handler):
-        self._notification_handler = handler
-
-    ###########################################################################
-    @property
-    def audit_collection(self):
-        return self._audit_collection
-
-    @audit_collection.setter
-    def audit_collection(self, ac):
-        self._audit_collection = ac
 
     ###########################################################################
     @property
@@ -159,7 +120,7 @@ class BackupSystem(Thread):
     @property
     def global_auditor(self):
         if not self._global_auditor:
-            ac = self.audit_collection
+            ac = get_mbs().audit_collection
             nh = self.audit_notification_handler
             self._global_auditor = GlobalAuditor(audit_collection=ac,
                                                  notification_handler=nh)
@@ -289,7 +250,7 @@ class BackupSystem(Thread):
         }
 
 
-        return self._plan_collection.find(q)
+        return get_mbs().plan_collection.find(q)
 
     ###########################################################################
     def _plan_has_backup_in_progress(self, plan):
@@ -297,7 +258,7 @@ class BackupSystem(Thread):
             "plan.$id": plan._id,
             "state": STATE_IN_PROGRESS
         }
-        return self._backup_collection.find_one(q) is not None
+        return get_mbs().backup_collection.find_one(q) is not None
 
     ###########################################################################
     def _cancel_past_cycle_scheduled_backups(self):
@@ -311,12 +272,13 @@ class BackupSystem(Thread):
             "plan.nextOccurrence": {"$lte": now}
         }
 
-        for backup in self._backup_collection.find(q):
+        bc = get_mbs().backup_collection
+        for backup in bc.find(q):
             self.info("Cancelling backup %s" % backup._id)
             backup.state = STATE_CANCELED
-            update_backup(backup, properties="state",
-                          event_name=EVENT_STATE_CHANGE,
-                          message="Backup is past due. Canceling...")
+            bc.update_task(backup, properties="state",
+                           event_name=EVENT_STATE_CHANGE,
+                           message="Backup is past due. Canceling...")
 
     ###########################################################################
     def _reschedule_in_cycle_failed_backups(self):
@@ -336,7 +298,7 @@ class BackupSystem(Thread):
             "$where": where
         }
 
-        for backup in self._backup_collection.find(q):
+        for backup in get_mbs().backup_collection.find(q):
             self.reschedule_backup(backup)
 
     ###########################################################################
@@ -347,7 +309,7 @@ class BackupSystem(Thread):
             "state": STATE_FAILED
         }
 
-        for backup in self._backup_collection.find(q):
+        for backup in get_mbs().backup_collection.find(q):
             self.reschedule_backup(backup, from_scratch=from_scratch)
 
     ###########################################################################
@@ -372,17 +334,18 @@ class BackupSystem(Thread):
         if backup.plan:
             backup.tags = backup.plan.generate_tags()
 
+        bc = get_mbs().backup_collection
         # if from_scratch is set then clear backup log
         if from_scratch:
             backup.logs = []
             backup.try_count = 0
             backup.engine_guid = None
-            update_backup(backup, properties=["logs", "tryCount",
-                                              "engineGuid"])
+            bc.update_task(backup, properties=["logs", "tryCount",
+                                               "engineGuid"])
 
-        update_backup(backup, properties=["state", "tags"],
-                      event_name=EVENT_STATE_CHANGE,
-                      message="Rescheduling")
+        bc.update_task(backup, properties=["state", "tags"],
+                       event_name=EVENT_STATE_CHANGE,
+                       message="Rescheduling")
 
     ###########################################################################
     def schedule_new_backup(self, plan, one_time=False):
@@ -401,7 +364,7 @@ class BackupSystem(Thread):
             self._set_plan_next_occurrence(plan)
             backup.plan = plan
         backup_doc = backup.to_document()
-        self._backup_collection.save_document(backup_doc)
+        get_mbs().backup_collection.save_document(backup_doc)
         # set the backup id from the saved doc
         backup.id = backup_doc["_id"]
 
@@ -417,7 +380,7 @@ class BackupSystem(Thread):
                 "nextOccurrence": plan.next_occurrence
             }
         }
-        self._plan_collection.update(spec=q, document=u)
+        get_mbs().plan_collection.update(spec=q, document=u)
 
     ###########################################################################
     def save_plan(self, plan):
@@ -441,7 +404,7 @@ class BackupSystem(Thread):
             else:
                 self.info("Saving new plan: \n%s" % plan)
 
-            self._plan_collection.save_document(plan.to_document())
+            get_mbs().plan_collection.save_document(plan.to_document())
 
             self.info("Plan saved successfully")
         except Exception, e:
@@ -451,22 +414,35 @@ class BackupSystem(Thread):
     ###########################################################################
     def remove_plan(self, plan):
         logger.info("Removing plan '%s' " % plan.id)
-        self._plan_collection.remove_by_id(plan.id)
+        get_mbs().plan_collection.remove_by_id(plan.id)
 
     ###########################################################################
     def delete_backup(self, backup_id):
         """
             Deletes the specified backup. Deleting here means expiring
         """
-        backup_id = objectiditify(backup_id)
-
-        backup = self.backup_collection.find_one(backup_id)
-        if (backup.target_reference and
+        backup = get_mbs().backup_collection.get_by_id(backup_id)
+        if (backup and backup.target_reference and
             not backup.target_reference.expired_date):
             expire_backup(backup, date_now())
             return True
 
         return False
+
+    ###########################################################################
+    def schedule_backup_restore(self, backup, destination):
+        logger.info("Scheduling a restore for backup '%s'" % backup.id)
+        restore = Restore()
+
+        restore.source_backup = backup
+        restore.strategy = backup.strategy
+        restore.destination = destination
+        restore.tags = restore.source_backup.tags
+        restore.state = STATE_SCHEDULED
+        restore.created_date = date_now()
+
+        logger.info("Saving restore task: %s" % restore)
+        get_mbs().restore_collection.save_document(restore.to_document())
 
     ###########################################################################
     def _check_audit(self):
@@ -552,7 +528,7 @@ class BackupSystem(Thread):
             ]
         }
 
-        starving_backups = self._backup_collection.find(q)
+        starving_backups = get_mbs().backup_collection.find(q)
 
         if starving_backups:
             msg = ("You have %s scheduled backups that has past the maximum "
@@ -560,10 +536,10 @@ class BackupSystem(Thread):
                    (len(starving_backups), MAX_BACKUP_WAIT_TIME))
             self.info(msg)
 
-            if self._notification_handler:
-                self.info("Sending a notification...")
-                sbj = "Past due scheduled backups"
-                self._notification_handler.send_notification(sbj, msg)
+
+            self.info("Sending a notification...")
+            sbj = "Past due scheduled backups"
+            get_mbs().send_notification(sbj, msg)
 
     ###########################################################################
     def _notify_on_late_in_progress_backups(self):
@@ -580,7 +556,7 @@ class BackupSystem(Thread):
             }
         }
 
-        late_backups = self._backup_collection.find(q)
+        late_backups = get_mbs().backup_collection.find(q)
 
         if late_backups:
             msg = ("You have %s in-progress backups that has been running for"
@@ -588,20 +564,18 @@ class BackupSystem(Thread):
                    (len(late_backups), MAX_BACKUP_WAIT_TIME))
             self.info(msg)
 
-            if self._notification_handler:
-                self.info("Sending a notification...")
-                sbj = "Late in-progress backups"
-                self._notification_handler.send_notification(sbj, msg)
+
+            self.info("Sending a notification...")
+            sbj = "Late in-progress backups"
+            get_mbs().send_notification(sbj, msg)
 
     ###########################################################################
     def _notify_error(self, exception):
-        if self._notification_handler:
-            subject = "BackupSystem Error"
-            message = ("BackupSystem Error!.\n\nStack Trace:\n%s" %
-                       traceback.format_exc())
+        subject = "BackupSystem Error"
+        message = ("BackupSystem Error!.\n\nStack Trace:\n%s" %
+                   traceback.format_exc())
 
-            nh = self._notification_handler
-            nh.send_error_notification(subject, message, exception)
+        get_mbs().send_error_notification(subject, message, exception)
 
     ###########################################################################
     def _kill_backup_system_process(self):
@@ -825,3 +799,53 @@ class BackupSystemCommandServer(Thread):
         except Exception, e:
             raise BackupSystemError("Error while stopping flask server:"
                                         " %s" %e)
+
+
+
+###############################################################################
+# HELPERS
+###############################################################################
+def expire_backup(backup, expired_date):
+    """
+        expires the backup
+    """
+    # TODO: This should become a private instance method
+    bc = get_mbs().backup_collection
+    # Block other threads (through DB) from doing same operation
+    q = {
+        "_id": backup.id,
+        "targetReference": {"$exists": True},
+        "$or": [
+                {"targetReference.expiredDate": {"$exists": False}},
+                {"targetReference.expiredDate": None}
+        ]
+    }
+    u = {
+        "$set": {"targetReference.expiredDate": expired_date}
+    }
+    backup = bc.find_and_modify(query=q, update=u)
+    if backup:
+        logger.info("Expiring backup '%s'" %  backup.id)
+
+        target_ref = backup.target_reference
+
+        # if the target reference is a cloud storage one then make the cloud
+        # storage object take care of it
+        if isinstance(target_ref, CloudBlockStorageSnapshotReference):
+            logger.info("Deleting backup '%s' snapshot " % backup.id)
+            target_ref.cloud_block_storage.delete_snapshot(target_ref)
+        else:
+            logger.info("Deleting backup '%s file" % backup.id)
+            backup.target.delete_file(target_ref)
+
+        # expire log file
+        if backup.log_target_reference:
+            backup.target.delete_file(backup.log_target_reference)
+            backup.log_target_reference.expired_date = expired_date
+
+        backup.target_reference.expired_date = expired_date
+        # no need to persist the expiredDate since
+        bc.update_task(backup, event_name="EXPIRING", message="Expiring",
+                       properties=["logTargetReference"])
+
+        logger.info("Backup %s archived successfully!" % backup.id)

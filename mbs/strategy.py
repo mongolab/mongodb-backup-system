@@ -11,9 +11,11 @@ import mongo_uri_tools
 from mbs import get_mbs
 
 from base import MBSObject
-from persistence import update_backup
+from persistence import update_backup, update_restore
 from mongo_utils import (MongoCluster, MongoServer,
                          MongoNormalizedVersion, build_mongo_connector)
+
+from date_utils import timedelta_total_seconds, date_now
 
 from subprocess import CalledProcessError
 from errors import *
@@ -24,7 +26,7 @@ from utils import (which, ensure_dir, execute_command, execute_command_wrapper,
 from target import CBS_STATUS_PENDING, CBS_STATUS_COMPLETED, CBS_STATUS_ERROR
 
 
-from backup import EVENT_TYPE_WARNING
+from task import EVENT_TYPE_WARNING
 from robustify.robustify import robustify
 from naming_scheme import *
 
@@ -54,8 +56,8 @@ PREF_BEST = "BEST"
 logger = mbs_logging.logger
 
 ###############################################################################
-def _is_backup_reschedulable( backup, exception):
-        return (backup.try_count < MAX_NO_RETRIES and
+def _is_task_reschedulable( task, exception):
+        return (task.try_count < MAX_NO_RETRIES and
                 is_exception_retriable(exception))
 
 ###############################################################################
@@ -128,7 +130,7 @@ class BackupStrategy(MBSObject):
             self._do_run_backup(backup)
         except Exception, e:
             # set reschedulable
-            backup.reschedulable = _is_backup_reschedulable(backup, e)
+            backup.reschedulable = _is_task_reschedulable(backup, e)
             update_backup(backup, properties="reschedulable")
             raise
 
@@ -270,6 +272,11 @@ class BackupStrategy(MBSObject):
         # backup the mongo connector
         self.do_backup_mongo_connector(backup, mongo_connector)
 
+        # calculate backup rate
+        self._calculate_backup_rate(backup)
+
+        self._apply_retention_policy(backup)
+
     ###########################################################################
     def _needs_new_source_stats(self, backup):
         """
@@ -283,6 +290,34 @@ class BackupStrategy(MBSObject):
             Does the actual work. Has to be overridden by subclasses
         """
 
+    ###########################################################################
+    def _calculate_backup_rate(self, backup):
+        duration = timedelta_total_seconds(date_now() - backup.start_date)
+        if backup.source_stats and backup.source_stats.get("dataSize"):
+            size_mb = float(backup.source_stats["dataSize"]) / (1024 * 1024)
+            rate = size_mb/duration
+            rate = round(rate, 2)
+            if rate:
+                backup.backup_rate_in_mbps = rate
+                # save changes
+                update_backup(backup, properties="backupRateInMBPS")
+
+    ###########################################################################
+    def _apply_retention_policy(self, backup):
+        """
+            apply the backup plan's retention policy if any.
+            No retention policies for one offs yet
+        """
+        #TODO add retention policy for one-offs
+        try:
+            plan = backup.plan
+            if plan and plan.retention_policy:
+                plan.retention_policy.apply_policy(plan)
+        except Exception, e:
+            msg = ("Error while applying retention policy for backup plan "
+                   "'%s'. %s" % (backup.plan.id, e))
+            logger.error(msg)
+            get_mbs().send_error_notification("Retention Policy Error", msg, e)
 
     ###########################################################################
     def cleanup_backup(self, backup):
@@ -299,14 +334,44 @@ class BackupStrategy(MBSObject):
             else:
                 logger.error("workspace dir %s does not exist!" % workspace)
         except Exception, e:
-            logger.error("Cleanup error for backup '%s': %s" % (backup.id, e))
+            logger.error("Cleanup error for task '%s': %s" % (backup.id, e))
 
     ###########################################################################
-    def restore_backup(self, backup):
+    def run_restore(self, restore):
+        try:
+            self._do_run_restore(restore)
+        except Exception, e:
+            # set reschedulable
+            restore.reschedulable = _is_task_reschedulable(restore, e)
+            update_restore(restore, properties="reschedulable")
+            raise
+
+    ###########################################################################
+    def _do_run_restore(self, restore):
         """
-            Does the actual work. Has to be overridden by subclasses
+            Does the actual restore. Must be overridden by subclasses
         """
 
+    ###########################################################################
+    def cleanup_restore(self, restore):
+
+        # delete the temp dir
+        workspace = restore.workspace
+        logger.info("Cleanup: deleting workspace dir %s" % workspace)
+        update_restore(restore, event_name="CLEANUP",
+                       message="Running cleanup")
+
+        try:
+
+            if os.path.exists(workspace):
+                shutil.rmtree(workspace)
+            else:
+                logger.error("workspace dir %s does not exist!" % workspace)
+        except Exception, e:
+            logger.error("Cleanup error for task '%s': %s" % (restore.id, e))
+
+    ###########################################################################
+    # Helpers
     ###########################################################################
     def _validate_max_data_size(self, backup):
         if (self.max_data_size and
@@ -466,9 +531,6 @@ class DumpStrategy(BackupStrategy):
         """
         source = backup.source
 
-        # ensure backup workspace
-        ensure_dir(backup.workspace)
-
         # run mongoctl dump
         if not backup.is_event_logged(EVENT_END_EXTRACT):
             try:
@@ -570,9 +632,9 @@ class DumpStrategy(BackupStrategy):
                                                         log_dest_path,
                                                       overwrite_existing=True)
 
-        backup.backup_log_target_reference = log_target_reference
+        backup.log_target_reference = log_target_reference
 
-        update_backup(backup, properties="backupLogTargetReference",
+        update_backup(backup, properties="logTargetReference",
                       event_name="END_UPLOAD_LOG_FILE",
                       message="Log file upload completed!")
 
@@ -806,6 +868,59 @@ class DumpStrategy(BackupStrategy):
     def _get_failed_tar_file_path(self, backup):
         return os.path.join(backup.workspace, _failed_tar_file_name(backup))
 
+    ###########################################################################
+    # Restore implementation
+    ###########################################################################
+    def _do_run_restore(self, restore):
+        logger.info("Running dump restore '%s'" % restore.id)
+        # download source backup tar
+        backup = restore.source_backup
+        working_dir = restore.workspace
+        file_reference = backup.target_reference
+
+        logger.info("Downloading restore '%s' dump tar file '%s'" %
+                    (restore.id, file_reference.file_name))
+        backup.target.get_file(file_reference, restore.workspace)
+
+        # extract tar
+        logger.info("Extracting tar file '%s'" % file_reference.file_name)
+
+        tarx_cmd = [
+            which("tar"),
+            "-xf",
+            file_reference.file_name
+        ]
+
+        logger.info("Running tar extract command: %s" % tarx_cmd)
+        try:
+            execute_command(tarx_cmd, cwd=working_dir)
+        except CalledProcessError, cpe:
+            logger.error("%s\n%s" % (cpe, cpe.output))
+            raise
+
+        # run mongoctl restore
+        logger.info("Restoring using mongoctl restore")
+        restore_source_path = file_reference.file_name[: -4]
+        dest_uri = restore.destination.uri
+        uri_wrapper = mongo_uri_tools.parse_mongo_uri(dest_uri)
+        if uri_wrapper.database:
+            restore_source_path += uri_wrapper.database
+
+        restore_cmd = [
+            which("mongoctl"),
+            "restore",
+            restore.destination.uri,
+            restore_source_path
+        ]
+
+        logger.info("Running mongoctl restore command: %s" % restore_cmd)
+        try:
+            execute_command(restore_cmd, cwd=working_dir)
+        except CalledProcessError, cpe:
+            logger.error("%s\n%s" % (cpe, cpe.output))
+            raise
+
+
 ###############################################################################
 # Helpers
 ###############################################################################
@@ -929,7 +1044,7 @@ class CloudBlockStorageStrategy(BackupStrategy):
                     backup.id)
 
         update_backup(backup, event_name="START_BLOCK_STORAGE_SNAPSHOT",
-            message="Kicking off snapshot")
+                      message="Kicking off snapshot")
 
 
         snapshot_ref = cbs.create_snapshot(backup.name, backup.description)
@@ -1043,6 +1158,11 @@ class HybridStrategy(BackupStrategy):
                                                              mongo_connector)
 
         selected_strategy.backup_mongo_connector(backup, mongo_connector)
+
+    ###########################################################################
+    def _do_run_restore(self, restore):
+        if restore.source_backup.is_event_logged(EVENT_END_EXTRACT):
+            return self.dump_strategy._do_run_restore(restore)
 
     ###########################################################################
     def _set_backup_name_and_desc(self, backup):

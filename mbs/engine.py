@@ -18,7 +18,7 @@ from flask.globals import request
 from threading import Thread
 
 
-from errors import MBSError
+from errors import MBSError, BackupEngineError
 
 from utils import (ensure_dir, resolve_path, get_local_host_name,
                    document_pretty_string)
@@ -28,11 +28,11 @@ from mbs import get_mbs
 from date_utils import  timedelta_total_seconds, date_now, date_minus_seconds
 
 
-from backup import (STATE_SCHEDULED, STATE_IN_PROGRESS, STATE_FAILED,
-                    STATE_SUCCEEDED, STATE_CANCELED,
-                    EVENT_TYPE_ERROR, EVENT_STATE_CHANGE, state_change_log_entry)
+from task import (STATE_SCHEDULED, STATE_IN_PROGRESS, STATE_FAILED,
+                  STATE_SUCCEEDED, STATE_CANCELED, EVENT_TYPE_ERROR,
+                  EVENT_STATE_CHANGE, state_change_log_entry)
 
-from persistence import update_backup
+from backup import Backup
 
 ###############################################################################
 # CONSTANTS
@@ -72,23 +72,28 @@ class BackupEngine(Thread):
 
     ###########################################################################
     def __init__(self, id=None, max_workers=10,
-                       sleep_time=10,
                        temp_dir=None,
-                       notification_handler=None,
                        command_port=8888):
         Thread.__init__(self)
         self._id = id
         self._engine_guid = None
-        self._sleep_time = sleep_time
-        self._worker_count = 0
         self._max_workers = int(max_workers)
         self._temp_dir = resolve_path(temp_dir or DEFAULT_BACKUP_TEMP_DIR_ROOT)
-        self._notification_handler = notification_handler
-        self._stopped = False
         self._command_port = command_port
         self._command_server = EngineCommandServer(self)
         self._tags = None
-        self._tick_count = 0
+        self._stopped = False
+
+        # create the backup processor
+        bc = get_mbs().backup_collection
+        self._backup_processor = TaskQueueProcessor("Backups", bc, self,
+                                                    self._max_workers)
+
+        # create the restore processor
+        rc = get_mbs().restore_collection
+        self._restore_processor = TaskQueueProcessor("Restores", rc, self,
+                                                     self._max_workers)
+
 
     ###########################################################################
     @property
@@ -150,15 +155,6 @@ class BackupEngine(Thread):
         self._command_port = command_port
 
     ###########################################################################
-    @property
-    def notification_handler(self):
-        return self._notification_handler
-
-    @notification_handler.setter
-    def notification_handler(self, handler):
-        self._notification_handler = handler
-
-    ###########################################################################
     def run(self):
         self.info("Starting up... ")
         self.info("PID is %s" % os.getpid())
@@ -172,90 +168,21 @@ class BackupEngine(Thread):
         self._update_pid_file()
         # Start the command server
         self._start_command_server()
-        self._recover()
 
-        while not self._stopped:
-            try:
-                self._tick()
-                time.sleep(self._sleep_time)
-            except Exception, e:
-                self.error("Caught an error: '%s'.\nStack Trace:\n%s" %
-                           (e, traceback.format_exc()))
-                self._notify_error(e)
+        # start the backup processor
+        self._backup_processor.start()
 
-        self.info("Exited main loop")
+        # start the restore processor
+        self._restore_processor.start()
+
+        # start the backup processor
+        self._backup_processor.join()
+
+        # start the restore processor
+        self._restore_processor.join()
+
+        self.info("Engine completed")
         self._pre_shutdown()
-
-    ###########################################################################
-    def _tick(self):
-        # increase tick_counter
-        self._tick_count += 1
-
-        # try to start the next backup if there are available workers
-        if self._has_available_workers():
-            self._start_next_backup()
-
-        # Cancel a failed backup every 100 ticks and there are available
-        # workers
-        if self._tick_count % 100 == 0 and self._has_available_workers():
-            self._clean_next_past_due_failed_backup()
-
-    ###########################################################################
-    def _start_next_backup(self):
-        backup = self.read_next_backup()
-        if backup:
-            self._start_backup(backup)
-
-    ###########################################################################
-    def _clean_next_past_due_failed_backup(self):
-
-        # read next failed past due backup
-        backup = self._read_next_failed_past_due_backup()
-        if backup:
-            # clean it
-            worker_id = self.next_worker_id()
-            self.info("Starting cleaner worker for backup '%s'" % backup.id)
-            BackupCleanerWorker(worker_id, backup, self).start()
-
-    ###########################################################################
-    def _start_backup(self, backup):
-        self.info("Received  backup %s" % backup)
-        worker_id = self.next_worker_id()
-        self.info("Starting backup %s, BackupWorker %s" %
-                  (backup._id, worker_id))
-        BackupWorker(worker_id, backup, self).start()
-
-    ###########################################################################
-    def _has_available_workers(self):
-        return self._worker_count < self.max_workers
-
-    ###########################################################################
-    def next_worker_id(self):
-        self._worker_count+= 1
-        return self._worker_count
-
-    ###########################################################################
-    def worker_fail(self, worker, exception, trace=None):
-        if isinstance(exception, MBSError):
-            log_msg = exception.message
-        else:
-            log_msg = "Unexpected error. Please contact admin"
-
-        details = "%s. Stack Trace: %s" % (exception, trace)
-        update_backup(worker.backup, event_type=EVENT_TYPE_ERROR,
-                      message=log_msg, details=details)
-
-        self.worker_finished(worker, STATE_FAILED)
-
-        backup = worker.backup
-        # send a notification only if the backup is not reschedulable
-        if not backup.reschedulable and self.notification_handler:
-            subject = "Backup failed"
-            message = ("Backup '%s' failed.\n%s\n\nCause: \n%s\nStack Trace:"
-                       "\n%s" % (backup.id, backup, exception, trace))
-
-            nh = self.notification_handler
-            nh.notify_on_backup_failure(backup, exception, trace)
 
     ###########################################################################
     def _notify_error(self, exception):
@@ -263,147 +190,8 @@ class BackupEngine(Thread):
         message = ("BackupEngine '%s' Error!. Cause: %s. "
                    "\n\nStack Trace:\n%s" %
                    (self.engine_guid, exception, traceback.format_exc()))
-        self._send_error_notification(subject, message, exception)
+        get_mbs().send_error_notification(subject, message, exception)
 
-    ###########################################################################
-    def _send_notification(self, subject, message):
-        if self.notification_handler:
-            self.notification_handler.send_notification(subject, message)
-
-    ###########################################################################
-    def _send_error_notification(self, subject, message, exception):
-        if self.notification_handler:
-            self.notification_handler.send_error_notification(subject, message,
-                                                              exception)
-    ###########################################################################
-    def worker_success(self, worker):
-        update_backup(worker.backup,
-                      message="Backup completed successfully!")
-
-        self.worker_finished(worker, STATE_SUCCEEDED)
-
-    ###########################################################################
-    def cleaner_finished(self, worker):
-        self.worker_finished(worker, STATE_CANCELED)
-
-    ###########################################################################
-    def worker_finished(self, worker, state, message=None):
-        backup = worker.backup
-        # set end date
-        backup.end_date = date_now()
-        # decrease worker count and update state
-        self._worker_count -= 1
-        backup.state = state
-        update_backup(backup, properties=["state", "endDate"],
-                      event_name=EVENT_STATE_CHANGE, message=message)
-
-    ###########################################################################
-    def _recover(self):
-        """
-        Does necessary recovery work on crashes. Fails all backups that crashed
-        while in progress and makes them reschedulable. Backup System will
-        decide to cancel them or reschedule them.
-        """
-        self.info("Running recovery..")
-
-        q = {
-            "state": STATE_IN_PROGRESS,
-            "engineGuid": self.engine_guid
-        }
-
-        total_crashed = 0
-        msg = ("Engine crashed while backup was in progress. Failing...")
-        for backup in self.backup_collection.find(q):
-            # fail backup
-            self.info("Recovery: Failing backup %s" % backup._id)
-            backup.reschedulable = True
-            backup.state = STATE_FAILED
-            backup.end_date = date_now()
-            # update
-            update_backup(backup, properties=["state", "reschedulable",
-                                              "endDate"],
-                          event_type=EVENT_STATE_CHANGE, message=msg)
-
-            total_crashed += 1
-
-
-
-        self.info("Recovery complete! Total Crashed backups: %s." %
-                  total_crashed)
-
-    ###########################################################################
-    def read_next_backup(self):
-
-        log_entry = state_change_log_entry(STATE_IN_PROGRESS)
-        q = self._get_scheduled_backups_query()
-        u = {"$set" : { "state" : STATE_IN_PROGRESS,
-                        "engineGuid": self.engine_guid},
-             "$push": {"logs":log_entry.to_document()}}
-
-        # sort by priority except every third tick, we sort by created date to
-        # avoid starvation
-        if self._tick_count % 5 == 0:
-            s = [("createdDate", 1)]
-        else:
-            s = [("priority", 1)]
-
-        c = self.backup_collection
-
-        backup = c.find_and_modify(query=q, sort=s, update=u, new=True)
-
-        return backup
-
-    ###########################################################################
-    def _read_next_failed_past_due_backup(self):
-        min_fail_end_date = date_minus_seconds(date_now(), MAX_FAIL_DUE_TIME)
-        q = { "state": STATE_FAILED,
-              "engineGuid": self.engine_guid,
-              "$or": [
-                  {
-                      "plan.nextOccurrence": {"$lte": date_now()}
-                  },
-
-                  {
-                      "plan": {"$exists": False},
-                      "reschedulable": False,
-                      "endDate": {"$lte": min_fail_end_date}
-                  }
-
-
-              ]
-        }
-
-        msg = "Backup failed and is past due. Cancelling..."
-        log_entry = state_change_log_entry(STATE_CANCELED, message=msg)
-        u = {"$set" : { "state" : STATE_CANCELED},
-             "$push": {
-                 "logs": log_entry.to_document()
-             }
-        }
-
-        return self.backup_collection.find_and_modify(query=q, update=u,
-                                                       new=True)
-
-    ###########################################################################
-    def _get_scheduled_backups_query(self):
-        q = {"state" : STATE_SCHEDULED}
-
-        # add tags if specified
-        if self.tags:
-            tag_filters = []
-            for name,value in self.tags.items():
-                tag_prop_path = "tags.%s" % name
-                tag_filters.append({tag_prop_path: value})
-
-            q["$or"] = tag_filters
-        else:
-            q["$or"]= [
-                    {"tags" : {"$exists": False}},
-                    {"tags" : {}},
-                    {"tags" : None}
-            ]
-
-        return q
 
     ###########################################################################
     def _get_tag_bindings(self):
@@ -514,6 +302,11 @@ class BackupEngine(Thread):
                 }
 
     ###########################################################################
+    @property
+    def worker_count(self):
+        return (self._backup_processor._worker_count +
+                self._restore_processor._worker_count)
+    ###########################################################################
     def _do_stop(self):
         """
             Stops the engine gracefully by waiting for all workers to finish
@@ -521,24 +314,28 @@ class BackupEngine(Thread):
             Returns true if it will stop immediately (i.e. no workers running)
         """
         self.info("Stopping engine gracefully. Waiting for %s workers"
-                  " to finish" % self._worker_count)
+                  " to finish" % self.worker_count)
 
-        self._stopped = True
-        return self._worker_count == 0
+        self._backup_processor._stopped = True
+        self._restore_processor._stopped = True
+        return self.worker_count == 0
 
     ###########################################################################
     def _do_get_status(self):
         """
             Gets the status of the engine
         """
-        if self._stopped:
+        if self._backup_processor._stopped:
             status = STATUS_STOPPING
         else:
             status = STATUS_RUNNING
 
         return {
             "status": status,
-            "workers": self._worker_count
+            "workers": {
+                "backups": self._backup_processor._worker_count,
+                "restores": self._restore_processor._worker_count
+            }
         }
 
     ###########################################################################
@@ -575,160 +372,376 @@ class BackupEngine(Thread):
 
 
 ###############################################################################
-# BackupWorker
+# TaskWorker
 ###############################################################################
 
-class BackupWorker(Thread):
-
+class TaskQueueProcessor(Thread):
     ###########################################################################
-    def __init__(self, id, backup, engine):
+    def __init__(self, name, task_collection, engine, max_workers=10):
         Thread.__init__(self)
-        self._id = id
-        self._backup = backup
+
+        self._name = name
+        self._task_collection = task_collection
         self._engine = engine
-
-    ###########################################################################
-    @property
-    def backup(self):
-        return self._backup
-
-    ###########################################################################
-    @property
-    def engine(self):
-        return self._engine
+        self._sleep_time = 10
+        self._stopped = False
+        self._worker_count = 0
+        self._max_workers = int(max_workers)
+        self._tick_count = 0
 
     ###########################################################################
     def run(self):
-        backup = self.backup
+        self._recover()
+
+        while not self._stopped:
+            try:
+                self._tick()
+                time.sleep(self._sleep_time)
+            except Exception, e:
+                self.error("Caught an error: '%s'.\nStack Trace:\n%s" %
+                           (e, traceback.format_exc()))
+                self._engine._notify_error(e)
+
+        self.info("Exited main loop")
+
+    ###########################################################################
+    def _tick(self):
+        # increase tick_counter
+        self._tick_count += 1
+
+        # try to start the next task if there are available workers
+        if self._has_available_workers():
+            self._start_next_task()
+
+        # Cancel a failed task every 100 ticks and there are available
+        # workers
+        if self._tick_count % 100 == 0 and self._has_available_workers():
+            self._clean_next_past_due_failed_task()
+
+    ###########################################################################
+    def _start_next_task(self):
+        task = self.read_next_task()
+        if task:
+            self._start_task(task)
+
+    ###########################################################################
+    def _clean_next_past_due_failed_task(self):
+
+        # read next failed past due task
+        task = self._read_next_failed_past_due_task()
+        if task:
+            # clean it
+            worker_id = self.next_worker_id()
+            self.info("Starting cleaner worker for task '%s'" % task.id)
+            TaskCleanWorker(worker_id, task, self).start()
+
+    ###########################################################################
+    def _start_task(self, task):
+        self.info("Received  task %s" % task)
+        worker_id = self.next_worker_id()
+        self.info("Starting task %s, TaskWorker %s" %
+                  (task._id, worker_id))
+        TaskWorker(worker_id, task, self).start()
+
+    ###########################################################################
+    def _has_available_workers(self):
+        return self._worker_count < self._max_workers
+
+    ###########################################################################
+    def next_worker_id(self):
+        self._worker_count+= 1
+        return self._worker_count
+
+    ###########################################################################
+    def worker_fail(self, worker, exception, trace=None):
+        if isinstance(exception, MBSError):
+            log_msg = exception.message
+        else:
+            log_msg = "Unexpected error. Please contact admin"
+
+        details = "%s. Stack Trace: %s" % (exception, trace)
+        self._task_collection.update_task(worker.task, event_type=EVENT_TYPE_ERROR,
+            message=log_msg, details=details)
+
+        self.worker_finished(worker, STATE_FAILED)
+
+        nh = get_mbs().notification_handler
+        # send a notification only if the task is not reschedulable
+        if not worker.task.reschedulable and nh:
+
+
+            nh.notify_on_task_failure(worker.task, exception, trace)
+
+    ###########################################################################
+    def worker_success(self, worker):
+        self._task_collection.update_task(worker.task,
+                                    message="Task completed successfully!")
+
+        self.worker_finished(worker, STATE_SUCCEEDED)
+
+    ###########################################################################
+    def cleaner_finished(self, worker):
+        self.worker_finished(worker, STATE_CANCELED)
+
+    ###########################################################################
+    def worker_finished(self, worker, state, message=None):
+
+        # set end date
+        worker.task.end_date = date_now()
+        # decrease worker count and update state
+        self._worker_count -= 1
+        worker.task.state = state
+        self._task_collection.update_task(worker.task,
+                              properties=["state", "endDate"],
+                              event_name=EVENT_STATE_CHANGE, message=message)
+
+    ###########################################################################
+    def _recover(self):
+        """
+        Does necessary recovery work on crashes. Fails all tasks that crashed
+        while in progress and makes them reschedulable. Backup System will
+        decide to cancel them or reschedule them.
+        """
+        self.info("Running recovery..")
+
+        q = {
+            "state": STATE_IN_PROGRESS,
+            "engineGuid": self._engine.engine_guid
+        }
+
+        total_crashed = 0
+        msg = ("Engine crashed while task was in progress. Failing...")
+        for task in self._task_collection.find(q):
+            # fail task
+            self.info("Recovery: Failing task %s" % task._id)
+            task.reschedulable = True
+            task.state = STATE_FAILED
+            task.end_date = date_now()
+            # update
+            self._task_collection.update_task(task,
+                                              properties=["state",
+                                                          "reschedulable",
+                                                          "endDate"],
+                                              event_type=EVENT_STATE_CHANGE,
+                                              message=msg)
+
+            total_crashed += 1
+
+
+
+        self.info("Recovery complete! Total Crashed task: %s." %
+                  total_crashed)
+
+    ###########################################################################
+    def read_next_task(self):
+
+        log_entry = state_change_log_entry(STATE_IN_PROGRESS)
+        q = self._get_scheduled_tasks_query()
+        u = {"$set" : { "state" : STATE_IN_PROGRESS,
+                        "engineGuid": self._engine.engine_guid},
+             "$push": {"logs":log_entry.to_document()}}
+
+        # sort by priority except every third tick, we sort by created date to
+        # avoid starvation
+        if self._tick_count % 5 == 0:
+            s = [("createdDate", 1)]
+        else:
+            s = [("priority", 1)]
+
+        c = self._task_collection
+
+        task = c.find_and_modify(query=q, sort=s, update=u, new=True)
+
+        return task
+
+    ###########################################################################
+    def _read_next_failed_past_due_task(self):
+        min_fail_end_date = date_minus_seconds(date_now(), MAX_FAIL_DUE_TIME)
+        q = { "state": STATE_FAILED,
+              "engineGuid": self._engine.engine_guid,
+              "$or": [
+                      {
+                      "plan.nextOccurrence": {"$lte": date_now()}
+                  },
+
+                      {
+                      "plan": {"$exists": False},
+                      "reschedulable": False,
+                      "endDate": {"$lte": min_fail_end_date}
+                  }
+
+
+              ]
+        }
+
+        msg = "Task failed and is past due. Cancelling..."
+        log_entry = state_change_log_entry(STATE_CANCELED, message=msg)
+        u = {"$set" : { "state" : STATE_CANCELED},
+             "$push": {
+                 "logs": log_entry.to_document()
+             }
+        }
+
+        return self._task_collection.find_and_modify(query=q, update=u,
+                                                     new=True)
+
+    ###########################################################################
+    def _get_scheduled_tasks_query(self):
+        q = {"state" : STATE_SCHEDULED}
+
+        # add tags if specified
+        if self._engine.tags:
+            tag_filters = []
+            for name,value in self._engine.tags.items():
+                tag_prop_path = "tags.%s" % name
+                tag_filters.append({tag_prop_path: value})
+
+            q["$or"] = tag_filters
+        else:
+            q["$or"]= [
+                    {"tags" : {"$exists": False}},
+                    {"tags" : {}},
+                    {"tags" : None}
+            ]
+
+        return q
+
+    ###########################################################################
+    # Logging methods
+    ###########################################################################
+    def info(self, msg):
+        self._engine.info("%s Task Processor: %s" % (self._name, msg))
+
+    ###########################################################################
+    def warning(self, msg):
+        self._engine.info("%s Task Processor: %s" % (self._name, msg))
+
+    ###########################################################################
+    def error(self, msg):
+        self._engine.info("%s Task Processor: %s" % (self._name, msg))
+
+###############################################################################
+# TaskWorker
+###############################################################################
+
+class TaskWorker(Thread):
+
+    ###########################################################################
+    def __init__(self, id, task, processor):
+        Thread.__init__(self)
+        self._id = id
+        self._task = task
+        self._processor = processor
+
+    ###########################################################################
+    @property
+    def task(self):
+        return self._task
+
+    ###########################################################################
+    @property
+    def processor(self):
+        return self._processor
+
+    ###########################################################################
+    def run(self):
+        task = self.task
 
         try:
             # increase # of tries
-            backup.try_count += 1
+            task.try_count += 1
 
-            self.info("Running %s backup %s (try # %s)" %
-                      (backup.strategy, backup._id, backup.try_count))
+            self.info("Running task %s (try # %s)" %
+                      (task._id, task.try_count))
             # set start date
-            backup.start_date = date_now()
+            task.start_date = date_now()
 
             # set queue_latency_in_minutes if its not already set
-            if not backup.queue_latency_in_minutes:
-                latency = self._calculate_queue_latency(backup)
-                backup.queue_latency_in_minutes = latency
+            if not task.queue_latency_in_minutes:
+                latency = self._calculate_queue_latency(task)
+                task.queue_latency_in_minutes = latency
 
             # clear end date
-            backup.end_date = None
+            task.end_date = None
 
             # set the workspace
-            workspace_dir = self._get_backup_workspace_dir(backup)
-            backup.workspace = workspace_dir
+            workspace_dir = self._get_task_workspace_dir(task)
+            task.workspace = workspace_dir
+
+            # ensure backup workspace
+            ensure_dir(task.workspace)
 
             # UPDATE!
-            update_backup(backup, properties=["tryCount", "startDate",
-                                              "endDate", "workspace",
-                                              "queueLatencyInMinutes"])
-            # apply the retention policy
-            # TODO Probably should be called somewhere else
-            self._apply_retention_policy(backup)
+            self._processor._task_collection.update_task(task,
+                                         properties=["tryCount", "startDate",
+                                                     "endDate", "workspace",
+                                                     "queueLatencyInMinutes"])
 
-            # run the backup
-            self.backup.strategy.run_backup(backup)
-
-
+            # run the task
+            task.execute()
 
             # cleanup temp workspace
-            self.backup.strategy.cleanup_backup(backup)
-
-            # calculate backup rate
-            self._calculate_backup_rate(backup)
+            task.cleanup()
 
             # success!
-            self.engine.worker_success(self)
+            self._processor.worker_success(self)
 
-            self.info("Backup '%s' completed successfully" % backup.id)
+            self.info("Task '%s' completed successfully" % task.id)
 
         except Exception, e:
             # fail
             trace = traceback.format_exc()
-            self.error("Backup failed. Cause %s. \nTrace: %s" % (e, trace))
-            self.engine.worker_fail(self, exception=e, trace=trace)
-        finally:
-            # apply the retention policy
-            # TODO Probably should be called somewhere else
-            self._apply_retention_policy(backup)
+            self.error("Task failed. Cause %s. \nTrace: %s" % (e, trace))
+            self._processor.worker_fail(self, exception=e, trace=trace)
 
 
     ###########################################################################
-    def _get_backup_workspace_dir(self, backup):
-        return os.path.join(self.engine.temp_dir, str(backup._id))
+    def _get_task_workspace_dir(self, task):
+        return os.path.join(self._processor._engine.temp_dir, str(task._id))
+
+
 
     ###########################################################################
-    def _calculate_backup_rate(self, backup):
-        duration = timedelta_total_seconds(date_now() - backup.start_date)
-        if backup.source_stats and backup.source_stats.get("dataSize"):
-            size_mb = float(backup.source_stats["dataSize"]) / (1024 * 1024)
-            rate = size_mb/duration
-            rate = round(rate, 2)
-            if rate:
-                backup.backup_rate_in_mbps = rate
-                # save changes
-                update_backup(backup, properties="backupRateInMBPS")
+    def _calculate_queue_latency(self, task):
+        if isinstance(task, Backup):
+            occurrence_date = task.plan_occurrence or task.created_date
+        else:
+            occurrence_date = task.created_date
 
-    ###########################################################################
-    def _calculate_queue_latency(self, backup):
-        occurrence_date = backup.plan_occurrence or backup.created_date
-
-        latency_secs = timedelta_total_seconds(backup.start_date -
+        latency_secs = timedelta_total_seconds(task.start_date -
                                                occurrence_date)
 
         return round(latency_secs/60, 2)
 
     ###########################################################################
-    def _apply_retention_policy(self, backup):
-        """
-            apply the backup plan's retention policy if any.
-            No retention policies for one offs
-        """
-        try:
-            plan = backup.plan
-            if plan and plan.retention_policy:
-                plan.retention_policy.apply_policy(plan)
-        except Exception, e:
-            msg = ("Error while applying retention policy for backup plan "
-                   "'%s'. %s" % (backup.plan.id, e))
-            logger.error(msg)
-            self.engine._send_error_notification("Retention Policy Error", msg,
-                                                  e)
-
-
-    ###########################################################################
     def info(self, msg):
-        self._engine.info("Worker-%s: %s" % (self._id, msg))
+        self._processor.info("Worker-%s: %s" % (self._id, msg))
 
     ###########################################################################
     def warning(self, msg):
-        self._engine.warning("Worker-%s: %s" % (self._id, msg))
+        self._processor.warning("Worker-%s: %s" % (self._id, msg))
 
     ###########################################################################
     def error(self, msg):
-        self._engine.error("Worker-%s: %s" % (self._id, msg))
+        self._processor.error("Worker-%s: %s" % (self._id, msg))
 
 
 ###############################################################################
-# BackupCleanerWorker
+# TaskCleanWorker
 ###############################################################################
 
-class BackupCleanerWorker(BackupWorker):
+class TaskCleanWorker(TaskWorker):
 
     ###########################################################################
-    def __init__(self, id, backup, engine):
-        BackupWorker.__init__(self, id, backup, engine)
+    def __init__(self, id, task, engine):
+        TaskWorker.__init__(self, id, task, engine)
 
     ###########################################################################
     def run(self):
         try:
-            self.backup.strategy.cleanup_backup(self.backup)
+            self.task.strategy.cleanup_task(self.task)
         finally:
-            self.engine.cleaner_finished(self)
+            self._processor.cleaner_finished(self)
 
 ###############################################################################
 # EngineCommandServer
@@ -755,7 +768,7 @@ class EngineCommandServer(Thread):
                 else:
                     return ("Stop command received. Engine has %s workers "
                             "running and will stop when all workers finish" %
-                            engine._worker_count)
+                            engine.worker_count)
             except Exception, e:
                 return "Error while trying to stop engine: %s" % e
 

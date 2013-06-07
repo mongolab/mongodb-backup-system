@@ -4,7 +4,7 @@ import traceback
 import mbs_logging
 from mbs import get_mbs
 from errors import RetentionPolicyError
-from persistence import expire_backup
+from backup_system import expire_backup
 from base import MBSObject
 from date_utils import date_now, date_minus_seconds
 

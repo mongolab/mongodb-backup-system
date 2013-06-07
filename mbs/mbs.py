@@ -6,7 +6,9 @@ import mbs_config as config
 import mbs_logging
 
 from makerpy.object_collection import ObjectCollection
+from task_collection import MBSTaskCollection
 from makerpy.maker import resolve_class, Maker
+
 from type_bindings import TYPE_BINDINGS
 from indexes import MBS_INDEXES
 from errors import MBSError
@@ -15,6 +17,8 @@ from utils import read_config_json, resolve_function
 from mongo_utils import mongo_connect
 
 from backup import Backup
+from restore import Restore
+
 from plan import BackupPlan
 from audit import AuditReport
 
@@ -50,6 +54,7 @@ class MBS(object):
         self._backup_collection = None
         self._plan_collection = None
         self._audit_collection = None
+        self._restore_collection = None
 
         # load backup system/engines lazily
         self._backup_system = None
@@ -102,21 +107,31 @@ class MBS(object):
     @property
     def backup_collection(self):
         if not self._backup_collection:
-            bc = ObjectCollection(self.database["backups"],
-                clazz=Backup,
-                type_bindings=self._type_bindings)
+            bc = MBSTaskCollection(self.database["backups"],
+                                   clazz=Backup,
+                                   type_bindings=self._type_bindings)
             self._backup_collection = bc
 
         return self._backup_collection
 
     ###########################################################################
     @property
+    def restore_collection(self):
+        if not self._restore_collection:
+            rc = MBSTaskCollection(self.database["restores"],
+                                   clazz=Restore,
+                                   type_bindings=self._type_bindings)
+            self._restore_collection = rc
+
+        return self._restore_collection
+
+    ###########################################################################
+    @property
     def plan_collection(self):
 
         if not self._plan_collection:
-            pc = ObjectCollection(self.database["plans"],
-                clazz=BackupPlan,
-                type_bindings=self._type_bindings)
+            pc = ObjectCollection(self.database["plans"], clazz=BackupPlan,
+                                  type_bindings=self._type_bindings)
             self._plan_collection = pc
 
         return self._plan_collection
@@ -125,9 +140,8 @@ class MBS(object):
     @property
     def audit_collection(self):
         if not self._audit_collection:
-            ac = ObjectCollection(self.database["audits"],
-                clazz=AuditReport,
-                type_bindings=self._type_bindings)
+            ac = ObjectCollection(self.database["audits"], clazz=AuditReport,
+                                  type_bindings=self._type_bindings)
 
             self._audit_collection = ac
 
@@ -171,18 +185,30 @@ class MBS(object):
         backup_system_conf = self._get_config_value("backupSystem")
         if not self._backup_system and backup_system_conf:
             self._backup_system = self._maker.make(backup_system_conf)
-            self._backup_system.plan_collection = self.plan_collection
-            self._backup_system.backup_collection = self.backup_collection
-            self._backup_system.audit_collection = self.audit_collection
-            self._backup_system.notification_handler = \
-                                                    self._notification_handler
 
         return self._backup_system
+
+    ###########################################################################
+    @property
+    def notification_handler(self):
+        return self._notification_handler
 
     ###########################################################################
     def get_notification_handler(self):
         handler_conf = self._get_config_value("notificationHandler")
         return self._maker.make(handler_conf)
+
+    ###########################################################################
+    def send_notification(self, subject, message):
+        nh = self.notification_handler
+        if nh:
+            nh.send_notification(subject, message)
+
+    ###########################################################################
+    def send_error_notification(self, subject, message, exception):
+        nh = self.notification_handler
+        if nh:
+            nh.send_error_notification(subject, message, exception)
 
     ###########################################################################
     def _get_encryptor(self):

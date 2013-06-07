@@ -4,7 +4,10 @@ TYPE_BINDINGS = {
     "BackupSystem": "mbs.backup_system.BackupSystem",
     "BackupEngine": "mbs.engine.BackupEngine",
     "Backup": "mbs.backup.Backup",
-    "BackupLogEntry": "mbs.backup.BackupLogEntry",
+    "Restore": "mbs.restore.Restore",
+    #TODO Completely remove BackupLogEntry because it was changed to EventLogEntry
+    "BackupLogEntry": "mbs.task.EventLogEntry",
+    "EventLogEntry": "mbs.task.EventLogEntry",
     "Plan": "mbs.plan.BackupPlan",
     "Schedule": "mbs.plan.Schedule",
     "Strategy": "mbs.strategy.BackupStrategy",

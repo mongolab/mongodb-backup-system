@@ -11,7 +11,6 @@ from functools import partial
 
 
 from dargparse import dargparse
-from bson.objectid import ObjectId
 from mbs.mbs import get_mbs
 from mbs.engine import STATUS_STOPPED, STATUS_STOPPING, STATUS_RUNNING
 from mbs.utils import (
@@ -19,6 +18,8 @@ from mbs.utils import (
 )
 from mbs import mbs_config
 from mbs.mbs_logging import setup_logging, redirect_std_to_logger
+from mbs.source import MongoSource
+from mbs.persistence import get_backup, get_backup_plan
 
 ###############################################################################
 # MAIN
@@ -155,10 +156,7 @@ def status_engine(parsed_args):
 # Backup System Commands
 ###############################################################################
 def start_backup_system(parsed_args):
-    backup_system = get_mbs().backup_system
-    if not backup_system:
-        print "No backup system configured"
-        exit(1)
+    backup_system = _get_backup_system()
 
     handlers = {signal.SIGINT:  partial(backup_system.stop, force=False),
                 signal.SIGTERM: partial(backup_system.stop, force=True)}
@@ -202,15 +200,11 @@ def _do_start_backup_system(fork=False):
             redirect_std_to_logger()
 
     # forked child process
-    backup_system = get_mbs().backup_system
-    backup_system.start()
+    _get_backup_system().start()
 
 ###############################################################################
 def stop_backup_system(parsed_args):
-    backup_system = get_mbs().backup_system
-    if not backup_system:
-        print "No backup system configured"
-        exit(1)
+    backup_system = _get_backup_system()
 
     status = backup_system.get_status()
     if status["status"] == STATUS_STOPPING:
@@ -224,11 +218,8 @@ def stop_backup_system(parsed_args):
 
 ###############################################################################
 def restart_backup_system(parsed_args):
-    backup_system = get_mbs().backup_system
+    backup_system = _get_backup_system()
 
-    if not backup_system:
-        print "No backup system configured"
-        exit(1)
     # stop the backup_system and wait for it is completely stopped
     backup_system.stop()
     def backup_system_stopped():
@@ -244,136 +235,93 @@ def restart_backup_system(parsed_args):
 
 ###############################################################################
 def status_backup_system(parsed_args):
-    backup_system = get_mbs().backup_system
-    if not backup_system:
-        print "No backup system configured"
-        exit(1)
-
-    print document_pretty_string(backup_system.get_status())
+    print document_pretty_string(_get_backup_system().get_status())
 
 ###############################################################################
 def run_plan_generators(parsed_args):
-    backup_system = get_mbs().backup_system
-    if not backup_system:
-        print "No backup system configured"
-        exit(1)
-
-    backup_system._run_plan_generators()
+    _get_backup_system()._run_plan_generators()
 
 
 ###############################################################################
 # Other Commands
 ###############################################################################
 def generate_audit_reports(parsed_args):
-    global_auditor = get_mbs().backup_system.global_auditor
+    global_auditor = _get_backup_system().global_auditor
     global_auditor.generate_yesterday_audit_reports()
 
 ###############################################################################
 def download_backup(parsed_args):
+    backup = _get_backup(parsed_args.backupId)
 
-    try:
-        backup_id = parsed_args.backupId
-        bc = get_mbs().backup_collection
-        backup = bc.find_one({"_id": ObjectId(backup_id)})
-
-        if backup:
-            if backup.target_reference:
-                if not backup.target_reference.expired:
-                    backup.target.get_file(backup.target_reference,
-                                           os.getcwd())
-                else:
-                    print ("Failed to download. Backup '%s' is expired." %
-                           backup_id)
-                    exit(1)
-
-
-            else:
-                print ("Failed to download. Backup '%s' never uploaded."
-                       % backup_id)
-                exit(1)
+    if backup.target_reference:
+        if not backup.target_reference.expired:
+            backup.target.get_file(backup.target_reference, os.getcwd())
         else:
-            print "No such backup '%s'" % backup_id
+            print ("Failed to download. Backup '%s' is expired." %
+                   backup.id)
             exit(1)
-    except Exception, e:
-        print "%s" % e
+    else:
+        print ("Failed to download. Backup '%s' never uploaded."
+               % backup.id)
         exit(1)
 
 ###############################################################################
 def download_backup_log(parsed_args):
-
-    try:
-        backup_id = parsed_args.backupId
-        bc = get_mbs().backup_collection
-        backup = bc.find_one({"_id": ObjectId(backup_id)})
-
-        if backup:
-            if backup.backup_log_target_reference:
-                if not backup.backup_log_target_reference.expired:
-                    backup.target.get_file(backup.backup_log_target_reference,
-                                           os.getcwd())
-                else:
-                    print ("Failed to download. Backup '%s' is expired." %
-                           backup_id)
-                    exit(1)
-
-
-            else:
-                print ("Failed to download. Backup '%s' never uploaded."
-                       % backup_id)
-                exit(1)
+    backup = _get_backup(parsed_args.backupId)
+    if backup.log_target_reference:
+        if not backup.log_target_reference.expired:
+            backup.target.get_file(backup.log_target_reference, os.getcwd())
         else:
-            print "No such backup '%s'" % backup_id
+            print ("Failed to download. Log for '%s' is expired." %
+                   backup.id)
             exit(1)
-    except Exception, e:
-        print "%s" % e
+
+    else:
+        print ("Failed to download. Log for '%s' never uploaded."
+               % backup.id)
         exit(1)
+
+###############################################################################
+def delete_backup(parsed_args):
+    backup_system = _get_backup_system()
+    backup_system.delete_backup(parsed_args.backupId)
 
 ###############################################################################
 def reschedule_backup(parsed_args):
-
-    try:
-        from_scratch = parsed_args.fromScratch
-        backup_id = parsed_args.backupId
-        bc = get_mbs().backup_collection
-        backup = bc.find_one({"_id": ObjectId(backup_id)})
-
-        if backup:
-           get_mbs().backup_system.reschedule_backup(backup, from_scratch=
-                                                             from_scratch)
-        else:
-            print "No such backup '%s'" % backup_id
-            exit(1)
-    except Exception, e:
-        print "%s" % e
-        exit(1)
+    from_scratch = parsed_args.fromScratch
+    backup = _get_backup()
+    _get_backup_system().reschedule_backup(backup, from_scratch=
+                                                     from_scratch)
 
 ###############################################################################
 def reschedule_all_backups(parsed_args):
-
-    try:
-        from_scratch = parsed_args.fromScratch
-        get_mbs().backup_system.reschedule_all_failed_backups(from_scratch=
-                                                              from_scratch)
-    except Exception, e:
-        print "%s" % e
-        exit(1)
-
+    from_scratch = parsed_args.fromScratch
+    get_mbs().backup_system.reschedule_all_failed_backups(from_scratch=
+                                                           from_scratch)
 
 ###############################################################################
 def schedule_plan_backup(parsed_args):
-    try:
-        plan_id = parsed_args.planId
-        pc = get_mbs().plan_collection
-        plan = pc.find_one({"_id": ObjectId(plan_id)})
+    backup_system = _get_backup_system()
+    plan = _get_plan(parsed_args.planId)
+    backup_system.schedule_new_backup(plan, one_time=True)
 
-        if plan:
-            get_mbs().backup_system.schedule_new_backup(plan, one_time=True)
-        else:
-            print "No such plan '%s'" % plan_id
-            exit(1)
-    except Exception, e:
-        print "%s" % e
+###############################################################################
+def schedule_backup_restore(parsed_args):
+    backup_system = _get_backup_system()
+    destination_uri = parsed_args.destinationUri
+    backup = _get_backup(parsed_args.backupId)
+
+    destination = MongoSource(uri=destination_uri)
+
+    errors = destination.validate()
+
+    if errors:
+        print errors
         exit(1)
+
+    backup_system.schedule_backup_restore(backup, destination)
+
+
 
 ###############################################################################
 # Helpers
@@ -384,6 +332,33 @@ def _get_engine(engine_id=None):
         return get_mbs().get_default_engine()
     else:
         return get_mbs().get_engine(engine_id)
+
+###############################################################################
+def _get_backup_system():
+    backup_system = get_mbs().backup_system
+    if not backup_system:
+        print "No backup system configured"
+        exit(1)
+
+    return backup_system
+
+###############################################################################
+def _get_backup(backup_id):
+        backup = get_backup(backup_id)
+        if backup:
+            return backup
+        else:
+            print "No such backup '%s'" % backup_id
+            exit(1)
+
+###############################################################################
+def _get_plan(plan_id):
+    plan = get_backup_plan(plan_id)
+    if plan:
+        return plan
+    else:
+        print "No such plan '%s'" % plan_id
+        exit(1)
 
 ###############################################################################
 # command parser
@@ -591,10 +566,10 @@ PARSER_DEF = {
 
             {
             "prog": "download-backup-log",
-            "shortDescription" : "Downloads backup log file from target to "
-                                 "current working directory",
-            "description" : "Downloads backup log file from target to "
-                            "current working directory",
+            "shortDescription" : "Downloads log file for specified backup "
+                                 "to current working directory",
+            "description" : "Downloads log file for specified backup "
+                            "to current working directory",
             "args": [
                     {
                     "name": "backupId",
@@ -604,6 +579,47 @@ PARSER_DEF = {
                     "help": "Backup id"
                 }],
             "function": download_backup_log
+        },
+
+            {
+            "prog": "delete-backup",
+            "shortDescription" : "Deletes specified backup",
+            "description" : "Deletes specified backup",
+            "args": [
+                    {
+                    "name": "backupId",
+                    "type" : "positional",
+                    "nargs": 1,
+                    "displayName": "BACKUP_ID",
+                    "help": "Backup id"
+                }],
+            "function": delete_backup
+        },
+
+            {
+            "prog": "schedule-backup-restore",
+            "shortDescription" : "Schedules a restore for the specified"
+                                 " backup into specified destination uri",
+
+            "description" : "Schedules a restore for the specified"
+                            " backup into specified destination uri",
+            "args": [
+                    {
+                    "name": "backupId",
+                    "type" : "positional",
+                    "nargs": 1,
+                    "displayName": "BACKUP_ID",
+                    "help": "Backup id"
+                },
+                    {
+                    "name": "destinationUri",
+                    "type" : "positional",
+                    "nargs": 1,
+                    "displayName": "DESTINATION_URI",
+                    "help": "Destination URI"
+                }
+            ],
+            "function": schedule_backup_restore
         },
 
 
