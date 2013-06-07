@@ -18,7 +18,7 @@ from mbs.utils import (
 )
 from mbs import mbs_config
 from mbs.mbs_logging import setup_logging, redirect_std_to_logger
-from mbs.source import MongoSource
+
 from mbs.persistence import get_backup, get_backup_plan
 
 ###############################################################################
@@ -309,19 +309,9 @@ def schedule_plan_backup(parsed_args):
 def schedule_backup_restore(parsed_args):
     backup_system = _get_backup_system()
     destination_uri = parsed_args.destinationUri
-    backup = _get_backup(parsed_args.backupId)
+    backup_id = parsed_args.backupId
 
-    destination = MongoSource(uri=destination_uri)
-
-    errors = destination.validate()
-
-    if errors:
-        print errors
-        exit(1)
-
-    backup_system.schedule_backup_restore(backup, destination)
-
-
+    backup_system.schedule_backup_restore(backup_id, destination_uri)
 
 ###############################################################################
 # Helpers

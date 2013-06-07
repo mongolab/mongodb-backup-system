@@ -26,7 +26,7 @@ from backup import Backup
 from restore import Restore
 from target import CloudBlockStorageSnapshotReference
 
-from mongo_utils import objectiditify
+from source import MongoSource
 
 ###############################################################################
 ########################                                #######################
@@ -430,7 +430,9 @@ class BackupSystem(Thread):
         return False
 
     ###########################################################################
-    def schedule_backup_restore(self, backup, destination):
+    def schedule_backup_restore(self, backup_id, destination_uri):
+        backup = get_mbs().backup_collection.get_by_id(backup_id)
+        destination = build_backup_source(destination_uri)
         logger.info("Scheduling a restore for backup '%s'" % backup.id)
         restore = Restore()
 
@@ -443,6 +445,7 @@ class BackupSystem(Thread):
 
         logger.info("Saving restore task: %s" % restore)
         get_mbs().restore_collection.save_document(restore.to_document())
+        return restore
 
     ###########################################################################
     def _check_audit(self):
@@ -715,6 +718,9 @@ class BackupSystem(Thread):
 ###############################################################################
 # BackupSystemCommandServer
 ###############################################################################
+
+from flask import request
+
 class BackupSystemCommandServer(Thread):
 
     ###########################################################################
@@ -755,7 +761,24 @@ class BackupSystemCommandServer(Thread):
                 result = backup_system.delete_backup(backup_id)
                 return document_pretty_string(result)
             except Exception, e:
-                return "Error while trying to get backup system status: %s" % e
+                return ("Error while trying to delete backup %s: %s" %
+                        (backup_id, e))
+
+        ########## build restore method
+        @flask_server.route('/restore-backup', methods=['GET'])
+        def restore_backup():
+            backup_id = request.args.get('backupId')
+            destination_uri = request.args.get('destinationUri')
+
+            logger.info("Command Server: Received a restore-backup command")
+            try:
+                result = backup_system.schedule_backup_restore(backup_id,
+                                                               destination_uri)
+                return str(result)
+            except Exception, e:
+                return ("Error while trying to restore backup %s: %s" %
+                        (backup_id, e))
+
 
         ########## build stop-command-server method
         @flask_server.route('/stop-command-server', methods=['GET'])
@@ -849,3 +872,12 @@ def expire_backup(backup, expired_date):
                        properties=["logTargetReference"])
 
         logger.info("Backup %s archived successfully!" % backup.id)
+
+
+###########################################################################
+
+def build_backup_source(uri):
+    """
+        Builds a backup source of the specified URI
+    """
+    return MongoSource(uri)
