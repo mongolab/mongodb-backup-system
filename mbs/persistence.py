@@ -20,6 +20,10 @@ def get_backup_plan(plan_id):
     return get_mbs().plan_collection.get_by_id(objectiditify(plan_id))
 
 ###############################################################################
+def get_restore(restore_id):
+    return get_mbs().restore_collection.get_by_id(restore_id)
+
+###############################################################################
 def update_backup(backup, properties=None, event_name=None,
                   event_type=EVENT_TYPE_INFO, message=None, details=None):
     bc = get_mbs().backup_collection

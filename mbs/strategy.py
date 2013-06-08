@@ -869,21 +869,62 @@ class DumpStrategy(BackupStrategy):
         return os.path.join(backup.workspace, _failed_tar_file_name(backup))
 
     ###########################################################################
+    def _get_restore_log_path(self, restore):
+        return os.path.join(restore.workspace, _restore_log_file_name(restore))
+
+    ###########################################################################
     # Restore implementation
     ###########################################################################
     def _do_run_restore(self, restore):
+
         logger.info("Running dump restore '%s'" % restore.id)
-        # download source backup tar
+
         backup = restore.source_backup
         working_dir = restore.workspace
         file_reference = backup.target_reference
 
+        # download source backup tar
+        if not restore.is_event_logged("END_DOWNLOAD_BACKUP"):
+            self._download_source_backup(restore)
+
+        if not restore.is_event_logged("END_EXTRACT_BACKUP"):
+            # extract tar
+            self._extract_source_backup(restore)
+
+        try:
+
+            if not restore.is_event_logged("END_RESTORE_DUMP"):
+                # restore dump
+                self._restore_dump(restore)
+        finally:
+            self._upload_restore_log_file(restore)
+
+
+    ###########################################################################
+    def _download_source_backup(self, restore):
+        backup = restore.source_backup
+        file_reference = backup.target_reference
+
         logger.info("Downloading restore '%s' dump tar file '%s'" %
                     (restore.id, file_reference.file_name))
+
+        update_restore(restore, event_name="START_DOWNLOAD_BACKUP",
+                       message="Download source backup file...")
+
         backup.target.get_file(file_reference, restore.workspace)
 
-        # extract tar
+        update_restore(restore, event_name="END_DOWNLOAD_BACKUP",
+                       message="Source backup file download complete!")
+
+
+    ###########################################################################
+    def _extract_source_backup(self, restore):
+        working_dir = restore.workspace
+        file_reference = restore.source_backup.target_reference
         logger.info("Extracting tar file '%s'" % file_reference.file_name)
+
+        update_restore(restore, event_name="START_EXTRACT_BACKUP",
+                       message="Extract backup file...")
 
         tarx_cmd = [
             which("tar"),
@@ -895,8 +936,20 @@ class DumpStrategy(BackupStrategy):
         try:
             execute_command(tarx_cmd, cwd=working_dir)
         except CalledProcessError, cpe:
-            logger.error("%s\n%s" % (cpe, cpe.output))
-            raise
+            logger.error("Failed to execute extract command: %s" % tarx_cmd)
+            raise ExtractError(tarx_cmd, cpe.returncode, cpe.output, cause=cpe)
+
+
+        update_restore(restore, event_name="END_EXTRACT_BACKUP",
+                       message="Extract backup file completed!")
+
+    ###########################################################################
+    def _restore_dump(self, restore):
+        file_reference = restore.source_backup.target_reference
+        logger.info("Extracting tar file '%s'" % file_reference.file_name)
+
+        update_restore(restore, event_name="START_RESTORE_DUMP",
+                       message="Restoring dump...")
 
         # run mongoctl restore
         logger.info("Restoring using mongoctl restore")
@@ -914,12 +967,42 @@ class DumpStrategy(BackupStrategy):
         ]
 
         logger.info("Running mongoctl restore command: %s" % restore_cmd)
-        try:
-            execute_command(restore_cmd, cwd=working_dir)
-        except CalledProcessError, cpe:
-            logger.error("%s\n%s" % (cpe, cpe.output))
-            raise
+        # execute dump command
+        restore_log_path = self._get_restore_log_path(restore)
+        returncode = execute_command_wrapper(restore_cmd,
+            output_path=restore_log_path
+        )
 
+        # read the last dump log line
+        last_line_tail_cmd = [which('tail'), '-1', restore_log_path]
+        last_log_line = execute_command(last_line_tail_cmd)
+
+        if returncode:
+            raise RestoreError(restore_cmd, returncode, last_log_line)
+
+        update_restore(restore, event_name="END_RESTORE_DUMP",
+                       message="Restoring dump completed!")
+
+    ###########################################################################
+    def _upload_restore_log_file(self, restore):
+        log_file_path = self._get_restore_log_path(restore)
+        logger.info("Uploading log file for %s to target" % restore.id)
+
+        update_restore(restore, event_name="START_UPLOAD_LOG_FILE",
+                       message="Upload log file to target")
+        log_dest_path = _upload_restore_log_file_dest(restore)
+        log_ref = restore.source_backup.target.put_file(log_file_path,
+                                          destination_path= log_dest_path,
+                                          overwrite_existing=True)
+
+        restore.log_target_reference = log_ref
+
+        update_restore(restore, properties="logTargetReference",
+                       event_name="END_UPLOAD_LOG_FILE",
+                       message="Log file upload completed!")
+
+        logger.info("Upload log file for %s completed successfully!" %
+                    restore.id)
 
 ###############################################################################
 # Helpers
@@ -952,12 +1035,24 @@ def _upload_log_file_dest(backup):
     return "%s.log" % backup.name
 
 ###############################################################################
+def _upload_restore_log_file_dest(restore):
+    dest =  "%s.log" % restore.source_backup.name
+    # append RESTORE as a prefix for the file name  + handle the case where
+    # backup name is a path (as appose to just a file name)
+    parts = dest.rpartition("/")
+    return "%s%sRESTORE_%s" % (parts[0], parts[1], parts[2])
+
+###############################################################################
 def _failed_upload_file_dest(backup):
     dest =  "%s.tgz" % backup.name
     # append FAILED as a prefix for the file name  + handle the case where
     # backup name is a path (as appose to just a file name)
     parts = dest.rpartition("/")
     return "%s%sFAILED_%s" % (parts[0], parts[1], parts[2])
+
+###############################################################################
+def _restore_log_file_name(restore):
+    return "RESTORE_%s.log" % _backup_dump_dir_name(restore.source_backup)
 
 ###############################################################################
 # CloudBlockStorageStrategy

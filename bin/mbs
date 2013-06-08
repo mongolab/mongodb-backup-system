@@ -19,7 +19,7 @@ from mbs.utils import (
 from mbs import mbs_config
 from mbs.mbs_logging import setup_logging, redirect_std_to_logger
 
-from mbs.persistence import get_backup, get_backup_plan
+from mbs.persistence import get_backup, get_backup_plan, get_restore
 
 ###############################################################################
 # MAIN
@@ -314,6 +314,22 @@ def schedule_backup_restore(parsed_args):
     backup_system.schedule_backup_restore(backup_id, destination_uri)
 
 ###############################################################################
+def download_restore_log(parsed_args):
+    restore = _get_restore(parsed_args.restoreId)
+    if restore.log_target_reference:
+        if not restore.log_target_reference.expired:
+            restore.source_backup.target.get_file(restore.log_target_reference,
+                                                  os.getcwd())
+        else:
+            print ("Failed to download. Log for '%s' is expired." %
+                   restore.id)
+            exit(1)
+
+    else:
+        print ("Failed to download. Log for '%s' never uploaded."
+               % restore.id)
+        exit(1)
+###############################################################################
 # Helpers
 ###############################################################################
 def _get_engine(engine_id=None):
@@ -340,6 +356,15 @@ def _get_backup(backup_id):
         else:
             print "No such backup '%s'" % backup_id
             exit(1)
+
+###############################################################################
+def _get_restore(restore_id):
+    restore = get_restore(restore_id)
+    if restore:
+        return restore
+    else:
+        print "No such restore '%s'" % restore_id
+        exit(1)
 
 ###############################################################################
 def _get_plan(plan_id):
@@ -610,6 +635,23 @@ PARSER_DEF = {
                 }
             ],
             "function": schedule_backup_restore
+        },
+
+            {
+            "prog": "download-restore-log",
+            "shortDescription" : "Downloads log file for specified restore "
+                                 "to current working directory",
+            "description" : "Downloads log file for specified restore "
+                            "to current working directory",
+            "args": [
+                    {
+                    "name": "restoreId",
+                    "type" : "positional",
+                    "nargs": 1,
+                    "displayName": "RESTORE_ID",
+                    "help": "Restore id"
+                }],
+            "function": download_restore_log
         },
 
 

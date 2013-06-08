@@ -400,3 +400,37 @@ def raise_if_not_retriable(exception):
 def raise_exception():
     raise
 
+
+###############################################################################
+# Restore errors
+###############################################################################
+
+
+class RestoreError(MBSError):
+    """
+        Base error for dump errors
+        IMPORTANT NOTE! note that all restore errors DOES NOT pass the cause since
+        the cause is a CalledProcessError that contains the full un-censored
+        dump command (which might contain username/password). It has been
+        omitted to avoid logging credentials
+    """
+    ###########################################################################
+    def __init__(self, restore_cmd, return_code, last_log_line):
+        msg = ("Failed to mongorestore")
+        details = ("Failed to restore. restore command '%s' returned a non-zero "
+                   "exit status %s.Check restore logs. Last restore log line: "
+                   "%s" % (restore_cmd, return_code, last_log_line))
+        super(RestoreError, self).__init__(msg=msg, details=details)
+
+###############################################################################
+class ExtractError(MBSError):
+    """
+        Base error for archive errors
+    """
+    def __init__(self, tar_cmd, return_code, cmd_output, cause):
+        msg = "Failed to extract source backup"
+        details = ("Failed to tar. Tar command '%s' returned a non-zero "
+                   "exit status %s. Command output:\n%s" %
+                   (tar_cmd, return_code, cmd_output))
+        super(ExtractError, self).__init__(msg=msg, details=details,
+                                           cause=cause)
