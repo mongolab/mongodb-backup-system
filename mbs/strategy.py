@@ -945,7 +945,9 @@ class DumpStrategy(BackupStrategy):
 
     ###########################################################################
     def _restore_dump(self, restore):
+        working_dir = restore.workspace
         file_reference = restore.source_backup.target_reference
+
         logger.info("Extracting tar file '%s'" % file_reference.file_name)
 
         update_restore(restore, event_name="START_RESTORE_DUMP",
@@ -954,23 +956,38 @@ class DumpStrategy(BackupStrategy):
         # run mongoctl restore
         logger.info("Restoring using mongoctl restore")
         restore_source_path = file_reference.file_name[: -4]
+        restore_source_path = os.path.join(working_dir, restore_source_path)
+
         dest_uri = restore.destination.uri
-        uri_wrapper = mongo_uri_tools.parse_mongo_uri(dest_uri)
-        if uri_wrapper.database:
-            restore_source_path += uri_wrapper.database
+        dest_uri_wrapper = mongo_uri_tools.parse_mongo_uri(dest_uri)
+
+        src_uri = restore.source_backup.source.uri
+        src_uri_wrapper = mongo_uri_tools.parse_mongo_uri(src_uri)
+
+        # map source/dest
+        if dest_uri_wrapper.database:
+            restore_source_path = os.path.join(restore_source_path,
+                                               dest_uri_wrapper.database)
+
+        elif src_uri_wrapper.database:
+            if not dest_uri.endswith("/"):
+                dest_uri += "/"
+            dest_uri += src_uri_wrapper.database
 
         restore_cmd = [
             which("mongoctl"),
             "restore",
-            restore.destination.uri,
+            dest_uri,
             restore_source_path
         ]
 
-        logger.info("Running mongoctl restore command: %s" % restore_cmd)
+        logger.info("Running mongoctl restore command: %s" %
+                    " ".join(restore_cmd))
         # execute dump command
         restore_log_path = self._get_restore_log_path(restore)
         returncode = execute_command_wrapper(restore_cmd,
-            output_path=restore_log_path
+            output_path=restore_log_path,
+            cwd=working_dir
         )
 
         # read the last dump log line

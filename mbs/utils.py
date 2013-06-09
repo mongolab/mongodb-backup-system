@@ -66,13 +66,13 @@ def execute_command(command, **popen_kwargs):
 
 ###############################################################################
 def execute_command_wrapper(command, on_output=None, output_path=None,
-                            output_line_filter=None):
+                            output_line_filter=None, **popen_kwargs):
     """
         Executes the specified command and allows processing/filtering output
         of command
     """
     process = subprocess.Popen(command, stdout=subprocess.PIPE,
-                                stderr=subprocess.PIPE)
+                               stderr=subprocess.PIPE, **popen_kwargs)
 
     output_file = None
     if output_path:
