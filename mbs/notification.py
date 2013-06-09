@@ -40,10 +40,10 @@ class NotificationHandler(object):
         self.send_notification(subject, message, recipient)
 
     ###########################################################################
-    def notify_on_backup_failure(self, backup, exception, trace):
-        subject = "Backup failed"
-        message = ("Backup '%s' failed.\n%s\n\nCause: \n%s\nStack Trace:"
-                   "\n%s" % (backup.id, backup, exception, trace))
+    def notify_on_task_failure(self, task, exception, trace):
+        subject = "Task failed"
+        message = ("Task '%s' failed.\n%s\n\nCause: \n%s\nStack Trace:"
+                   "\n%s" % (task.id, task, exception, trace))
 
         self.send_notification(subject, message)
 

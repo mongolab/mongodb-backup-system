@@ -468,8 +468,6 @@ class TaskQueueProcessor(Thread):
         nh = get_mbs().notification_handler
         # send a notification only if the task is not reschedulable
         if not worker.task.reschedulable and nh:
-
-
             nh.notify_on_task_failure(worker.task, exception, trace)
 
     ###########################################################################
