@@ -286,7 +286,6 @@ class BackupSystem(Thread):
         Reschedule failed reschedulable backups that failed at least
         RESCHEDULE_PERIOD seconds ago
         """
-        now = date_now()
 
         # select backups whose last log date is at least RESCHEDULE_PERIOD ago
 
@@ -507,7 +506,7 @@ class BackupSystem(Thread):
 
 
         where = ("(Math.min(%s, (this.plan.schedule.frequencyInSeconds / 2) * 1000) + "
-                    "this.logs[0].date.getTime()) < new Date().getTime()" %
+                    "this.createdDate.date.getTime()) < new Date().getTime()" %
                  (MAX_BACKUP_WAIT_TIME * 1000))
         one_off_starve_date = date_minus_seconds(date_now(),
                                                  ONE_OFF_BACKUP_MAX_WAIT_TIME)
@@ -525,7 +524,7 @@ class BackupSystem(Thread):
                 {
                     "$and":[
                             {"plan": {"$exists": False}},
-                            {"logs.0.date": {"$lt": one_off_starve_date}}
+                            {"createdDate": {"$lt": one_off_starve_date}}
                     ]
                  }
             ]
