@@ -306,7 +306,7 @@ def schedule_plan_backup(parsed_args):
     backup_system.schedule_new_backup(plan, one_time=True)
 
 ###############################################################################
-def schedule_backup_restore(parsed_args):
+def restore_backup(parsed_args):
     backup_system = _get_backup_system()
     destination_uri = parsed_args.destinationUri
     backup_id = parsed_args.backupId
@@ -612,7 +612,7 @@ PARSER_DEF = {
         },
 
             {
-            "prog": "schedule-backup-restore",
+            "prog": "restore-backup",
             "shortDescription" : "Schedules a restore for the specified"
                                  " backup into specified destination uri",
 
@@ -634,7 +634,7 @@ PARSER_DEF = {
                     "help": "Destination URI"
                 }
             ],
-            "function": schedule_backup_restore
+            "function": restore_backup
         },
 
             {
