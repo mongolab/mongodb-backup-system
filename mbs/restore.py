@@ -12,6 +12,7 @@ class Restore(MBSTask):
         MBSTask.__init__(self)
         self._source_backup = None
         self._destination = None
+        self._destination_stats = None
 
     ###########################################################################
     def execute(self):
@@ -46,6 +47,15 @@ class Restore(MBSTask):
         self._destination = destination
 
     ###########################################################################
+    @property
+    def destination_stats(self):
+        return self._destination_stats
+
+    @destination_stats.setter
+    def destination_stats(self, destination_stats):
+        self._destination_stats = destination_stats
+
+    ###########################################################################
     def to_document(self, display_only=False):
         doc = MBSTask.to_document(self, display_only=display_only)
         doc.update({
@@ -53,8 +63,8 @@ class Restore(MBSTask):
             "sourceBackup": DBRef("backups", self.source_backup.id),
             "destination": self.destination.to_document(display_only=
                                                          display_only),
+            "destinationStats": self.destination_stats
         })
-
 
         return doc
 

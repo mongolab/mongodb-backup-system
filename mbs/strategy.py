@@ -340,6 +340,7 @@ class BackupStrategy(MBSObject):
     def run_restore(self, restore):
         try:
             self._do_run_restore(restore)
+            self._compute_restore_destination_stats(restore)
         except Exception, e:
             # set reschedulable
             restore.reschedulable = _is_task_reschedulable(restore, e)
@@ -369,6 +370,14 @@ class BackupStrategy(MBSObject):
                 logger.error("workspace dir %s does not exist!" % workspace)
         except Exception, e:
             logger.error("Cleanup error for task '%s': %s" % (restore.id, e))
+
+    ###########################################################################
+    def _compute_restore_destination_stats(self, restore):
+        logger.info("Computing destination stats for restore '%s'" %
+                    restore.id)
+        dest_connector = build_mongo_connector(restore.destination.uri)
+        restore.destination_stats = dest_connector.get_stats()
+        update_restore(restore, properties=["destinationStats"])
 
     ###########################################################################
     # Helpers
@@ -747,7 +756,7 @@ class DumpStrategy(BackupStrategy):
             ])
 
         dump_cmd_display= dump_cmd[:]
-        # if the source uri is a mongo uri then mask it
+        # mask mongo uri
         dump_cmd_display[dump_cmd_display.index("dump") + 1] = \
             uri_wrapper.masked_uri
         logger.info("Running dump command: %s" % " ".join(dump_cmd_display))
@@ -880,8 +889,6 @@ class DumpStrategy(BackupStrategy):
         logger.info("Running dump restore '%s'" % restore.id)
 
         backup = restore.source_backup
-        working_dir = restore.workspace
-        file_reference = backup.target_reference
 
         # download source backup tar
         if not restore.is_event_logged("END_DOWNLOAD_BACKUP"):
@@ -981,8 +988,14 @@ class DumpStrategy(BackupStrategy):
             restore_source_path
         ]
 
+        restore_cmd_display = restore_cmd[:]
+
+        restore_cmd_display[restore_cmd_display.index("restore") + 1] =\
+            dest_uri_wrapper.masked_uri
+
+
         logger.info("Running mongoctl restore command: %s" %
-                    " ".join(restore_cmd))
+                    " ".join(restore_cmd_display))
         # execute dump command
         restore_log_path = self._get_restore_log_path(restore)
         returncode = execute_command_wrapper(restore_cmd,
@@ -995,7 +1008,7 @@ class DumpStrategy(BackupStrategy):
         last_log_line = execute_command(last_line_tail_cmd)
 
         if returncode:
-            raise RestoreError(restore_cmd, returncode, last_log_line)
+            raise RestoreError(restore_cmd_display, returncode, last_log_line)
 
         update_restore(restore, event_name="END_RESTORE_DUMP",
                        message="Restoring dump completed!")
