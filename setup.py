@@ -16,6 +16,7 @@ setup(
     ],
     packages=find_packages(),
     install_requires=[
+        "croniter==0.3.3",
         "distribute",
         "dargparse",
         "pymongo==2.4.1",

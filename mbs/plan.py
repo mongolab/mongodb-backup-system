@@ -2,10 +2,9 @@ __author__ = 'abdul'
 
 from base import MBSObject
 from datetime import timedelta
-from date_utils import (seconds_to_date, date_to_seconds, date_plus_seconds,
-                        date_now, is_date_value, epoch_date)
 
 from backup import PRIORITY_LOW
+from schedule import Schedule, CronSchedule
 from tags import DynamicTag
 
 ###############################################################################
@@ -162,45 +161,24 @@ class BackupPlan(MBSObject):
 
     ###########################################################################
     def next_natural_occurrence(self):
-
-        last_natural_occurrence = self.last_natural_occurrence()
-        frequency = self.schedule.frequency_in_seconds
-        return date_plus_seconds(last_natural_occurrence, frequency)
+        return self.schedule.next_natural_occurrence()
 
     ###########################################################################
     def last_natural_occurrence(self):
-        return self.last_natural_occurrence_as_of(date_now())
+        return self.schedule.last_natural_occurrence()
 
     ###########################################################################
     def last_natural_occurrence_as_of(self, date):
-        schedule = self.schedule
-        date_seconds = date_to_seconds(date)
-        offset = schedule.offset if schedule.offset else epoch_date()
-        offset_seconds = date_to_seconds(offset)
-
-        return seconds_to_date(date_seconds -
-                               ((date_seconds - offset_seconds) %
-                                schedule.frequency_in_seconds))
+        return self.schedule.last_natural_occurrence(date)
 
     ###########################################################################
     def natural_occurrences_as_of(self, date):
         next_date = date + timedelta(days=1)
-        return self.natural_occurrences_between(date, next_date)
+        return self.schedule.natural_occurrences_between(date, next_date)
 
     ###########################################################################
     def natural_occurrences_between(self, start_date, end_date):
-        occurrences = []
-        last_occurrence = self.last_natural_occurrence_as_of(start_date)
-
-        delta = timedelta(seconds=self.schedule.frequency_in_seconds)
-
-        while last_occurrence < end_date:
-            if last_occurrence >= start_date:
-                occurrences.append(last_occurrence)
-
-            last_occurrence = last_occurrence + delta
-
-        return occurrences
+        return self.schedule.natural_occurrences_between(start_date, end_date)
 
 
     ###########################################################################
@@ -254,15 +232,10 @@ class BackupPlan(MBSObject):
         if not self.schedule:
             errors.append("Missing plan 'schedule'")
         else:
-            #  frequency
-            if not self.schedule.frequency_in_seconds:
-                errors.append("Plan schedule is missing 'frequencyInSeconds'")
-            # offset
-            if (self.schedule.offset and
-                not is_date_value(self.schedule.offset)):
-                errors.append("Invalid plan schedule offset '%s'. "
-                                         "offset has to be a date" %
-                                         self.schedule.offset)
+            schedule_errors = self.schedule.validate()
+            if schedule_errors:
+                errors.append("Invalid 'schedule'")
+                errors.extend(schedule_errors)
 
         # validate source
         if not self.source:
@@ -288,36 +261,3 @@ class BackupPlan(MBSObject):
 
         return errors
 
-###############################################################################
-# Schedule
-###############################################################################
-class Schedule(MBSObject):
-    def __init__(self):
-        self._frequency_in_seconds = None
-        self._offset = None
-
-    ###########################################################################
-    @property
-    def offset(self):
-        return self._offset
-
-    @offset.setter
-    def offset(self, offset):
-        self._offset = offset
-
-    ###########################################################################
-    @property
-    def frequency_in_seconds(self):
-        return self._frequency_in_seconds
-
-    @frequency_in_seconds.setter
-    def frequency_in_seconds(self, frequency):
-        self._frequency_in_seconds = frequency
-
-    ###########################################################################
-    def to_document(self, display_only=False):
-        return {
-            "_type": "Schedule",
-            "frequencyInSeconds": self.frequency_in_seconds,
-            "offset": self.offset
-        }

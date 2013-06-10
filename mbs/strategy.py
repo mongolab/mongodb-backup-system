@@ -190,7 +190,8 @@ class BackupStrategy(MBSObject):
 
         # compute max lag
         if backup.plan:
-            max_lag_seconds = int(backup.plan.schedule.frequency_in_seconds / 2)
+            max_lag_seconds = backup.plan.schedule.max_acceptable_lag(
+                                    backup.plan_occurrence)
         else:
             # One Off backup : no max lag!
             max_lag_seconds = 0
