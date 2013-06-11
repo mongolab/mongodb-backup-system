@@ -506,7 +506,7 @@ class BackupSystem(Thread):
 
 
         where = ("(Math.min(%s, (this.plan.schedule.frequencyInSeconds / 2) * 1000) + "
-                    "this.createdDate.date.getTime()) < new Date().getTime()" %
+                    "this.createdDate.getTime()) < new Date().getTime()" %
                  (MAX_BACKUP_WAIT_TIME * 1000))
         one_off_starve_date = date_minus_seconds(date_now(),
                                                  ONE_OFF_BACKUP_MAX_WAIT_TIME)
