@@ -6,7 +6,8 @@ from croniter import croniter
 
 from base import MBSObject
 from date_utils import (seconds_to_date, date_to_seconds, date_plus_seconds,
-                        date_now, is_date_value, epoch_date)
+                        date_now, is_date_value, epoch_date,
+                        timedelta_total_seconds)
 
 
 ###############################################################################
@@ -33,7 +34,7 @@ class AbstractSchedule(object):
         args:
             td      - the timedelta between backups
         """
-        return int(timedelta_total_seconds(delta) / 2)
+        return int(timedelta_total_seconds(td) / 2)
 
     ###########################################################################
     @abc.abstractmethod
@@ -149,16 +150,12 @@ class Schedule(AbstractSchedule, MBSObject):
 
     ###########################################################################
     def next_natural_occurrence(self, dt=None):
-        super(Schedule, self).next_natural_occurrence(dt)
-
-        last_natural_occurrence = self.last_natural_occurrence()
+        last_natural_occurrence = self.last_natural_occurrence(dt)
         frequency = self.frequency_in_seconds
         return date_plus_seconds(last_natural_occurrence, frequency)
 
     ###########################################################################
     def last_natural_occurrence(self, dt=None):
-        super(Schedule, self).last_natural_occurrence(dt)
-
         dt = date_now() if dt is None else dt
         date_seconds = date_to_seconds(dt)
         offset = self.offset if self.offset else epoch_date()
@@ -222,7 +219,7 @@ class CronSchedule(AbstractSchedule, MBSObject):
         else:
             try:
                 croniter(self.expression)
-            except ValueError, e:
+            except (ValueError, KeyError), e:
                 errors.append("Plan schedule has an invalid expression (%s): "
                               "%s" % (self.expression, str(e)))
         return errors
@@ -234,7 +231,7 @@ class CronSchedule(AbstractSchedule, MBSObject):
             # we are concerned with the period leading up to dt
             return self._max_acceptable_lag_for_period(
                         dt - self.last_natural_occurrence(
-                                    dt - timedelta(seconds=1)))
+                                    dt - timedelta(minutes=1)))
         # otherwise we are concerned with the period leading up to the next
         # occurrence
         return self._max_acceptable_lag_for_period(
@@ -243,14 +240,18 @@ class CronSchedule(AbstractSchedule, MBSObject):
 
     ###########################################################################
     def next_natural_occurrence(self, dt=None):
-        super(CronSchedule, self).next_natural_occurrence(dt)
         dt = date_now() if dt is None else dt
         return croniter(self._expression, dt).get_next(datetime)
 
     ###########################################################################
     def last_natural_occurrence(self, dt=None):
-        super(CronSchedule, self).last_natural_occurrence(dt)
+        """ NOTE: cron is a minute level resolution. round up in the case of
+                  seconds/microseconds
+
+        """
         dt = date_now() if dt is None else dt
+        if dt.second > 0 or dt.microsecond > 0:
+            dt = dt.replace(second=0, microsecond=0) + timedelta(minutes=1)
         if self._is_occurrence(dt):
             return dt
         return croniter(self._expression, dt).get_prev(datetime)
