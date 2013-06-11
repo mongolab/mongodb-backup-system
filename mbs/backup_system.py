@@ -881,4 +881,3 @@ def build_backup_source(uri):
         Builds a backup source of the specified URI
     """
     return MongoSource(uri)
-

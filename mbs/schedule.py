@@ -11,7 +11,7 @@ from date_utils import (seconds_to_date, date_to_seconds, date_plus_seconds,
 
 
 ###############################################################################
-# Schedule
+# AbstractSchedule
 ###############################################################################
 class AbstractSchedule(object):
     __metaclass__ = abc.ABCMeta
@@ -191,6 +191,10 @@ class Schedule(AbstractSchedule, MBSObject):
             "offset": self.offset
         }
 
+
+###############################################################################
+# CronSchedule
+###############################################################################
 class CronSchedule(AbstractSchedule, MBSObject):
     def __init__(self):
         self._expression = None

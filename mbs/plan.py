@@ -4,7 +4,6 @@ from base import MBSObject
 from datetime import timedelta
 
 from backup import PRIORITY_LOW
-from schedule import Schedule, CronSchedule
 from tags import DynamicTag
 
 ###############################################################################

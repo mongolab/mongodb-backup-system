@@ -1,6 +1,5 @@
 import os
 import pwd
-import re
 import sys
 
 from urlparse import urlparse
