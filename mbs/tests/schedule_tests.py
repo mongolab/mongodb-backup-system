@@ -88,7 +88,8 @@ class CronScheduleTest(BaseTest):
         self.assertEqual(
             cron_sched._max_acceptable_lag_for_period(timedelta(minutes=5)),
             cron_sched.max_acceptable_lag(datetime(2012, 10, 1, 3, 5, 2)))
-        
+
+        # test non-constant frequency
         cron_sched = self.maker.make({'_type': 'CronSchedule',
                                       'expression': '0 2 * * 1,2'})
         self.assertEqual(
