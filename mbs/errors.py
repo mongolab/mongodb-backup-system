@@ -385,7 +385,8 @@ def is_connection_exception(exception):
 
 ###############################################################################
 def is_exception_retriable(exception):
-    return isinstance(exception, RetriableError)
+    return (isinstance(exception, RetriableError) or
+            is_connection_exception(exception))
 
 ###############################################################################
 

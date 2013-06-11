@@ -14,6 +14,8 @@ from utils import is_host_local, document_pretty_string
 from verlib import NormalizedVersion, suggest_normalized_version
 from bson.objectid import ObjectId
 
+from robustify.robustify import robustify
+
 ###############################################################################
 # LOGGER
 ###############################################################################
@@ -24,6 +26,9 @@ logger = mbs_logging.logger
 CONN_TIMEOUT = 160000
 
 ###############################################################################
+@robustify(max_attempts=3, retry_interval=3,
+           do_on_exception=raise_if_not_retriable,
+           do_on_failure=raise_exception)
 def mongo_connect(uri):
     uri_wrapper = parse_mongo_uri(uri)
 
@@ -65,6 +70,9 @@ class MongoConnector(object):
         return None
 
     ###########################################################################
+    @robustify(max_attempts=3, retry_interval=3,
+               do_on_exception=raise_if_not_retriable,
+               do_on_failure=raise_exception)
     def get_mongo_version(self):
         try:
             version = self.connection.server_info()['version']
@@ -157,6 +165,9 @@ class MongoConnector(object):
         return self.address if not master_result else master_result["me"]
 
     ###########################################################################
+    @robustify(max_attempts=3, retry_interval=3,
+               do_on_exception=raise_if_not_retriable,
+               do_on_failure=raise_exception)
     def _is_master_command(self):
         return self.connection["admin"].command({"isMaster" : 1})
 
@@ -433,6 +444,9 @@ class MongoServer(MongoConnector):
                 "RS102" in self.rs_status["errmsg"])
 
     ###########################################################################
+    @robustify(max_attempts=3, retry_interval=3,
+               do_on_exception=raise_if_not_retriable,
+               do_on_failure=raise_exception)
     def get_stats(self, only_for_db=None):
 
         # ensure that we are authed to admin
@@ -466,6 +480,9 @@ class MongoServer(MongoConnector):
                 raise
 
     ###########################################################################
+    @robustify(max_attempts=3, retry_interval=3,
+               do_on_exception=raise_if_not_retriable,
+               do_on_failure=raise_exception)
     def _get_rs_status(self):
         try:
             rs_status_cmd = SON([('replSetGetStatus', 1)])
@@ -478,6 +495,9 @@ class MongoServer(MongoConnector):
             raise ReplicasetError(details=details, cause=e)
 
     ###########################################################################
+    @robustify(max_attempts=3, retry_interval=3,
+               do_on_exception=raise_if_not_retriable,
+               do_on_failure=raise_exception)
     def _get_server_status(self):
         try:
             server_status_cmd = SON([('serverStatus', 1)])
@@ -498,6 +518,9 @@ class MongoServer(MongoConnector):
                               cause=e)
 
     ###########################################################################
+    @robustify(max_attempts=3, retry_interval=3,
+               do_on_exception=raise_if_not_retriable,
+               do_on_failure=raise_exception)
     def _get_rs_config(self):
 
         try:
@@ -600,6 +623,9 @@ def database_connection_stats(db_uri):
     return _calculate_database_stats(db)
 
 ###############################################################################
+@robustify(max_attempts=3, retry_interval=3,
+           do_on_exception=raise_if_not_retriable,
+           do_on_failure=raise_exception)
 def _calculate_database_stats(db):
     db_stats = db.command({"dbstats":1})
 
@@ -618,6 +644,9 @@ def _calculate_database_stats(db):
     return result
 
 ###############################################################################
+@robustify(max_attempts=3, retry_interval=3,
+           do_on_exception=raise_if_not_retriable,
+           do_on_failure=raise_exception)
 def _calculate_connection_databases_stats(connection):
 
     total_stats = {
