@@ -8,12 +8,18 @@ from . import BaseTest
 from mbs.schedule import AbstractSchedule, Schedule, CronSchedule
 
 
+###############################################################################
+# CronScheduleTest
+###############################################################################
 class CronScheduleTest(BaseTest):
+
+    ###########################################################################
     def test_make(self):
         obj = self.maker.make({'_type': 'CronSchedule'})
         self.assertIsInstance(obj, AbstractSchedule)
         self.assertIsInstance(obj, CronSchedule)
 
+    ###########################################################################
     def test_validate(self):
         obj = self.maker.make({'_type': 'CronSchedule'})
         errors = obj.validate()
@@ -44,6 +50,7 @@ class CronScheduleTest(BaseTest):
         errors = obj.validate()
         self.assertEqual(len(errors), 0)
 
+    ###########################################################################
     def test_against_frequency(self):
         cron_sched = self.maker.make({'_type': 'CronSchedule',
                                       'expression': '*/5 * * * *'})
@@ -79,6 +86,7 @@ class CronScheduleTest(BaseTest):
             cron_sched.last_natural_occurrence(datetime(2012, 10, 1, 3, 5, 2)),
             sched.last_natural_occurrence(datetime(2012, 10, 1, 3, 5, 2)))
 
+    ###########################################################################
     def test_max_acceptable_lag(self):
         cron_sched = self.maker.make({'_type': 'CronSchedule',
                                       'expression': '*/5 * * * *'})
