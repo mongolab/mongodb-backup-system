@@ -867,7 +867,8 @@ class DumpStrategy(BackupStrategy):
 
     ###########################################################################
     def _get_dump_log_path(self, backup):
-        return os.path.join(backup.workspace, _log_file_name(backup))
+        dump_dir = self._get_backup_dump_dir(backup)
+        return os.path.join(backup.workspace, dump_dir, _log_file_name(backup))
 
     ###########################################################################
     def _get_tar_file_path(self, backup):
