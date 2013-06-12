@@ -46,6 +46,8 @@ class StdRedirectToLogger(object):
     def write(self, message):
         logger.info("%s: %s" % (self.prefix, message))
 
+    def flush(self):
+        pass
 
 ###############################################################################
 def redirect_std_to_logger():
