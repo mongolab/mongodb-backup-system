@@ -445,7 +445,9 @@ class BackupSystem(Thread):
         restore.created_date = date_now()
 
         logger.info("Saving restore task: %s" % restore)
-        get_mbs().restore_collection.save_document(restore.to_document())
+        restore_doc = restore.to_document()
+        get_mbs().restore_collection.save_document(restore_doc)
+        restore.id = restore_doc["_id"]
         return restore
 
     ###########################################################################
