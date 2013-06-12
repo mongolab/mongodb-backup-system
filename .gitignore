@@ -8,3 +8,8 @@
 *.iml
 *.iws
 .DS_Store
+
+#
+# vim
+#
+*.swp

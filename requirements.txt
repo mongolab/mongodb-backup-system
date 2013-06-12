@@ -1,0 +1,20 @@
+# core
+
+Flask==0.8
+azure==0.6
+boto==2.6.0
+croniter==0.3.3
+dargparse
+distribute
+mongoctl
+pymongo==2.4.1
+python-cloudfiles==1.7.10
+python-dateutil==1.5
+verlib==0.1
+
+https://github.com/objectlabs/maker-py/archive/021ca59.zip#egg=maker_py-0.1.2
+
+# test
+
+nose
+
