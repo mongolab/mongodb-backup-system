@@ -6,7 +6,6 @@ boto==2.6.0
 croniter==0.3.3
 dargparse
 distribute
-mongoctl
 pymongo==2.4.1
 python-cloudfiles==1.7.10
 python-dateutil==1.5
