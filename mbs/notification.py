@@ -102,7 +102,9 @@ class EmailNotificationHandler(NotificationHandler):
 
 
             smtp = smtplib.SMTP(self.smtp_host)
-            smtp.login(self.smtp_username, self.smtp_password)
+            if (self.smtp_username is not None or
+                self.smtp_password is not None):
+                smtp.login(self.smtp_username, self.smtp_password)
             smtp.sendmail(self.from_address, to_address, msg.as_string())
             smtp.quit()
             logger.info("Email sent successfully!")
