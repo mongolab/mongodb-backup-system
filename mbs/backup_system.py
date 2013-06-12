@@ -429,13 +429,15 @@ class BackupSystem(Thread):
         return False
 
     ###########################################################################
-    def schedule_backup_restore(self, backup_id, destination_uri):
+    def schedule_backup_restore(self, backup_id, destination_uri,
+                                source_database_name=None):
         backup = get_mbs().backup_collection.get_by_id(backup_id)
         destination = build_backup_source(destination_uri)
         logger.info("Scheduling a restore for backup '%s'" % backup.id)
         restore = Restore()
 
         restore.source_backup = backup
+        restore.source_database_name = source_database_name
         restore.strategy = backup.strategy
         restore.destination = destination
         restore.tags = restore.source_backup.tags

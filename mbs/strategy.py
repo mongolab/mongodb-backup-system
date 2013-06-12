@@ -889,8 +889,6 @@ class DumpStrategy(BackupStrategy):
 
         logger.info("Running dump restore '%s'" % restore.id)
 
-        backup = restore.source_backup
-
         # download source backup tar
         if not restore.is_event_logged("END_DOWNLOAD_BACKUP"):
             self._download_source_backup(restore)
@@ -972,15 +970,18 @@ class DumpStrategy(BackupStrategy):
         src_uri = restore.source_backup.source.uri
         src_uri_wrapper = mongo_uri_tools.parse_mongo_uri(src_uri)
 
-        # map source/dest
-        if dest_uri_wrapper.database:
-            restore_source_path = os.path.join(restore_source_path,
-                                               dest_uri_wrapper.database)
+        source_database_name = restore.source_database_name
+        if not source_database_name:
+            source_database_name = src_uri_wrapper.database
 
-        elif src_uri_wrapper.database:
-            if not dest_uri.endswith("/"):
-                dest_uri += "/"
-            dest_uri += src_uri_wrapper.database
+        # map source/dest
+        if source_database_name:
+            restore_source_path = os.path.join(restore_source_path,
+                                               source_database_name)
+            if not dest_uri_wrapper.database:
+                if not dest_uri.endswith("/"):
+                    dest_uri += "/"
+                dest_uri += source_database_name
 
         restore_cmd = [
             which("mongoctl"),
