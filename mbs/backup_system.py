@@ -430,6 +430,7 @@ class BackupSystem(Thread):
 
     ###########################################################################
     def schedule_backup_restore(self, backup_id, destination_uri,
+                                tags=None,
                                 source_database_name=None):
         backup = get_mbs().backup_collection.get_by_id(backup_id)
         destination = build_backup_source(destination_uri)
@@ -440,7 +441,7 @@ class BackupSystem(Thread):
         restore.source_database_name = source_database_name
         restore.strategy = backup.strategy
         restore.destination = destination
-        restore.tags = restore.source_backup.tags
+        restore.tags = tags or restore.source_backup.tags
         restore.state = STATE_SCHEDULED
         restore.created_date = date_now()
 
