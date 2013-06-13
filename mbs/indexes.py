@@ -39,6 +39,12 @@ MBS_INDEXES = {
         {
             "index":[('source._type', ASCENDING)]
         }
+    ],
+
+    "restores":[
+            {
+            "index": [('state', ASCENDING), ('engineGuid', ASCENDING)]
+        }
     ]
 }
 
