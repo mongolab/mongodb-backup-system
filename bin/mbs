@@ -310,8 +310,10 @@ def restore_backup(parsed_args):
     backup_system = _get_backup_system()
     destination_uri = parsed_args.destinationUri
     backup_id = parsed_args.backupId
+    src_db = parsed_args.sourceDatabase
 
-    backup_system.schedule_backup_restore(backup_id, destination_uri)
+    backup_system.schedule_backup_restore(backup_id, destination_uri,
+                                          source_database_name=src_db)
 
 ###############################################################################
 def download_restore_log(parsed_args):
@@ -632,6 +634,18 @@ PARSER_DEF = {
                     "nargs": 1,
                     "displayName": "DESTINATION_URI",
                     "help": "Destination URI"
+                },
+
+                    {
+                    "name": "sourceDatabase",
+                    "type" : "optional",
+                    "cmd_arg":  ["--source-database"],
+                    "nargs": 0,
+                    "help": "Name of the database to restore from (used with"
+                            " server/cluster level backups to restore a single"
+                            " db)",
+                    "action": "store_true",
+                    "default": False
                 }
             ],
             "function": restore_backup
