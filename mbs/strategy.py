@@ -546,15 +546,18 @@ class DumpStrategy(BackupStrategy):
             try:
                 self.dump_backup(backup, mongo_connector,
                                  database_name=source.database_name)
+                # upload dump log file
+                self._upload_dump_log_file(backup)
             except DumpError, e:
                 # still tar and upload failed dumps
                 logger.error("Dumping backup '%s' failed. Will still tar"
                              "up and upload to keep dump logs" % backup.id)
+
+                # TODO maybe change the name of the uploaded failed dump log file
+                self._upload_dump_log_file(backup)
                 self._tar_and_upload_failed_dump(backup)
                 raise
-            finally:
-                # upload log file
-                self._upload_dump_log_file(backup)
+
 
         # tar the dump
         if not backup.is_event_logged(EVENT_END_ARCHIVE):
