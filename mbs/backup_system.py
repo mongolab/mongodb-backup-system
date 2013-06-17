@@ -309,7 +309,10 @@ class BackupSystem(Thread):
         }
 
         for backup in get_mbs().backup_collection.find(q):
-            self.reschedule_backup(backup, from_scratch=from_scratch)
+            try:
+                self.reschedule_backup(backup, from_scratch=from_scratch)
+            except Exception, e:
+                logger.error(e)
 
     ###########################################################################
     def reschedule_backup(self, backup, from_scratch=False):
