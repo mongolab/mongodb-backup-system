@@ -13,3 +13,13 @@
 # vim
 #
 *.swp
+
+#
+# virtualenv
+#
+env
+
+#
+# autoenv
+#
+.env

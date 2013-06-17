@@ -18,6 +18,7 @@ from boto.s3.key import Key
 from boto.ec2 import EC2Connection
 from errors import *
 from robustify.robustify import robustify
+from splitfile import SplitFile
 
 ###############################################################################
 # LOGGER
@@ -246,83 +247,26 @@ class S3BucketTarget(BackupTarget):
 
     ###########################################################################
     def _multi_part_put(self, file_path, destination_path, file_size):
-        # create the parts directory, delete/re-create if it already exists
-        # for some reason
 
-        try:
-            logger.info("S3BucketTarget: Starting multi-part put for %s " %
-                        file_path)
-
-            parts_dir = "%s_parts" % file_path
-            if os.path.exists(parts_dir):
-                shutil.rmtree(parts_dir)
-
-            os.mkdir(parts_dir)
-            file_name = os.path.basename(file_path)
-            part_prefix = "%s_" % file_name
-            # split file into parts
-            file_part_paths = self._split_file(file_path, file_size,
-                                               parts_dir=parts_dir,
-                                               prefix=part_prefix)
-
-            bucket = self._get_bucket()
-            mp = bucket.initiate_multipart_upload(destination_path)
-
-            i = 1
-            for part_path in file_part_paths:
-                part_size = os.path.getsize(part_path)
-                fp = open(part_path, 'rb')
-                logger.debug("Uploading file part %s %s (%s bytes)" %
-                             (i, part_path, part_size))
-                mp.upload_part_from_file(fp, i)
-                fp.close()
-                i += 1
-
-            mp.complete_upload()
-            logger.info("S3BucketTarget: Multi-part put for %s completed"
-                        " successfully!" % file_path)
-        finally:
-            logger.info("S3BucketTarget: Cleaning multi-part temp "
-                        "folders/files")
-            # cleanup
-            if os.path.exists(parts_dir):
-                shutil.rmtree(parts_dir)
-
-    ###########################################################################
-    def _split_file(self, file_path, file_size,
-                    parts_dir=None, prefix=None):
-        """
-            Splits the specified file into 10 parts (if each part is less than
-             max size otherwise file_size/max_size)
-             Returns list of file part paths
-        """
-        logger.info("Splitting file '%s' into multiple parts" % file_path)
-
-        split_exe = which("split")
-        # split into 10 chunks if possible
+        logger.info("S3BucketTarget: Starting multi-part put for %s " %
+                    file_path)
         chunk_size = int(file_size / 10)
         if chunk_size > MAX_SPLIT_SIZE:
             chunk_size = MAX_SPLIT_SIZE
 
-        dest = os.path.join(parts_dir, prefix)
-        split_cmd = [split_exe, "-b", str(chunk_size), file_path, dest]
-        cmd_display = " ".join(split_cmd)
+        bucket = self._get_bucket()
+        mp = bucket.initiate_multipart_upload(destination_path)
 
-        logger.info("Running split command: %s" % cmd_display)
-        execute_command(split_cmd)
+        upload = SplitFile(file_path, chunk_size)
 
-        # construct return value
-        part_names = os.listdir(parts_dir)
-        part_paths = []
-        for name in part_names:
-            part_path = os.path.join(parts_dir, name)
-            part_paths.append(part_path)
+        for i, chunk in enumerate(upload, 1):
+            logger.debug("Uploading file part %d (%s bytes)" %
+                         (i, chunk.size))
+            mp.upload_part_from_file(chunk, i)
 
-        # IMPORTANT: we have to sort files by name to maintain original order!
-        part_paths.sort()
-
-        logger.info("File %s split successfully" % file_path)
-        return part_paths
+        mp.complete_upload()
+        logger.info("S3BucketTarget: Multi-part put for %s completed"
+                    " successfully!" % file_path)
 
     ###########################################################################
     def get_file(self, file_reference, destination):
