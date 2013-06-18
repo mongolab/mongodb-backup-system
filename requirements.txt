@@ -12,10 +12,11 @@ python-dateutil==1.5
 verlib==0.1
 
 https://github.com/objectlabs/maker-py/archive/master.zip#egg=maker_py-0.1.2
-
 https://github.com/mongolab/mongoctl/archive/master.zip#egg=mongoctl-0.3.6
+https://github.com/gregbanks/splitfile/archive/v0.1.1.zip#egg=splitfile-0.1.1
 
 # test
 
 nose
+mock
 
