@@ -5,10 +5,11 @@ from utils import listify
 from makerpy.object_collection import ObjectCollection
 from mongo_utils import objectiditify
 
+
 ###############################################################################
-# MBSTaskCollection class
+# MBSObjectCollection class
 ###############################################################################
-class MBSTaskCollection(ObjectCollection):
+class MBSObjectCollection(ObjectCollection):
     ###########################################################################
     def __init__(self, collection, clazz=None, type_bindings=None):
         # call super
@@ -22,6 +23,17 @@ class MBSTaskCollection(ObjectCollection):
             "_id": task_id
         }
         return self.find_one(q)
+
+
+###############################################################################
+# MBSTaskCollection class
+###############################################################################
+class MBSTaskCollection(MBSObjectCollection):
+    ###########################################################################
+    def __init__(self, collection, clazz=None, type_bindings=None):
+        # call super
+        MBSObjectCollection.__init__(self, collection, clazz=clazz,
+                                     type_bindings=type_bindings)
 
     ###########################################################################
     def update_task(self, task, properties=None, event_name=None,

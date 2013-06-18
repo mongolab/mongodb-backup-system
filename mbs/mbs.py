@@ -5,8 +5,7 @@ import os
 import mbs_config as config
 import mbs_logging
 
-from makerpy.object_collection import ObjectCollection
-from task_collection import MBSTaskCollection
+from collection import MBSObjectCollection, MBSTaskCollection
 from makerpy.maker import resolve_class, Maker
 
 from type_bindings import TYPE_BINDINGS
@@ -130,8 +129,8 @@ class MBS(object):
     def plan_collection(self):
 
         if not self._plan_collection:
-            pc = ObjectCollection(self.database["plans"], clazz=BackupPlan,
-                                  type_bindings=self._type_bindings)
+            pc = MBSObjectCollection(self.database["plans"], clazz=BackupPlan,
+                                     type_bindings=self._type_bindings)
             self._plan_collection = pc
 
         return self._plan_collection
@@ -140,8 +139,8 @@ class MBS(object):
     @property
     def audit_collection(self):
         if not self._audit_collection:
-            ac = ObjectCollection(self.database["audits"], clazz=AuditReport,
-                                  type_bindings=self._type_bindings)
+            ac = MBSObjectCollection(self.database["audits"], clazz=AuditReport,
+                                     type_bindings=self._type_bindings)
 
             self._audit_collection = ac
 
