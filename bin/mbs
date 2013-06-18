@@ -640,12 +640,10 @@ PARSER_DEF = {
                     "name": "sourceDatabase",
                     "type" : "optional",
                     "cmd_arg":  ["--source-database"],
-                    "nargs": 0,
+                    "nargs": 1,
                     "help": "Name of the database to restore from (used with"
                             " server/cluster level backups to restore a single"
-                            " db)",
-                    "action": "store_true",
-                    "default": False
+                            " db)"
                 }
             ],
             "function": restore_backup
