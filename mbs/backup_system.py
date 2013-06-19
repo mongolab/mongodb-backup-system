@@ -772,10 +772,11 @@ class BackupSystemCommandServer(Thread):
                         (backup_id, e))
 
         ########## build restore method
-        @flask_server.route('/restore-backup', methods=['GET'])
+        @flask_server.route('/restore-backup', methods=['POST'])
         def restore_backup():
-            backup_id = request.args.get('backupId')
-            destination_uri = request.args.get('destinationUri')
+            arg_json = request.json
+            backup_id = arg_json.get('backupId')
+            destination_uri = arg_json.get('destinationUri')
 
             logger.info("Command Server: Received a restore-backup command")
             try:
