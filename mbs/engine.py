@@ -737,7 +737,7 @@ class TaskCleanWorker(TaskWorker):
     ###########################################################################
     def run(self):
         try:
-            self.task.strategy.cleanup_task(self.task)
+            self.task.cleanup()
         finally:
             self._processor.cleaner_finished(self)
 
