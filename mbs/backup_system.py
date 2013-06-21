@@ -745,7 +745,9 @@ class BackupSystemCommandServer(Thread):
             logger.info("Command Server: Received a stop command")
             try:
                 backup_system._do_stop()
-                return "BackupSystem stopped successfully"
+                return document_pretty_string({
+                    "ok": True
+                })
             except Exception, e:
                 return "Error while trying to stop backup system: %s" % e
 
@@ -775,12 +777,14 @@ class BackupSystemCommandServer(Thread):
             arg_json = request.json
             backup_id = arg_json.get('backupId')
             destination_uri = arg_json.get('destinationUri')
-
+            source_database_name = arg_json.get('sourceDatabaseName')
             logger.info("Command Server: Received a restore-backup command")
             try:
-                result = backup_system.schedule_backup_restore(backup_id,
-                                                               destination_uri)
-                return str(result)
+                r = backup_system.schedule_backup_restore(backup_id,
+                                                          destination_uri,
+                                                          source_database_name=
+                                                          source_database_name)
+                return str(r)
             except Exception, e:
                 return ("Error while trying to restore backup %s: %s" %
                         (backup_id, e))
@@ -827,7 +831,7 @@ class BackupSystemCommandServer(Thread):
 
         except Exception, e:
             raise BackupSystemError("Error while stopping flask server:"
-                                        " %s" %e)
+                                    " %s" %e)
 
 
 
