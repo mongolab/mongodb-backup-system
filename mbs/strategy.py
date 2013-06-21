@@ -973,12 +973,24 @@ class DumpStrategy(BackupStrategy):
         dest_uri = restore.destination.uri
         dest_uri_wrapper = mongo_uri_tools.parse_mongo_uri(dest_uri)
 
+        # append database name for destination uri if destination is a server
+        # or a cluster
+        # TODO this needs to be refactored where uri always include database
+        # and BackupSource should include more info its a server or a cluster
+        # i.e. credz are admin
+        if not dest_uri_wrapper.database and restore.destination.database_name:
+            dest_uri = "%s/%s" % (dest_uri, restore.destination.database_name)
+            dest_uri_wrapper = mongo_uri_tools.parse_mongo_uri(dest_uri)
+
         src_uri = restore.source_backup.source.uri
         src_uri_wrapper = mongo_uri_tools.parse_mongo_uri(src_uri)
 
         source_database_name = restore.source_database_name
         if not source_database_name:
-            source_database_name = src_uri_wrapper.database
+            if restore.source_backup.source.database_name:
+                source_database_name = restore.source_backup.source.database_name
+            else:
+                source_database_name = src_uri_wrapper.database
 
         # map source/dest
         if source_database_name:
