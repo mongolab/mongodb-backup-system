@@ -45,14 +45,15 @@ class BackupSystemClient(object):
         return self._execute_command("delete-backup/%s" % backup_id)
 
     ###########################################################################
-    def restore_backup(self, backup_id, destination_uri, source_database=None):
+    def restore_backup(self, backup_id, destination_uri,
+                       source_database_name=None):
         data = {
             "backupId": backup_id,
             "destinationUri": destination_uri
         }
 
-        if source_database:
-            data["sourceDatabase"] = source_database
+        if source_database_name:
+            data["sourceDatabaseName"] = source_database_name
 
         return self._execute_command("restore-backup", method="POST",
                                      data=data)
