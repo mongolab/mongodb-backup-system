@@ -17,7 +17,7 @@ MBS_LOG_DIR = "logs"
 logger = logging.getLogger("MBSLogger")
 
 ###############################################################################
-def setup_logging(log_to_stdout=False):
+def setup_logging(log_to_stdout=False, log_file_name="mbs.log"):
     log_dir = os.path.join(mbs_config.MBS_CONF_DIR, MBS_LOG_DIR)
     ensure_dir(log_dir)
 
@@ -25,7 +25,7 @@ def setup_logging(log_to_stdout=False):
 
     formatter = logging.Formatter("%(levelname)8s | %(asctime)s | %(message)s")
 
-    logfile = os.path.join(log_dir, "mbs.log")
+    logfile = os.path.join(log_dir, log_file_name)
     fh = TimedRotatingFileHandler(logfile, backupCount=50, when="midnight")
 
     fh.setFormatter(formatter)
