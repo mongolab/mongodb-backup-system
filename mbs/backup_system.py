@@ -26,8 +26,6 @@ from backup import Backup
 from restore import Restore
 from target import CloudBlockStorageSnapshotReference
 
-from source import MongoSource
-
 ###############################################################################
 ########################                                #######################
 ########################           Backup System        #######################
@@ -888,4 +886,4 @@ def build_backup_source(uri):
     """
         Builds a backup source of the specified URI
     """
-    return MongoSource(uri)
+    return get_mbs().backup_source_builder.build_backup_source(uri)

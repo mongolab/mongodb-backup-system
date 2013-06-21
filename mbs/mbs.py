@@ -65,6 +65,9 @@ class MBS(object):
         # init the encryptor
         self._encryptor = self._get_encryptor()
 
+        #
+        self._backup_source_builder = None
+
     ###########################################################################
     def _get_type_bindings(self):
         return TYPE_BINDINGS
@@ -223,6 +226,17 @@ class MBS(object):
     @property
     def encryptor(self):
         return self._encryptor
+
+    ###########################################################################
+    @property
+    def backup_source_builder(self):
+
+        sb = self._backup_source_builder
+        if not sb:
+            from backup_source_builder import DefaultBackupSourceBuilder
+            sb = DefaultBackupSourceBuilder()
+            self._backup_source_builder = sb
+        return sb
 
     ###########################################################################
     @property
