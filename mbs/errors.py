@@ -1,7 +1,7 @@
 __author__ = 'abdul'
 
 import mongo_uri_tools
-
+from pymongo.errors import ConnectionFailure
 import mbs_logging
 
 ###############################################################################
@@ -384,9 +384,12 @@ class InvalidPlanError(PlanError):
 # UTILITY ERROR METHODS
 ###############################################################################
 def is_connection_exception(exception):
-    msg = str(exception)
-    return ("timed out" in msg or "refused" in msg or "reset" in msg or
-            "Broken pipe" in msg or "closed" in msg)
+    if isinstance(exception, ConnectionFailure):
+        return True
+    else:
+        msg = str(exception)
+        return ("timed out" in msg or "refused" in msg or "reset" in msg or
+                "Broken pipe" in msg or "closed" in msg)
 
 
 ###############################################################################
