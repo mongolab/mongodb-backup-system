@@ -214,12 +214,10 @@ class EbsVolumeStorage(CloudBlockStorage):
 
         logger.info("Creating EBS snapshot for volume '%s'" % self.volume_id)
 
-        if not ebs_volume.create_snapshot(description):
+        ebs_snapshot = ebs_volume.create_snapshot(description)
+        if not ebs_snapshot:
             raise BlockStorageSnapshotError("Failed to create snapshot from "
                                             "backup source :\n%s" % self)
-
-        # get the snapshot id and put it as a target reference
-        ebs_snapshot = self._get_ebs_snapshot_by_desc(description)
 
         # add name tag
         ebs_snapshot.add_tag("Name", name)
