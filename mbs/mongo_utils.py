@@ -4,6 +4,7 @@ __author__ = 'abdul'
 import operator
 
 import pymongo
+import pymongo.errors
 import mbs_logging
 
 from mongo_uri_tools import parse_mongo_uri
@@ -627,21 +628,26 @@ def database_connection_stats(db_uri):
            do_on_exception=raise_if_not_retriable,
            do_on_failure=raise_exception)
 def _calculate_database_stats(db):
-    db_stats = db.command({"dbstats":1})
+    try:
+        db_stats = db.command({"dbstats":1})
 
-    result = {
-        "collections": db_stats["collections"],
-        "objects": db_stats["objects"],
-        "dataSize": db_stats["dataSize"],
-        "storageSize": db_stats["storageSize"],
-        "indexes": db_stats["indexes"],
-        "indexSize":db_stats["indexSize"],
-        "fileSize": db_stats["fileSize"],
-        "nsSizeMB": db_stats["nsSizeMB"],
-        "databaseName": db.name
-    }
+        result = {
+            "collections": db_stats["collections"],
+            "objects": db_stats["objects"],
+            "dataSize": db_stats["dataSize"],
+            "storageSize": db_stats["storageSize"],
+            "indexes": db_stats["indexes"],
+            "indexSize":db_stats["indexSize"],
+            "fileSize": db_stats["fileSize"],
+            "nsSizeMB": db_stats["nsSizeMB"],
+            "databaseName": db.name
+        }
 
-    return result
+        return result
+    except pymongo.errors.OperationFailure, ofe:
+        logger.error("_calculate_database_stats(): Error while trying to run"
+                     " dbstats for db '%s'. Cause: %s" % (db.name, ofe))
+        raise
 
 ###############################################################################
 @robustify(max_attempts=3, retry_interval=3,
