@@ -645,9 +645,10 @@ def _calculate_database_stats(db):
 
         return result
     except pymongo.errors.OperationFailure, ofe:
-        logger.error("_calculate_database_stats(): Error while trying to run"
-                     " dbstats for db '%s'. Cause: %s" % (db.name, ofe))
-        raise
+        msg = ("_calculate_database_stats(): Error while trying to run"
+               " dbstats for db '%s'. Cause: %s" % (db.name, ofe))
+        logger.error(msg)
+        raise DBStatsError(msg=msg, cause=ofe)
 
 ###############################################################################
 @robustify(max_attempts=3, retry_interval=3,

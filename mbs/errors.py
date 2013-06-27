@@ -147,6 +147,12 @@ class NoEligibleMembersFound(ReplicasetError):
 
 
 ###############################################################################
+class DBStatsError(MBSError):
+    """
+        Raised on dbstats command error
+    """
+
+###############################################################################
 class DumpError(MBSError):
     """
         Base error for dump errors
