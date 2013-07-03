@@ -59,6 +59,15 @@ class BackupSystemClient(object):
                                      data=data)
 
     ###########################################################################
+    def get_destination_restore_status(self, destination_uri):
+        params = {
+            "destinationUri": destination_uri
+        }
+
+        return self._execute_command("get-destination-restore-status",
+                                     method="GET", params=params)
+
+    ###########################################################################
     # HELPERS
     ###########################################################################
     def _execute_command(self, command, params=None, data=None, method=None):
@@ -72,7 +81,10 @@ class BackupSystemClient(object):
             url += "/"
         url += command
 
-        #TODO add params to url
+        if params:
+            url += "?"
+            for name,val in params.items():
+                url += "%s=%s" % (name, val)
         return url
 
     ###########################################################################
