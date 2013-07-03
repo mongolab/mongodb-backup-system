@@ -11,7 +11,8 @@ from threading import Thread
 
 from flask import Flask
 from flask.globals import request
-from utils import document_pretty_string, resolve_path
+from utils import (document_pretty_string, resolve_path,
+                   mbs_object_list_to_string)
 
 import mbs_config
 
@@ -453,6 +454,18 @@ class BackupSystem(Thread):
         return restore
 
     ###########################################################################
+    def get_destination_restore_status(self, destination_uri):
+        destination = build_backup_source(destination_uri)
+        q = {
+            "destination": destination.to_document(),
+            "state": STATE_IN_PROGRESS
+        }
+        restore = get_mbs().restore_collection.find_one(q)
+
+        if restore:
+            return restore.get_last_log_message()
+
+    ###########################################################################
     def _check_audit(self):
         # TODO Properly run auditors as needed
 
@@ -789,6 +802,22 @@ class BackupSystemCommandServer(Thread):
                 return ("Error while trying to restore backup %s: %s" %
                         (backup_id, e))
 
+
+        ########## build get-destination-restore-status
+        @flask_server.route('/get-destination-restore-status', methods=['GET'])
+        def get_destination_restore_status():
+            destination_uri = request.args.get('destinationUri')
+            logger.info("Command Server: Received a "
+                        "get-destination-restore-status command")
+            try:
+                status = backup_system.get_destination_restore_status(
+                    destination_uri)
+                return document_pretty_string({
+                    "status": status
+                })
+            except Exception, e:
+                return ("Error while trying to get restore status for"
+                        " destination '%s': %s" % (destination_uri, e))
 
         ########## build stop-command-server method
         @flask_server.route('/stop-command-server', methods=['GET'])
