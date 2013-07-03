@@ -243,6 +243,11 @@ class MBSTask(MBSObject):
         return self._get_logs_by_event_type(EVENT_TYPE_WARNING)
 
     ###########################################################################
+    def get_last_log_message(self):
+        if self.logs:
+            return self.logs[-1].message
+
+    ###########################################################################
     def _get_logs_by_event_type(self, event_type):
         return filter(lambda entry: entry.event_type == event_type, self.logs)
 

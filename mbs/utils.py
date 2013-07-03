@@ -25,6 +25,11 @@ from distutils.version import StrictVersion
 
 def document_pretty_string(document):
     return json.dumps(document, indent=4, default=_custom_json_default)
+###############################################################################
+
+def mbs_object_list_to_string(obj_list):
+    doc_list = map(lambda o: o.to_document(display_only=True), obj_list)
+    return document_pretty_string(doc_list)
 
 ###############################################################################
 def _custom_json_default(obj):
