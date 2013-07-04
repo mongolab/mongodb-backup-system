@@ -679,6 +679,8 @@ def _calculate_connection_databases_stats(connection):
         for key in total_stats.keys():
             total_stats[key] += db_stats.get(key) or 0
 
+    total_stats["databaseNames"] = database_names
+
     return total_stats
 
 
