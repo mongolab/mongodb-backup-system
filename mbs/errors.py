@@ -450,3 +450,10 @@ class ExtractError(MBSError):
                    (tar_cmd, return_code, cmd_output))
         super(ExtractError, self).__init__(msg=msg, details=details,
                                            cause=cause)
+
+
+###############################################################################
+# PlanGeneratorError
+###############################################################################
+class PlanGenerationError(MBSError):
+    pass
