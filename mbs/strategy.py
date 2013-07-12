@@ -1006,6 +1006,17 @@ class DumpStrategy(BackupStrategy):
             restore_source_path
         ]
 
+        # if mongo version is >= 2.4 and we are using admin creds then pass
+        # --authenticationDatabase
+        mongo_connector = build_mongo_connector(dest_uri)
+        mongo_version = mongo_connector.get_mongo_version()
+        if (mongo_version >= MongoNormalizedVersion("2.4.0") and
+                isinstance(mongo_connector, (MongoServer, MongoCluster))) :
+            restore_cmd.extend([
+                "--authenticationDatabase",
+                "admin"
+            ])
+
         restore_cmd_display = restore_cmd[:]
 
         restore_cmd_display[restore_cmd_display.index("restore") + 1] =\
