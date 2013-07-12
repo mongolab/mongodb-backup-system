@@ -46,7 +46,7 @@ class BackupSystemClient(object):
 
     ###########################################################################
     def restore_backup(self, backup_id, destination_uri,
-                       source_database_name=None):
+                       source_database_name=None, tags=None):
         data = {
             "backupId": backup_id,
             "destinationUri": destination_uri
@@ -54,6 +54,8 @@ class BackupSystemClient(object):
 
         if source_database_name:
             data["sourceDatabaseName"] = source_database_name
+        if tags:
+            data["tags"] = tags
 
         return self._execute_command("restore-backup", method="POST",
                                      data=data)

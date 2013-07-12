@@ -228,6 +228,11 @@ class MBS(object):
 
     ###########################################################################
     @property
+    def maker(self):
+        return self._maker
+
+    ###########################################################################
+    @property
     def backup_source_builder(self):
 
         sb = self._backup_source_builder

@@ -25,7 +25,7 @@ class DynamicTag(MBSObject):
         pass
 
     ###########################################################################
-    def generate_tag_value(self, plan):
+    def generate_tag_value(self, task):
         pass
 
 
@@ -39,9 +39,9 @@ class SourceIPTag(DynamicTag):
     """
 
     ###########################################################################
-    def generate_tag_value(self, plan):
+    def generate_tag_value(self, backup):
         try:
-            uri_wrapper = parse_mongo_uri(plan.source.uri)
+            uri_wrapper = parse_mongo_uri(backup.source.uri)
             host = uri_wrapper.host
             ips = get_host_ips(host)
             if ips:

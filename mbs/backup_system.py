@@ -26,6 +26,7 @@ from mbs import get_mbs
 from backup import Backup
 from restore import Restore
 from target import CloudBlockStorageSnapshotReference
+from tags import DynamicTag
 
 ###############################################################################
 ########################                                #######################
@@ -333,7 +334,7 @@ class BackupSystem(Thread):
         backup.state = STATE_SCHEDULED
         # regenerate backup tags if backup belongs to a plan
         if backup.plan:
-            backup.tags = backup.plan.generate_tags()
+            backup.tags = self._resolve_task_tags(backup, backup.plan.tags)
 
         bc = get_mbs().backup_collection
         # if from_scratch is set then clear backup log
@@ -357,13 +358,14 @@ class BackupSystem(Thread):
         backup.strategy = plan.strategy
         backup.source = plan.source
         backup.target = plan.target
-        backup.tags = plan.generate_tags()
         backup.priority = plan.priority
         backup.change_state(STATE_SCHEDULED)
         if not one_time:
             backup.plan_occurrence = plan.next_occurrence
             self._set_plan_next_occurrence(plan)
             backup.plan = plan
+        # resolve tags
+        backup.tags = self._resolve_task_tags(backup, plan.tags)
         backup_doc = backup.to_document()
         get_mbs().backup_collection.save_document(backup_doc)
         # set the backup id from the saved doc
@@ -443,7 +445,11 @@ class BackupSystem(Thread):
         restore.source_database_name = source_database_name
         restore.strategy = backup.strategy
         restore.destination = destination
-        restore.tags = tags or restore.source_backup.tags
+        # resolve tags
+        tags = tags or restore.source_backup.tags
+        tags = get_mbs().maker.make(tags)
+        restore.tags = self._resolve_task_tags(restore, tags)
+
         restore.state = STATE_SCHEDULED
         restore.created_date = date_now()
 
@@ -561,6 +567,18 @@ class BackupSystem(Thread):
             self.info("Sending a notification...")
             sbj = "Past due scheduled backups"
             get_mbs().send_notification(sbj, msg)
+
+    ###########################################################################
+    def _resolve_task_tags(self, task, tags):
+        if tags:
+            tag_vals = {}
+            for name,value in tags.items():
+                if isinstance(value, DynamicTag):
+                    tag_vals[name] = value.generate_tag_value(task)
+                else:
+                    tag_vals[name] = value
+
+            return tag_vals
 
     ###########################################################################
     def _notify_on_late_in_progress_backups(self):
@@ -790,13 +808,15 @@ class BackupSystemCommandServer(Thread):
             arg_json = request.json
             backup_id = arg_json.get('backupId')
             destination_uri = arg_json.get('destinationUri')
+            tags = arg_json.get('tags')
             source_database_name = arg_json.get('sourceDatabaseName')
             logger.info("Command Server: Received a restore-backup command")
             try:
                 r = backup_system.schedule_backup_restore(backup_id,
                                                           destination_uri,
                                                           source_database_name=
-                                                          source_database_name)
+                                                          source_database_name,
+                                                          tags=tags)
                 return str(r)
             except Exception, e:
                 return ("Error while trying to restore backup %s: %s" %

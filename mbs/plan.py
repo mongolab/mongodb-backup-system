@@ -125,19 +125,6 @@ class BackupPlan(MBSObject):
         self._tags = tags
 
     ###########################################################################
-    def generate_tags(self):
-        if self.tags:
-            tag_vals = {}
-            for name,value in self.tags.items():
-                if isinstance(value, DynamicTag):
-                    tag_vals[name] = value.generate_tag_value(self)
-                else:
-                    tag_vals[name] = value
-
-            return tag_vals
-
-
-    ###########################################################################
     def _export_tags(self):
         if self.tags:
             exported_tags = {}
