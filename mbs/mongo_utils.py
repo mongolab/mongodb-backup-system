@@ -235,7 +235,7 @@ class MongoCluster(MongoConnector):
     ###########################################################################
     @property
     def connection(self):
-        raise Exception("Unsupported operation")
+        return self.primary_member.connection
 
     ###########################################################################
     def _init_members(self):
