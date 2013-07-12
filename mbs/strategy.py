@@ -982,15 +982,13 @@ class DumpStrategy(BackupStrategy):
             dest_uri = "%s/%s" % (dest_uri, restore.destination.database_name)
             dest_uri_wrapper = mongo_uri_tools.parse_mongo_uri(dest_uri)
 
-        src_uri = restore.source_backup.source.uri
-        src_uri_wrapper = mongo_uri_tools.parse_mongo_uri(src_uri)
-
         source_database_name = restore.source_database_name
         if not source_database_name:
             if restore.source_backup.source.database_name:
                 source_database_name = restore.source_backup.source.database_name
             else:
-                source_database_name = src_uri_wrapper.database
+                stats = restore.source_backup.source_stats
+                source_database_name = stats.get("databaseName")
 
         # map source/dest
         if source_database_name:
