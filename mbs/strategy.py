@@ -971,6 +971,10 @@ class DumpStrategy(BackupStrategy):
         restore_source_path = os.path.join(working_dir, restore_source_path)
 
         dest_uri = restore.destination.uri
+
+        # connect to the destination
+        mongo_connector = build_mongo_connector(dest_uri)
+
         dest_uri_wrapper = mongo_uri_tools.parse_mongo_uri(dest_uri)
 
         # append database name for destination uri if destination is a server
@@ -1008,7 +1012,7 @@ class DumpStrategy(BackupStrategy):
 
         # if mongo version is >= 2.4 and we are using admin creds then pass
         # --authenticationDatabase
-        mongo_connector = build_mongo_connector(dest_uri)
+
         mongo_version = mongo_connector.get_mongo_version()
         if (mongo_version >= MongoNormalizedVersion("2.4.0") and
                 isinstance(mongo_connector, (MongoServer, MongoCluster))) :
