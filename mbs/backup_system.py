@@ -419,6 +419,14 @@ class BackupSystem(Thread):
         logger.info("Removing plan '%s' " % plan.id)
         get_mbs().plan_collection.remove_by_id(plan.id)
 
+
+    ###########################################################################
+    def get_backup(self, backup_id):
+        """
+            Returns the backup object by specified id
+        """
+        return get_mbs().backup_collection.get_by_id(backup_id)
+
     ###########################################################################
     def delete_backup(self, backup_id):
         """
@@ -790,6 +798,17 @@ class BackupSystemCommandServer(Thread):
                 return document_pretty_string(backup_system._do_get_status())
             except Exception, e:
                 return "Error while trying to get backup system status: %s" % e
+
+        ########## build get backup method
+        @flask_server.route('/get-backup/<backup_id>', methods=['GET'])
+        def get_backup(backup_id):
+            logger.info("Command Server: Received a get-backup command")
+            try:
+                backup = backup_system.get_backup(backup_id)
+                return str(backup)
+            except Exception, e:
+                return ("Error while trying to get backup %s: %s" %
+                        (backup_id, e))
 
         ########## build delete backup method
         @flask_server.route('/delete-backup/<backup_id>', methods=['GET'])
