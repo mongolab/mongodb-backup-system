@@ -41,6 +41,10 @@ class BackupSystemClient(object):
         return self._execute_command("stop")
 
     ###########################################################################
+    def get_backup(self, backup_id):
+        return self._execute_command("get-backup/%s" % backup_id)
+
+    ###########################################################################
     def delete_backup(self, backup_id):
         return self._execute_command("delete-backup/%s" % backup_id)
 
