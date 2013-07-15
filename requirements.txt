@@ -4,7 +4,7 @@ Flask==0.8
 azure==0.6
 boto==2.6.0
 # This is temp until croniter fixes issue #22 https://github.com/taichino/croniter/pull/22
-https://github.com/abdulito/croniter/archive/master.zip#egg=abdulito_croniter-0.3.31
+https://github.com/abdulito/croniter/archive/master.zip#egg=abdulito_croniter-0.3.2
 dargparse
 pymongo==2.4.1
 python-cloudfiles==1.7.10
