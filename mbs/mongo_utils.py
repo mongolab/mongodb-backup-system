@@ -311,8 +311,11 @@ class MongoCluster(MongoConnector):
             best_secondary = merged_list[0]
             if not max_lag_seconds:
                 return best_secondary
-            elif best_secondary.lag_in_seconds < max_lag_seconds:
-                return best_secondary
+            else:
+                for secondary in merged_list:
+                    if secondary.lag_in_seconds < max_lag_seconds:
+                        return secondary
+
 
     ###########################################################################
     def get_stats(self, only_for_db=None):
