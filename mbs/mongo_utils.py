@@ -659,6 +659,8 @@ def _calculate_database_stats(db):
            do_on_failure=raise_exception)
 def _calculate_connection_databases_stats(connection):
 
+    all_db_stats = {}
+
     total_stats = {
         "collections": 0,
         "objects": 0,
@@ -670,7 +672,6 @@ def _calculate_connection_databases_stats(connection):
         "nsSizeMB": 0
     }
 
-
     database_names = connection.database_names()
 
     for dbname in database_names:
@@ -679,12 +680,13 @@ def _calculate_connection_databases_stats(connection):
 
         db = connection[dbname]
         db_stats = _calculate_database_stats(db)
+        all_db_stats[dbname] = db_stats
         for key in total_stats.keys():
             total_stats[key] += db_stats.get(key) or 0
 
-    total_stats["databaseNames"] = database_names
-
+    total_stats["databaseStats"] = all_db_stats
     return total_stats
+
 
 
 
