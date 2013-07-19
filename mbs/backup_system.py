@@ -428,6 +428,19 @@ class BackupSystem(Thread):
         return get_mbs().backup_collection.get_by_id(backup_id)
 
     ###########################################################################
+    def get_backup_database_names(self, backup_id):
+        """
+            Returns the list of databases available by specified backup
+        """
+        backup = self.get_backup(backup_id)
+
+        if backup and backup.source_stats:
+            if "databaseName" in backup.source_stats:
+                return [backup.source_stats["databaseName"]]
+            elif "databaseStats" in backup.source_stats:
+                return backup.source_stats["databaseStats"].keys()
+
+    ###########################################################################
     def delete_backup(self, backup_id):
         """
             Deletes the specified backup. Deleting here means expiring
@@ -781,7 +794,7 @@ class BackupSystemCommandServer(Thread):
         ########## build stop method
         @flask_server.route('/stop', methods=['GET'])
         def stop_backup_system():
-            logger.info("Command Server: Received a stop command")
+            logger.info("Backup System: Received a stop command")
             try:
                 backup_system._do_stop()
                 return document_pretty_string({
@@ -793,7 +806,7 @@ class BackupSystemCommandServer(Thread):
         ########## build status method
         @flask_server.route('/status', methods=['GET'])
         def status():
-            logger.info("Command Server: Received a status command")
+            logger.info("Backup System: Received a status command")
             try:
                 return document_pretty_string(backup_system._do_get_status())
             except Exception, e:
@@ -802,7 +815,7 @@ class BackupSystemCommandServer(Thread):
         ########## build get backup method
         @flask_server.route('/get-backup/<backup_id>', methods=['GET'])
         def get_backup(backup_id):
-            logger.info("Command Server: Received a get-backup command")
+            logger.info("Backup System: Received a get-backup command")
             try:
                 backup = backup_system.get_backup(backup_id)
                 return str(backup)
@@ -810,10 +823,21 @@ class BackupSystemCommandServer(Thread):
                 return ("Error while trying to get backup %s: %s" %
                         (backup_id, e))
 
+        ########## build get backup database names
+        @flask_server.route('/get-backup-database-names/<backup_id>', methods=['GET'])
+        def get_backup_database_names(backup_id):
+            logger.info("Backup System: Received a get-backup-database-names"
+                        " command")
+            try:
+                dbnames = backup_system.get_backup_database_names(backup_id)
+                return document_pretty_string(dbnames)
+            except Exception, e:
+                return ("Error while trying to get backup %s: %s" %
+                        (backup_id, e))
         ########## build delete backup method
         @flask_server.route('/delete-backup/<backup_id>', methods=['GET'])
         def delete_backup(backup_id):
-            logger.info("Command Server: Received a delete-backup command")
+            logger.info("Backup System: Received a delete-backup command")
             try:
                 result = backup_system.delete_backup(backup_id)
                 return document_pretty_string(result)
@@ -829,7 +853,7 @@ class BackupSystemCommandServer(Thread):
             destination_uri = arg_json.get('destinationUri')
             tags = arg_json.get('tags')
             source_database_name = arg_json.get('sourceDatabaseName')
-            logger.info("Command Server: Received a restore-backup command")
+            logger.info("Backup System: Received a restore-backup command")
             try:
                 r = backup_system.schedule_backup_restore(backup_id,
                                                           destination_uri,
@@ -846,7 +870,7 @@ class BackupSystemCommandServer(Thread):
         @flask_server.route('/get-destination-restore-status', methods=['GET'])
         def get_destination_restore_status():
             destination_uri = request.args.get('destinationUri')
-            logger.info("Command Server: Received a "
+            logger.info("Backup System: Received a "
                         "get-destination-restore-status command")
             try:
                 status = backup_system.get_destination_restore_status(
