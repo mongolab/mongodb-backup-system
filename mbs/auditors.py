@@ -65,17 +65,6 @@ class PlanAuditor(BackupAuditor):
         all_warned_audits = []
         total_warnings = 0
         for plan in get_mbs().plan_collection.find():
-            # skip recently added plans whose created date is after audit date
-            # and their next occurrence is not in auditing range
-            if (plan.created_date > audit_date and plan.next_occurrence and
-                plan.next_occurrence > audit_end_date) :
-                logger.info("PlanAuditor: Skipping auditing plan '%s' since"
-                            " its created date '%s' is later than audit date "
-                            "'%s'" % (plan.id,
-                                      datetime_to_string(plan.created_date),
-                                      datetime_to_string(audit_date)))
-                continue
-
             plan_report = self._create_plan_audit_report(plan, audit_date)
 
             if plan_report.has_failures():
@@ -118,6 +107,10 @@ class PlanAuditor(BackupAuditor):
         total_audits = 0
         total_warnings = 0
         for plan_occurrence in plan.natural_occurrences_as_of(audit_date):
+            # skip occurrences before plan's created date
+            if plan.created_date and plan_occurrence < plan.created_date:
+                continue
+
             audit_entry = self._audit_plan_occurrence(plan, plan_occurrence)
             if audit_entry.failed():
                 failed_audits.append(audit_entry)
