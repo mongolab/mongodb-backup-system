@@ -207,7 +207,7 @@ class BackupSystem(Thread):
                       " occurrence to '%s'" %
                       (plan._id, next_natural_occurrence))
 
-            self._set_plan_next_occurrence(plan)
+            self._set_update_plan_next_occurrence(plan)
 
         # CASE II: If there is a backup running (IN PROGRESS)
         # ===> no op
@@ -353,30 +353,48 @@ class BackupSystem(Thread):
     def schedule_new_backup(self, plan, one_time=False):
         self.info("Scheduling plan '%s'" % plan._id)
 
-        backup = Backup()
-        backup.created_date = date_now()
-        backup.strategy = plan.strategy
-        backup.source = plan.source
-        backup.target = plan.target
-        backup.priority = plan.priority
-        backup.change_state(STATE_SCHEDULED)
-        if not one_time:
-            backup.plan_occurrence = plan.next_occurrence
-            self._set_plan_next_occurrence(plan)
-            backup.plan = plan
-        # resolve tags
-        backup.tags = self._resolve_task_tags(backup, plan.tags)
-        backup_doc = backup.to_document()
-        get_mbs().backup_collection.save_document(backup_doc)
-        # set the backup id from the saved doc
-        backup.id = backup_doc["_id"]
+        try:
+            backup = Backup()
+            backup.created_date = date_now()
+            backup.strategy = plan.strategy
+            backup.source = plan.source
+            backup.target = plan.target
+            backup.priority = plan.priority
+            backup.change_state(STATE_SCHEDULED)
+            # resolve tags
+            backup.tags = self._resolve_task_tags(backup, plan.tags)
 
-        self.info("Scheduled backup \n%s" % backup)
-        return backup
+            if not one_time:
+                backup.plan_occurrence = plan.next_occurrence
+                # recalculate plan's next occurrence
+                plan.next_occurrence = plan.next_natural_occurrence()
+                backup.plan = plan
+
+            backup_doc = backup.to_document()
+            get_mbs().backup_collection.save_document(backup_doc)
+            # set the backup id from the saved doc
+
+            #  update the plans next occurrence
+            self._save_plan_next_occurrence(plan)
+            backup.id = backup_doc["_id"]
+
+            self.info("Scheduled backup \n%s" % backup)
+            return backup
+        except Exception, e:
+            sbj = "Failed to schedule backup"
+            msg = ("Failed to schedule backup for plan '%s'. Cause: %s\n"
+                   "Trace: \n%s" % (plan.id, e, traceback.format_exc()))
+
+            self.error(msg)
+            get_mbs().send_notification(sbj, msg)
 
     ###########################################################################
-    def _set_plan_next_occurrence(self, plan):
+    def _set_update_plan_next_occurrence(self, plan):
         plan.next_occurrence = plan.next_natural_occurrence()
+        self._save_plan_next_occurrence(plan)
+
+    ###########################################################################
+    def _save_plan_next_occurrence(self, plan):
         q = {"_id": plan.id}
         u = {
             "$set": {
