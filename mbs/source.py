@@ -24,8 +24,8 @@ class BackupSource(MBSObject):
 
     ###########################################################################
     def __init__(self):
-        self._tags = None
         self._cloud_block_storage = None
+        self._info = None
 
     ###########################################################################
     @property
@@ -70,19 +70,19 @@ class BackupSource(MBSObject):
 
     ###########################################################################
     @property
-    def tags(self):
-        return self._tags
+    def info(self):
+        return self._info
 
-    @tags.setter
-    def tags(self, tags):
-        self._tags = tags
+    @info.setter
+    def info(self, info):
+        self._info = info
 
     ###########################################################################
     def to_document(self, display_only=False):
         doc = {}
 
-        if self.tags:
-            doc["tags"] = self.tags
+        if self.info:
+            doc["info"] = self.info
 
         if self.cloud_block_storage:
             doc["cloudBlockStorage"] = self._export_cloud_block_storage()
