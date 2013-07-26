@@ -1015,6 +1015,11 @@ class DumpStrategy(BackupStrategy):
             restore_source_path
         ]
 
+        # append  --oplogReplay for cluster backups/restore
+        if (not source_database_name and
+            "repl" in restore.source_backup.source_stats):
+            restore_cmd.append("--oplogReplay")
+
         # if mongo version is >= 2.4 and we are using admin creds then pass
         # --authenticationDatabase
 
