@@ -969,6 +969,11 @@ class DumpStrategy(BackupStrategy):
         logger.info("Restoring using mongoctl restore")
         restore_source_path = file_reference.file_name[: -4]
         restore_source_path = os.path.join(working_dir, restore_source_path)
+        # IMPORTANT delete dump log file so the restore command would not break
+        if restore.source_backup.log_target_reference:
+            log_file = restore.source_backup.log_target_reference.file_name
+            dump_log_path = os.path.join(restore_source_path, log_file)
+            os.remove(dump_log_path)
 
         dest_uri = restore.destination.uri
 
