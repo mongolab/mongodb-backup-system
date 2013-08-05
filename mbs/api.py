@@ -170,18 +170,20 @@ class BackupSystemApiServer(Thread):
             return self.status()
 
         ########## build get backup database names
-        @flask_server.route('/get-backup-database-names/<backup_id>',
+        @flask_server.route('/get-backup-database-names',
                             methods=['GET'])
-        @self.api_auth_service.auth("/get-backup-database-names/<backup_id>")
+        @self.api_auth_service.auth("/get-backup-database-names")
         @crossdomain(origin='*')
-        def get_backup_database_names_request(backup_id):
+        def get_backup_database_names_request():
+            backup_id = request.args.get('backupId')
             return self.get_backup_database_names(backup_id)
 
         ########## build delete backup method
-        @flask_server.route('/delete-backup/<backup_id>', methods=['GET'])
-        @self.api_auth_service.auth("/delete-backup/<backup_id>")
+        @flask_server.route('/delete-backup', methods=['GET'])
+        @self.api_auth_service.auth("/delete-backup")
         @crossdomain(origin='*')
-        def delete_backup_request(backup_id):
+        def delete_backup_request():
+            backup_id = request.args.get('backupId')
             return self.delete_backup(backup_id)
 
         ########## build restore method
