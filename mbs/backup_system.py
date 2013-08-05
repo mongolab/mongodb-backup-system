@@ -9,10 +9,8 @@ import os
 
 from threading import Thread
 
-from flask import Flask
-from flask.globals import request
-from utils import (document_pretty_string, resolve_path,
-                   mbs_object_list_to_string)
+
+from utils import resolve_path, wait_for
 
 import mbs_config
 
@@ -23,11 +21,11 @@ from task import (STATE_SCHEDULED, STATE_IN_PROGRESS, STATE_FAILED,
                   STATE_CANCELED, EVENT_STATE_CHANGE)
 
 from mbs import get_mbs
+from api import BackupSystemApiServer
 from backup import Backup
 from restore import Restore
 from target import CloudBlockStorageSnapshotReference
 from tags import DynamicTag
-
 ###############################################################################
 ########################                                #######################
 ########################           Backup System        #######################
@@ -60,16 +58,17 @@ BACKUP_SYSTEM_STATUS_STOPPED = "stopped"
 class BackupSystem(Thread):
     ###########################################################################
     def __init__(self, sleep_time=10,
-                       command_port=9003):
+                 api_port=9003):
 
         Thread.__init__(self)
         self._sleep_time = sleep_time
 
         self._plan_generators = []
         self._tick_count = 0
+        self._stop_requested = False
         self._stopped = False
-        self._command_port = command_port
-        self._command_server = BackupSystemCommandServer(self)
+        self._api_port = api_port
+        self._api_server = None
 
         # auditing stuff
 
@@ -132,6 +131,19 @@ class BackupSystem(Thread):
         return self._global_auditor
 
     ###########################################################################
+    @property
+    def api_server(self):
+        if not self._api_server:
+            self._api_server = BackupSystemApiServer()
+
+        return self._api_server
+
+    @api_server.setter
+    def api_server(self, api_server):
+        self._api_server = api_server
+        self._api_server._backup_system = self
+
+    ###########################################################################
     # Behaviors
     ###########################################################################
     def run(self):
@@ -139,10 +151,10 @@ class BackupSystem(Thread):
         self.info("PID is %s" % os.getpid())
         self._update_pid_file()
 
-        # Start the command server
-        self._start_command_server()
+        # Start the api server
+        self._start_api_server()
 
-        while not self._stopped:
+        while not self._stop_requested:
             try:
                 self._tick()
                 time.sleep(self._sleep_time)
@@ -151,8 +163,7 @@ class BackupSystem(Thread):
                            (e, traceback.format_exc()))
                 self._notify_error(e)
 
-        self.info("Exited main loop")
-        self._pre_shutdown()
+        self._stopped = True
 
     ###########################################################################
     def _tick(self):
@@ -689,38 +700,24 @@ class BackupSystem(Thread):
     ###########################################################################
     # BackupSystem stopping
     ###########################################################################
-    def stop(self, force=False):
+    def force_stop(self):
         """
-            Sends a stop request to the backup system using the command port
+            Sends a stop request to the backup system using the api port
             This should be used by other processes (copy of the backup system
             instance) but not the actual running backup system process
         """
+        self._kill_backup_system_process()
+        return
 
-        if force:
-            self._kill_backup_system_process()
-            return
-
-        url = "http://0.0.0.0:%s/stop" % self._command_port
-        try:
-            response = urllib.urlopen(url)
-            if response.getcode() == 200:
-                print response.read().strip()
-            else:
-                msg =  ("Error while trying to stop backup systemURL %s "
-                        "(Response"" code %)" %
-                        ( url, response.getcode()))
-                raise BackupSystemError(msg)
-        except IOError, e:
-            logger.error("BackupSystem is not running")
 
     ###########################################################################
     def get_status(self):
         """
-            Sends a status request to the backup system using the command port
+            Sends a status request to the backup system using the api port
             This should be used by other processes (copy of the backup system
             instance) but not the actual running backup system process
         """
-        url = "http://0.0.0.0:%s/status" % self._command_port
+        url = "http://0.0.0.0:%s/status" % self._api_port
         try:
             response = urllib.urlopen(url)
             if response.getcode() == 200:
@@ -741,7 +738,19 @@ class BackupSystem(Thread):
             Triggers the backup system to gracefully stop
         """
         self.info("Stopping backup system gracefully")
-        self._stopped = True
+        self._stop_requested = True
+
+        # wait until backup system stops
+
+        def stopped():
+            return self._stopped
+
+        self.info("Waiting for backup system to stop")
+        wait_for(stopped, timeout=60)
+        if stopped():
+            self.info("Backup system stopped successfully. Bye!")
+        else:
+            raise BackupSystemError("Backup system did not stop in 60 seconds")
 
     ###########################################################################
     def _do_get_status(self):
@@ -749,6 +758,8 @@ class BackupSystem(Thread):
             Gets the status of the backup system
         """
         if self._stopped:
+            status = BACKUP_SYSTEM_STATUS_STOPPED
+        elif self._stop_requested:
             status = BACKUP_SYSTEM_STATUS_STOPPING
         else:
             status = BACKUP_SYSTEM_STATUS_RUNNING
@@ -758,22 +769,14 @@ class BackupSystem(Thread):
         }
 
     ###########################################################################
-    def _pre_shutdown(self):
-        self._stop_command_server()
-
-    ###########################################################################
-    # Command Server
+    # api server
     ###########################################################################
 
-    def _start_command_server(self):
-        self.info("Starting command server at port %s" % self._command_port)
+    def _start_api_server(self):
+        self.info("Starting api server at port %s" % self._api_port)
 
-        self._command_server.start()
-        self.info("Command Server started successfully!")
-
-    ###########################################################################
-    def _stop_command_server(self):
-        self._command_server.stop()
+        self.api_server.start()
+        self.info("api server started successfully!")
 
     ###########################################################################
     # logging
@@ -788,161 +791,6 @@ class BackupSystem(Thread):
     ###########################################################################
     def debug(self, msg):
         logger.debug("BackupSystem: %s" % msg)
-
-
-###############################################################################
-# BackupSystemCommandServer
-###############################################################################
-
-from flask import request
-
-class BackupSystemCommandServer(Thread):
-
-    ###########################################################################
-    def __init__(self, backup_system):
-        Thread.__init__(self)
-        self._backup_system = backup_system
-        self._flask_server = self._build_flask_server()
-
-    ###########################################################################
-    def _build_flask_server(self):
-        flask_server = Flask(__name__)
-        backup_system = self._backup_system
-
-        ########## build stop method
-        @flask_server.route('/stop', methods=['GET'])
-        def stop_backup_system():
-            logger.info("Backup System: Received a stop command")
-            try:
-                backup_system._do_stop()
-                return document_pretty_string({
-                    "ok": True
-                })
-            except Exception, e:
-                return "Error while trying to stop backup system: %s" % e
-
-        ########## build status method
-        @flask_server.route('/status', methods=['GET'])
-        def status():
-            logger.info("Backup System: Received a status command")
-            try:
-                return document_pretty_string(backup_system._do_get_status())
-            except Exception, e:
-                return "Error while trying to get backup system status: %s" % e
-
-        ########## build get backup method
-        @flask_server.route('/get-backup/<backup_id>', methods=['GET'])
-        def get_backup(backup_id):
-            logger.info("Backup System: Received a get-backup command")
-            try:
-                backup = backup_system.get_backup(backup_id)
-                return str(backup)
-            except Exception, e:
-                return ("Error while trying to get backup %s: %s" %
-                        (backup_id, e))
-
-        ########## build get backup database names
-        @flask_server.route('/get-backup-database-names/<backup_id>', methods=['GET'])
-        def get_backup_database_names(backup_id):
-            logger.info("Backup System: Received a get-backup-database-names"
-                        " command")
-            try:
-                dbnames = backup_system.get_backup_database_names(backup_id)
-                return document_pretty_string(dbnames)
-            except Exception, e:
-                return ("Error while trying to get backup %s: %s" %
-                        (backup_id, e))
-        ########## build delete backup method
-        @flask_server.route('/delete-backup/<backup_id>', methods=['GET'])
-        def delete_backup(backup_id):
-            logger.info("Backup System: Received a delete-backup command")
-            try:
-                result = backup_system.delete_backup(backup_id)
-                return document_pretty_string(result)
-            except Exception, e:
-                return ("Error while trying to delete backup %s: %s" %
-                        (backup_id, e))
-
-        ########## build restore method
-        @flask_server.route('/restore-backup', methods=['POST'])
-        def restore_backup():
-            arg_json = request.json
-            backup_id = arg_json.get('backupId')
-            destination_uri = arg_json.get('destinationUri')
-            tags = arg_json.get('tags')
-            source_database_name = arg_json.get('sourceDatabaseName')
-            logger.info("Backup System: Received a restore-backup command")
-            try:
-                r = backup_system.schedule_backup_restore(backup_id,
-                                                          destination_uri,
-                                                          source_database_name=
-                                                          source_database_name,
-                                                          tags=tags)
-                return str(r)
-            except Exception, e:
-                return ("Error while trying to restore backup %s: %s" %
-                        (backup_id, e))
-
-
-        ########## build get-destination-restore-status
-        @flask_server.route('/get-destination-restore-status', methods=['GET'])
-        def get_destination_restore_status():
-            destination_uri = request.args.get('destinationUri')
-            logger.info("Backup System: Received a "
-                        "get-destination-restore-status command")
-            try:
-                status = backup_system.get_destination_restore_status(
-                    destination_uri)
-                return document_pretty_string({
-                    "status": status
-                })
-            except Exception, e:
-                return ("Error while trying to get restore status for"
-                        " destination '%s': %s" % (destination_uri, e))
-
-        ########## build stop-command-server method
-        @flask_server.route('/stop-command-server', methods=['GET'])
-        def stop_command_server():
-            logger.info("Stopping command server")
-            try:
-                shutdown = request.environ.get('werkzeug.server.shutdown')
-                if shutdown is None:
-                    raise RuntimeError('Not running with the Werkzeug Server')
-                shutdown()
-                return "success"
-            except Exception, e:
-                return "Error while trying to get backup system status: %s" % e
-
-        return flask_server
-
-    ###########################################################################
-    def run(self):
-        logger.info("BackupSystemCommandServer: Running flask server ")
-        self._flask_server.run(host="0.0.0.0",
-                               port=self._backup_system._command_port,
-                               threaded=True)
-
-    ###########################################################################
-    def stop(self):
-
-        logger.info("BackupSystemCommandServer: Stopping flask server ")
-        port = self._backup_system._command_port
-        url = "http://0.0.0.0:%s/stop-command-server" % port
-        try:
-            response = urllib.urlopen(url)
-            if response.getcode() == 200:
-                logger.info("BackupSystemCommandServer: Flask server stopped "
-                            "successfully")
-                return response.read().strip()
-            else:
-                msg =  ("Error while trying to send command of URL %s "
-                        "(Response code %)" % (url, response.getcode()))
-                raise BackupSystemError(msg)
-
-        except Exception, e:
-            raise BackupSystemError("Error while stopping flask server:"
-                                    " %s" %e)
-
 
 
 ###############################################################################

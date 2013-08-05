@@ -13,9 +13,11 @@ from functools import partial
 from dargparse import dargparse
 from mbs.mbs import get_mbs
 from mbs.engine import STATUS_STOPPED, STATUS_STOPPING, STATUS_RUNNING
+from mbs.backup_system import BACKUP_SYSTEM_STATUS_STOPPED
 from mbs.utils import (
-    wait_for, document_pretty_string, resolve_path, SignalWatcher
-)
+    wait_for, document_pretty_string, resolve_path, SignalWatcher,
+    read_config_json
+    )
 from mbs import mbs_config
 from mbs.mbs_logging import setup_logging, redirect_std_to_logger
 
@@ -206,8 +208,9 @@ def _do_start_backup_system(fork=False):
 
 ###############################################################################
 def stop_backup_system(parsed_args):
+    force = parsed_args.force
     backup_system = _get_backup_system()
-    client = BackupSystemClient()
+    client = _get_backup_system_client()
 
     status = client.get_status()
     if status["status"] == STATUS_STOPPING:
@@ -217,7 +220,25 @@ def stop_backup_system(parsed_args):
         print "Backup System is not running"
         return
 
-    backup_system.stop(force=parsed_args.force)
+    print "Stopping backup system..."
+    if force:
+        backup_system.force_stop()
+    else:
+        client.stop_backup_system()
+
+    def stopped():
+        return client.get_status()["status"] == BACKUP_SYSTEM_STATUS_STOPPED
+    print "Waiting for backup system to stop"
+    wait_for(stopped, timeout=100)
+    print "Done waiting for backup system to stop"
+    if stopped():
+        print "Backup system stopped successfully. Bye!"
+        exit(0)
+    else:
+        print "Unable to stop backup system within 100 seconds"
+        exit(1)
+
+
 
 ###############################################################################
 def restart_backup_system(parsed_args):
@@ -287,7 +308,7 @@ def download_backup_log(parsed_args):
 
 ###############################################################################
 def delete_backup(parsed_args):
-    client = BackupSystemClient()
+    client = _get_backup_system_client()
     client.delete_backup(parsed_args.backupId)
 
 ###############################################################################
@@ -311,7 +332,7 @@ def schedule_plan_backup(parsed_args):
 
 ###############################################################################
 def restore_backup(parsed_args):
-    client = BackupSystemClient()
+    client = _get_backup_system_client()
     destination_uri = parsed_args.destinationUri
     backup_id = parsed_args.backupId
     src_db = parsed_args.sourceDatabase
@@ -382,6 +403,27 @@ def _get_plan(plan_id):
     else:
         print "No such plan '%s'" % plan_id
         exit(1)
+
+
+###############################################################################
+__backup_system_client__ = None
+def _get_backup_system_client():
+    global  __backup_system_client__
+
+    if not __backup_system_client__:
+        conf = _get_client_config()
+        if conf:
+            __backup_system_client__ = get_mbs().maker.make(conf)
+        else:
+            __backup_system_client__ = BackupSystemClient()
+
+    return __backup_system_client__
+
+###############################################################################
+def _get_client_config():
+    conf_path = resolve_path(os.path.join("~/.mbs", "mbs-api-client.config"))
+    if os.path.exists(conf_path):
+        return read_config_json("mbs-api-client", conf_path)
 
 ###############################################################################
 # command parser

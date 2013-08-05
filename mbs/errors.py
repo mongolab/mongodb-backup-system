@@ -68,6 +68,12 @@ class BackupSystemError(MBSError):
     pass
 
 ###############################################################################
+# BackupSystemApiError
+###############################################################################
+class BackupSystemApiError(MBSError):
+    pass
+
+###############################################################################
 # BackupSystemClientError
 ###############################################################################
 class BackupSystemClientError(MBSError):
