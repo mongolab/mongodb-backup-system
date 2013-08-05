@@ -162,8 +162,8 @@ def start_backup_system(parsed_args):
     backup_system = _get_backup_system()
     client = BackupSystemClient()
 
-    handlers = {signal.SIGINT:  partial(backup_system.stop, force=False),
-                signal.SIGTERM: partial(backup_system.stop, force=True)}
+    handlers = {signal.SIGINT:  partial(backup_system.force_stop),
+                signal.SIGTERM: partial(backup_system.force_stop)}
     with SignalWatcher(handlers) as watcher:
         status = client.get_status()
         if status["status"] == STATUS_RUNNING:
@@ -233,7 +233,6 @@ def stop_backup_system(parsed_args):
     print "Done waiting for backup system to stop"
     if stopped():
         print "Backup system stopped successfully. Bye!"
-        exit(0)
     else:
         print "Unable to stop backup system within 100 seconds"
         exit(1)
@@ -245,7 +244,7 @@ def restart_backup_system(parsed_args):
     backup_system = _get_backup_system()
 
     # stop the backup_system and wait for it is completely stopped
-    backup_system.stop()
+    stop_backup_system(parsed_args)
     def backup_system_stopped():
         return backup_system.get_status()["status"] == STATUS_STOPPED
 
