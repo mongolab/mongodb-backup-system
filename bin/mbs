@@ -162,7 +162,7 @@ def start_backup_system(parsed_args):
     backup_system = _get_backup_system()
     client = BackupSystemClient()
 
-    handlers = {signal.SIGINT:  partial(backup_system.force_stop),
+    handlers = {signal.SIGINT:  partial(client.stop_backup_system),
                 signal.SIGTERM: partial(backup_system.force_stop)}
     with SignalWatcher(handlers) as watcher:
         status = client.get_status()
