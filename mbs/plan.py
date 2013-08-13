@@ -125,6 +125,11 @@ class BackupPlan(MBSObject):
         self._tags = tags
 
     ###########################################################################
+    def get_tag(self, name):
+        if self.tags:
+            return self.tags.get(name)
+
+    ###########################################################################
     def _export_tags(self):
         if self.tags:
             exported_tags = {}
