@@ -1,6 +1,7 @@
 # core
 
 Flask==0.8
+tornado==3.1
 azure==0.6
 boto==2.6.0
 # This is temp until croniter fixes issue #22 https://github.com/taichino/croniter/pull/22
