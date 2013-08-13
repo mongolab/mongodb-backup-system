@@ -263,25 +263,25 @@ class ApiAuthService(object):
 
     ###########################################################################
     def __init__(self):
-        self._registered_rules = {}
+        self._registered_paths = {}
 
     ###########################################################################
-    def register_rule(self, rule):
-        self._registered_rules[rule] = True
+    def register_path(self, path):
+        self._registered_paths[path] = True
 
     ###########################################################################
-    def is_rule_registered(self, rule):
-        return rule in self._registered_rules
+    def is_path_registered(self, path):
+        return path in self._registered_paths
 
     ###########################################################################
-    def auth(self, rule):
-        self.register_rule(rule)
+    def auth(self, path):
+        self.register_path(path)
 
         def decorator(f):
             def wrapped_function(*args, **kwargs):
-                if not self.is_authenticated_request(rule):
+                if not self.is_authenticated_request(path):
                     raise BackupSystemApiError("Need to authenticate")
-                if not self.is_authorized_request(rule):
+                if not self.is_authorized_request(path):
                     raise BackupSystemApiError("Not authorized")
                 return f(*args, **kwargs)
             return update_wrapper(wrapped_function, f)
@@ -291,24 +291,25 @@ class ApiAuthService(object):
     ###########################################################################
     def validate_server_auth(self, flask_server):
         for rule in flask_server.url_map.iter_rules():
-            if not self.is_rule_registered(rule.rule):
-                raise BackupSystemApiError("Un-registered rule '%s' with "
-                                           "auth service" % rule.rule)
+            path = rule.rule
+            if not self.is_path_registered(path):
+                raise BackupSystemApiError("Un-registered path '%s' with "
+                                           "auth service" % path)
 
     ###########################################################################
-    def is_authenticated_request(self, rule):
+    def is_authenticated_request(self, path):
         """
-        :param rule:
+        :param path:
         :return:
         """
         return True
 
     ###########################################################################
-    def is_authorized_request(self, rule):
+    def is_authorized_request(self, path):
         """
 
-        :param rule:
-        :return: True if request is authorized to execute on the specified rule
+        :param path:
+        :return: True if request is authorized to execute on the specified path
                 / request
         """
         return True
