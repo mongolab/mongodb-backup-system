@@ -2,6 +2,7 @@ __author__ = 'abdul'
 
 TYPE_BINDINGS = {
     "BackupSystem": "mbs.backup_system.BackupSystem",
+    "BackupSystemApiServer": "mbs.api.BackupSystemApiServer",
     "BackupEngine": "mbs.engine.BackupEngine",
     "Backup": "mbs.backup.Backup",
     "Restore": "mbs.restore.Restore",

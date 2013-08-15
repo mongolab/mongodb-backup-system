@@ -34,7 +34,7 @@ class BackupSystemClient(object):
             }
         except Exception, e:
             msg = "Error while trying to get backup system status: %s" % e
-            raise BackupSystemClientError(msg)
+            raise BackupSystemClientError(msg, cause=e)
 
     ###########################################################################
     def stop_backup_system(self):

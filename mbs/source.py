@@ -25,22 +25,21 @@ class BackupSource(MBSObject):
     ###########################################################################
     def __init__(self):
         self._cloud_block_storage = None
-        self._info = None
 
     ###########################################################################
     @property
     def uri(self):
-        pass
+        return None
 
     ###########################################################################
     @property
     def database_name(self):
-        pass
+        return None
 
     ###########################################################################
     @property
     def collection_name(self):
-        pass
+        return None
 
     ###########################################################################
     @property
@@ -69,20 +68,8 @@ class BackupSource(MBSObject):
             raise ConfigurationError(msg)
 
     ###########################################################################
-    @property
-    def info(self):
-        return self._info
-
-    @info.setter
-    def info(self, info):
-        self._info = info
-
-    ###########################################################################
     def to_document(self, display_only=False):
         doc = {}
-
-        if self.info:
-            doc["info"] = self.info
 
         if self.cloud_block_storage:
             doc["cloudBlockStorage"] = self._export_cloud_block_storage()
