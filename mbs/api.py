@@ -86,8 +86,10 @@ class BackupSystemApiServer(Thread):
                 "ok": True
             })
         except Exception, e:
-            return error_response("Error while trying to stop backup system:"
-                                  " %s" % e)
+            msg = "Error while trying to stop backup system: %s" % e
+            logger.error(msg)
+            logger.error(traceback.format_exc())
+            return document_pretty_string({"error": "can't stop"})
 
     ###########################################################################
     def status(self):
@@ -95,8 +97,10 @@ class BackupSystemApiServer(Thread):
         try:
             return document_pretty_string(self._backup_system._do_get_status())
         except Exception, e:
-            return error_response("Error while trying to get backup system "
-                                  "status: %s" % e)
+            msg = "Error while trying to get backup system status: %s" % e
+            logger.error(msg)
+            logger.error(traceback.format_exc())
+            return document_pretty_string({"status": "error"})
 
     ###########################################################################
     def get_backup(self, backup_id):
@@ -105,8 +109,10 @@ class BackupSystemApiServer(Thread):
             backup = self._backup_system.get_backup(backup_id)
             return str(backup)
         except Exception, e:
-            return error_response("Error while trying to get backup %s: %s" %
-                                  (backup_id, e))
+            msg = "Error while trying to get backup %s: %s" % (backup_id, e)
+            logger.error(msg)
+            logger.error(traceback.format_exc())
+            return error_response(msg)
 
     ###########################################################################
     def get_backup_database_names(self, backup_id):
@@ -116,8 +122,11 @@ class BackupSystemApiServer(Thread):
             dbnames = self._backup_system.get_backup_database_names(backup_id)
             return document_pretty_string(dbnames)
         except Exception, e:
-            return error_response("Error while trying to get backup %s: %s" %
-                                 (backup_id, e))
+            msg = ("Error while trying to get backup database"
+                   " names %s: %s" %(backup_id, e))
+            logger.error(msg)
+            logger.error(traceback.format_exc())
+            return error_response(msg)
 
     ###########################################################################
     def delete_backup(self, backup_id):
@@ -126,8 +135,11 @@ class BackupSystemApiServer(Thread):
             result = self._backup_system.delete_backup(backup_id)
             return document_pretty_string(result)
         except Exception, e:
-            return error_response("Error while trying to delete backup "
-                                  "%s: %s" % (backup_id, e))
+            msg = ("Error while trying to delete backup %s: %s" %
+                   (backup_id, e))
+            logger.error(msg)
+            logger.error(traceback.format_exc())
+            return error_response(msg)
 
     ###########################################################################
     def restore_backup(self):
@@ -146,8 +158,11 @@ class BackupSystemApiServer(Thread):
                                            tags=tags)
             return str(r)
         except Exception, e:
-            return error_response("Error while trying to restore backup "
-                                  "%s: %s" % (backup_id, e))
+            msg = "Error while trying to restore backup %s: %s" % (backup_id,
+                                                                    e)
+            logger.error(msg)
+            logger.error(traceback.format_exc())
+            return error_response(msg)
 
 
     ###########################################################################
@@ -164,6 +179,8 @@ class BackupSystemApiServer(Thread):
         except Exception, e:
             msg = ("Error while trying to get restore status for"
                    " destination '%s': %s" % (destination_uri, e))
+            logger.error(msg)
+            logger.error(traceback.format_exc())
             return error_response(msg)
 
     ###########################################################################
@@ -176,8 +193,10 @@ class BackupSystemApiServer(Thread):
             shutdown()
             return "success"
         except Exception, e:
-            return error_response("Error while trying to get backup system "
-                                  "status: %s" % e)
+            msg = "Error while trying to get backup system status: %s" % e
+            logger.error(msg)
+            logger.error(traceback.format_exc())
+            return error_response(msg)
 
     ###########################################################################
     def _build_flask_server(self, flask_server):
