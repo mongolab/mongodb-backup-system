@@ -22,6 +22,16 @@ class BackupSystemClient(object):
     def __init__(self, backup_system_url=None):
         self._url = backup_system_url or DEFAULT_BS_URL
 
+
+    @property
+    def backup_system_url(self):
+        return self._url
+
+    ###########################################################################
+    @backup_system_url.setter
+    def backup_system_url(self, url):
+        self._url = url
+
     ###########################################################################
     # CLIENT METHODS
     ###########################################################################
