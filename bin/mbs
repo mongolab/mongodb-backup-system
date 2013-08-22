@@ -160,7 +160,7 @@ def status_engine(parsed_args):
 ###############################################################################
 def start_backup_system(parsed_args):
     backup_system = _get_backup_system()
-    client = BackupSystemClient()
+    client = _get_backup_system_client()
 
     handlers = {signal.SIGINT:  partial(client.stop_backup_system),
                 signal.SIGTERM: partial(backup_system.force_stop)}
@@ -258,7 +258,7 @@ def restart_backup_system(parsed_args):
 
 ###############################################################################
 def status_backup_system(parsed_args):
-    client = BackupSystemClient()
+    client = _get_backup_system_client()
     print document_pretty_string(client.get_status())
 
 ###############################################################################
