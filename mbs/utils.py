@@ -4,6 +4,7 @@ import os
 import subprocess
 import socket
 import pwd
+import traceback
 
 import json
 import time
@@ -355,16 +356,22 @@ def os_supports_freeze():
         Returns true if the current os supports fsfreeze that is os running
         Ubuntu 12.04 or later and there is an fsfreeze exe in PATH
     """
-    distribution = platform.dist()
-    dist_name = distribution[0].lower()
-    dist_version_str = distribution[1]
-    if dist_name and dist_version_str:
-        dist_version = StrictVersion(dist_version_str)
-        min_version = StrictVersion('12.04')
+    try:
 
-        return (dist_name == "ubuntu" and dist_version >= min_version and
-                get_fsfreeze_exe() is not None)
-    else:
+        distribution = platform.dist()
+        dist_name = distribution[0].lower()
+        dist_version_str = distribution[1]
+        if dist_name and dist_version_str:
+            dist_version = StrictVersion(dist_version_str)
+            min_version = StrictVersion('12.04')
+
+            return (dist_name == "ubuntu" and dist_version >= min_version and
+                    get_fsfreeze_exe() is not None)
+        else:
+            return False
+    except Exception, e:
+        print "Error while trying to check if OS supports fsfreeze: %s" % e
+        traceback.print_exc()
         return False
 
 ###############################################################################
