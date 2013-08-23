@@ -23,14 +23,19 @@ from distutils.version import StrictVersion
 ################################## Helpers ####################################
 ##################################         ####################################
 ###############################################################################
-
 def document_pretty_string(document):
     return json.dumps(document, indent=4, default=_custom_json_default)
+
 ###############################################################################
 
 def mbs_object_list_to_string(obj_list):
     doc_list = map(lambda o: o.to_document(display_only=True), obj_list)
     return document_pretty_string(doc_list)
+
+###############################################################################
+def dict_to_str(d):
+    return '\n'.join("%s: %s" % (key, val)
+                     for (key, val) in d.iteritems())
 
 ###############################################################################
 def _custom_json_default(obj):
@@ -41,6 +46,9 @@ def _custom_json_default(obj):
 
 ###############################################################################
 def listify(object):
+    if not object:
+        return None
+
     if isinstance(object, list):
         return object
 
@@ -433,4 +441,25 @@ class SignalWatcher(object):
         self.watch()
         for f in self._on_exit:
             f()
+
+
+
+###############################################################################
+# Args validation
+###############################################################################
+def get_validate_arg(args, key, expected_type=None, required=True):
+    expected_type = tuple(listify(expected_type))
+    if required and (not args or not args.get(key)):
+        raise ValueError("'%s' is required" % key)
+
+    if (args and args.get(key) and expected_type and
+            not isinstance(args[key], expected_type)):
+        raise ValueError(" Invalid '%s' type (%s). Must be of type '%s'" %
+        (key, type(args[key]), expected_type))
+
+    if args and key in args:
+        return args[key]
+    else:
+        return None
+
 

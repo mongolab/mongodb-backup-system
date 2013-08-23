@@ -15,14 +15,13 @@ from mbs.mbs import get_mbs
 from mbs.engine import STATUS_STOPPED, STATUS_STOPPING, STATUS_RUNNING
 from mbs.backup_system import BACKUP_SYSTEM_STATUS_STOPPED
 from mbs.utils import (
-    wait_for, document_pretty_string, resolve_path, SignalWatcher,
-    read_config_json
+    wait_for, document_pretty_string, resolve_path, SignalWatcher
     )
 from mbs import mbs_config
 from mbs.mbs_logging import setup_logging, redirect_std_to_logger
 
 from mbs.persistence import get_backup, get_backup_plan, get_restore
-from mbs.client import BackupSystemClient
+from mbs.client import backup_system_client
 
 ###############################################################################
 # MAIN
@@ -160,7 +159,7 @@ def status_engine(parsed_args):
 ###############################################################################
 def start_backup_system(parsed_args):
     backup_system = _get_backup_system()
-    client = _get_backup_system_client()
+    client = backup_system_client()
 
     handlers = {signal.SIGINT:  partial(client.stop_backup_system),
                 signal.SIGTERM: partial(backup_system.force_stop)}
@@ -210,7 +209,7 @@ def _do_start_backup_system(fork=False):
 def stop_backup_system(parsed_args):
     force = parsed_args.force
     backup_system = _get_backup_system()
-    client = _get_backup_system_client()
+    client = backup_system_client()
 
     status = client.get_status()
     if status["status"] == STATUS_STOPPING:
@@ -258,7 +257,7 @@ def restart_backup_system(parsed_args):
 
 ###############################################################################
 def status_backup_system(parsed_args):
-    client = _get_backup_system_client()
+    client = backup_system_client()
     print document_pretty_string(client.get_status())
 
 ###############################################################################
@@ -307,7 +306,7 @@ def download_backup_log(parsed_args):
 
 ###############################################################################
 def delete_backup(parsed_args):
-    client = _get_backup_system_client()
+    client = backup_system_client()
     client.delete_backup(parsed_args.backupId)
 
 ###############################################################################
@@ -316,6 +315,15 @@ def reschedule_backup(parsed_args):
     backup = _get_backup(parsed_args.backupId)
     _get_backup_system().reschedule_backup(backup, from_scratch=
                                                      from_scratch)
+
+###############################################################################
+def show_backup(parsed_args):
+    client = backup_system_client()
+    backup_doc = client.get_backup(parsed_args.backupId)
+    if backup_doc:
+        print document_pretty_string(backup_doc)
+    else:
+        print "No such backup '%s' " % parsed_args.backupId
 
 ###############################################################################
 def reschedule_all_backups(parsed_args):
@@ -327,11 +335,11 @@ def reschedule_all_backups(parsed_args):
 def schedule_plan_backup(parsed_args):
     backup_system = _get_backup_system()
     plan = _get_plan(parsed_args.planId)
-    backup_system.schedule_new_backup(plan, one_time=True)
+    backup_system.schedule_plan_backup(plan, one_time=True)
 
 ###############################################################################
 def restore_backup(parsed_args):
-    client = _get_backup_system_client()
+    client = backup_system_client()
     destination_uri = parsed_args.destinationUri
     backup_id = parsed_args.backupId
     src_db = parsed_args.sourceDatabase
@@ -402,27 +410,6 @@ def _get_plan(plan_id):
     else:
         print "No such plan '%s'" % plan_id
         exit(1)
-
-
-###############################################################################
-__backup_system_client__ = None
-def _get_backup_system_client():
-    global  __backup_system_client__
-
-    if not __backup_system_client__:
-        conf = _get_client_config()
-        if conf:
-            __backup_system_client__ = get_mbs().maker.make(conf)
-        else:
-            __backup_system_client__ = BackupSystemClient()
-
-    return __backup_system_client__
-
-###############################################################################
-def _get_client_config():
-    conf_path = resolve_path(os.path.join("~/.mbs", "mbs-api-client.config"))
-    if os.path.exists(conf_path):
-        return read_config_json("mbs-api-client", conf_path)
 
 ###############################################################################
 # command parser
@@ -658,6 +645,21 @@ PARSER_DEF = {
                     "help": "Backup id"
                 }],
             "function": delete_backup
+        },
+
+            {
+            "prog": "show-backup",
+            "shortDescription" : "Shows the backup document",
+            "description" : "Shows the backup document",
+            "args": [
+                {
+                    "name": "backupId",
+                    "type" : "positional",
+                    "nargs": 1,
+                    "displayName": "BACKUP_ID",
+                    "help": "Backup id"
+                }],
+            "function": show_backup
         },
 
             {

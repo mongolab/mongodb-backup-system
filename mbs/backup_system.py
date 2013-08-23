@@ -10,7 +10,7 @@ import os
 from threading import Thread
 
 
-from utils import resolve_path, wait_for
+from utils import resolve_path, wait_for, get_validate_arg, dict_to_str
 
 import mbs_config
 
@@ -26,6 +26,11 @@ from backup import Backup
 from restore import Restore
 from target import CloudBlockStorageSnapshotReference
 from tags import DynamicTag
+
+from strategy import BackupStrategy
+from target import BackupTarget
+from source import BackupSource
+
 ###############################################################################
 ########################                                #######################
 ########################           Backup System        #######################
@@ -231,7 +236,7 @@ class BackupSystem(Thread):
                       " now. Scheduling a backup!!!" %
                       (plan._id, plan.next_occurrence))
 
-            self.schedule_new_backup(plan)
+            self.schedule_plan_backup(plan)
 
 
         else:
@@ -361,43 +366,63 @@ class BackupSystem(Thread):
                        message="Rescheduling")
 
     ###########################################################################
-    def schedule_new_backup(self, plan, one_time=False):
+    def schedule_plan_backup(self, plan, one_time=False):
         self.info("Scheduling plan '%s'" % plan._id)
+
+        plan_occurrence = None
+        backup_plan = None
+
+        if not one_time:
+            backup_plan = plan
+            plan_occurrence = plan.next_occurrence
+            plan.next_occurrence = plan.next_natural_occurrence()
+
+        backup = self.schedule_backup(strategy=plan.strategy,
+                                      source=plan.source,
+                                      target=plan.target,
+                                      priority=plan.priority,
+                                      tags=plan.tags,
+                                      plan_occurrence=plan_occurrence,
+                                      plan=backup_plan)
+
+        #  update the plans next occurrence
+        self._save_plan_next_occurrence(plan)
+
+        return backup
+
+    ###########################################################################
+    def schedule_backup(self, **kwargs):
 
         try:
             backup = Backup()
             backup.created_date = date_now()
-            backup.strategy = plan.strategy
-            backup.source = plan.source
-            backup.target = plan.target
-            backup.priority = plan.priority
+            backup.strategy = get_validate_arg(kwargs, "strategy",
+                                               expected_type=BackupStrategy)
+            backup.source = get_validate_arg(kwargs, "source", BackupSource)
+            backup.target = get_validate_arg(kwargs, "target", BackupTarget)
+            backup.priority = get_validate_arg(kwargs, "priority",
+                                               expected_type=int,
+                                               required=False)
             backup.change_state(STATE_SCHEDULED)
             # resolve tags
-            backup.tags = self._resolve_task_tags(backup, plan.tags)
-
-            if not one_time:
-                backup.plan_occurrence = plan.next_occurrence
-                # recalculate plan's next occurrence
-                plan.next_occurrence = plan.next_natural_occurrence()
-                backup.plan = plan
+            tags = get_validate_arg(kwargs, "tags", expected_type=dict,
+                                    required=False)
+            backup.tags = self._resolve_task_tags(backup, tags)
 
             backup_doc = backup.to_document()
             get_mbs().backup_collection.save_document(backup_doc)
             # set the backup id from the saved doc
 
-            #  update the plans next occurrence
-            self._save_plan_next_occurrence(plan)
             backup.id = backup_doc["_id"]
 
             self.info("Scheduled backup \n%s" % backup)
             return backup
         except Exception, e:
-            sbj = "Failed to schedule backup"
-            msg = ("Failed to schedule backup for plan '%s'. Cause: %s\n"
-                   "Trace: \n%s" % (plan.id, e, traceback.format_exc()))
-
-            self.error(msg)
-            get_mbs().send_notification(sbj, msg)
+            args_str = dict_to_str(kwargs)
+            msg = ("Failed to schedule backup. Args:\n %s" % args_str)
+            logger.error(msg)
+            logger.error(traceback.format_exc())
+            raise BackupSchedulingError(msg=msg, cause=e)
 
     ###########################################################################
     def _set_update_plan_next_occurrence(self, plan):

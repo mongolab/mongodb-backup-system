@@ -1,7 +1,12 @@
 __author__ = 'abdul'
 
+import os
+
 from netutils import fetch_url_json
 from errors import BackupSystemClientError
+from utils import resolve_path, read_config_json
+from makerpy.maker import Maker
+
 ###############################################################################
 # CONSTANTS
 ###############################################################################
@@ -110,3 +115,21 @@ class BackupSystemClient(object):
 
     ###########################################################################
 
+
+###############################################################################
+# configuration and global access
+###############################################################################
+
+def backup_system_client():
+    maker = Maker()
+    conf = _get_client_config()
+    if conf:
+        return maker.make(conf)
+    else:
+        return BackupSystemClient()
+
+###############################################################################
+def _get_client_config():
+    conf_path = resolve_path(os.path.join("~/.mbs", "mbs-api-client.config"))
+    if os.path.exists(conf_path):
+        return read_config_json("mbs-api-client", conf_path)
