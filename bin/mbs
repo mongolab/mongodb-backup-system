@@ -21,7 +21,7 @@ from mbs import mbs_config
 from mbs.mbs_logging import setup_logging, redirect_std_to_logger
 
 from mbs.persistence import get_backup, get_backup_plan, get_restore
-from mbs.client import backup_system_client
+from mbs_client.client import backup_system_client
 
 ###############################################################################
 # MAIN
