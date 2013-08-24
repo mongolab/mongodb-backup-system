@@ -73,6 +73,8 @@ class BackupStrategy(MBSObject):
         self._backup_name_scheme = None
         self._backup_description_scheme = None
 
+        self._use_suspend_io = None
+
     ###########################################################################
     @property
     def member_preference(self):
@@ -123,6 +125,19 @@ class BackupStrategy(MBSObject):
             naming_scheme = TemplateBackupNamingScheme(template=naming_scheme)
 
         self._backup_description_scheme = naming_scheme
+
+    ###########################################################################
+    @property
+    def use_suspend_io(self):
+        return self._use_suspend_io
+
+    @use_suspend_io.setter
+    def use_suspend_io(self, val):
+        self._use_suspend_io = val
+
+    ###########################################################################
+    def is_use_suspend_io(self):
+        return False
 
     ###########################################################################
     def run_backup(self, backup):
@@ -497,6 +512,9 @@ class BackupStrategy(MBSObject):
         if self.backup_description_scheme:
             doc["backupDescriptionScheme"] =\
                 self.backup_description_scheme.to_document(display_only=False)
+
+        if self.use_suspend_io is not None:
+            doc["useSuspendIO"] = self.use_suspend_io
 
         return doc
 
@@ -1140,6 +1158,12 @@ class CloudBlockStorageStrategy(BackupStrategy):
     def do_backup_mongo_connector(self, backup, mongo_connector):
         self._snapshot_backup(backup, mongo_connector)
 
+
+    ###########################################################################
+    def is_use_suspend_io(self):
+        # Always use suspend io unless explicitly set to False
+        return self._use_suspend_io is None or self._use_suspend_io
+
     ###########################################################################
     def _snapshot_backup(self, backup, mongo_connector):
 
@@ -1163,7 +1187,8 @@ class CloudBlockStorageStrategy(BackupStrategy):
             self._fsynclock(backup, mongo_connector)
 
             # suspend io
-            self._suspend_io(backup, mongo_connector)
+            if self.is_use_suspend_io():
+                self._suspend_io(backup, mongo_connector)
 
             # backup the mongo connector
             self._kickoff_snapshot(backup, cbs)
@@ -1175,8 +1200,9 @@ class CloudBlockStorageStrategy(BackupStrategy):
 
             # resume io/unlock
 
-            self._resume_io(backup, mongo_connector)
-            resumed_io = True
+            if self.is_use_suspend_io():
+                self._resume_io(backup, mongo_connector)
+                resumed_io = True
 
             self._fsyncunlock(backup, mongo_connector)
             fsync_unlocked = True
@@ -1199,7 +1225,7 @@ class CloudBlockStorageStrategy(BackupStrategy):
         finally:
             try:
                 # resume io/unlock as needed
-                if not resumed_io:
+                if self.is_use_suspend_io() and not resumed_io:
                     self._resume_io(backup, mongo_connector)
             finally:
                 if not fsync_unlocked:
