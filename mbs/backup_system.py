@@ -27,10 +27,11 @@ from restore import Restore
 from target import CloudBlockStorageSnapshotReference
 from tags import DynamicTag
 
+from plan import BackupPlan
 from strategy import BackupStrategy
 from target import BackupTarget
 from source import BackupSource
-
+from datetime import datetime
 ###############################################################################
 ########################                                #######################
 ########################           Backup System        #######################
@@ -403,6 +404,13 @@ class BackupSystem(Thread):
             backup.priority = get_validate_arg(kwargs, "priority",
                                                expected_type=int,
                                                required=False)
+            backup.plan_occurrence = \
+                get_validate_arg(kwargs, "plan_occurrence",
+                                 expected_type=datetime,
+                                 required=False)
+            backup.plan = get_validate_arg(kwargs, "plan",
+                                           expected_type=BackupPlan,
+                                           required=False)
             backup.change_state(STATE_SCHEDULED)
             # resolve tags
             tags = get_validate_arg(kwargs, "tags", expected_type=dict,
