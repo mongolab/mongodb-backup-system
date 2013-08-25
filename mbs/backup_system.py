@@ -402,7 +402,8 @@ class BackupSystem(Thread):
             backup.source = get_validate_arg(kwargs, "source", BackupSource)
             backup.target = get_validate_arg(kwargs, "target", BackupTarget)
             backup.priority = get_validate_arg(kwargs, "priority",
-                                               expected_type=int,
+                                               expected_type=(int, long,
+                                                              float, complex),
                                                required=False)
             backup.plan_occurrence = \
                 get_validate_arg(kwargs, "plan_occurrence",
