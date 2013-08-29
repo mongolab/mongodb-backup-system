@@ -32,6 +32,8 @@ from strategy import BackupStrategy
 from target import BackupTarget
 from source import BackupSource
 from datetime import datetime
+
+import persistence
 ###############################################################################
 ########################                                #######################
 ########################           Backup System        #######################
@@ -482,20 +484,12 @@ class BackupSystem(Thread):
         logger.info("Removing plan '%s' " % plan.id)
         get_mbs().plan_collection.remove_by_id(plan.id)
 
-
-    ###########################################################################
-    def get_backup(self, backup_id):
-        """
-            Returns the backup object by specified id
-        """
-        return get_mbs().backup_collection.get_by_id(backup_id)
-
     ###########################################################################
     def get_backup_database_names(self, backup_id):
         """
             Returns the list of databases available by specified backup
         """
-        backup = self.get_backup(backup_id)
+        backup = persistence.get_backup(backup_id)
 
         if backup and backup.source_stats:
             if "databaseName" in backup.source_stats:
@@ -508,7 +502,7 @@ class BackupSystem(Thread):
         """
             Deletes the specified backup. Deleting here means expiring
         """
-        backup = get_mbs().backup_collection.get_by_id(backup_id)
+        backup = persistence.get_backup(backup_id)
         if (backup and backup.target_reference and
             not backup.target_reference.expired_date):
             expire_backup(backup, date_now())
@@ -834,26 +828,24 @@ def expire_backup(backup, expired_date):
     """
         expires the backup
     """
-    # TODO: This should become a private instance method
+
+    # do some validation
+    if not backup.target_reference:
+        raise BackupDeleteError("Cannot delete backup '%s'. "
+                                "Backup never uploaded" % backup.id)
+
+    # validate if the backup has been expired already
+    if (backup.target_reference.expired_date and
+            (not backup.log_target_reference or
+             backup.log_target_reference.expired_date)):
+        raise BackupDeleteError("Backup '%s' is already deleted")
+
+    logger.info("Expiring backup '%s'" % backup.id)
+
+    target_ref = backup.target_reference
     bc = get_mbs().backup_collection
-    # Block other threads (through DB) from doing same operation
-    q = {
-        "_id": backup.id,
-        "targetReference": {"$exists": True},
-        "$or": [
-                {"targetReference.expiredDate": {"$exists": False}},
-                {"targetReference.expiredDate": None}
-        ]
-    }
-    u = {
-        "$set": {"targetReference.expiredDate": expired_date}
-    }
-    backup = bc.find_and_modify(query=q, update=u)
-    if backup:
-        logger.info("Expiring backup '%s'" %  backup.id)
 
-        target_ref = backup.target_reference
-
+    if not target_ref.expired_date:
         # if the target reference is a cloud storage one then make the cloud
         # storage object take care of it
         if isinstance(target_ref, CloudBlockStorageSnapshotReference):
@@ -863,17 +855,24 @@ def expire_backup(backup, expired_date):
             logger.info("Deleting backup '%s file" % backup.id)
             backup.target.delete_file(target_ref)
 
-        # expire log file
-        if backup.log_target_reference:
-            backup.target.delete_file(backup.log_target_reference)
-            backup.log_target_reference.expired_date = expired_date
-
+        # update backup target reference
         backup.target_reference.expired_date = expired_date
-        # no need to persist the expiredDate since
-        bc.update_task(backup, event_name="EXPIRING", message="Expiring",
+        bc.update_task(backup, event_name="EXPIRING_TARGET_REF",
+                       message="Expiring targetReference",
+                       properties=["targetReference"])
+
+    # expire log file
+    if (backup.log_target_reference and
+            not backup.log_target_reference.expired_date):
+        backup.target.delete_file(backup.log_target_reference)
+        backup.log_target_reference.expired_date = expired_date
+
+        # update backup target reference
+        bc.update_task(backup, event_name="EXPIRING_LOG_REF",
+                       message="Expiring logTargetReference",
                        properties=["logTargetReference"])
 
-        logger.info("Backup %s archived successfully!" % backup.id)
+    logger.info("Backup %s archived successfully!" % backup.id)
 
 
 ###########################################################################

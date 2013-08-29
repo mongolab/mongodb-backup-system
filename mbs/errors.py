@@ -335,6 +335,11 @@ class RetentionPolicyError(MBSError):
         Thrown when there is an error when applying retention policy error
     """
 
+class BackupDeleteError(MBSError):
+    """
+        Thrown when there is an error when deleting a backup
+    """
+
 ###############################################################################
 class BackupNotOnLocalhost(MBSError, RetriableError):
     """

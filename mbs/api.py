@@ -16,6 +16,8 @@ from tornado.wsgi import WSGIContainer
 from tornado.httpserver import HTTPServer
 from tornado.ioloop import IOLoop
 
+import persistence
+
 ###############################################################################
 # BackupSystemApiServer
 ###############################################################################
@@ -106,7 +108,7 @@ class BackupSystemApiServer(Thread):
     def get_backup(self, backup_id):
         logger.info("Backup System: Received a get-backup command")
         try:
-            backup = self._backup_system.get_backup(backup_id)
+            backup = persistence.get_backup(backup_id)
             return str(backup)
         except Exception, e:
             msg = "Error while trying to get backup %s: %s" % (backup_id, e)
