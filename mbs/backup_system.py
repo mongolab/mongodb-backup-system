@@ -34,6 +34,8 @@ from source import BackupSource
 from datetime import datetime
 
 import persistence
+
+from robustify.robustify import robustify
 ###############################################################################
 ########################                                #######################
 ########################           Backup System        #######################
@@ -824,6 +826,9 @@ class BackupSystem(Thread):
 ###############################################################################
 # HELPERS
 ###############################################################################
+@robustify(max_attempts=3, retry_interval=5,
+           do_on_exception=raise_if_not_retriable,
+           do_on_failure=raise_exception)
 def expire_backup(backup, expired_date):
     """
         expires the backup
@@ -838,7 +843,9 @@ def expire_backup(backup, expired_date):
     if (backup.target_reference.expired_date and
             (not backup.log_target_reference or
              backup.log_target_reference.expired_date)):
-        raise BackupDeleteError("Backup '%s' is already deleted")
+        logger.warning("expire_backup(): Backup '%s' is already expired."
+                       " Ignoring..." % backup.id)
+        return
 
     logger.info("Expiring backup '%s'" % backup.id)
 

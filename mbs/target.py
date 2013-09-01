@@ -133,15 +133,31 @@ class BackupTarget(MBSObject):
             to abstract do_delete_file and decorating it with proper validation
             and errors
         """
+        return self._robustified_delete_file(file_reference)
 
-        self.do_delete_file(file_reference)
+    ###########################################################################
+    @robustify(max_attempts=3, retry_interval=5,
+               do_on_exception=raise_if_not_retriable,
+               do_on_failure=raise_exception)
+    def _robustified_delete_file(self, file_reference):
+        file_exists = self.do_delete_file(file_reference)
+        if not file_exists:
+            msg = ("Attempted to delete a file ('%s') that does not exist in"
+                   " container '%s'" % (file_reference.file_path,
+                                        self.container_name))
+            logger.warning(msg)
+
         self._verify_file_deleted(file_reference.file_path)
+        return file_exists
 
     ###########################################################################
     def do_delete_file(self, file_reference):
         """
             Should be overridden by subclasses
+            Returns a boolean indicating if file did exist before deleting it
         """
+        return False
+
     ###########################################################################
     def is_valid(self):
         errors = self.validate()
@@ -174,9 +190,6 @@ class BackupTarget(MBSObject):
                                              dest_size, file_size)
 
     ###########################################################################
-    @robustify(max_attempts=10, retry_interval=5,
-               do_on_exception=raise_if_not_retriable,
-               do_on_failure=raise_exception)
     def _verify_file_deleted(self, file_path):
 
         file_exists, file_size = self._fetch_file_info(file_path)
@@ -310,9 +323,13 @@ class S3BucketTarget(BackupTarget):
 
             bucket = self._get_bucket()
             key = bucket.get_key(file_path)
+            if not key:
+                return False
+
             bucket.delete_key(key)
             logger.info("S3BucketTarget: Successfully deleted '%s' from s3"
                         " bucket '%s'" % (file_path, self.bucket_name))
+            return True
         except Exception, e:
             msg = ("S3BucketTarget: Error while trying to delete '%s'"
                    " from s3 bucket %s. Cause: %s" %
@@ -616,7 +633,13 @@ class RackspaceCloudFilesTarget(BackupTarget):
             logger.info("RackspaceCloudFilesTarget: Successfully deleted '%s' "
                         "from container '%s'" %
                         (file_path, self.container_name))
+            return True
         except Exception, e:
+            # handle case when file does not exist
+            err = str(e)
+            if "404" in err:
+                return False
+
             msg = ("RackspaceCloudFilesTarget: Error while trying to delete "
                    "'%s' from container %s. Cause: %s" %
                    (file_path, self.container_name, e))
