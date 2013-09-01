@@ -1292,6 +1292,11 @@ class CloudBlockStorageStrategy(BackupStrategy):
         """
         return not backup.is_event_logged("END_BLOCK_STORAGE_SNAPSHOT")
 
+
+    ###########################################################################
+    def _do_run_restore(self, restore):
+        raise RuntimeError("Restore for cloud block storage not support yet")
+
     ###########################################################################
     def to_document(self, display_only=False):
         doc =  BackupStrategy.to_document(self, display_only=display_only)
@@ -1357,6 +1362,8 @@ class HybridStrategy(BackupStrategy):
     def _do_run_restore(self, restore):
         if restore.source_backup.is_event_logged(EVENT_END_EXTRACT):
             return self.dump_strategy._do_run_restore(restore)
+        else:
+            return self.cloud_block_storage_strategy._do_run_restore(restore)
 
     ###########################################################################
     def _set_backup_name_and_desc(self, backup):
