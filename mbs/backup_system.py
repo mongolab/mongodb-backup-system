@@ -540,7 +540,7 @@ class BackupSystem(Thread):
         return restore
 
     ###########################################################################
-    def get_destination_restore_status(self, destination_uri):
+    def get_inprogress_restore_by_destination(self, destination_uri):
         destination = build_backup_source(destination_uri)
         q = {
             "destination": destination.to_document(),
@@ -548,8 +548,7 @@ class BackupSystem(Thread):
         }
         restore = get_mbs().restore_collection.find_one(q)
 
-        if restore:
-            return restore.get_last_log_message()
+        return restore
 
     ###########################################################################
     def _check_audit(self):
