@@ -542,10 +542,15 @@ class BackupSystem(Thread):
     ###########################################################################
     def get_inprogress_restore_by_destination(self, destination_uri):
         destination = build_backup_source(destination_uri)
+
+        destination_query = {"destination.%s" % key: value for (key, value)
+                             in destination.to_document().items()}
+
         q = {
-            "destination": destination.to_document(),
             "state": STATE_IN_PROGRESS
         }
+
+        q.update(destination_query)
         restore = get_mbs().restore_collection.find_one(q)
 
         return restore
