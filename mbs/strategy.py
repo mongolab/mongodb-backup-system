@@ -981,7 +981,7 @@ class DumpStrategy(BackupStrategy):
         logger.info("Extracting tar file '%s'" % file_reference.file_name)
 
         update_restore(restore, event_name="START_RESTORE_DUMP",
-                       message="Restoring dump...")
+                       message="Starting mongorestore...")
 
         # run mongoctl restore
         logger.info("Restoring using mongoctl restore")
