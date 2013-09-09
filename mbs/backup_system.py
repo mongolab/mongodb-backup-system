@@ -18,7 +18,7 @@ from date_utils import date_now, date_minus_seconds, time_str_to_datetime_today
 from errors import *
 from auditors import GlobalAuditor
 from task import (STATE_SCHEDULED, STATE_IN_PROGRESS, STATE_FAILED,
-                  STATE_CANCELED, EVENT_STATE_CHANGE)
+                  STATE_CANCELED, STATE_SUCCEEDED, EVENT_STATE_CHANGE)
 
 from mbs import get_mbs
 from api import BackupSystemApiServer
@@ -540,18 +540,21 @@ class BackupSystem(Thread):
         return restore
 
     ###########################################################################
-    def get_inprogress_restore_by_destination(self, destination_uri):
+    def get_current_restore_by_destination(self, destination_uri):
         destination = build_backup_source(destination_uri)
 
-        destination_query = {"destination.%s" % key: value for (key, value)
-                             in destination.to_document().items()}
+        q = {"destination.%s" % key: value for (key, value)
+             in destination.to_document().items()}
 
-        q = {
-            "state": STATE_IN_PROGRESS
-        }
-
-        q.update(destination_query)
-        restore = get_mbs().restore_collection.find_one(q)
+        q.update({
+            "state": {
+                "$nin": [
+                    STATE_SUCCEEDED
+                ]
+            }
+        })
+        sort = [("createdDate", -1)]
+        restore = get_mbs().restore_collection.find_one(q, sort=sort)
 
         return restore
 
