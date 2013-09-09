@@ -95,7 +95,7 @@ class BackupSystemApiServer(Thread):
 
     ###########################################################################
     def status(self):
-        logger.info("Backup System: Received a status command")
+        logger.debug("Backup System: Received a status command")
         try:
             return document_pretty_string(self._backup_system._do_get_status())
         except Exception, e:
