@@ -527,7 +527,6 @@ class BackupSystem(Thread):
         restore.destination = destination
         # resolve tags
         tags = tags or restore.source_backup.tags
-        tags = get_mbs().maker.make(tags)
         restore.tags = self._resolve_task_tags(restore, tags)
 
         restore.state = STATE_SCHEDULED
