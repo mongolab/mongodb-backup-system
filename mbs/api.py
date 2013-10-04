@@ -15,6 +15,7 @@ from functools import update_wrapper
 from tornado.wsgi import WSGIContainer
 from tornado.httpserver import HTTPServer
 from tornado.ioloop import IOLoop
+from mbs import get_mbs
 
 import persistence
 
@@ -114,6 +115,7 @@ class BackupSystemApiServer(Thread):
             msg = "Error while trying to get backup %s: %s" % (backup_id, e)
             logger.error(msg)
             logger.error(traceback.format_exc())
+            send_api_error("get-backup", e)
             return error_response(msg)
 
     ###########################################################################
@@ -128,6 +130,7 @@ class BackupSystemApiServer(Thread):
                    " names %s: %s" %(backup_id, e))
             logger.error(msg)
             logger.error(traceback.format_exc())
+            send_api_error("get-backup-database-names", e)
             return error_response(msg)
 
     ###########################################################################
@@ -141,6 +144,7 @@ class BackupSystemApiServer(Thread):
                    (backup_id, e))
             logger.error(msg)
             logger.error(traceback.format_exc())
+            send_api_error("delete-backup", e)
             return error_response(msg)
 
     ###########################################################################
@@ -164,6 +168,7 @@ class BackupSystemApiServer(Thread):
                                                                     e)
             logger.error(msg)
             logger.error(traceback.format_exc())
+            send_api_error("restore-backup", e)
             return error_response(msg)
 
 
@@ -183,6 +188,8 @@ class BackupSystemApiServer(Thread):
                    " destination '%s': %s" % (destination_uri, e))
             logger.error(msg)
             logger.error(traceback.format_exc())
+            send_api_error("get-destination-restore-status", e)
+
             return error_response(msg)
 
     ###########################################################################
@@ -198,6 +205,7 @@ class BackupSystemApiServer(Thread):
             msg = "Error while trying to get backup system status: %s" % e
             logger.error(msg)
             logger.error(traceback.format_exc())
+            send_api_error("stop-command-server", e)
             return error_response(msg)
 
     ###########################################################################
@@ -273,6 +281,7 @@ class BackupSystemApiServer(Thread):
             msg = "Error while trying to stop backup api server: %s" % e
             logger.error(msg)
             logger.error(traceback.format_exc())
+            send_api_error("stop", e)
             return error_response(msg)
 
 ###############################################################################
@@ -347,3 +356,11 @@ def error_response(message):
     return document_pretty_string({
         "error": message
     })
+
+###############################################################################
+def send_api_error(end_point, exception):
+    subject = "BackupSystemAPI Error"
+    message = ("BackupSystemAPI Error on '%s'.\n\nStack Trace:\n%s" %
+               (end_point, traceback.format_exc()))
+
+    get_mbs().send_error_notification(subject, message, exception)
