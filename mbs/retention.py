@@ -214,7 +214,7 @@ class BackupSweeper(ScheduleRunner):
             if not current_backup or current_backup.plan.id != plan.id:
                 logger.info("==== Processing plan '%s' .... " % plan.id)
                 if self.is_plan_backups_not_expirable(plan):
-                    #mark_plan_backups_not_expirable(plan, plan_backups)
+                    mark_plan_backups_not_expirable(plan, plan_backups)
                     total_dont_expire += len(plan_backups)
                 else:
                     total_expired += self.expire_plan_dues(plan, plan_backups)
@@ -239,10 +239,10 @@ class BackupSweeper(ScheduleRunner):
         for onetime_backup in onetime_backups_iter:
             total_processed += 1
             if self.should_expire_onetime_backup(onetime_backup):
-                #expire_backup(current_backup)
+                expire_backup(current_backup)
                 total_expired += 1
             elif self.is_backup_not_expirable(onetime_backup):
-                #mark_backup_never_expire(current_backup)
+                mark_backup_never_expire(current_backup)
                 total_dont_expire += 1
 
 
@@ -280,8 +280,7 @@ class BackupSweeper(ScheduleRunner):
 
         if dues:
             for due_backup in dues:
-                pass
-                #expire_backup(due_backup)
+                expire_backup(due_backup)
 
         return len(dues) if dues else 0
 
