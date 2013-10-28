@@ -14,7 +14,7 @@ import logging
 ###############################################################################
 MBS_LOG_DIR = "logs"
 
-logger = logging.getLogger("MBSLogger")
+logger = logging.getLogger()
 
 ###############################################################################
 def setup_logging(log_to_stdout=False, log_file_name="mbs.log"):

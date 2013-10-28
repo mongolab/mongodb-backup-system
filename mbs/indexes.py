@@ -6,43 +6,49 @@ SIX_MONTH_SECONDS = 60 * 60 * 24 * 30 * 6
 
 MBS_INDEXES = {
     "backups": [
-            {
+        {
             "index": [('state', ASCENDING), ('plan.nextOccurrence', ASCENDING)]
         },
-            {
+        {
             "index": [('planOccurrence', ASCENDING), ('plan._id', ASCENDING)]
         },
-            {
-            "index": [('state', ASCENDING), ('plan.$id', ASCENDING)]
-        },
-            {
+        {
             "index": [('state', ASCENDING), ('engineGuid', ASCENDING)]
         },
-            {
+        {
             "index": [('plan.description', ASCENDING)]
         },
-            {
-            "index": [('targetReference.expiredDate', ASCENDING)],
+        {
+            "index": [('expiredDate', ASCENDING)],
             "args": {
                 "expireAfterSeconds": SIX_MONTH_SECONDS
             }
-        } ,
-
-            {
-            "index": [ ('plan._id', ASCENDING), ('targetReference', ASCENDING),
-                       ('createdDate', DESCENDING),
-                       ('targetReference.expiredDate', ASCENDING) ]
-        }
-    ],
-
-    "plans":[
+        },
         {
-            "index":[('source._type', ASCENDING)]
+            "index": [
+                ('state', ASCENDING),
+                ('dontExpire', ASCENDING),
+                ('plan._id', DESCENDING),
+                ('expiredDate', DESCENDING)
+            ]
+        },
+        {
+            "index": [
+                ('state', ASCENDING),
+                ('dontExpire', ASCENDING),
+                ('expiredDate', DESCENDING)
+            ]
         }
     ],
 
-    "restores":[
-            {
+    "plans": [
+        {
+            "index": [('source._type', ASCENDING)]
+        }
+    ],
+
+    "restores": [
+        {
             "index": [('state', ASCENDING), ('engineGuid', ASCENDING)]
         }
     ]

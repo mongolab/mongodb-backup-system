@@ -1,6 +1,6 @@
 __author__ = 'abdul'
 
-from backup import EVENT_TYPE_INFO
+from task import EVENT_TYPE_INFO
 from mbs import get_mbs
 from mongo_utils import objectiditify
 import  mbs_logging

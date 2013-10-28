@@ -24,7 +24,7 @@ from mbs import get_mbs
 from api import BackupSystemApiServer
 from backup import Backup
 from restore import Restore
-from target import CloudBlockStorageSnapshotReference
+
 from tags import DynamicTag
 
 from plan import BackupPlan
@@ -34,8 +34,9 @@ from source import BackupSource
 from datetime import datetime
 
 import persistence
+import retention
 
-from robustify.robustify import robustify
+
 ###############################################################################
 ########################                                #######################
 ########################           Backup System        #######################
@@ -79,7 +80,7 @@ class BackupSystem(Thread):
         self._stopped = False
         self._api_port = api_port
         self._api_server = None
-
+        self._backup_sweeper = None
         # auditing stuff
 
         # init global editor
@@ -154,6 +155,18 @@ class BackupSystem(Thread):
         self._api_server._backup_system = self
 
     ###########################################################################
+    @property
+    def backup_sweeper(self):
+        if not self._backup_sweeper:
+            self._backup_sweeper = retention.BackupSweeper()
+
+        return self._backup_sweeper
+
+    @backup_sweeper.setter
+    def backup_sweeper(self, backup_sweeper):
+        self._backup_sweeper = backup_sweeper
+
+    ###########################################################################
     # Behaviors
     ###########################################################################
     def run(self):
@@ -164,6 +177,9 @@ class BackupSystem(Thread):
         # Start the api server
         self._start_api_server()
 
+        # Start the sweeper
+        self._start_backup_sweeper()
+
         while not self._stop_requested:
             try:
                 self._tick()
@@ -173,6 +189,7 @@ class BackupSystem(Thread):
                            (e, traceback.format_exc()))
                 self._notify_error(e)
 
+        self._stop_backup_sweeper()
         self._stopped = True
 
     ###########################################################################
@@ -505,9 +522,9 @@ class BackupSystem(Thread):
             Deletes the specified backup. Deleting here means expiring
         """
         backup = persistence.get_backup(backup_id)
-        if (backup and backup.target_reference and
-            not backup.target_reference.expired_date):
-            expire_backup(backup, date_now())
+        if (backup and backup.state == STATE_SUCCEEDED and
+            not backup.expired_date):
+            retention.expire_backup(backup)
             return True
 
         return False
@@ -759,8 +776,8 @@ class BackupSystem(Thread):
             if response.getcode() == 200:
                 return json.loads(response.read().strip())
             else:
-                msg =  ("Error while trying to get status backup system URL"
-                        " %s (Response code %)" % (url, response.getcode()))
+                msg = ("Error while trying to get status backup system URL %s"
+                       " (Response code %s)" % (url, response.getcode()))
                 raise BackupSystemError(msg)
 
         except IOError, ioe:
@@ -815,6 +832,16 @@ class BackupSystem(Thread):
         self.info("api server started successfully!")
 
     ###########################################################################
+    # Backup sweeper
+    ###########################################################################
+
+    def _start_backup_sweeper(self):
+        #self.backup_sweeper.start()
+        pass
+    def _stop_backup_sweeper(self):
+        #self.backup_sweeper.stop()
+        pass
+    ###########################################################################
     # logging
     ###########################################################################
     def info(self, msg):
@@ -828,67 +855,7 @@ class BackupSystem(Thread):
     def debug(self, msg):
         logger.debug("BackupSystem: %s" % msg)
 
-
 ###############################################################################
-# HELPERS
-###############################################################################
-@robustify(max_attempts=3, retry_interval=5,
-           do_on_exception=raise_if_not_retriable,
-           do_on_failure=raise_exception)
-def expire_backup(backup, expired_date):
-    """
-        expires the backup
-    """
-
-    # do some validation
-    if not backup.target_reference:
-        raise BackupDeleteError("Cannot delete backup '%s'. "
-                                "Backup never uploaded" % backup.id)
-
-    # validate if the backup has been expired already
-    if (backup.target_reference.expired_date and
-            (not backup.log_target_reference or
-             backup.log_target_reference.expired_date)):
-        logger.warning("expire_backup(): Backup '%s' is already expired."
-                       " Ignoring..." % backup.id)
-        return
-
-    logger.info("Expiring backup '%s'" % backup.id)
-
-    target_ref = backup.target_reference
-    bc = get_mbs().backup_collection
-
-    if not target_ref.expired_date:
-        # if the target reference is a cloud storage one then make the cloud
-        # storage object take care of it
-        if isinstance(target_ref, CloudBlockStorageSnapshotReference):
-            logger.info("Deleting backup '%s' snapshot " % backup.id)
-            target_ref.cloud_block_storage.delete_snapshot(target_ref)
-        else:
-            logger.info("Deleting backup '%s file" % backup.id)
-            backup.target.delete_file(target_ref)
-
-        # update backup target reference
-        backup.target_reference.expired_date = expired_date
-        bc.update_task(backup, event_name="EXPIRING_TARGET_REF",
-                       message="Expiring targetReference",
-                       properties=["targetReference"])
-
-    # expire log file
-    if (backup.log_target_reference and
-            not backup.log_target_reference.expired_date):
-        backup.target.delete_file(backup.log_target_reference)
-        backup.log_target_reference.expired_date = expired_date
-
-        # update backup target reference
-        bc.update_task(backup, event_name="EXPIRING_LOG_REF",
-                       message="Expiring logTargetReference",
-                       properties=["logTargetReference"])
-
-    logger.info("Backup %s archived successfully!" % backup.id)
-
-
-###########################################################################
 
 def build_backup_source(uri):
     """

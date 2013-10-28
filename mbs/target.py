@@ -857,28 +857,7 @@ class TargetReference(MBSObject):
     """
     ###########################################################################
     def __init__(self):
-        self._expired_date = None
         self._file_size = None
-
-    ###########################################################################
-    @property
-    def expired(self):
-        """
-            Indicates if the reference file expired.
-
-        """
-        return self.expired_date is not None
-
-
-    ###########################################################################
-    @property
-    def expired_date(self):
-        return self._expired_date
-
-    @expired_date.setter
-    def expired_date(self, expired_date):
-        self._expired_date = expired_date
-
 
     ###########################################################################
     @property
@@ -921,8 +900,7 @@ class FileReference(TargetReference):
             "filePath": self.file_path,
             "fileSize": self.file_size
         }
-        if self.expired_date:
-            doc["expiredDate"] = self.expired_date
+
         return doc
 
 ###############################################################################
@@ -1027,8 +1005,6 @@ class EbsSnapshotReference(CloudBlockStorageSnapshotReference):
             "progress": self.progress,
             "startTime": self.start_time
         })
-        if self.expired_date:
-            doc["expiredDate"] = self.expired_date
 
         return doc
 

@@ -258,16 +258,17 @@ class MBSTask(MBSObject):
     ###########################################################################
     def is_event_logged(self, event_name):
         """
-            Accepts an event name or a list of event names
+            Accepts an event name
             Returns true if logs contain an event with the specified
             event_name
 
         """
-        if not isinstance(event_name, list):
-            event_name = [event_name]
+        return self.event_logged_count(event_name) > 0
 
-        logs = filter(lambda entry: entry.name in event_name, self.logs)
-        return len(logs) > 0
+    ###########################################################################
+    def event_logged_count(self, event_name):
+        logs = filter(lambda entry: entry.name == event_name, self.logs)
+        return len(logs)
 
     ###########################################################################
     def _get_state_set_date(self, state):

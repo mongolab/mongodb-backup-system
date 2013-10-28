@@ -104,8 +104,8 @@ class AbstractSchedule(object):
 # Schedule
 ###############################################################################
 class Schedule(AbstractSchedule, MBSObject):
-    def __init__(self):
-        self._frequency_in_seconds = None
+    def __init__(self, frequency_in_seconds=None):
+        self._frequency_in_seconds = frequency_in_seconds
         self._offset = None
 
     ###########################################################################

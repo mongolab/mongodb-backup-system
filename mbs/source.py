@@ -228,9 +228,14 @@ class EbsVolumeStorage(CloudBlockStorage):
             logger.info("Deleting snapshot '%s' " % snapshot_id)
             self.ec2_connection.delete_snapshot(snapshot_id)
             logger.info("Snapshot '%s' deleted successfully!" % snapshot_id)
+            return True
         except Exception, e:
-            msg = "Error while deleting snapshot '%s'" % snapshot_id
-            raise BlockStorageSnapshotError(msg, cause=e)
+            if "does not exist" in str(e):
+                logger.warning("Snapshot '%s' does not exist" % snapshot_id)
+                return False
+            else:
+                msg = "Error while deleting snapshot '%s'" % snapshot_id
+                raise BlockStorageSnapshotError(msg, cause=e)
 
     ###########################################################################
     def check_snapshot_updates(self, ebs_ref):

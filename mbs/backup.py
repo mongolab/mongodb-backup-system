@@ -18,6 +18,8 @@ class Backup(MBSTask):
         self._plan = None
         self._plan_occurrence = None
         self._backup_rate_in_mbps = None
+        self._expired_date = None
+        self._dont_expire = None
 
     ###########################################################################
     def execute(self):
@@ -118,6 +120,33 @@ class Backup(MBSTask):
         self._backup_rate_in_mbps = backup_rate
 
     ###########################################################################
+    @property
+    def expired(self):
+        """
+            Indicates if the reference file expired.
+
+        """
+        return self.expired_date is not None
+
+    ###########################################################################
+    @property
+    def expired_date(self):
+        return self._expired_date
+
+    @expired_date.setter
+    def expired_date(self, expired_date):
+        self._expired_date = expired_date
+
+    ###########################################################################
+    @property
+    def dont_expire(self):
+        return self._dont_expire
+
+    @dont_expire.setter
+    def dont_expire(self, val):
+        self._dont_expire = val
+
+    ###########################################################################
     def to_document(self, display_only=False):
 
         doc = MBSTask.to_document(self, display_only=display_only)
@@ -125,7 +154,7 @@ class Backup(MBSTask):
             "_type": "Backup",
             "source": self.source.to_document(display_only=display_only),
             "target": self.target.to_document(display_only=display_only),
-            "planOccurrence": self.plan_occurrence,
+            "planOccurrence": self.plan_occurrence
         })
 
         if self.name:
@@ -146,5 +175,11 @@ class Backup(MBSTask):
 
         if self.backup_rate_in_mbps:
             doc["backupRateInMBPS"] = self.backup_rate_in_mbps
+
+        if self.expired_date:
+            doc["expiredDate"] = self.expired_date
+
+        if self.dont_expire:
+            doc["dontExpire"] = self.dont_expire
 
         return doc
