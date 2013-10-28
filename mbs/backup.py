@@ -122,11 +122,11 @@ class Backup(MBSTask):
     ###########################################################################
     @property
     def expired(self):
-        """
-            Indicates if the reference file expired.
-
-        """
-        return self.expired_date is not None
+        # TODO: Remove old way of checking if the backup is expired through
+        # targetReference
+        return (self.expired_date is not None or
+                (self.target_reference and
+                 hasattr(self.target_reference, "expiredDate")))
 
     ###########################################################################
     @property
