@@ -186,8 +186,7 @@ class PlanAuditor(BackupAuditor):
 
     ###########################################################################
     def _audit_plan_occurrence(self, plan, plan_occurrence):
-        backup = self._lookup_backup_by_plan_occurrence(plan,
-            plan_occurrence)
+        backup = _lookup_backup_by_plan_occurrence(plan, plan_occurrence)
 
         audit_entry = PlanAuditEntry()
 
@@ -204,26 +203,26 @@ class PlanAuditor(BackupAuditor):
 
         return audit_entry
 
-    ###########################################################################
-    def _lookup_backup_by_plan_occurrence(self, plan, plan_occurrence):
+###############################################################################
+def _lookup_backup_by_plan_occurrence(plan, plan_occurrence):
 
-        q = {
-            "plan._id": plan._id,
-            "planOccurrence":plan_occurrence,
-            }
-        c = get_mbs().backup_collection
+    q = {
+        "plan._id": plan._id,
+        "planOccurrence":plan_occurrence,
+        }
+    c = get_mbs().backup_collection
 
-        return c.find_one(q)
+    return c.find_one(q)
 
 ##############################################################################
 # PlanRetentionAuditor
 # Creates an audit report about plan retention
 
 
-class PlanRetentionAuditor(PlanAuditor):
+class PlanRetentionAuditor(BackupAuditor):
     ###########################################################################
     def __init__(self):
-        PlanAuditor.__init__(self)
+        BackupAuditor.__init__(self)
 
     ###########################################################################
     # plan auditing
@@ -306,7 +305,14 @@ class PlanRetentionAuditor(PlanAuditor):
                             (occurrence, plan.created_date))
                 continue
 
-            audit_entry = self._audit_plan_occurrence(plan, occurrence)
+            backup = _lookup_backup_by_plan_occurrence(plan, occurrence)
+            if not backup or backup.state != STATE_SUCCEEDED:
+                logger.info("Skipping occurrence '%s' because its backup did"
+                            " not get scheduled or did not succeed. Should be "
+                            "caught by the PlanAuditor." % occurrence)
+
+            audit_entry = self._audit_occurrence_retention(occurrence, backup)
+
             if audit_entry.failed():
                 failed_audits.append(audit_entry)
 
@@ -335,21 +341,14 @@ class PlanRetentionAuditor(PlanAuditor):
         return plan_report
 
     ###########################################################################
-    def _audit_plan_occurrence(self, plan, plan_occurrence):
-        backup = self._lookup_backup_by_plan_occurrence(plan,
-                                                        plan_occurrence)
+    def _audit_occurrence_retention(self, plan_occurrence, backup):
 
         audit_entry = PlanAuditEntry()
 
-        if backup:
-            audit_entry.backup_id = backup.id
-            if backup.expired:
-                audit_entry.state = "BACKUP EXPIRED AND NOT RETAINED"
-            else:
-                audit_entry.state = STATE_FAILED
-
+        if backup.expired:
+            audit_entry.state = "BACKUP EXPIRED AND NOT RETAINED"
         else:
-            audit_entry.state = "NEVER SCHEDULED"
+            audit_entry.state = STATE_FAILED
 
         audit_entry.plan_occurrence = plan_occurrence
 
