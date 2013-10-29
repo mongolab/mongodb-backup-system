@@ -80,6 +80,10 @@ class RetentionPolicy(MBSObject):
         """
         return []
 
+    ###########################################################################
+    def get_plan_occurrences_to_retain_as_of(self, plan, dt):
+        pass
+
 ###############################################################################
 # RetainLastNPolicy
 ###############################################################################
@@ -88,9 +92,9 @@ class RetainLastNPolicy(RetentionPolicy):
         Retains the last 'n' backups
     """
     ###########################################################################
-    def __init__(self):
+    def __init__(self, retain_count=5):
         RetentionPolicy.__init__(self)
-        self._retain_count = 0
+        self._retain_count = retain_count
 
     ###########################################################################
     @property
@@ -112,6 +116,10 @@ class RetainLastNPolicy(RetentionPolicy):
             return backups[self.retain_count:]
 
     ###########################################################################
+    def get_plan_occurrences_to_retain_as_of(self, plan, dt):
+        return plan.schedule.last_n_occurrences(self.retain_count, dt=dt)
+
+    ###########################################################################
     def to_document(self, display_only=False):
         return {
             "_type": "RetainLastNPolicy",
@@ -127,9 +135,9 @@ class RetainMaxTimePolicy(RetentionPolicy):
         Retains T time worth of data. i.e. Backup date is within now() - T
     """
     ###########################################################################
-    def __init__(self):
+    def __init__(self, max_time=0):
         RetentionPolicy.__init__(self)
-        self._max_time = 0
+        self._max_time = max_time
 
     ###########################################################################
     @property
@@ -148,6 +156,12 @@ class RetainMaxTimePolicy(RetentionPolicy):
         return filter(lambda backup:
                       backup.created_date < earliest_date_to_keep,
                       backups)
+
+    ###########################################################################
+    def get_plan_occurrences_to_retain_as_of(self, plan, dt):
+        end_date = dt
+        start_date = date_minus_seconds(end_date, self.max_time)
+        return plan.schedule.natural_occurrences_between(start_date, end_date)
 
     ###########################################################################
     def to_document(self, display_only=False):
