@@ -106,7 +106,8 @@ class PlanAuditor(BackupAuditor):
         warned_audits = []
         total_audits = 0
         total_warnings = 0
-        for plan_occurrence in plan.natural_occurrences_as_of(audit_date):
+        for plan_occurrence in plan.schedule.natural_occurrences_as_of(
+                audit_date):
             # skip occurrences before plan's created date
             if plan.created_date and plan_occurrence < plan.created_date:
                 continue

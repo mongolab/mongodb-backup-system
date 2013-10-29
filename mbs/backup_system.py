@@ -235,7 +235,7 @@ class BackupSystem(Thread):
             # TODO disable plan ???
 
         now = date_now()
-        next_natural_occurrence = plan.next_natural_occurrence()
+        next_natural_occurrence = plan.schedule.next_natural_occurrence()
 
 
         # CASE I: First time <==> No previous backups
@@ -397,7 +397,7 @@ class BackupSystem(Thread):
         if not one_time:
             backup_plan = plan
             plan_occurrence = plan.next_occurrence
-            plan.next_occurrence = plan.next_natural_occurrence()
+            plan.next_occurrence = plan.schedule.next_natural_occurrence()
 
         backup = self.schedule_backup(strategy=plan.strategy,
                                       source=plan.source,
@@ -456,7 +456,7 @@ class BackupSystem(Thread):
 
     ###########################################################################
     def _set_update_plan_next_occurrence(self, plan):
-        plan.next_occurrence = plan.next_natural_occurrence()
+        plan.next_occurrence = plan.schedule.next_natural_occurrence()
         self._save_plan_next_occurrence(plan)
 
     ###########################################################################

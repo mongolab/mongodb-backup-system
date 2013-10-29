@@ -151,28 +151,6 @@ class BackupPlan(MBSObject):
         self._priority = val
 
     ###########################################################################
-    def next_natural_occurrence(self):
-        return self.schedule.next_natural_occurrence()
-
-    ###########################################################################
-    def last_natural_occurrence(self):
-        return self.schedule.last_natural_occurrence()
-
-    ###########################################################################
-    def last_natural_occurrence_as_of(self, date):
-        return self.schedule.last_natural_occurrence(date)
-
-    ###########################################################################
-    def natural_occurrences_as_of(self, date):
-        next_date = date + timedelta(days=1)
-        return self.schedule.natural_occurrences_between(date, next_date)
-
-    ###########################################################################
-    def natural_occurrences_between(self, start_date, end_date):
-        return self.schedule.natural_occurrences_between(start_date, end_date)
-
-
-    ###########################################################################
     def to_document(self, display_only=False):
         doc = {
             "_type": "Plan",

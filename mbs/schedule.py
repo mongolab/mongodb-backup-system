@@ -99,6 +99,24 @@ class AbstractSchedule(object):
         if end_dt <= start_dt:
             raise Exception('end_dt must be greater than start_dt')
 
+    ###########################################################################
+    def natural_occurrences_as_of(self, date):
+        next_date = date + timedelta(days=1)
+        return self.natural_occurrences_between(date, next_date)
+
+    ###########################################################################
+    def last_n_occurrences(self, n, dt=None):
+        end_date = dt or date_now()
+        occurrences = []
+        for i in range(0, n):
+            occurrence = self.last_natural_occurrence(dt=end_date)
+            occurrences.append(occurrence)
+            end_date = occurrence - self.min_time_delta()
+
+        return occurrences
+    ###########################################################################
+    def min_time_delta(self):
+        return timedelta(seconds=1)
 
 ###############################################################################
 # Schedule
@@ -182,6 +200,12 @@ class Schedule(AbstractSchedule, MBSObject):
             last_occurrence = last_occurrence + delta
 
         return occurrences
+
+    ###########################################################################
+    def last_n_occurrencesddddd(self, n, dt=None):
+        end_date = dt or date_now()
+        start_date = dt - timedelta(seconds=self.frequency_in_seconds * n)
+        return self.natural_occurrences_between(start_date, end_date)
 
     ###########################################################################
     def to_document(self, display_only=False):
@@ -274,6 +298,10 @@ class CronSchedule(AbstractSchedule, MBSObject):
         return occurrences[:-1]
 
     ###########################################################################
+    def min_time_delta(self):
+        return timedelta(minutes=1)
+
+        ###########################################################################
     def to_document(self, display_only=False):
         return {
             "_type": "CronSchedule",
