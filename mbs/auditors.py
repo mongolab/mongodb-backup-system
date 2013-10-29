@@ -343,7 +343,7 @@ class PlanRetentionAuditor(PlanAuditor):
 
         if backup:
             audit_entry.backup_id = backup.id
-            if not backup.expired:
+            if backup.expired:
                 audit_entry.state = "BACKUP EXPIRED AND NOT RETAINED"
             else:
                 audit_entry.state = STATE_FAILED
