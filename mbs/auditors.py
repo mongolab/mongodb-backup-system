@@ -244,7 +244,7 @@ class PlanRetentionAuditor(PlanAuditor):
         total_warnings = 0
 
         for plan in get_mbs().plan_collection.find():
-            logger.warning("=== Processing Plan '%s'...")
+            logger.info("=== Processing Plan '%s'..." % plan.id)
             if not plan.retention_policy:
                 logger.warning("Plan '%s' has not retention policy! "
                                "Skipping..." % plan.id)
