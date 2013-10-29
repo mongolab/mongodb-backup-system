@@ -108,7 +108,7 @@ class RetainLastNPolicy(RetentionPolicy):
     ###########################################################################
     def filter_backups_due_for_expiration(self, backups):
 
-        backups.sort(key=operator.attrgetter('created_date'))
+        backups.sort(key=operator.attrgetter('created_date'), reverse=True)
 
         if len(backups) <= self.retain_count:
             return []
