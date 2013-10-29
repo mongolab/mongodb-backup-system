@@ -310,6 +310,7 @@ class PlanRetentionAuditor(BackupAuditor):
                 logger.info("Skipping occurrence '%s' because its backup did"
                             " not get scheduled or did not succeed. Should be "
                             "caught by the PlanAuditor." % occurrence)
+                continue
 
             audit_entry = self._audit_occurrence_retention(occurrence, backup)
 
