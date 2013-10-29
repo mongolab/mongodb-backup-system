@@ -244,9 +244,10 @@ class PlanRetentionAuditor(PlanAuditor):
         total_warnings = 0
 
         for plan in get_mbs().plan_collection.find():
+            logger.warning("=== Processing Plan '%s'...")
             if not plan.retention_policy:
                 logger.warning("Plan '%s' has not retention policy! "
-                               "Skipping...")
+                               "Skipping..." % plan.id)
                 continue
 
             plan_report = self._create_plan_audit_report(plan, audit_date)
@@ -292,10 +293,17 @@ class PlanRetentionAuditor(PlanAuditor):
         total_audits = 0
         total_warnings = 0
         rp = plan.retention_policy
+        logger.info("Finding all occurrences for plan '%s' be retained as "
+                    "of %s" % (plan.id, audit_date))
+
         for occurrence in rp.get_plan_occurrences_to_retain_as_of(plan,
                                                                   audit_date):
+            logger.info("Auditing occurrence '%s' " % occurrence)
             # skip occurrences before plan's created date
             if plan.created_date and occurrence < plan.created_date:
+                logger.info("Skipping occurrence '%s' because its before plan "
+                            "created date '%s'" %
+                            (occurrence, plan.created_date))
                 continue
 
             audit_entry = self._audit_plan_occurrence(plan, occurrence)
