@@ -323,8 +323,10 @@ def _backups_to_check_query(plan_id=None):
 ###############################################################################
 def expire_backup(backup, expired_date=None):
     try:
-        expired_date = expired_date or date_now()
+        """expired_date = expired_date or date_now()
         return robustified_expire_backup(backup, expired_date)
+        """
+        return False
     except Exception, e:
         msg = "Error while attempting to expire backup '%s': " % e
         logger.exception(msg)
