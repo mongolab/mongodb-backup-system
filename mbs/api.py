@@ -137,7 +137,7 @@ class BackupSystemApiServer(Thread):
     def delete_backup(self, backup_id):
         logger.info("Backup System: Received a delete-backup command")
         try:
-            result = self._backup_system.delete_backup(backup_id)
+            result = self._backup_system.delete_backup(backup_id, force=True)
             return document_pretty_string(result)
         except Exception, e:
             msg = ("Error while trying to delete backup %s: %s" %

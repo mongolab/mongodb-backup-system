@@ -321,12 +321,10 @@ def _backups_to_check_query(plan_id=None):
 ###############################################################################
 # EXPIRE BACKUP HELPERS
 ###############################################################################
-def expire_backup(backup, expired_date=None):
+def expire_backup(backup, expired_date=None, force=False):
     try:
-        """expired_date = expired_date or date_now()
-        return robustified_expire_backup(backup, expired_date)
-        """
-        return False
+        expired_date = expired_date or date_now()
+        return robustified_expire_backup(backup, expired_date, force=force)
     except Exception, e:
         msg = "Error while attempting to expire backup '%s': " % e
         logger.exception(msg)
@@ -348,7 +346,7 @@ def expire_backup(backup, expired_date=None):
 @robustify(max_attempts=3, retry_interval=5,
            do_on_exception=raise_if_not_retriable,
            do_on_failure=raise_exception)
-def robustified_expire_backup(backup, expired_date):
+def robustified_expire_backup(backup, expired_date, force=False):
     """
         expires the backup
     """
@@ -364,26 +362,53 @@ def robustified_expire_backup(backup, expired_date):
                        " Ignoring..." % backup.id)
         return
 
+    # validate backups is expirable now if its part of a retained plan
+    if not force and backup.plan and backup.plan.retention_policy:
+        validate_backup_should_expire_now(backup)
+
     logger.info("Expiring backup '%s', expired date: '%s'." %
                 (backup.id, expired_date))
 
     target_ref = backup.target_reference
 
+    #TODO re-enable actual target deletion for all cases (not limited to force)
+    exists = True
     # if the target reference is a cloud storage one then make the cloud
     # storage object take care of it
-    exists = do_delete_target_ref(backup, target_ref)
+    if force:
+        logger.info("Deleting actual backup target since temp flag force=true "
+                    "for '%s'" % backup.id)
+        exists = do_delete_target_ref(backup, target_ref)
 
-    # expire log file
-    if backup.log_target_reference:
-        exists = do_delete_target_ref(backup, backup.log_target_reference)
-
+        # expire log file
+        if backup.log_target_reference:
+            pass
+            exists = do_delete_target_ref(backup, backup.log_target_reference)
+    else:
+        logger.info("Marking backup '%s' with expiredDate WITHOUT deleting "
+                    "actual target (temporary)" % backup.id)
     # set expired date
     backup.expired_date = expired_date
-    persistence.update_backup(backup, properties=["expiredDate"],
+    backup.expired_for_reals = force
+    persistence.update_backup(backup, properties=["expiredDate",
+                                                  "expiredForReals"],
                               event_name="EXPIRING", message="Expiring")
 
     logger.info("Backup %s expired successfully!" % backup.id)
     return exists
+
+###############################################################################
+def validate_backup_should_expire_now(backup):
+    logger.info("Validating if backup '%s' should be expired now" % backup.id)
+    rp = backup.plan.retention_policy
+    occurrences_to_retain = \
+        rp.get_plan_occurrences_to_retain_as_of(backup.plan, date_now())
+    if backup.plan_occurrence in occurrences_to_retain:
+        raise Exception("Bad attempt to expire backup '%s'. "
+                        "Backup must not be expired now." % backup.id)
+    else:
+        logger.info("Backup '%s' good be expired now" %
+                    backup.id)
 
 ###############################################################################
 def mark_plan_backups_not_expirable(plan, backups):

@@ -277,7 +277,8 @@ def download_backup(parsed_args):
     backup = _get_backup(parsed_args.backupId)
 
     if backup.target_reference:
-        if not backup.expired:
+
+        if not (backup.expired and backup.expired_for_reals):
             backup.target.get_file(backup.target_reference, os.getcwd())
         else:
             print ("Failed to download. Backup '%s' is expired." %
@@ -292,7 +293,7 @@ def download_backup(parsed_args):
 def download_backup_log(parsed_args):
     backup = _get_backup(parsed_args.backupId)
     if backup.log_target_reference:
-        if not backup.expired:
+        if not (backup.expired and backup.expired_for_reals):
             backup.target.get_file(backup.log_target_reference, os.getcwd())
         else:
             print ("Failed to download. Backup '%s' is expired." %

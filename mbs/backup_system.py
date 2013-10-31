@@ -517,14 +517,14 @@ class BackupSystem(Thread):
                 return backup.source_stats["databaseStats"].keys()
 
     ###########################################################################
-    def delete_backup(self, backup_id):
+    def delete_backup(self, backup_id, force=False):
         """
             Deletes the specified backup. Deleting here means expiring
         """
         backup = persistence.get_backup(backup_id)
         if (backup and backup.state == STATE_SUCCEEDED and
-            not backup.expired_date):
-            retention.expire_backup(backup)
+                not backup.expired_date):
+            retention.expire_backup(backup, force=force)
             return True
 
         return False
