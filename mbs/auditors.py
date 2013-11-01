@@ -44,6 +44,10 @@ class BackupAuditor(object):
     def yesterday_audit_reports_as_of(self):
         return self.daily_audit_report(yesterday_date())
 
+    ###########################################################################
+    @property
+    def name(self):
+        return "BACKUP AUDITOR"
 
 ###############################################################################
 class GlobalAuditor():
@@ -60,26 +64,30 @@ class GlobalAuditor():
 
     ###########################################################################
     def generate_daily_audit_reports(self, date):
-        reports = []
         for auditor in self._auditors:
-            report = auditor.daily_audit_report(date)
-            logger.info("GlobalAuditor: Saving audit report: \n%s" % report)
-            self._audit_collection.save_document(report.to_document())
-            reports.append(report)
+            self.generate_audit_report(auditor, date)
+
+    ###########################################################################
+    def generate_audit_report(self, auditor, date):
+
+        report = auditor.daily_audit_report(date)
+        logger.info("GlobalAuditor: Saving audit report: \n%s" % report)
+        self._audit_collection.save_document(report.to_document())
 
         # send notification if specified
         if self._notification_handler:
-            self._send_notification(date, reports)
+            self._send_audit_report(auditor, report)
 
     ###########################################################################
     def generate_yesterday_audit_reports(self):
         self.generate_daily_audit_reports(yesterday_date())
 
     ###########################################################################
-    def _send_notification(self, date, reports):
-        subject = "Backup Audit Reports for %s" % datetime_to_string(date)
-        reports_str = map(str, reports)
-        message = "\n\n\n".join(reports_str)
+    def _send_audit_report(self, auditor, report):
+        subject = ("%s Audit Report for %s" %
+                   (auditor.name, datetime_to_string(report.audit_date)))
+
+        message = str(report)
         self._notification_handler.send_notification(subject, message)
 
 ###############################################################################
@@ -203,6 +211,11 @@ class PlanAuditor(BackupAuditor):
 
         return audit_entry
 
+    ###########################################################################
+    @property
+    def name(self):
+        return "PlanScheduleAuditor"
+
 ###############################################################################
 def _lookup_backup_by_plan_occurrence(plan, plan_occurrence):
 
@@ -226,6 +239,12 @@ class PlanRetentionAuditor(BackupAuditor):
 
     ###########################################################################
     # plan auditing
+    ###########################################################################
+
+    ###########################################################################
+    def daily_audit_report(self, audit_date):
+        return self.audit_report(audit_date)
+
     ###########################################################################
     def audit_report(self, audit_date):
 
@@ -354,3 +373,8 @@ class PlanRetentionAuditor(BackupAuditor):
         audit_entry.plan_occurrence = plan_occurrence
 
         return audit_entry
+
+    ###########################################################################
+    @property
+    def name(self):
+        return "PlanRetentionAuditor"

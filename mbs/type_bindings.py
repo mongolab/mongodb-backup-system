@@ -31,6 +31,7 @@ TYPE_BINDINGS = {
     "RetainLastNPolicy": "mbs.retention.RetainLastNPolicy",
     "RetainMaxTimePolicy": "mbs.retention.RetainMaxTimePolicy",
     "PlanAuditor": "mbs.auditors.PlanAuditor",
+    "PlanRetentionAuditor": "mbs.auditors.PlanRetentionAuditor",
     "AuditReport": "mbs.audit.AuditReport",
     "AuditEntry": "mbs.audit.AuditEntry",
     "PlanAuditReport": "mbs.audit.PlanAuditReport",
