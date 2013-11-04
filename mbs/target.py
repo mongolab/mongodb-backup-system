@@ -105,6 +105,7 @@ class BackupTarget(MBSObject):
 
             return target_ref
         except Exception, e:
+            logger.exception("BackupTarget.put_file(): Exception caught ")
             if isinstance(e, TargetError):
                 raise
             elif is_connection_exception(e):
@@ -224,7 +225,7 @@ class S3BucketTarget(BackupTarget):
         self._encrypted_secret_key = None
 
     ###########################################################################
-    def do_put_file(self, file_path, destination_path):
+    def do_put_file(self, file_path, destination_path=None):
 
         # determine single/multi part upload
         file_size = os.path.getsize(file_path)
@@ -522,7 +523,7 @@ class RackspaceCloudFilesTarget(BackupTarget):
     @robustify(max_attempts=3, retry_interval=5,
                do_on_exception=raise_if_not_retriable,
                do_on_failure=raise_exception)
-    def do_put_file(self, file_path, destination_path):
+    def do_put_file(self, file_path, destination_path=None):
 
         # determine single/multi part upload
         file_size = os.path.getsize(file_path)
