@@ -14,7 +14,7 @@ from date_utils import date_now, date_minus_seconds
 
 from schedule_runner import ScheduleRunner
 from schedule import Schedule
-from task import STATE_SUCCEEDED
+from task import STATE_SUCCEEDED, STATE_CANCELED, STATE_FAILED
 
 from task import EVENT_TYPE_ERROR
 from target import CloudBlockStorageSnapshotReference
@@ -308,7 +308,9 @@ class BackupSweeper(ScheduleRunner):
 ###############################################################################
 def _backups_to_check_query(plan_id=None):
     q = {
-        "state": STATE_SUCCEEDED,
+        "targetReference": {
+            "$exists": True
+        },
         "expiredDate": {"$exists": False},
         "dontExpire": {"$ne": True}
     }
