@@ -405,7 +405,8 @@ class BackupSystem(Thread):
                                       priority=plan.priority,
                                       tags=plan.tags,
                                       plan_occurrence=plan_occurrence,
-                                      plan=backup_plan)
+                                      plan=backup_plan,
+                                      secondary_targets=plan.secondary_targets)
 
         #  update the plans next occurrence
         self._save_plan_next_occurrence(plan)
@@ -433,6 +434,12 @@ class BackupSystem(Thread):
             backup.plan = get_validate_arg(kwargs, "plan",
                                            expected_type=BackupPlan,
                                            required=False)
+
+            backup.secondary_targets = get_validate_arg(kwargs,
+                                                        "secondary_targets",
+                                                        expected_type=list,
+                                                        required=False)
+
             backup.change_state(STATE_SCHEDULED)
             # resolve tags
             tags = get_validate_arg(kwargs, "tags", expected_type=dict,

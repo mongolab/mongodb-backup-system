@@ -23,7 +23,10 @@ from utils import (which, ensure_dir, execute_command, execute_command_wrapper,
                    find_mount_point, freeze_mount_point, unfreeze_mount_point,
                    listify)
 
-from target import CBS_STATUS_PENDING, CBS_STATUS_COMPLETED, CBS_STATUS_ERROR
+from target import (
+    CBS_STATUS_PENDING, CBS_STATUS_COMPLETED, CBS_STATUS_ERROR,
+    multi_target_upload_file
+)
 
 
 from task import EVENT_TYPE_WARNING
@@ -630,15 +633,43 @@ class DumpStrategy(BackupStrategy):
                       event_name=EVENT_START_UPLOAD,
                       message="Upload tar to target")
         upload_dest_path = _upload_file_dest(backup)
-        target_reference = backup.target.put_file(tar_file_path,
-            destination_path=upload_dest_path)
+
+        all_targets = [backup.target]
+
+        if backup.secondary_targets:
+            all_targets.extend(backup.secondary_targets)
+
+        target_uploaders = multi_target_upload_file(all_targets,
+                                                    tar_file_path,
+                                                    destination_path=
+                                                    upload_dest_path)
+
+
+        # check for errors
+        errored_uploaders = filter(lambda uploader: uploader.error is not None,
+                                 target_uploaders)
+
+        if errored_uploaders:
+            raise errored_uploaders[0].error
+
+        # set the target reference
+        target_reference = target_uploaders[0].target_reference
 
         # keep old target reference if it exists to delete it because it would
         # be the failed file reference
         failed_reference = backup.target_reference
         backup.target_reference = target_reference
 
-        update_backup(backup, properties="targetReference",
+        # set the secondary target references
+        if backup.secondary_targets:
+            secondary_target_references = \
+                map(lambda uploader: uploader.target_reference,
+                    target_uploaders[1:])
+
+            backup.secondary_target_references = secondary_target_references
+
+        update_backup(backup, properties=["targetReference",
+                                          "secondaryTargetReferences"],
                       event_name=EVENT_END_UPLOAD,
                       message="Upload completed!")
 

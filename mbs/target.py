@@ -19,6 +19,7 @@ from boto.ec2 import EC2Connection
 from errors import *
 from robustify.robustify import robustify
 from splitfile import SplitFile
+from threading import Thread
 
 ###############################################################################
 # LOGGER
@@ -1018,3 +1019,87 @@ def _download_progress(transferred, size):
                      "completed" %
                      (transferred, size, percentage))
     sys.stdout.flush()
+
+
+
+###############################################################################
+# Concurrent multi target upload
+###############################################################################
+def multi_target_upload_file(targets,
+                             file_path, destination_path=None,
+                             overwrite_existing=False):
+
+    logger.info("MULTI TARGET UPLOAD: Starting concurrent target upload for "
+                "file '%s'" % file_path)
+    uploaders = []
+
+    # first kick off the uploads
+    for target in targets:
+        target_uploader = TargetUploader(target,
+                                         file_path,
+                                         destination_path=destination_path,
+                                         overwrite_existing=overwrite_existing)
+        uploaders.append(target_uploader)
+        logger.info("Starting uploader for target: %s" % target)
+        target_uploader.start()
+
+    logger.info("Waiting for all target uploaders to finish")
+    # wait for all target uploaders to finish
+    for target_uploader in uploaders:
+        logger.info("Waiting for target uploader for to "
+                    "finish: %s" % target_uploader.target)
+        target_uploader.join()
+        if target_uploader.error:
+            logger.info("Target uploader %s for %s to "
+                        "finished with an error." %
+                        (target_uploader.target, file_path))
+        else:
+            logger.info("Target uploader %s for %s to "
+                        "finished successfully! Target ref: %s" %
+                        (file_path, target_uploader.target,
+                         target_uploader.target_reference))
+
+    logger.info("MULTI TARGET UPLOAD: SUCCESSFULLY uploaded '%s'!" % file_path)
+
+    return uploaders
+
+###############################################################################
+# TargetUploader class
+###############################################################################
+class TargetUploader(Thread):
+###############################################################################
+    def __init__(self, target, file_path, **upload_kargs):
+        Thread.__init__(self)
+        self._target = target
+        self._upload_kargs = upload_kargs
+        self._target_reference = None
+        self._file_path = file_path
+        self._error = None
+
+    ###########################################################################
+    def run(self):
+        try:
+            tr = self._target.put_file(self._file_path,
+                                       **self._upload_kargs)
+            self._target_reference = tr
+        except Exception, ex:
+            self._error = ex
+
+    ###########################################################################
+    @property
+    def target(self):
+        return self._target
+
+    ###########################################################################
+    @property
+    def target_reference(self):
+        return self._target_reference
+
+    ###########################################################################
+    @property
+    def error(self):
+        return self._error
+
+    ###########################################################################
+    def completed(self):
+        return self.target_reference is not None or self.error is not None

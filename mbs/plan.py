@@ -16,6 +16,7 @@ class BackupPlan(MBSObject):
         self._description = None
         self._source = None
         self._target = None
+        self._secondary_targets = None
         self._schedule = None
         self._next_occurrence = None
         self._strategy = None
@@ -69,6 +70,15 @@ class BackupPlan(MBSObject):
     @target.setter
     def target(self, target):
         self._target = target
+
+    ###########################################################################
+    @property
+    def secondary_targets(self):
+        return self._secondary_targets
+
+    @secondary_targets.setter
+    def secondary_targets(self, val):
+        self._secondary_targets = val
 
     ###########################################################################
     @property
@@ -178,6 +188,11 @@ class BackupPlan(MBSObject):
 
         if self.priority:
             doc["priority"] = self.priority
+
+        if self.secondary_targets:
+            doc["secondaryTargets"] = \
+                map(lambda t: t.to_document(display_only=display_only),
+                    self.secondary_targets)
 
         return doc
 

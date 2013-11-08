@@ -14,7 +14,9 @@ class Backup(MBSTask):
         self._source = None
         self._source_stats = None
         self._target = None
+        self._secondary_targets = None
         self._target_reference = None
+        self._secondary_target_references = None
         self._plan = None
         self._plan_occurrence = None
         self._backup_rate_in_mbps = None
@@ -84,6 +86,15 @@ class Backup(MBSTask):
 
     ###########################################################################
     @property
+    def secondary_targets(self):
+        return self._secondary_targets
+
+    @secondary_targets.setter
+    def secondary_targets(self, val):
+        self._secondary_targets = val
+
+    ###########################################################################
+    @property
     def target_reference(self):
         return self._target_reference
 
@@ -91,6 +102,15 @@ class Backup(MBSTask):
     @target_reference.setter
     def target_reference(self, target_reference):
         self._target_reference = target_reference
+
+    ###########################################################################
+    @property
+    def secondary_target_references(self):
+        return self._secondary_target_references
+
+    @secondary_target_references.setter
+    def secondary_target_references(self, vals):
+        self._secondary_target_references = vals
 
     ###########################################################################
     @property
@@ -178,7 +198,17 @@ class Backup(MBSTask):
 
         if self.target_reference:
             doc["targetReference"] = self.target_reference.to_document(
-                                                     display_only=display_only)
+                display_only=display_only)
+
+        if self.secondary_targets:
+            doc["secondaryTargets"] = \
+                map(lambda t: t.to_document(display_only=display_only),
+                    self.secondary_targets)
+
+        if self.secondary_target_references:
+            doc["secondaryTargetReferences"] = \
+                map(lambda tr: tr.to_document(display_only=display_only),
+                    self.secondary_target_references)
 
         if self.source_stats:
             doc["sourceStats"] = self.source_stats
