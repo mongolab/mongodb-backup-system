@@ -26,7 +26,6 @@ TYPE_BINDINGS = {
     "S3BucketTarget": "mbs.target.S3BucketTarget",
     "EbsSnapshotTarget": "mbs.target.EbsSnapshotTarget",
     "RackspaceCloudFilesTarget": "mbs.target.RackspaceCloudFilesTarget",
-    "MirroredTarget": "mbs.mirrored_target.MirroredTarget",
     "FileReference": "mbs.target.FileReference",
     "EbsSnapshotReference": "mbs.target.EbsSnapshotReference",
     "RetainLastNPolicy": "mbs.retention.RetainLastNPolicy",
