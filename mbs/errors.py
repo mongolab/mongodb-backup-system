@@ -74,6 +74,12 @@ class BackupSchedulingError(BackupSystemError):
     pass
 
 ###############################################################################
+# CreatePlanError
+###############################################################################
+class CreatePlanError(BackupSystemError):
+    pass
+
+###############################################################################
 # BackupSystemApiError
 ###############################################################################
 class BackupSystemApiError(MBSError):

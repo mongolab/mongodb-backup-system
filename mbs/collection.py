@@ -17,13 +17,17 @@ class MBSObjectCollection(ObjectCollection):
                                   type_bindings=type_bindings)
 
     ###########################################################################
-    def get_by_id(self, task_id):
-        task_id = objectiditify(task_id)
+    def get_by_id(self, object_id):
+        object_id = objectiditify(object_id)
         q = {
-            "_id": task_id
+            "_id": object_id
         }
         return self.find_one(q)
 
+    ###########################################################################
+    def remove_by_id(self, object_id):
+        object_id = objectiditify(object_id)
+        return ObjectCollection.remove_by_id(self, object_id)
 
 ###############################################################################
 # MBSTaskCollection class

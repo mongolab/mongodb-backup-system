@@ -7,7 +7,7 @@ from threading import Thread
 
 from flask import Flask
 from flask.globals import request
-from utils import document_pretty_string
+from utils import document_pretty_string, parse_json
 from errors import BackupSystemApiError
 from netutils import crossdomain
 from functools import update_wrapper
@@ -147,9 +147,24 @@ class BackupSystemApiServer(Thread):
             send_api_error("delete-backup", e)
             return error_response(msg)
 
+
+    ###########################################################################
+    def delete_backup_plan(self, plan_id):
+        logger.info("Backup System: Received a delete-backup-plan command")
+        try:
+            result = self._backup_system.remove_plan(plan_id)
+            return document_pretty_string(result)
+        except Exception, e:
+            msg = ("Error while trying to delete backup plan %s: %s" %
+                   (plan_id, e))
+            logger.error(msg)
+            logger.error(traceback.format_exc())
+            send_api_error("delete-backup-plan", e)
+            return error_response(msg)
+
     ###########################################################################
     def restore_backup(self):
-        arg_json = request.json
+        arg_json = get_request_json()
         backup_id = arg_json.get('backupId')
         destination_uri = arg_json.get('destinationUri')
         tags = arg_json.get('tags')
@@ -241,6 +256,14 @@ class BackupSystemApiServer(Thread):
         def delete_backup_request():
             backup_id = request.args.get('backupId')
             return self.delete_backup(backup_id)
+
+        ########## build delete backup plan method
+        @flask_server.route('/delete-backup-plan', methods=['GET'])
+        @self.api_auth_service.auth("/delete-backup-plan")
+        @crossdomain(origin='*')
+        def delete_backup_plan_request():
+            plan_id = request.args.get('backupPlanId')
+            return self.delete_backup_plan(plan_id)
 
         ########## build restore method
         @flask_server.route('/restore-backup', methods=['POST'])
@@ -364,3 +387,8 @@ def send_api_error(end_point, exception):
                (end_point, traceback.format_exc()))
 
     get_mbs().send_error_notification(subject, message, exception)
+
+###############################################################################
+def get_request_json():
+    if request.data:
+        return parse_json(request.data)

@@ -157,16 +157,20 @@ def dir_exists(path):
 ###############################################################################
 def read_config_json(name, path):
     json_str = read_json_string(path)
-    # minify the json/remove comments and sh*t
-    #json_str = minify_json.json_minify(json_str)
-    json_val =json.loads(json_str,
-        object_hook=_custom_json_object_hook)
+    json_val = parse_json(json_str)
 
     if not json_val and not isinstance(json_val,list): # b/c [] is not True
         raise Exception("Unable to load %s config file: %s" %
                         (name, path))
     else:
         return json_val
+
+###############################################################################
+def parse_json(json_str):
+    # minify the json/remove comments and sh*t
+    #json_str = minify_json.json_minify(json_str)
+    return json.loads(json_str, object_hook=_custom_json_object_hook)
+
 
 ###############################################################################
 def _custom_json_object_hook(dct):

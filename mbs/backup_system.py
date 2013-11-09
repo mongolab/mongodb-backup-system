@@ -28,6 +28,8 @@ from restore import Restore
 from tags import DynamicTag
 
 from plan import BackupPlan
+from schedule import AbstractSchedule
+from retention import RetentionPolicy
 from strategy import BackupStrategy
 from target import BackupTarget
 from source import BackupSource
@@ -461,6 +463,66 @@ class BackupSystem(Thread):
             logger.error(traceback.format_exc())
             raise BackupSchedulingError(msg=msg, cause=e)
 
+
+    ###########################################################################
+    def create_backup_plan(self, **kwargs):
+        try:
+            plan = BackupPlan()
+            plan.created_date = date_now()
+
+            plan.description = get_validate_arg(kwargs, "description",
+                                             expected_type=(str, unicode),
+                                             required=False)
+
+            plan.strategy = get_validate_arg(kwargs, "strategy",
+                                             expected_type=BackupStrategy)
+
+
+            plan.schedule = get_validate_arg(kwargs, "schedule",
+                                             expected_type=AbstractSchedule)
+
+            plan.source = get_validate_arg(kwargs, "source",
+                                           expected_type=BackupSource)
+
+            plan.target = get_validate_arg(kwargs, "target",
+                                           expected_type=BackupTarget)
+
+            plan.retention_policy = get_validate_arg(kwargs, "retention_policy",
+                                                     expected_type=
+                                                     RetentionPolicy,
+                                                     required=False)
+
+            plan.priority = get_validate_arg(kwargs, "priority",
+                                             expected_type=(int, long,
+                                                            float, complex),
+                                             required=False)
+
+            plan.secondary_targets = get_validate_arg(kwargs,
+                                                      "secondary_targets",
+                                                      expected_type=list,
+                                                      required=False)
+
+            # tags
+            plan.tags = get_validate_arg(kwargs, "tags", expected_type=dict,
+                                         required=False)
+
+            plan_doc = plan.to_document()
+            get_mbs().plan_collection.save_document(plan_doc)
+            # set the backup plan id from the saved doc
+
+            plan.id = plan_doc["_id"]
+
+            self.info("Saved backup plan \n%s" % plan)
+            # process plan to set next occurrence
+            self._process_plan(plan)
+            return plan
+        except Exception, e:
+            args_str = dict_to_str(kwargs)
+            msg = ("Failed to create plan. Args:\n %s" % args_str)
+            logger.error(msg)
+            logger.error(traceback.format_exc())
+            raise CreatePlanError(msg=msg, cause=e)
+
     ###########################################################################
     def _set_update_plan_next_occurrence(self, plan):
         plan.next_occurrence = plan.schedule.next_natural_occurrence()
@@ -506,9 +568,9 @@ class BackupSystem(Thread):
                                        (plan, e))
 
     ###########################################################################
-    def remove_plan(self, plan):
-        logger.info("Removing plan '%s' " % plan.id)
-        get_mbs().plan_collection.remove_by_id(plan.id)
+    def remove_plan(self, plan_id):
+        logger.info("Removing plan '%s' " % plan_id)
+        get_mbs().plan_collection.remove_by_id(plan_id)
 
     ###########################################################################
     def get_backup_database_names(self, backup_id):
@@ -622,7 +684,7 @@ class BackupSystem(Thread):
         self.info("Running plan generator '%s' " % generator.name)
         # remove expired plans
         for plan in generator.get_plans_to_remove():
-            self.remove_plan(plan)
+            self.remove_plan(plan.id)
 
         # save new plans
         for plan in generator.get_plans_to_save():
