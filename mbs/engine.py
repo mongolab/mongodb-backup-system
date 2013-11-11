@@ -535,7 +535,7 @@ class TaskQueueProcessor(Thread):
 
         log_entry = state_change_log_entry(STATE_IN_PROGRESS)
         q = self._get_scheduled_tasks_query()
-        u = {"$set" : { "state" : STATE_IN_PROGRESS,
+        u = {"$set" : { "state": STATE_IN_PROGRESS,
                         "engineGuid": self._engine.engine_guid},
              "$push": {"logs":log_entry.to_document()}}
 
@@ -585,7 +585,7 @@ class TaskQueueProcessor(Thread):
 
     ###########################################################################
     def _get_scheduled_tasks_query(self):
-        q = {"state" : STATE_SCHEDULED}
+        q = {"state": STATE_SCHEDULED}
 
         # add tags if specified
         if self._engine.tags:
