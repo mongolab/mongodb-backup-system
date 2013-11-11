@@ -70,8 +70,7 @@ BACKUP_SYSTEM_STATUS_STOPPED = "stopped"
 ###############################################################################
 class BackupSystem(Thread):
     ###########################################################################
-    def __init__(self, sleep_time=10,
-                 api_port=9003):
+    def __init__(self, sleep_time=10):
 
         Thread.__init__(self)
         self._sleep_time = sleep_time
@@ -80,7 +79,6 @@ class BackupSystem(Thread):
         self._tick_count = 0
         self._stop_requested = False
         self._stopped = False
-        self._api_port = api_port
         self._api_server = None
         self._backup_sweeper = None
         # auditing stuff
@@ -839,7 +837,7 @@ class BackupSystem(Thread):
             This should be used by other processes (copy of the backup system
             instance) but not the actual running backup system process
         """
-        url = "http://0.0.0.0:%s/status" % self._api_port
+        url = "http://0.0.0.0:%s/status" % self.api_server.port
         try:
             response = urllib.urlopen(url)
             if response.getcode() == 200:
@@ -895,7 +893,7 @@ class BackupSystem(Thread):
     ###########################################################################
 
     def _start_api_server(self):
-        self.info("Starting api server at port %s" % self._api_port)
+        self.info("Starting api server at port %s" % self.api_server.port)
 
         self.api_server.start()
         self.info("api server started successfully!")

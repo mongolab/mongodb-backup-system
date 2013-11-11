@@ -31,9 +31,10 @@ logger = mbs_logging.logger
 class BackupSystemApiServer(Thread):
 
     ###########################################################################
-    def __init__(self):
+    def __init__(self, port=9003):
         Thread.__init__(self)
         self._backup_system = None
+        self._port = port
         self._api_auth_service = None
         self._flask_server = None
         self._http_server = None
@@ -58,6 +59,15 @@ class BackupSystemApiServer(Thread):
             self._api_auth_service = DefaultApiAuthService()
         return self._api_auth_service
 
+
+    ###########################################################################
+    @property
+    def port(self):
+        return self._port
+
+    @port.setter
+    def port(self, val):
+        self._port = val
 
     ###########################################################################
     @property
@@ -282,14 +292,13 @@ class BackupSystemApiServer(Thread):
 
     ###########################################################################
     def run(self):
-        port = self._backup_system._api_port
         app = self.flask_server
         logger.info("BackupSystemApiServer: Starting HTTPServer"
-                    " (port=%s, protocol=%s)" % (port, self.protocol))
+                    " (port=%s, protocol=%s)" % (self.port, self.protocol))
 
         http_server = HTTPServer(WSGIContainer(app), protocol=self.protocol,
                                  ssl_options=self.ssl_options)
-        http_server.listen(port)
+        http_server.listen(self.port)
         self._http_server = http_server
         IOLoop.instance().start()
 
