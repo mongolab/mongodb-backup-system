@@ -595,12 +595,6 @@ class TaskQueueProcessor(Thread):
                 tag_filters.append({tag_prop_path: value})
 
             q["$or"] = tag_filters
-        else:
-            q["$or"]= [
-                    {"tags" : {"$exists": False}},
-                    {"tags" : {}},
-                    {"tags" : None}
-            ]
 
         return q
 
