@@ -331,7 +331,8 @@ class PlanRetentionAuditor(BackupAuditor):
                             "caught by the PlanAuditor." % occurrence)
                 continue
 
-            audit_entry = self._audit_occurrence_retention(occurrence, backup)
+            audit_entry = self._audit_occurrence_retention(occurrence, backup,
+                                                           audit_date)
 
             if audit_entry.failed():
                 failed_audits.append(audit_entry)
@@ -361,11 +362,12 @@ class PlanRetentionAuditor(BackupAuditor):
         return plan_report
 
     ###########################################################################
-    def _audit_occurrence_retention(self, plan_occurrence, backup):
+    def _audit_occurrence_retention(self, plan_occurrence, backup, audit_date):
 
         audit_entry = PlanAuditEntry()
 
-        if backup.expired:
+        # check if the backup expired before it was supposed to be expired
+        if backup.expired_date and backup.expired_date < audit_date:
             audit_entry.state = "BACKUP EXPIRED AND NOT RETAINED"
         else:
             audit_entry.state = STATE_SUCCEEDED
