@@ -80,6 +80,7 @@ class BackupSystem(Thread):
         self._stop_requested = False
         self._stopped = False
         self._api_server = None
+        self._backup_expiration_monitor = None
         self._backup_sweeper = None
         # auditing stuff
 
@@ -156,15 +157,22 @@ class BackupSystem(Thread):
 
     ###########################################################################
     @property
-    def backup_sweeper(self):
-        if not self._backup_sweeper:
-            self._backup_sweeper = retention.BackupSweeper()
+    def backup_expiration_monitor(self):
+        return self._backup_expiration_monitor
 
+    @backup_expiration_monitor.setter
+    def backup_expiration_monitor(self, val):
+        self._backup_expiration_monitor = val
+
+
+    ###########################################################################
+    @property
+    def backup_sweeper(self):
         return self._backup_sweeper
 
     @backup_sweeper.setter
-    def backup_sweeper(self, backup_sweeper):
-        self._backup_sweeper = backup_sweeper
+    def backup_sweeper(self, val):
+        self._backup_sweeper = val
 
     ###########################################################################
     # Behaviors
@@ -177,8 +185,8 @@ class BackupSystem(Thread):
         # Start the api server
         self._start_api_server()
 
-        # Start the sweeper
-        self._start_backup_sweeper()
+        # Start the expiration monitor
+        self._start_expiration_monitors()
 
         while not self._stop_requested:
             try:
@@ -189,7 +197,7 @@ class BackupSystem(Thread):
                            (e, traceback.format_exc()))
                 self._notify_error(e)
 
-        self._stop_backup_sweeper()
+        self._stop_expiration_monitors()
         self._stopped = True
 
     ###########################################################################
@@ -899,15 +907,21 @@ class BackupSystem(Thread):
         self.info("api server started successfully!")
 
     ###########################################################################
-    # Backup sweeper
+    # Backup expiration monitor
     ###########################################################################
 
-    def _start_backup_sweeper(self):
-        #self.backup_sweeper.start()
-        pass
-    def _stop_backup_sweeper(self):
-        #self.backup_sweeper.stop()
-        pass
+    def _start_expiration_monitors(self):
+        if self.backup_expiration_monitor:
+            self.backup_expiration_monitor.start()
+        if self.backup_sweeper:
+            self.backup_sweeper.start()
+
+    def _stop_expiration_monitors(self):
+        if self.backup_expiration_monitor:
+            self.backup_expiration_monitor.stop()
+        if self.backup_sweeper:
+            self.backup_sweeper.stop()
+
     ###########################################################################
     # logging
     ###########################################################################

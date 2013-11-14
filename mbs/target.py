@@ -3,7 +3,7 @@ __author__ = 'abdul'
 
 import os
 import sys
-import shutil
+
 import cloudfiles
 import cloudfiles.errors
 
@@ -45,7 +45,7 @@ class BackupTarget(MBSObject):
 
     ###########################################################################
     def __init__(self):
-        pass
+        self._preserve = None
 
     ###########################################################################
     @property
@@ -92,9 +92,10 @@ class BackupTarget(MBSObject):
                            (destination_path, self.container_name))
                     raise UploadedFileAlreadyExistError(msg)
 
-
-            target_ref = self.do_put_file(file_path, destination_path=
-                                                        destination_path)
+            target_ref = self.do_put_file(file_path,
+                                          destination_path=destination_path)
+            # set the preserve field
+            target_ref.preserve = self.preserve
 
             # validate that the file has been uploaded successfully
             self._verify_file_uploaded(destination_path, file_size)
@@ -213,6 +214,26 @@ class BackupTarget(MBSObject):
             Returns a tuple of (file_exists, file_size)
             Should be implemented by subclasses
         """
+    ###########################################################################
+    @property
+    def preserve(self):
+        return self._preserve
+
+    @preserve.setter
+    def preserve(self, val):
+        self._preserve = val
+
+    ###########################################################################
+    def to_document(self, display_only=False):
+        doc = {
+
+        }
+
+        if self.preserve is not None:
+            doc["preserve"] = self.preserve
+
+        return doc
+
 ###############################################################################
 # S3BucketTarget
 ###############################################################################
@@ -406,12 +427,15 @@ class S3BucketTarget(BackupTarget):
         ak = "xxxxx" if display_only else self.encrypted_access_key
         sk = "xxxxx" if display_only else self.encrypted_secret_key
 
-        return {
+        doc = BackupTarget.to_document(self, display_only=display_only)
+        doc.update({
             "_type": "S3BucketTarget",
             "bucketName": self.bucket_name,
             "encryptedAccessKey": ak,
             "encryptedSecretKey": sk
-        }
+        })
+
+        return doc
 
     ###########################################################################
     def validate(self):
@@ -489,11 +513,14 @@ class EbsSnapshotTarget(BackupTarget):
 
     ###########################################################################
     def to_document(self, display_only=False):
-        return {
+        doc = BackupTarget.to_document(self, display_only=display_only)
+        doc.update({
             "_type": "EbsSnapshotTarget",
             "accessKey": "xxxxx" if display_only else self.access_key,
             "secretKey": "xxxxx" if display_only else self.secret_key
-        }
+        })
+
+        return doc
 
     ###########################################################################
     def validate(self):
@@ -710,14 +737,19 @@ class RackspaceCloudFilesTarget(BackupTarget):
 
     ###########################################################################
     def to_document(self, display_only=False):
+
+        doc = BackupTarget.to_document(self, display_only=display_only)
+
         eu = "xxxxx" if display_only else self.encrypted_username
         eak = "xxxxx" if display_only else self.encrypted_api_key
-        return {
+        doc.update({
             "_type": "RackspaceCloudFilesTarget",
             "containerName": self.container_name,
             "encryptedUsername": eu,
             "encryptedApiKey": eak
-        }
+        })
+
+        return doc
 
     ###########################################################################
     def validate(self):
@@ -828,12 +860,15 @@ class AzureContainerTarget(BackupTarget):
 
     ###########################################################################
     def to_document(self, display_only=False):
-        return {
+        doc = BackupTarget.to_document(self, display_only=display_only)
+        doc.update({
             "_type": "AzureContainerTarget",
             "containerName": self.container_name,
             "accountName": "xxxxx" if display_only else self.account_name,
             "accountKey": "xxxxx" if display_only else self.account_key
-        }
+        })
+
+        return doc
 
     ###########################################################################
     def validate(self):
@@ -858,8 +893,28 @@ class TargetReference(MBSObject):
         Represents a reference to the file that gets uploaded to target
     """
     ###########################################################################
-    def __init__(self):
+    def __init__(self, preserve=None):
         self._file_size = None
+        self._preserve = preserve
+        self._deleted_date = None
+
+    ###########################################################################
+    @property
+    def preserve(self):
+        return self._preserve
+
+    @preserve.setter
+    def preserve(self, val):
+        self._preserve = val
+
+    ###########################################################################
+    @property
+    def deleted_date(self):
+        return self._deleted_date
+
+    @deleted_date.setter
+    def deleted_date(self, val):
+        self._deleted_date = val
 
     ###########################################################################
     @property
@@ -870,14 +925,28 @@ class TargetReference(MBSObject):
     def file_size(self, file_size):
         self._file_size = file_size
 
+    ###########################################################################
+    def to_document(self, display_only=False):
+        doc = {
+
+        }
+
+        if self.preserve is not None:
+            doc["preserve"] = self.preserve
+
+        if self.deleted_date:
+            doc["deletedDate"] = self.deleted_date
+
+        return doc
+
 ###############################################################################
 # FileReference
 ###############################################################################
 class FileReference(TargetReference):
 
     ###########################################################################
-    def __init__(self, file_path=None, file_size=None):
-        TargetReference.__init__(self)
+    def __init__(self, file_path=None, file_size=None, preserve=None):
+        TargetReference.__init__(self, preserve=preserve)
         self.file_path = file_path
         self.file_size = file_size
 
@@ -897,11 +966,12 @@ class FileReference(TargetReference):
 
     ###########################################################################
     def to_document(self, display_only=False):
-        doc = {
+        doc = TargetReference.to_document(self, display_only=display_only)
+        doc.update({
             "_type": "FileReference",
             "filePath": self.file_path,
             "fileSize": self.file_size
-        }
+        })
 
         return doc
 

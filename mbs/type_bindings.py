@@ -40,6 +40,8 @@ TYPE_BINDINGS = {
     "Encryptor": "mbs.encryption.Encryptor",
     "SourceIPTag": "mbs.tags.SourceIPTag",
     "DefaultBackupNamingScheme": "mbs.naming_scheme.DefaultBackupNamingScheme",
-    "TemplateBackupNamingScheme": "mbs.naming_scheme.TemplateBackupNamingScheme"
+    "TemplateBackupNamingScheme": "mbs.naming_scheme.TemplateBackupNamingScheme",
+    "BackupSweeper": "mbs.retention.BackupSweeper",
+    "BackupExpirationMonitor": "mbs.retention.BackupExpirationMonitor"
 
 }

@@ -22,7 +22,7 @@ class Backup(MBSTask):
         self._backup_rate_in_mbps = None
         self._expired_date = None
         self._dont_expire = None
-        self._expired_for_reals = None
+        self._deleted_date = None
 
     ###########################################################################
     def execute(self):
@@ -160,12 +160,12 @@ class Backup(MBSTask):
 
     ###########################################################################
     @property
-    def expired_for_reals(self):
-        return self._expired_for_reals
+    def deleted_date(self):
+        return self._deleted_date
 
-    @expired_for_reals.setter
-    def expired_for_reals(self, val):
-        self._expired_for_reals = val
+    @deleted_date.setter
+    def deleted_date(self, val):
+        self._deleted_date = val
 
     ###########################################################################
     @property
@@ -222,7 +222,7 @@ class Backup(MBSTask):
         if self.dont_expire:
             doc["dontExpire"] = self.dont_expire
 
-        if self.expired_for_reals is not None:
-            doc["expiredForReals"] = self.expired_for_reals
+        if self.deleted_date:
+            doc["deletedDate"] = self.deleted_date
 
         return doc

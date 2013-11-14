@@ -19,7 +19,9 @@ MBS_INDEXES = {
             "index": [('plan.description', ASCENDING)]
         },
         {
-            "index": [('expiredDate', ASCENDING)],
+            "index": [
+                ('deletedDate', DESCENDING)
+            ],
             "args": {
                 "expireAfterSeconds": SIX_MONTH_SECONDS
             }
@@ -36,6 +38,13 @@ MBS_INDEXES = {
             "index": [
                 ('state', ASCENDING),
                 ('dontExpire', ASCENDING),
+                ('expiredDate', DESCENDING)
+            ]
+        },
+
+        {
+            "index": [
+                ('deletedDate', DESCENDING),
                 ('expiredDate', DESCENDING)
             ]
         }

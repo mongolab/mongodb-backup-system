@@ -294,8 +294,6 @@ class BackupStrategy(MBSObject):
         # calculate backup rate
         self._calculate_backup_rate(backup)
 
-        self._apply_retention_policy(backup)
-
     ###########################################################################
     def _needs_new_source_stats(self, backup):
         """
@@ -320,23 +318,6 @@ class BackupStrategy(MBSObject):
                 backup.backup_rate_in_mbps = rate
                 # save changes
                 update_backup(backup, properties="backupRateInMBPS")
-
-    ###########################################################################
-    def _apply_retention_policy(self, backup):
-        """
-            apply the backup plan's retention policy if any.
-            No retention policies for one offs yet
-        """
-        #TODO add retention policy for one-offs
-        try:
-            plan = backup.plan
-            if plan and plan.retention_policy:
-                plan.retention_policy.apply_policy(plan)
-        except Exception, e:
-            msg = ("Error while applying retention policy for backup plan "
-                   "'%s'. %s" % (backup.plan.id, e))
-            logger.error(msg)
-            get_mbs().send_error_notification("Retention Policy Error", msg, e)
 
     ###########################################################################
     def cleanup_backup(self, backup):
