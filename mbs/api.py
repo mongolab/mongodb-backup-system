@@ -144,17 +144,17 @@ class BackupSystemApiServer(Thread):
             return error_response(msg)
 
     ###########################################################################
-    def delete_backup(self, backup_id):
-        logger.info("Backup System: Received a delete-backup command")
+    def expire_backup(self, backup_id):
+        logger.info("Backup System: Received a expire-backup command")
         try:
-            result = self._backup_system.delete_backup(backup_id, force=True)
+            result = self._backup_system.expire_backup(backup_id)
             return document_pretty_string(result)
         except Exception, e:
-            msg = ("Error while trying to delete backup %s: %s" %
+            msg = ("Error while trying to expire backup %s: %s" %
                    (backup_id, e))
             logger.error(msg)
             logger.error(traceback.format_exc())
-            send_api_error("delete-backup", e)
+            send_api_error("expire-backup", e)
             return error_response(msg)
 
 
@@ -260,12 +260,12 @@ class BackupSystemApiServer(Thread):
             return self.get_backup_database_names(backup_id)
 
         ########## build delete backup method
-        @flask_server.route('/delete-backup', methods=['GET'])
-        @self.api_auth_service.auth("/delete-backup")
+        @flask_server.route('/expire-backup', methods=['GET'])
+        @self.api_auth_service.auth("/expire-backup")
         @crossdomain(origin='*')
-        def delete_backup_request():
+        def expire_backup_request():
             backup_id = request.args.get('backupId')
-            return self.delete_backup(backup_id)
+            return self.expire_backup(backup_id)
 
         ########## build delete backup plan method
         @flask_server.route('/delete-backup-plan', methods=['GET'])
