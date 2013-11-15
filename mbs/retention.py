@@ -138,43 +138,43 @@ class RetainMaxTimePolicy(RetentionPolicy):
         }
 
 ###############################################################################
-# BackupExpirationMonitor
+# BackupExpirationManager
 ###############################################################################
 
-DEFAULT_MONITOR_SCHEDULE = Schedule(frequency_in_seconds=(2 * 60 * 60))
+DEFAULT_EXP_SCHEDULE = Schedule(frequency_in_seconds=(2 * 60 * 60))
 
 
-class BackupExpirationMonitor(ScheduleRunner):
+class BackupExpirationManager(ScheduleRunner):
     """
         A Thread that periodically expire backups that are due for expiration
     """
     ###########################################################################
     def __init__(self, schedule=None):
-        schedule = schedule or DEFAULT_MONITOR_SCHEDULE
+        schedule = schedule or DEFAULT_EXP_SCHEDULE
         ScheduleRunner.__init__(self, schedule=schedule)
-        logger.info("Initializing BackupExpirationMonitor")
+        logger.info("Initializing BackupExpirationManager")
 
     ###########################################################################
     def tick(self):
         try:
             self._expire_backups_due()
         except Exception, ex:
-            logger.exception("BackupExpirationMonitor Error")
-            subject = "BackupExpirationMonitor Error"
-            message = ("BackupExpirationMonitor Error!.\n\nStack Trace:\n%s" %
+            logger.exception("BackupExpirationManager Error")
+            subject = "BackupExpirationManager Error"
+            message = ("BackupExpirationManager Error!.\n\nStack Trace:\n%s" %
                        traceback.format_exc())
             get_mbs().send_error_notification(subject, message, ex)
 
     ###########################################################################
     def _expire_backups_due(self):
 
-        logger.info("BackupExpirationMonitor: Starting an expiration check "
+        logger.info("BackupExpirationManager: Starting an expiration check "
                     "cycle...")
         total_processed = 0
         total_expired = 0
         total_dont_expire = 0
 
-        logger.info("BackupExpirationMonitor: Finding all recurring backups"
+        logger.info("BackupExpirationManager: Finding all recurring backups"
                     " due for expiration")
         q = _check_to_expire_query()
 
@@ -184,7 +184,7 @@ class BackupExpirationMonitor(ScheduleRunner):
 
         s = [("plan._id", -1)]
 
-        logger.info("BackupExpirationMonitor: Executing query :\n%s" %
+        logger.info("BackupExpirationManager: Executing query :\n%s" %
                     document_pretty_string(q))
 
         backups_iter = get_mbs().backup_collection.find_iter(query=q, sort=s)
@@ -214,7 +214,7 @@ class BackupExpirationMonitor(ScheduleRunner):
                 plan_backups = []
 
         # process onetime backups
-        logger.info("BackupExpirationMonitor: Finding all onetime backups "
+        logger.info("BackupExpirationManager: Finding all onetime backups "
                     "due for expiration")
 
         q = _check_to_expire_query()
@@ -223,20 +223,20 @@ class BackupExpirationMonitor(ScheduleRunner):
             "$exists": False
         }
 
-        logger.info("BackupExpirationMonitor: Executing query :\n%s" %
+        logger.info("BackupExpirationManager: Executing query :\n%s" %
                     document_pretty_string(q))
         onetime_backups_iter = get_mbs().backup_collection.find_iter(query=q)
 
         for onetime_backup in onetime_backups_iter:
             total_processed += 1
             if self.should_expire_onetime_backup(onetime_backup):
-                expire_backup(current_backup)
+                self.expire_backup(current_backup)
                 total_expired += 1
             elif self.is_backup_not_expirable(onetime_backup):
                 mark_backup_never_expire(current_backup)
                 total_dont_expire += 1
 
-        logger.info("BackupExpirationMonitor: Finished expiration check cycle. "
+        logger.info("BackupExpirationManager: Finished expiration check cycle. "
                     "Total Expired=%s, Total Don't Expire=%s, "
                     "Total Processed=%s" %
                     (total_expired, total_dont_expire, total_processed))
@@ -271,9 +271,74 @@ class BackupExpirationMonitor(ScheduleRunner):
 
         if dues:
             for due_backup in dues:
-                expire_backup(due_backup)
+                self.expire_backup(due_backup)
 
         return len(dues) if dues else 0
+
+    ###########################################################################
+    def expire_plan_dues(self, plan, plan_backups):
+        dues = self.get_plan_backups_due_for_expiration(plan, plan_backups)
+
+        if dues:
+            for due_backup in dues:
+                self.expire_backup(due_backup)
+
+        return len(dues) if dues else 0
+
+    ###########################################################################
+    def expire_backup(self, backup, force=False):
+        # do some validation
+        if not backup.target_reference:
+            raise BackupDeleteError("Cannot expire backup '%s'. "
+                                    "Backup never uploaded" % backup.id)
+        if not force:
+            self.validate_backup_expiration(backup)
+
+        try:
+            backup.expired_date = date_now()
+            persistence.update_backup(backup, properties="expiredDate",
+                                      event_name="EXPIRING",
+                                      message="Expiring")
+
+        except Exception, e:
+            msg = "Error while attempting to expire backup '%s': " % e
+            logger.exception(msg)
+
+    ###########################################################################
+    def validate_backup_expiration(self, backup):
+        # recurring backup validation
+        if backup.plan:
+                self.validate_recurring_backup_expiration(backup)
+        else:
+            self.validate_onetime_backup_expiration(backup)
+
+    ###########################################################################
+    def validate_recurring_backup_expiration(self, backup):
+        logger.info("Validating if recurring backup '%s' should be "
+                    "expired now" % backup.id)
+        rp = backup.plan.retention_policy
+
+        if not rp:
+            raise Exception("Bad attempt to expire backup '%s'. "
+                            "Backup plan does not have a retention policy" %
+                            backup.id)
+        occurrences_to_retain = \
+            rp.get_plan_occurrences_to_retain_as_of(backup.plan, date_now())
+        if backup.plan_occurrence in occurrences_to_retain:
+            raise Exception("Bad attempt to expire backup '%s'. "
+                            "Backup must not be expired now." % backup.id)
+        else:
+            logger.info("Backup '%s' good be expired now" %
+                        backup.id)
+
+    ###########################################################################
+    def validate_onetime_backup_expiration(self, backup):
+        """
+            To be overridden
+        """
+        logger.info("Validating if onetime backup '%s' should be expired now" %
+                    backup.id)
+
 
 
 ###############################################################################
@@ -332,7 +397,7 @@ class BackupSweeper(ScheduleRunner):
         for backup in backups_iter:
             total_processed += 1
             try:
-                delete_backup_targets(backup)
+                self.delete_backup_targets(backup)
                 total_deleted += 1
             except Exception, ex:
                 logger.exception("BackupSweeper: Error while attempting to "
@@ -348,6 +413,43 @@ class BackupSweeper(ScheduleRunner):
                     "Total Deleted=%s, Total Errored=%s, "
                     "Total Processed=%s" %
                     (total_deleted, total_errored, total_processed))
+
+    ###########################################################################
+    def delete_backup_targets(self, backup):
+        self.validate_backup_target_delete(backup)
+        try:
+            robustified_delete_backup(backup)
+        except Exception, e:
+            msg = "Error while attempting to expire backup '%s': " % e
+            logger.exception(msg)
+            persistence.update_backup(backup, event_name="DELETE_ERROR",
+                                      message=msg, event_type=EVENT_TYPE_ERROR)
+            # if the backup expiration has errored out for 3 times then mark as
+            # unexpirable
+            #if backup.event_logged_count("DELETE_ERROR") >= 3:
+            #   logger.info("Giving up on delete backup '%s'. Failed at least"
+            #              " three times. Marking backup as deleted" %
+            #             backup.id)
+
+            #return False
+            #else:
+            raise
+
+    ###########################################################################
+    def validate_backup_target_delete(self, backup):
+        if not backup.expired_date:
+            raise Exception("Bad target delete attempt for backup '%s'. "
+                            "Backup has not expired yet" % backup.id)
+
+        two_days_ago = date_minus_seconds(date_now(), 2 * 24 * 60 * 60)
+
+        if backup.expired_date > two_days_ago:
+            if not backup.expired_date:
+                raise Exception("Bad target delete attempt for backup '%s'. "
+                                "Backup expired date '%s' is not more than "
+                                "two days ago" %
+                                (backup.id, backup.expired_date))
+
 
 ###############################################################################
 # QUERY HELPER
@@ -382,49 +484,6 @@ def _check_to_delete_query():
 
 ###############################################################################
 # EXPIRE/DELETE BACKUP HELPERS
-###############################################################################
-def expire_backup(backup):
-
-
-    # do some validation
-    if not backup.target_reference:
-        raise BackupDeleteError("Cannot expire backup '%s'. "
-                                "Backup never uploaded" % backup.id)
-
-    # validate backups is expirable now if its part of a retained plan
-    if backup.plan and backup.plan.retention_policy:
-        validate_backup_should_expire_now(backup)
-
-    try:
-        backup.expired_date = date_now()
-        persistence.update_backup(backup, properties="expiredDate",
-                                  event_name="EXPIRING", message="Expiring")
-
-    except Exception, e:
-        msg = "Error while attempting to expire backup '%s': " % e
-        logger.exception(msg)
-
-###############################################################################
-def delete_backup_targets(backup):
-    try:
-        robustified_delete_backup(backup)
-    except Exception, e:
-        msg = "Error while attempting to expire backup '%s': " % e
-        logger.exception(msg)
-        persistence.update_backup(backup, event_name="DELETE_ERROR",
-                                  message=msg, event_type=EVENT_TYPE_ERROR)
-        # if the backup expiration has errored out for 3 times then mark as
-        # unexpirable
-        #if backup.event_logged_count("DELETE_ERROR") >= 3:
-         #   logger.info("Giving up on delete backup '%s'. Failed at least"
-          #              " three times. Marking backup as deleted" %
-           #             backup.id)
-
-            #return False
-        #else:
-        raise
-
-
 ###############################################################################
 @robustify(max_attempts=3, retry_interval=5,
            do_on_exception=raise_if_not_retriable,
@@ -474,19 +533,6 @@ def robustified_delete_backup(backup):
 
     logger.info("Backup %s target references deleted successfully!" %
                 backup.id)
-
-###############################################################################
-def validate_backup_should_expire_now(backup):
-    logger.info("Validating if backup '%s' should be expired now" % backup.id)
-    rp = backup.plan.retention_policy
-    occurrences_to_retain = \
-        rp.get_plan_occurrences_to_retain_as_of(backup.plan, date_now())
-    if backup.plan_occurrence in occurrences_to_retain:
-        raise Exception("Bad attempt to expire backup '%s'. "
-                        "Backup must not be expired now." % backup.id)
-    else:
-        logger.info("Backup '%s' good be expired now" %
-                    backup.id)
 
 ###############################################################################
 def mark_plan_backups_not_expirable(plan, backups):

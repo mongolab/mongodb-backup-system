@@ -42,6 +42,6 @@ TYPE_BINDINGS = {
     "DefaultBackupNamingScheme": "mbs.naming_scheme.DefaultBackupNamingScheme",
     "TemplateBackupNamingScheme": "mbs.naming_scheme.TemplateBackupNamingScheme",
     "BackupSweeper": "mbs.retention.BackupSweeper",
-    "BackupExpirationMonitor": "mbs.retention.BackupExpirationMonitor"
+    "BackupExpirationManager": "mbs.retention.BackupExpirationManager"
 
 }

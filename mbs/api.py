@@ -147,7 +147,9 @@ class BackupSystemApiServer(Thread):
     def expire_backup(self, backup_id):
         logger.info("Backup System: Received a expire-backup command")
         try:
-            result = self._backup_system.expire_backup(backup_id)
+            exp_man = self._backup_system.backup_expiration_manager
+            backup = persistence.get_backup(backup_id)
+            result = exp_man.expire_backup(backup, force=True)
             return document_pretty_string(result)
         except Exception, e:
             msg = ("Error while trying to expire backup %s: %s" %

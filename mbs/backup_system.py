@@ -80,7 +80,7 @@ class BackupSystem(Thread):
         self._stop_requested = False
         self._stopped = False
         self._api_server = None
-        self._backup_expiration_monitor = None
+        self._backup_expiration_manager = None
         self._backup_sweeper = None
         # auditing stuff
 
@@ -157,12 +157,12 @@ class BackupSystem(Thread):
 
     ###########################################################################
     @property
-    def backup_expiration_monitor(self):
-        return self._backup_expiration_monitor
+    def backup_expiration_manager(self):
+        return self._backup_expiration_manager
 
-    @backup_expiration_monitor.setter
-    def backup_expiration_monitor(self, val):
-        self._backup_expiration_monitor = val
+    @backup_expiration_manager.setter
+    def backup_expiration_manager(self, val):
+        self._backup_expiration_manager = val
 
 
     ###########################################################################
@@ -185,8 +185,8 @@ class BackupSystem(Thread):
         # Start the api server
         self._start_api_server()
 
-        # Start the expiration monitor
-        self._start_expiration_monitors()
+        # Start expiration managers
+        self._start_expiration_managers()
 
         while not self._stop_requested:
             try:
@@ -197,7 +197,7 @@ class BackupSystem(Thread):
                            (e, traceback.format_exc()))
                 self._notify_error(e)
 
-        self._stop_expiration_monitors()
+        self._stop_expiration_managers()
         self._stopped = True
 
     ###########################################################################
@@ -592,19 +592,6 @@ class BackupSystem(Thread):
                 return backup.source_stats["databaseStats"].keys()
 
     ###########################################################################
-    def delete_backup(self, backup_id, force=False):
-        """
-            Deletes the specified backup. Deleting here means expiring
-        """
-        backup = persistence.get_backup(backup_id)
-        if (backup and backup.state == STATE_SUCCEEDED and
-                not backup.expired_date):
-            retention.expire_backup(backup, force=force)
-            return True
-
-        return False
-
-    ###########################################################################
     def schedule_backup_restore(self, backup_id, destination_uri,
                                 tags=None,
                                 source_database_name=None):
@@ -907,18 +894,18 @@ class BackupSystem(Thread):
         self.info("api server started successfully!")
 
     ###########################################################################
-    # Backup expiration monitor
+    # Backup expiration manager
     ###########################################################################
 
-    def _start_expiration_monitors(self):
-        if self.backup_expiration_monitor:
-            self.backup_expiration_monitor.start()
+    def _start_expiration_managers(self):
+        if self.backup_expiration_manager:
+            self.backup_expiration_manager.start()
         if self.backup_sweeper:
             self.backup_sweeper.start()
 
-    def _stop_expiration_monitors(self):
-        if self.backup_expiration_monitor:
-            self.backup_expiration_monitor.stop()
+    def _stop_expiration_managers(self):
+        if self.backup_expiration_manager:
+            self.backup_expiration_manager.stop()
         if self.backup_sweeper:
             self.backup_sweeper.stop()
 
