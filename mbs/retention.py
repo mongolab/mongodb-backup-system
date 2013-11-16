@@ -382,16 +382,10 @@ class BackupSweeper(ScheduleRunner):
                     " due for deletion")
         q = _check_to_delete_query()
 
-        q["plan._id"] = {
-            "$exists": True
-        }
-
-        s = [("plan._id", -1)]
-
         logger.info("BackupSweeper: Executing query :\n%s" %
                     document_pretty_string(q))
 
-        backups_iter = get_mbs().backup_collection.find_iter(query=q, sort=s)
+        backups_iter = get_mbs().backup_collection.find_iter(query=q)
 
         # process all plan backups
         for backup in backups_iter:
@@ -444,12 +438,10 @@ class BackupSweeper(ScheduleRunner):
         two_days_ago = date_minus_seconds(date_now(), 2 * 24 * 60 * 60)
 
         if backup.expired_date > two_days_ago:
-            if not backup.expired_date:
-                raise Exception("Bad target delete attempt for backup '%s'. "
-                                "Backup expired date '%s' is not more than "
-                                "two days ago" %
-                                (backup.id, backup.expired_date))
-
+            raise Exception("Bad target delete attempt for backup '%s'. "
+                            "Backup expired date '%s' is not more than "
+                            "two days ago" %
+                            (backup.id, backup.expired_date))
 
 ###############################################################################
 # QUERY HELPER
