@@ -80,6 +80,7 @@ class MBS(object):
                 logger.debug("Ensuring index %s on collection '%s'" %
                              (c_index, coll_name))
                 kwargs = c_index.get("args") or {}
+                kwargs["background"] = True
                 coll.ensure_index(c_index["index"], **kwargs)
 
     ###########################################################################
