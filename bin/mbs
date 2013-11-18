@@ -284,8 +284,8 @@ def download_backup(parsed_args):
             backup.target.get_file(backup.target_reference, os.getcwd())
         elif sec_tgt:
             msg = ("Backup '%s' target has been deleted but there is a "
-                   "secondary target available: %s. Do want to download "
-                   "from this target?")
+                   "secondary target available in %s. Do want to download "
+                   "from this target?" % (backup.id, sec_tgt))
             if prompt_confirm(msg):
                 sec_tgt.get_file(tgt_ref, os.getcwd())
         else:
