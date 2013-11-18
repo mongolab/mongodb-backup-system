@@ -467,3 +467,35 @@ def get_validate_arg(args, key, expected_type=None, required=True):
         return None
 
 
+###############################################################################
+# Prompt helpers
+###############################################################################
+def prompt_execute_task(message, task_function):
+
+    yes = prompt_confirm(message)
+    if yes:
+        return True, task_function()
+    else:
+        return False, None
+
+###############################################################################
+def prompt_confirm(message):
+    valid_choices = {"yes":True,
+                     "y":True,
+                     "ye":True,
+                     "no":False,
+                     "n":False}
+
+    while True:
+        print >> sys.stderr, message + " [y/n] ",
+        sys.stderr.flush()
+        choice = raw_input().lower()
+        if not valid_choices.has_key(choice):
+            print >> sys.stderr, ("Please respond with 'yes' or 'no' "
+                                  "(or 'y' or 'n').\n")
+        elif valid_choices[choice]:
+            return True
+        else:
+            return False
+
+

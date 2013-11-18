@@ -15,7 +15,8 @@ from mbs.mbs import get_mbs
 from mbs.engine import STATUS_STOPPED, STATUS_STOPPING, STATUS_RUNNING
 from mbs.backup_system import BACKUP_SYSTEM_STATUS_STOPPED
 from mbs.utils import (
-    wait_for, document_pretty_string, resolve_path, SignalWatcher
+    wait_for, document_pretty_string, resolve_path, SignalWatcher,
+    prompt_confirm
     )
 from mbs import mbs_config
 from mbs.mbs_logging import setup_logging, redirect_std_to_logger
@@ -275,13 +276,20 @@ def generate_audit_reports(parsed_args):
 ###############################################################################
 def download_backup(parsed_args):
     backup = _get_backup(parsed_args.backupId)
+    target_ref = backup.target_reference
+    sec_tgt, tgt_ref = backup.get_any_active_secondary_target()
 
-    if backup.target_reference:
-
-        if not (backup.expired and backup.expired_for_reals):
+    if target_ref:
+        if not backup.deleted:
             backup.target.get_file(backup.target_reference, os.getcwd())
+        elif sec_tgt:
+            msg = ("Backup '%s' target has been deleted but there is a "
+                   "secondary target available: %s. Do want to download "
+                   "from this target?")
+            if prompt_confirm(msg):
+                sec_tgt.get_file(tgt_ref, os.getcwd())
         else:
-            print ("Failed to download. Backup '%s' is expired." %
+            print ("Failed to download. Backup '%s' has been deleted." %
                    backup.id)
             exit(1)
     else:
@@ -293,7 +301,7 @@ def download_backup(parsed_args):
 def download_backup_log(parsed_args):
     backup = _get_backup(parsed_args.backupId)
     if backup.log_target_reference:
-        if not (backup.expired and backup.expired_for_reals):
+        if not backup.deleted:
             backup.target.get_file(backup.log_target_reference, os.getcwd())
         else:
             print ("Failed to download. Backup '%s' is expired." %

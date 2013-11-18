@@ -918,6 +918,11 @@ class TargetReference(MBSObject):
 
     ###########################################################################
     @property
+    def deleted(self):
+        return self.deleted_date is not None
+
+    ###########################################################################
+    @property
     def file_size(self):
         return self._file_size
 

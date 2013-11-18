@@ -113,6 +113,21 @@ class Backup(MBSTask):
         self._secondary_target_references = vals
 
     ###########################################################################
+    def get_any_active_secondary_target(self):
+        """
+
+        :return: A tuple of any target/target-ref that is active
+        (i.e. not deleted)
+        """
+        if self.secondary_target_references:
+            for target, target_ref in zip(self.secondary_targets,
+                                          self.secondary_target_references):
+                if not target_ref.deleted:
+                    return target, target_ref
+
+        return None, None
+
+    ###########################################################################
     @property
     def plan(self):
         return self._plan
@@ -143,11 +158,12 @@ class Backup(MBSTask):
     ###########################################################################
     @property
     def expired(self):
-        # TODO: Remove old way of checking if the backup is expired through
-        # targetReference
-        return (self.expired_date is not None or
-                (self.target_reference and
-                 hasattr(self.target_reference, "expiredDate")))
+        return self.expired_date is not None
+
+    ###########################################################################
+    @property
+    def deleted(self):
+        return self.deleted_date is not None
 
     ###########################################################################
     @property
