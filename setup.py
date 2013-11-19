@@ -54,7 +54,7 @@ def requirements():
 
 ###############################################################################
 def create_default_config():
-    from mbs.config import MBS_CONF_DIR, MBS_CONFIG
+    from mbs.mbs_config import MBS_CONF_DIR, MBS_CONFIG
 
     mbs_conf = os.path.expanduser(os.path.join(MBS_CONF_DIR, MBS_CONFIG))
 
@@ -107,7 +107,7 @@ def create_default_config():
 
 setup(
     name='mbs',
-    version='0.1.2',
+    version='0.1.3',
     scripts=[
         'bin/mbs',
         'bin/st'
