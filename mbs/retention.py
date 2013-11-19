@@ -435,13 +435,12 @@ class BackupSweeper(ScheduleRunner):
             raise Exception("Bad target delete attempt for backup '%s'. "
                             "Backup has not expired yet" % backup.id)
 
-        two_days_ago = date_minus_seconds(date_now(), 2 * 24 * 60 * 60)
-
-        if backup.expired_date > two_days_ago:
-            raise Exception("Bad target delete attempt for backup '%s'. "
-                            "Backup expired date '%s' is not more than "
-                            "two days ago" %
-                            (backup.id, backup.expired_date))
+        max_date = max_expire_date_to_delete()
+        if backup.expired_date > max_date:
+            msg = ("Bad target delete attempt for backup '%s'. Backup expired"
+                   " date '%s' is not before  max expire date to delete '%s'" %
+                   (backup.id, backup.expired_date, max_date))
+            raise Exception(msg)
 
 ###############################################################################
 # QUERY HELPER
@@ -462,10 +461,9 @@ def _check_to_delete_query():
         This is just to make sure that if the expiration monitor screws up we
          would still have time to see what happened
     """
-    two_days_ago = date_minus_seconds(date_now(), 2 * 24 * 60 * 60)
     q = {
         "expiredDate": {
-            "$lt": two_days_ago
+            "$lt": max_expire_date_to_delete()
         },
         "deletedDate": {
             "$exists": False
@@ -473,6 +471,14 @@ def _check_to_delete_query():
     }
 
     return q
+
+###############################################################################
+def max_expire_date_to_delete():
+    """
+        Currently returns now minus 5 days ago
+    :return:
+    """
+    return date_minus_seconds(date_now(), 5 * 24 * 60 * 60)
 
 ###############################################################################
 # EXPIRE/DELETE BACKUP HELPERS
