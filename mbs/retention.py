@@ -166,9 +166,16 @@ class BackupExpirationManager(ScheduleRunner):
 
     ###########################################################################
     def _expire_backups_due(self):
+        logger.info("BackupExpirationManager: START EXPIRATION CHECK CYCLE")
 
-        logger.info("BackupExpirationManager: Starting an expiration check "
-                    "cycle...")
+        self._expire_due_recurring_backups()
+        self._expire_due_onetime_backups()
+
+        logger.info("BackupExpirationManager: END EXPIRATION CHECK CYCLE")
+
+    ###########################################################################
+    def _expire_due_recurring_backups(self):
+
         total_processed = 0
         total_expired = 0
         total_dont_expire = 0
@@ -212,10 +219,20 @@ class BackupExpirationManager(ScheduleRunner):
                 plan = current_backup.plan if current_backup else None
                 plan_backups = []
 
+        logger.info("BackupExpirationManager: Finished processing Recurring "
+                    "Backups.\nTotal Expired=%s, Total Don't Expire=%s, "
+                    "Total Processed=%s" %
+                    (total_expired, total_dont_expire, total_processed))
+
+    ###########################################################################
+    def _expire_due_onetime_backups(self):
         # process onetime backups
         logger.info("BackupExpirationManager: Finding all onetime backups "
                     "due for expiration")
 
+        total_processed = 0
+        total_expired = 0
+        total_dont_expire = 0
         q = _check_to_expire_query()
 
         q["plan._id"] = {
@@ -229,14 +246,14 @@ class BackupExpirationManager(ScheduleRunner):
         for onetime_backup in onetime_backups_iter:
             total_processed += 1
             if self.should_expire_onetime_backup(onetime_backup):
-                self.expire_backup(current_backup)
+                self.expire_backup(onetime_backup)
                 total_expired += 1
             elif self.is_backup_not_expirable(onetime_backup):
-                mark_backup_never_expire(current_backup)
+                mark_backup_never_expire(onetime_backup)
                 total_dont_expire += 1
 
-        logger.info("BackupExpirationManager: Finished expiration check cycle. "
-                    "Total Expired=%s, Total Don't Expire=%s, "
+        logger.info("BackupExpirationManager: Finished processing Onetime"
+                    " Backups.\nTotal Expired=%s, Total Don't Expire=%s, "
                     "Total Processed=%s" %
                     (total_expired, total_dont_expire, total_processed))
 
