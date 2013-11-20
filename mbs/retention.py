@@ -276,16 +276,6 @@ class BackupExpirationManager(ScheduleRunner):
         return len(dues) if dues else 0
 
     ###########################################################################
-    def expire_plan_dues(self, plan, plan_backups):
-        dues = self.get_plan_backups_due_for_expiration(plan, plan_backups)
-
-        if dues:
-            for due_backup in dues:
-                self.expire_backup(due_backup)
-
-        return len(dues) if dues else 0
-
-    ###########################################################################
     def expire_backup(self, backup, force=False):
         # do some validation
         if not backup.target_reference:
@@ -295,6 +285,8 @@ class BackupExpirationManager(ScheduleRunner):
             self.validate_backup_expiration(backup)
 
         try:
+            logger.info("BackupExpirationManager: Expiring backup '%s'" %
+                        backup.id)
             backup.expired_date = date_now()
             persistence.update_backup(backup, properties="expiredDate",
                                       event_name="EXPIRING",
