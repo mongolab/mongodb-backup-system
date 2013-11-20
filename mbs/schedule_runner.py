@@ -5,7 +5,7 @@ import time
 import logging
 
 from schedule import Schedule
-from date_utils import date_now, timedelta_total_seconds
+from date_utils import date_now
 from utils import wait_for
 
 ###############################################################################
@@ -18,14 +18,15 @@ logger.addHandler(logging.NullHandler())
 # default period is 10 seconds
 
 DEFAULT_SCHEDULE = Schedule(frequency_in_seconds=10)
+DEFAULT_SLEEP = 1
 
 class ScheduleRunner(Thread):
-
     ###########################################################################
-    def __init__(self, schedule=DEFAULT_SCHEDULE):
+    def __init__(self, schedule=DEFAULT_SCHEDULE, sleep_time=DEFAULT_SLEEP):
         Thread.__init__(self)
         self._schedule = schedule
         self._stop_requested = False
+        self._sleep_time = sleep_time
         self._stopped = False
 
     ###########################################################################
@@ -41,11 +42,8 @@ class ScheduleRunner(Thread):
     def run(self):
         while not self._stop_requested:
             next_occurrence = self._schedule.next_natural_occurrence()
-            sleep_time = timedelta_total_seconds(next_occurrence - date_now())
-            time.sleep(sleep_time)
-
             while date_now() < next_occurrence:
-                time.sleep(0.1)
+                time.sleep(self._sleep_time)
 
             self.tick()
 
@@ -56,6 +54,8 @@ class ScheduleRunner(Thread):
         """
             To be overridden
         """
+        print "TICK"
+
     ###########################################################################
     def stop(self):
         """
