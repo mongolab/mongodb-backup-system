@@ -905,6 +905,7 @@ class BackupSystem(Thread):
             self.info("Starting Backup Sweeper")
             self.backup_sweeper.start()
 
+    ###########################################################################
     def _stop_expiration_managers(self):
         if self.backup_expiration_manager:
             self.info("Stopping Backup Expiration Manager")
@@ -914,6 +915,7 @@ class BackupSystem(Thread):
             self.info("Stopping Backup Sweeper")
             self.backup_sweeper.stop()
             self.info("Backup Sweeper stopped!")
+
     ###########################################################################
     # logging
     ###########################################################################
