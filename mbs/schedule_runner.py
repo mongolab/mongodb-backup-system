@@ -42,8 +42,12 @@ class ScheduleRunner(Thread):
     def run(self):
         while not self._stop_requested:
             next_occurrence = self._schedule.next_natural_occurrence()
-            while date_now() < next_occurrence:
+            while date_now() < next_occurrence and not self._stop_requested:
                 time.sleep(self._sleep_time)
+
+            # break if stop requested
+            if self._stop_requested:
+                break
 
             self.tick()
 
