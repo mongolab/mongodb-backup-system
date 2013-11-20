@@ -152,7 +152,6 @@ class BackupExpirationManager(ScheduleRunner):
     def __init__(self, schedule=None):
         schedule = schedule or DEFAULT_EXP_SCHEDULE
         ScheduleRunner.__init__(self, schedule=schedule)
-        logger.info("Initializing BackupExpirationManager")
 
     ###########################################################################
     def tick(self):
@@ -349,7 +348,6 @@ class BackupSweeper(ScheduleRunner):
     def __init__(self, schedule=None):
         schedule = schedule or DEFAULT_SWEEP_SCHEDULE
         ScheduleRunner.__init__(self, schedule=schedule)
-        logger.info("Initializing BackupSweeper")
 
     ###########################################################################
     def tick(self):
