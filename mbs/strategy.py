@@ -511,6 +511,7 @@ class DumpStrategy(BackupStrategy):
     def __init__(self):
         BackupStrategy.__init__(self)
         self._use_fsynclock = False
+        self._force_table_scan = None
 
     ###########################################################################
     @property
@@ -522,6 +523,15 @@ class DumpStrategy(BackupStrategy):
         self._use_fsynclock = val
 
     ###########################################################################
+    @property
+    def force_table_scan(self):
+        return self._force_table_scan
+
+    @force_table_scan.setter
+    def force_table_scan(self, val):
+        self._force_table_scan = val
+
+    ###########################################################################
     def to_document(self, display_only=False):
         doc =  BackupStrategy.to_document(self, display_only=display_only)
         doc.update({
@@ -530,6 +540,9 @@ class DumpStrategy(BackupStrategy):
 
         if self.use_fsynclock:
             doc["useFsynclock"] = self.use_fsynclock
+
+        if self.force_table_scan is not None:
+            doc["forceTableScan"] = self.force_table_scan
 
         return doc
 
@@ -775,7 +788,9 @@ class DumpStrategy(BackupStrategy):
         # if its a server level backup then add forceTableScan and oplog
         uri_wrapper = mongo_uri_tools.parse_mongo_uri(uri)
         if not uri_wrapper.database:
-            dump_cmd.append("--forceTableScan")
+            # default force table scan to true
+            if self.force_table_scan or self.force_table_scan is None:
+                dump_cmd.append("--forceTableScan")
             if mongo_connector.is_replica_member():
                 dump_cmd.append("--oplog")
 
