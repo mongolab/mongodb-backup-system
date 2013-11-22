@@ -151,6 +151,17 @@ class AuditReport(MBSObject):
         return map(lambda entry: entry.to_document(display_only=display_only),
                     self.warned_audits)
 
+    ###########################################################################
+    def summary(self):
+        lines = []
+        lines.append("Report ID: %s" % self.id)
+        lines.append("Audit Date: %s" % self.audit_date)
+        lines.append("Total Audits: %s" % self.total_audits)
+        lines.append("Total Success: %s" % self.total_success)
+        lines.append("Total Failed: %s" % self.total_failures)
+        lines.append("Total Warnings: %s" % self.total_warnings)
+        return "\n".join(lines)
+
 ###############################################################################
 # AuditEntry
 ###############################################################################
@@ -245,6 +256,57 @@ class AuditEntry(MBSObject):
 
         return doc
 
+
+
+###############################################################################
+# PlanScheduleAuditReport
+###############################################################################
+class PlanScheduleAuditReport(AuditReport):
+
+    ###########################################################################
+    def __init__(self):
+        AuditReport.__init__(self)
+
+    ###########################################################################
+    def to_document(self, display_only=False):
+        doc = super(PlanScheduleAuditReport, self).to_document(
+            display_only=display_only)
+        doc["_type"] = "PlanScheduleAuditReport"
+        return doc
+
+    ###########################################################################
+    def summary(self):
+        lines = []
+        lines.append("Report ID: %s" % self.id)
+        lines.append("Audit Date: %s" % self.audit_date)
+        lines.append("Total # of Plans Audited: %s" % self.total_audits)
+        lines.append("Total Success: %s" % self.total_success)
+        lines.append("Total Failures: %s" % self.total_failures)
+        lines.append("Total Warnings: %s" % self.total_warnings)
+
+        lines.append("\n\n")
+
+        lines.append("Failure Summary")
+
+        formatter = "%-25s %s"
+        header = formatter % ("Plan ID", "Failed Occurrences/Error")
+        lines.append(header)
+
+        def extract_failed_occ(plan_audit_entry):
+            return "%s : %s " % (plan_audit_entry.plan_occurrence,
+                                 plan_audit_entry.state)
+
+        for failed_plan_report in self.failed_audits:
+            plan_id = failed_plan_report.plan.id
+            failed_occurrences = map(extract_failed_occ,
+                                     failed_plan_report.failed_audits)
+
+            lines.append(formatter % (plan_id, failed_occurrences))
+
+        return "\n".join(lines)
+
+
+
 ###############################################################################
 # PlanAuditReport
 ###############################################################################
@@ -271,6 +333,7 @@ class PlanAuditReport(AuditReport):
         doc["plan"] = self.plan.to_document(display_only=display_only)
         doc["_type"] = "PlanAuditReport"
         return doc
+
 
 ###############################################################################
 # PlanAuditEntry

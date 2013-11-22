@@ -87,14 +87,14 @@ class GlobalAuditor():
         subject = ("%s Audit Report for %s" %
                    (auditor.name, datetime_to_string(report.audit_date)))
 
-        message = str(report)
+        message = report.summary()
         self._notification_handler.send_notification(subject, message)
 
 ###############################################################################
-# PlanBackupAuditor
+# PlanScheduleAuditor
 # Creates an audit report about backup plans taken yesterday.
 
-class PlanAuditor(BackupAuditor):
+class PlanScheduleAuditor(BackupAuditor):
     ###########################################################################
     def __init__(self):
         BackupAuditor.__init__(self)
@@ -104,11 +104,11 @@ class PlanAuditor(BackupAuditor):
     ###########################################################################
     def daily_audit_report(self, audit_date):
 
-        logger.info("PlanAuditor: Generating %s audit report for '%s'" %
-                    (TYPE_PLAN_AUDIT,  datetime_to_string(audit_date)))
+        logger.info("PlanScheduleAuditor: Generating %s audit report for '%s'"
+                    % (TYPE_PLAN_AUDIT,  datetime_to_string(audit_date)))
 
         audit_end_date = date_plus_seconds(audit_date, 3600 * 24)
-        all_plans_report = AuditReport()
+        all_plans_report = PlanScheduleAuditReport()
         all_plans_report.audit_date = audit_date
         all_plans_report.audit_type = TYPE_PLAN_AUDIT
 
@@ -142,7 +142,8 @@ class PlanAuditor(BackupAuditor):
         all_plans_report.total_success = total_plans - total_failures
         all_plans_report.total_warnings = total_warnings
 
-        logger.info("PlanAuditor: Generated report:\n%s " % all_plans_report)
+        logger.info("PlanScheduleAuditor: Generated report:\n%s " %
+                    all_plans_report)
 
         return all_plans_report
 
@@ -328,7 +329,7 @@ class PlanRetentionAuditor(BackupAuditor):
             if not backup or backup.state != STATE_SUCCEEDED:
                 logger.info("Skipping occurrence '%s' because its backup did"
                             " not get scheduled or did not succeed. Should be "
-                            "caught by the PlanAuditor." % occurrence)
+                            "caught by the PlanScheduleAuditor." % occurrence)
                 continue
 
             audit_entry = self._audit_occurrence_retention(occurrence, backup,
