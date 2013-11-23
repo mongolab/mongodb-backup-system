@@ -197,7 +197,7 @@ class BackupExpirationManager(ScheduleRunner):
 
         current_backup = next(backups_iter, None)
 
-        plan = current_backup and current_backup.plan
+        plan = current_backup.plan if current_backup else None
         plan_backups = []
 
         # process all plan backups
@@ -207,9 +207,12 @@ class BackupExpirationManager(ScheduleRunner):
                 plan_backups.append(current_backup)
 
             current_backup = next(backups_iter, None)
-
+            # process the current plan
             if not current_backup or current_backup.plan.id != plan.id:
                 logger.info("==== Processing plan '%s' .... " % plan.id)
+                # Ensure we have the latest revision of the backup plan
+                plan = persistence.get_backup_plan(plan.id) or plan
+
                 if self.is_plan_backups_not_expirable(plan):
                     mark_plan_backups_not_expirable(plan, plan_backups)
                     total_dont_expire += len(plan_backups)
