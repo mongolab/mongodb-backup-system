@@ -633,11 +633,19 @@ class DumpStrategy(BackupStrategy):
         if backup.secondary_targets:
             all_targets.extend(backup.secondary_targets)
 
+        # Set Content-Type to x-compressed to avoid it being set by the
+        # container especially that s3 sets .tgz to application/x-compressed
+        # which causes browsers to download files as .tar
+        metadata = {
+            "Content-Type": "application/x-compressed"
+        }
+
+        # Upload to all targets simultaneously
         target_uploaders = multi_target_upload_file(all_targets,
                                                     tar_file_path,
                                                     destination_path=
-                                                    upload_dest_path)
-
+                                                    upload_dest_path,
+                                                    metadata=metadata)
 
         # check for errors
         errored_uploaders = filter(lambda uploader: uploader.error is not None,

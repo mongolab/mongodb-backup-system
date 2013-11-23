@@ -64,7 +64,7 @@ class BackupTarget(MBSObject):
 
     ###########################################################################
     def put_file(self, file_path, destination_path=None,
-                 overwrite_existing=False):
+                 overwrite_existing=False, metadata=None):
         """
             Uploads the specified file path under destination_path.
              destination_path defaults to base name (file name) of file_path
@@ -93,7 +93,8 @@ class BackupTarget(MBSObject):
                     raise UploadedFileAlreadyExistError(msg)
 
             target_ref = self.do_put_file(file_path,
-                                          destination_path=destination_path)
+                                          destination_path=destination_path,
+                                          metadata=metadata)
             # set the preserve field
             target_ref.preserve = self.preserve
 
@@ -117,7 +118,8 @@ class BackupTarget(MBSObject):
                                         cause=e)
 
     ###########################################################################
-    def do_put_file(self, file_path, destination_path=None):
+    def do_put_file(self, file_path, destination_path=None,
+                    metadata=None):
         """
            does the actually work. should be implemented by subclasses
         """
@@ -247,15 +249,17 @@ class S3BucketTarget(BackupTarget):
         self._encrypted_secret_key = None
 
     ###########################################################################
-    def do_put_file(self, file_path, destination_path=None):
+    def do_put_file(self, file_path, destination_path=None, metadata=None):
 
         # determine single/multi part upload
         file_size = os.path.getsize(file_path)
 
         if file_size >= MULTIPART_MIN_SIZE:
-            self._multi_part_put(file_path, destination_path, file_size)
+            self._multi_part_put(file_path, destination_path, file_size, 
+                                 metadata=metadata)
         else:
-            self._single_part_put(file_path, destination_path)
+            self._single_part_put(file_path, destination_path, 
+                                  metadata=metadata)
 
         return FileReference(file_path=destination_path,
                              file_size=file_size)
@@ -274,15 +278,23 @@ class S3BucketTarget(BackupTarget):
             return False, None
 
     ###########################################################################
-    def _single_part_put(self, file_path, destination_path):
+    def _single_part_put(self, file_path, destination_path, metadata=None):
         bucket = self._get_bucket()
         file_obj = open(file_path)
         k = Key(bucket)
         k.key = destination_path
+        # set meta data (has to be before setting content in
+        # order for it to work)
+        if metadata:
+            for name, value in metadata.items():
+                k.set_metadata(name, value)
+
         k.set_contents_from_file(file_obj)
 
+
     ###########################################################################
-    def _multi_part_put(self, file_path, destination_path, file_size):
+    def _multi_part_put(self, file_path, destination_path, file_size,
+                        metadata=None):
 
         logger.info("S3BucketTarget: Starting multi-part put for %s " %
                     file_path)
@@ -291,7 +303,8 @@ class S3BucketTarget(BackupTarget):
             chunk_size = MAX_SPLIT_SIZE
 
         bucket = self._get_bucket()
-        mp = bucket.initiate_multipart_upload(destination_path)
+        mp = bucket.initiate_multipart_upload(destination_path,
+                                              metadata=metadata)
 
         upload = SplitFile(file_path, chunk_size)
 
@@ -551,7 +564,7 @@ class RackspaceCloudFilesTarget(BackupTarget):
     @robustify(max_attempts=3, retry_interval=5,
                do_on_exception=raise_if_not_retriable,
                do_on_failure=raise_exception)
-    def do_put_file(self, file_path, destination_path=None):
+    def do_put_file(self, file_path, destination_path=None, metadata=None):
 
         # determine single/multi part upload
         file_size = os.path.getsize(file_path)
@@ -560,21 +573,24 @@ class RackspaceCloudFilesTarget(BackupTarget):
 
 
         if file_size >= CF_MULTIPART_MIN_SIZE:
-            self._multi_part_put(file_path, destination_path, file_size)
+            self._multi_part_put(file_path, destination_path, file_size,
+                                 metadata=metadata)
         else:
-            self._single_part_put(file_path, destination_path)
+            self._single_part_put(file_path, destination_path,
+                                  metadata=metadata)
 
         return FileReference(file_path=destination_path,
                              file_size=file_size)
 
     ###########################################################################
-    def _single_part_put(self, file_path, destination_path):
+    def _single_part_put(self, file_path, destination_path, metadata=None):
         container = self._get_container()
         container_obj = container.create_object(destination_path)
         container_obj.load_from_filename(file_path)
 
     ###########################################################################
-    def _multi_part_put(self, file_path, destination_path, file_size):
+    def _multi_part_put(self, file_path, destination_path, file_size,
+                        metadata=None):
         """
             Uploads file in chunks using Swift Tool (st) command
             http://bazaar.launchpad.net/~hudson-openstack/swift/1.2/view/head:/bin/st
@@ -779,7 +795,8 @@ class AzureContainerTarget(BackupTarget):
         self._account_key = None
 
     ###########################################################################
-    def put_file(self, file_path, destination_path):
+    def put_file(self, file_path, destination_path=None,
+                 overwrite_existing=False, metadata=None):
         try:
 
             # calculating file size
@@ -791,7 +808,8 @@ class AzureContainerTarget(BackupTarget):
                         (file_path, file_size, self.container_name))
 
 
-            self._single_part_put(file_path, destination_path)
+            self._single_part_put(file_path, destination_path,
+                                  metadata=metadata)
 
             logger.info("AzureContainerTarget: Uploading %s (%s bytes) "
                         "to container %s completed successfully!!" %
@@ -806,7 +824,7 @@ class AzureContainerTarget(BackupTarget):
             raise Exception(msg, e)
 
     ###########################################################################
-    def _single_part_put(self, file_path, destination_path):
+    def _single_part_put(self, file_path, destination_path, metadata=None):
         blob_service = self._get_blob_service()
         fp = open(file_path, 'r').read()
         blob_service.put_blob(self.container_name, destination_path, fp,
@@ -1101,8 +1119,7 @@ def _download_progress(transferred, size):
 # Concurrent multi target upload
 ###############################################################################
 def multi_target_upload_file(targets,
-                             file_path, destination_path=None,
-                             overwrite_existing=False):
+                             file_path, **upload_kargs):
 
     logger.info("MULTI TARGET UPLOAD: Starting concurrent target upload for "
                 "file '%s'" % file_path)
@@ -1110,10 +1127,7 @@ def multi_target_upload_file(targets,
 
     # first kick off the uploads
     for target in targets:
-        target_uploader = TargetUploader(target,
-                                         file_path,
-                                         destination_path=destination_path,
-                                         overwrite_existing=overwrite_existing)
+        target_uploader = TargetUploader(target, file_path, **upload_kargs)
         uploaders.append(target_uploader)
         logger.info("Starting uploader for target: %s" % target)
         target_uploader.start()
