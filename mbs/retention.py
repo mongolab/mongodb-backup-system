@@ -327,14 +327,18 @@ class BackupExpirationManager(ScheduleRunner):
     def validate_recurring_backup_expiration(self, backup):
         logger.info("Validating if recurring backup '%s' should be "
                     "expired now" % backup.id)
-        rp = backup.plan.retention_policy
+        # Ensure we have the latest revision of the backup plan when possible
+        plan = persistence.get_backup_plan(backup.plan.id) or backup.plan
+
+        rp = plan.retention_policy
 
         if not rp:
             raise Exception("Bad attempt to expire backup '%s'. "
                             "Backup plan does not have a retention policy" %
                             backup.id)
         occurrences_to_retain = \
-            rp.get_plan_occurrences_to_retain_as_of(backup.plan, date_now())
+            rp.get_plan_occurrences_to_retain_as_of(plan, date_now())
+
         if backup.plan_occurrence in occurrences_to_retain:
             raise Exception("Bad attempt to expire backup '%s'. "
                             "Backup must not be expired now." % backup.id)
