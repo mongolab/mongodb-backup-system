@@ -796,8 +796,8 @@ class DumpStrategy(BackupStrategy):
         # if its a server level backup then add forceTableScan and oplog
         uri_wrapper = mongo_uri_tools.parse_mongo_uri(uri)
         if not uri_wrapper.database:
-            # default force table scan to true
-            if self.force_table_scan or self.force_table_scan is None:
+            # add forceTableScan if specified
+            if self.force_table_scan:
                 dump_cmd.append("--forceTableScan")
             if mongo_connector.is_replica_member():
                 dump_cmd.append("--oplog")
