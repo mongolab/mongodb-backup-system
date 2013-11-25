@@ -107,7 +107,7 @@ def create_default_config():
 
 setup(
     name='mbs',
-    version='0.1.3',
+    version='0.1.4',
     scripts=[
         'bin/mbs',
         'bin/st'
