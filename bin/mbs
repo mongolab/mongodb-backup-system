@@ -420,6 +420,10 @@ def _get_plan(plan_id):
         print "No such plan '%s'" % plan_id
         exit(1)
 
+def get_mbs_version():
+    import pkg_resources
+    return pkg_resources.get_distribution("mbs").version
+
 ###############################################################################
 # command parser
 ###############################################################################
@@ -435,6 +439,15 @@ PARSER_DEF = {
             "displayName": "CONFIGROOT",
             "help": "path to mbs config root; defaults to %(default)s",
             "default": mbs_config.MBS_CONF_DIR
+        },
+        {
+            "name": "version",
+            "type" : "optional",
+            "cmd_arg":  "--version",
+            "nargs": 0,
+            "help": "print version",
+            "action": "version",
+            "version": "mbs %s" % get_mbs_version()
         }
     ],
     "children":[
