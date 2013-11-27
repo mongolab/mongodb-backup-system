@@ -82,17 +82,8 @@ class BackupEngine(Thread):
         self._command_port = command_port
         self._command_server = EngineCommandServer(self)
         self._tags = None
+        self._resolved_tags = None
         self._stopped = False
-
-        # create the backup processor
-        bc = get_mbs().backup_collection
-        self._backup_processor = TaskQueueProcessor("Backups", bc, self,
-                                                    self._max_workers)
-
-        # create the restore processor
-        rc = get_mbs().restore_collection
-        self._restore_processor = TaskQueueProcessor("Restores", rc, self,
-                                                     self._max_workers)
 
 
     ###########################################################################
@@ -143,7 +134,14 @@ class BackupEngine(Thread):
     @tags.setter
     def tags(self, tags):
         tags = tags or {}
-        self._tags = self._resolve_tags(tags)
+        self._tags = tags
+
+    ###########################################################################
+    def get_resolved_tags(self):
+        if not self._resolved_tags and self.tags:
+            self._resolved_tags = self._resolve_tags(self.tags)
+
+        return self._resolved_tags
 
     ###########################################################################
     @property
@@ -159,8 +157,9 @@ class BackupEngine(Thread):
         self.info("Starting up... ")
         self.info("PID is %s" % os.getpid())
         self.info("TEMP DIR is '%s'" % self.temp_dir)
-        if self.tags:
-            self.info("Tags are: %s" % document_pretty_string(self.tags))
+        if self.get_resolved_tags():
+            self.info("Tags are: %s" %
+                      document_pretty_string(self.get_resolved_tags()))
         else:
             self.info("No tags configured")
 
@@ -169,20 +168,38 @@ class BackupEngine(Thread):
         # Start the command server
         self._start_command_server()
 
+        self.start_task_processors()
+
+        self.wait_task_processors()
+
+        self.info("Engine completed")
+        self._pre_shutdown()
+
+    ###########################################################################
+    def start_task_processors(self):
+        # create the backup processor
+        bc = get_mbs().backup_collection
+        self._backup_processor = TaskQueueProcessor("Backups", bc, self,
+                                                    self._max_workers)
+
+        # create the restore processor
+        rc = get_mbs().restore_collection
+        self._restore_processor = TaskQueueProcessor("Restores", rc, self,
+                                                     self._max_workers)
+
         # start the backup processor
         self._backup_processor.start()
 
         # start the restore processor
         self._restore_processor.start()
 
+    ###########################################################################
+    def wait_task_processors(self):
         # start the backup processor
         self._backup_processor.join()
 
         # start the restore processor
         self._restore_processor.join()
-
-        self.info("Engine completed")
-        self._pre_shutdown()
 
     ###########################################################################
     def _notify_error(self, exception):
@@ -586,11 +603,11 @@ class TaskQueueProcessor(Thread):
     ###########################################################################
     def _get_scheduled_tasks_query(self):
         q = {"state": STATE_SCHEDULED}
-
+        tags = self._engine.get_resolved_tags()
         # add tags if specified
-        if self._engine.tags:
+        if tags:
             tag_filters = []
-            for name,value in self._engine.tags.items():
+            for name, value in tags.items():
                 tag_prop_path = "tags.%s" % name
                 tag_filters.append({tag_prop_path: value})
 
