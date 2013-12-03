@@ -8,7 +8,7 @@ import time
 import mbs_config
 import mbs_logging
 
-import urllib
+import urllib2
 
 import json
 
@@ -21,7 +21,7 @@ from threading import Thread
 from errors import MBSError, BackupEngineError
 
 from utils import (ensure_dir, resolve_path, get_local_host_name,
-                   document_pretty_string)
+                   document_pretty_string, force_kill_process_and_children)
 
 from mbs import get_mbs
 
@@ -240,12 +240,12 @@ class BackupEngine(Thread):
         return value
 
     ###########################################################################
-    def _kill_engine_process(self):
+    def kill_engine_process(self):
         self.info("Attempting to kill engine process")
         pid = self._read_process_pid()
         if pid:
             self.info("Killing engine process '%s' using signal 9" % pid)
-            os.kill(int(pid), 9)
+            force_kill_process_and_children(pid)
         else:
             raise BackupEngineError("Unable to determine engine process id")
 
@@ -271,7 +271,7 @@ class BackupEngine(Thread):
     ###########################################################################
     # Engine stopping
     ###########################################################################
-    def stop(self, force=False):
+    def stop(self, force=False, timeout=30):
         """
             Sends a stop request to the engine using the command port
             This should be used by other processes (copies of the engine
@@ -279,12 +279,12 @@ class BackupEngine(Thread):
         """
 
         if force:
-            self._kill_engine_process()
+            self.force_stop()
             return
 
         url = "http://0.0.0.0:%s/stop" % self.command_port
         try:
-            response = urllib.urlopen(url)
+            response = urllib2.urlopen(url, timeout=timeout)
             if response.getcode() == 200:
                 print response.read().strip()
             else:
@@ -296,6 +296,10 @@ class BackupEngine(Thread):
             logger.error("Engine is not running")
 
     ###########################################################################
+    def force_stop(self):
+        self.kill_engine_process()
+
+    ###########################################################################
     def get_status(self):
         """
             Sends a status request to the engine using the command port
@@ -304,7 +308,7 @@ class BackupEngine(Thread):
         """
         url = "http://0.0.0.0:%s/status" % self.command_port
         try:
-            response = urllib.urlopen(url)
+            response = urllib2.urlopen(url, timeout=30)
             if response.getcode() == 200:
                 return json.loads(response.read().strip())
             else:
@@ -321,8 +325,8 @@ class BackupEngine(Thread):
     ###########################################################################
     @property
     def worker_count(self):
-        return (self._backup_processor._worker_count +
-                self._restore_processor._worker_count)
+        return (self._backup_processor.worker_count +
+                self._restore_processor.worker_count)
     ###########################################################################
     def _do_stop(self):
         """
@@ -350,8 +354,8 @@ class BackupEngine(Thread):
         return {
             "status": status,
             "workers": {
-                "backups": self._backup_processor._worker_count,
-                "restores": self._restore_processor._worker_count
+                "backups": self._backup_processor.worker_count,
+                "restores": self._restore_processor.worker_count
             }
         }
 
@@ -402,9 +406,10 @@ class TaskQueueProcessor(Thread):
         self._engine = engine
         self._sleep_time = 10
         self._stopped = False
-        self._worker_count = 0
         self._max_workers = int(max_workers)
         self._tick_count = 0
+        self._workers = {}
+        self._worker_id_seq = 0
 
     ###########################################################################
     def run(self):
@@ -419,6 +424,8 @@ class TaskQueueProcessor(Thread):
                            (e, traceback.format_exc()))
                 self._engine._notify_error(e)
 
+        ## wait for all workers to finish (if any)
+        self._wait_for_running_workers()
         self.info("Exited main loop")
 
     ###########################################################################
@@ -436,6 +443,19 @@ class TaskQueueProcessor(Thread):
             self._clean_next_past_due_failed_task()
 
     ###########################################################################
+    def _wait_for_running_workers(self):
+        self.info("Waiting for %s workers to finish" % self.worker_count)
+        for worker in self._workers.values():
+            worker.join()
+
+        self.info("All workers finished!")
+
+    ###########################################################################
+    @property
+    def worker_count(self):
+        return len(self._workers)
+
+    ###########################################################################
     def _start_next_task(self):
         task = self.read_next_task()
         if task:
@@ -448,26 +468,34 @@ class TaskQueueProcessor(Thread):
         task = self._read_next_failed_past_due_task()
         if task:
             # clean it
-            worker_id = self.next_worker_id()
-            self.info("Starting cleaner worker for task '%s'" % task.id)
-            TaskCleanWorker(worker_id, task, self).start()
+            worker = self._start_new_worker(task, TaskCleanWorker)
+            self.info("Started clean task for task %s, TaskCleanWorker %s" %
+                      (task._id, worker.id))
 
     ###########################################################################
     def _start_task(self, task):
         self.info("Received  task %s" % task)
+        worker = self._start_new_worker(task, TaskWorker)
+        self.info("Started task %s, TaskWorker %s" %
+                  (task._id, worker.id))
+
+    ###########################################################################
+    def _start_new_worker(self, task, worker_type):
+
         worker_id = self.next_worker_id()
-        self.info("Starting task %s, TaskWorker %s" %
-                  (task._id, worker_id))
-        TaskWorker(worker_id, task, self).start()
+        worker = worker_type(worker_id, task, self)
+        self._workers[worker_id] = worker
+        worker.start()
+        return worker
 
     ###########################################################################
     def _has_available_workers(self):
-        return self._worker_count < self._max_workers
+        return self.worker_count < self._max_workers
 
     ###########################################################################
     def next_worker_id(self):
-        self._worker_count+= 1
-        return self._worker_count
+        self._worker_id_seq += 1
+        return self._worker_id_seq
 
     ###########################################################################
     def worker_fail(self, worker, exception, trace=None):
@@ -504,7 +532,8 @@ class TaskQueueProcessor(Thread):
         # set end date
         worker.task.end_date = date_now()
         # decrease worker count and update state
-        self._worker_count -= 1
+        del self._workers[worker.id]
+
         worker.task.state = state
         self._task_collection.update_task(worker.task,
                               properties=["state", "endDate"],
@@ -646,6 +675,11 @@ class TaskWorker(Thread):
     @property
     def task(self):
         return self._task
+
+    ###########################################################################
+    @property
+    def id(self):
+        return self._id
 
     ###########################################################################
     @property
@@ -818,7 +852,7 @@ class EngineCommandServer(Thread):
         port = self._engine._command_port
         url = "http://0.0.0.0:%s/stop-command-server" % port
         try:
-            response = urllib.urlopen(url)
+            response = urllib2.urlopen(url, timeout=30)
             if response.getcode() == 200:
                 logger.info("EngineCommandServer: Flask server stopped "
                             "successfully")

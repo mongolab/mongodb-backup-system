@@ -12,6 +12,7 @@ import select
 import sys
 import platform
 import signal
+import psutil
 
 from date_utils import (datetime_to_bson, is_date_value, seconds_now,
                         utc_str_to_datetime)
@@ -115,6 +116,20 @@ def execute_command_wrapper(command, on_output=None, output_path=None,
             break
 
     return process.returncode
+
+###############################################################################
+def force_kill_process_and_children(pid):
+    print "Killing process %s and child processes" % pid
+    process = psutil.Process(pid=pid)
+    children = process.get_children()
+    if children:
+        for child in children:
+            print "Killing child process %s" % child.pid
+            force_kill_process_and_children(child.pid)
+    else:
+        print "Process %s has no children" % pid
+    process.kill()
+
 
 ###############################################################################
 def which(program):
