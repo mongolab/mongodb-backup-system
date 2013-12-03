@@ -159,16 +159,41 @@ class BackupStrategy(MBSObject):
 
     ###########################################################################
     def get_backup_mongo_connector(self, backup):
+        logger.info("Selecting connector to run backup '%s'" % backup.id)
         connector = build_mongo_connector(backup.source.uri)
         if isinstance(connector, MongoCluster):
-            return self._select_backup_cluster_member(backup, connector)
-        else:
-            return connector
+            connector = self._select_backup_cluster_member(backup, connector)
+
+        self._validate_connector_pref(backup, connector)
+
+        return connector
+
+    ###########################################################################
+    def _validate_connector_pref(self, backup, connector):
+
+        logger.info("Validating selected connector '%s' against member "
+                    "preference '%s' for backup '%s'" %
+                    (connector, self.member_preference, backup.id))
+
+        if (self.member_preference == PREF_SECONDARY_ONLY and
+                not connector.is_secondary()):
+            raise NoEligibleMembersFound(backup.source.uri)
+
+        if (self.member_preference == PREF_PRIMARY_ONLY and
+                not connector.is_primary()):
+            raise NoEligibleMembersFound(backup.source.uri)
+
+        logger.info("Member preference validation for backup '%s' passed!" %
+                    backup.id)
 
     ###########################################################################
     def _select_backup_cluster_member(self, backup, mongo_cluster):
-
+        logger.info("Selecting a member from cluster '%s' for backup '%s' "
+                    "using pref '%s'" %
+                    (backup.id, mongo_cluster, self.member_preference))
         if not self._needs_new_member_selection(backup):
+            logger.info("Using previous selected member for backup '%s' " %
+                        backup.id)
             return self.get_mongo_connector_used_by(backup)
         else:
             return self._select_new_cluster_member(backup, mongo_cluster)
@@ -204,6 +229,7 @@ class BackupStrategy(MBSObject):
 
     ###########################################################################
     def _select_new_cluster_member(self, backup, mongo_cluster):
+
         source = backup.source
 
         # compute max lag
