@@ -152,13 +152,6 @@ TBD
     "accessKey": <string>,
     "secretKey": <string>
 }
-
-// EbsSnapshotTarget
-{
-    "_type": "EbsSnapshotTarget",
-    "accessKey": self.access_key,
-    "secretKey": self.secret_key
-}
 ```
 
 ### TargetReference
