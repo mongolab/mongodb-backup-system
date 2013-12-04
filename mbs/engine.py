@@ -351,7 +351,8 @@ class BackupEngine(Thread):
             "workers": {
                 "backups": self._backup_processor.worker_count,
                 "restores": self._restore_processor.worker_count
-            }
+            },
+            "versionInfo": get_mbs().get_version_info()
         }
 
     ###########################################################################
