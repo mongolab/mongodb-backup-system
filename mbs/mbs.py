@@ -1,7 +1,7 @@
 __author__ = 'abdul'
 
 import os
-
+import version
 import mbs_config as config
 import mbs_logging
 
@@ -255,6 +255,11 @@ class MBS(object):
     def mongoctl_config_root(self):
         return self._get_config_value("mongoctlConfigRoot")
 
+    ###########################################################################
+    def get_version_info(self):
+        return {
+            "mbs": version.get_mbs_version()
+        }
 
 ###############################################################################
 # MBS Singleton

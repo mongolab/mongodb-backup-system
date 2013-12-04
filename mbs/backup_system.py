@@ -880,7 +880,8 @@ class BackupSystem(Thread):
             status = BACKUP_SYSTEM_STATUS_RUNNING
 
         return {
-            "status": status
+            "status": status,
+            "versionInfo": get_mbs().get_version_info()
         }
 
     ###########################################################################

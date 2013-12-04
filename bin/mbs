@@ -6,7 +6,7 @@ import sys
 import traceback
 import os
 import signal
-
+import mbs.version
 from functools import partial
 
 
@@ -434,10 +434,6 @@ def _get_plan(plan_id):
         print "No such plan '%s'" % plan_id
         exit(1)
 
-def get_mbs_version():
-    import pkg_resources
-    return pkg_resources.get_distribution("mbs").version
-
 ###############################################################################
 # command parser
 ###############################################################################
@@ -461,7 +457,7 @@ PARSER_DEF = {
             "nargs": 0,
             "help": "print version",
             "action": "version",
-            "version": "mbs %s" % get_mbs_version()
+            "version": "mbs %s" % mbs.version.get_mbs_version()
         }
     ],
     "children":[

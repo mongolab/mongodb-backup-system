@@ -3,7 +3,7 @@ import pwd
 import sys
 
 from urlparse import urlparse
-
+import mbs.version
 from setuptools import setup, find_packages
 
 # NOTE: http://bugs.python.org/issue15881#msg170215
@@ -107,7 +107,7 @@ def create_default_config():
 
 setup(
     name='mbs',
-    version='0.1.4',
+    version=mbs.version.get_mbs_version(),
     scripts=[
         'bin/mbs',
         'bin/st'
