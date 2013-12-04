@@ -1557,3 +1557,82 @@ class DataSizePredicate(HybridStrategyPredicate):
             "_type": "DataSizePredicate",
             "dumpMaxDataSize":self.dump_max_data_size
         }
+
+
+###############################################################################
+# EbsVolumeStorageStrategy
+###############################################################################
+class EbsVolumeStorageStrategy(CloudBlockStorageStrategy):
+    """
+        Adds ebs specific features like sharing snapshots
+    """
+    ###########################################################################
+    def __init__(self):
+        CloudBlockStorageStrategy.__init__(self)
+        self._share_users = None
+        self._share_groups = None
+
+    ###########################################################################
+    def _snapshot_backup(self, backup, mongo_connector):
+        """
+            Override!
+        """
+        # call super method
+        suber = super(EbsVolumeStorageStrategy, self)
+        suber._snapshot_backup(backup, mongo_connector)
+
+        self._apply_snapshot_shares(backup)
+
+    ###########################################################################
+    def _apply_snapshot_shares(self, backup):
+        logger.info("Checking if snapshot backup '%s' is configured to be "
+                    "shared" % backup.id)
+
+        is_sharing = self.share_users or self.share_groups
+
+        if is_sharing:
+            msg = ("Sharing snapshot backup '%s' with users:%s, groups:%s " %
+                   (backup.id, self.share_users,self.share_groups))
+            logger.info(msg)
+            backup.target_reference.share_snapshot(user_ids=self.share_users,
+                                                   groups=self.share_groups)
+            update_backup(backup, event_name="SHARE_SNAPSHOT",
+                          message=msg)
+            logger.info("Snapshot backup '%s' shared successfully!" %
+                        backup.id)
+        else:
+            logger.info("Snapshot backup '%s' not configured to be "
+                        "shared" % backup.id)
+
+    ###########################################################################
+    @property
+    def share_users(self):
+        return self._share_users
+
+    @share_users.setter
+    def share_users(self, val):
+        self._share_users = val
+
+    ###########################################################################
+    @property
+    def share_groups(self):
+        return self._share_groups
+
+    @share_groups.setter
+    def share_groups(self, val):
+        self._share_groups = val
+
+    ###########################################################################
+    def to_document(self, display_only=False):
+        suber = super(EbsVolumeStorageStrategy, self)
+        doc = suber.to_document(display_only=display_only)
+        doc.update({
+            "_type": "EbsVolumeStorageStrategy",
+            "shareUsers": self.share_users,
+            "shareGroups":self.share_groups
+        })
+
+        return doc
+
+
+

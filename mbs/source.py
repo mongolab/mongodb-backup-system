@@ -242,7 +242,7 @@ class EbsVolumeStorage(CloudBlockStorage):
         """
             Detects changes in snapshot
         """
-        ebs_snapshot = self._get_ebs_snapshot_by_id(ebs_ref.snapshot_id)
+        ebs_snapshot = self.get_ebs_snapshot_by_id(ebs_ref.snapshot_id)
         # NOTE check if the above call returns a snapshot object because boto
         # returns None although the snapshot exists (AWS api freakiness ?)
         if ebs_snapshot:
@@ -358,7 +358,7 @@ class EbsVolumeStorage(CloudBlockStorage):
             return snapshots[0]
 
     ###########################################################################
-    def _get_ebs_snapshot_by_id(self, id):
+    def get_ebs_snapshot_by_id(self, id):
         snapshots = filter(lambda snapshot: snapshot.id == id,
             self._get_ebs_snapshots())
 

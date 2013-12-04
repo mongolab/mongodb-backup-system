@@ -970,6 +970,7 @@ class EbsSnapshotReference(CloudBlockStorageSnapshotReference):
         self._progress = progress
         self._start_time = start_time
 
+
     ###########################################################################
     @property
     def snapshot_id(self):
@@ -1005,6 +1006,15 @@ class EbsSnapshotReference(CloudBlockStorageSnapshotReference):
     @start_time.setter
     def start_time(self, start_time):
         self._start_time = start_time
+
+    ###########################################################################
+    def share_snapshot(self, user_ids=None, groups=None):
+        self.get_ebs_snapshot().share(user_ids=user_ids, groups=groups)
+
+    ###########################################################################
+    def get_ebs_snapshot(self):
+        cbs = self.cloud_block_storage
+        return cbs.get_ebs_snapshot_by_id(self.snapshot_id)
 
     ###########################################################################
     def to_document(self, display_only=False):
