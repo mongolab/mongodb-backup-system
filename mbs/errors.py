@@ -135,8 +135,8 @@ class ReplicasetError(MBSError, RetriableError):
         Base error for replicaset errors
     """
     ###########################################################################
-    def __init__(self, details=None, cause=None):
-        msg = "Could not connect to replica set"
+    def __init__(self, msg=None, details=None, cause=None):
+        msg = msg or "Replicaset Error"
         super(ReplicasetError, self).__init__(msg=msg, details=details,
                                               cause=cause)
 
@@ -152,10 +152,10 @@ class PrimaryNotFoundError(ReplicasetError):
 class NoEligibleMembersFound(ReplicasetError):
 
     ###########################################################################
-    def __init__(self, uri):
-        details = ("No eligible members in '%s' found to take dump from" %
+    def __init__(self, uri, msg=None):
+        details = ("No eligible members in '%s' found to take backup from" %
                    mongo_uri_tools.mask_mongo_uri(uri))
-        super(NoEligibleMembersFound, self).__init__(details=details)
+        super(NoEligibleMembersFound, self).__init__(details=details, msg=msg)
 
 
 ###############################################################################

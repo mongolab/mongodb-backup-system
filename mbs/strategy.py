@@ -177,11 +177,13 @@ class BackupStrategy(MBSObject):
 
         if (self.member_preference == PREF_SECONDARY_ONLY and
                 not connector.is_secondary()):
-            raise NoEligibleMembersFound(backup.source.uri)
+            msg = "Selected connector '%s' is not a secondary" % connector
+            raise NoEligibleMembersFound(backup.source.uri, msg=msg)
 
         if (self.member_preference == PREF_PRIMARY_ONLY and
                 not connector.is_primary()):
-            raise NoEligibleMembersFound(backup.source.uri)
+            msg = "Selected connector '%s' is not a primary" % connector
+            raise NoEligibleMembersFound(backup.source.uri, msg=msg)
 
         logger.info("Member preference validation for backup '%s' passed!" %
                     backup.id)
