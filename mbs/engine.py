@@ -271,17 +271,12 @@ class BackupEngine(Thread):
     ###########################################################################
     # Engine stopping
     ###########################################################################
-    def stop(self, force=False, timeout=30):
+    def stop(self, timeout=30):
         """
             Sends a stop request to the engine using the command port
             This should be used by other processes (copies of the engine
             instance) but not the actual running engine process
         """
-
-        if force:
-            self.force_stop()
-            return
-
         url = "http://0.0.0.0:%s/stop" % self.command_port
         try:
             response = urllib2.urlopen(url, timeout=timeout)

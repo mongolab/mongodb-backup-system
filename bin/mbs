@@ -107,14 +107,15 @@ def stop_engine(parsed_args):
     engine_id = parsed_args.engineId
     engine = _get_engine(engine_id)
     status = engine.get_status()
-    if status["status"] == STATUS_STOPPING:
+    force = parsed_args.force
+    if status["status"] == STATUS_STOPPING and not force:
         print "A stop request has already been made"
         return
     elif status["status"] == STATUS_STOPPED:
         print "Engine is not running"
         return
 
-    _do_stop_engine(engine, parsed_args.force)
+    _do_stop_engine(engine, force)
 
 ###############################################################################
 def _engine_stopped(engine):
@@ -122,16 +123,29 @@ def _engine_stopped(engine):
 
 ###############################################################################
 def _do_stop_engine(engine, force=False):
-    print "stopping engine"
-    engine.stop(force=force)
+    print "Stopping engine gracefully"
+    engine.stop()
     print "Waiting for engine to stop"
-    wait_for(partial(_engine_stopped, engine), timeout=100)
+    wait_for(partial(_engine_stopped, engine), timeout=30)
     print "Done waiting for engine to stop"
+
     if _engine_stopped(engine):
         exit(0)
-    else:
-        print "Unable to stop engine within 100 seconds"
-        exit(1)
+
+    print "Unable to gracefully stop engine within 30 seconds"
+
+    if force:
+        print "Stopping engine with force!"
+        engine.force_stop()
+        print "Waiting for engine to stop"
+        wait_for(partial(_engine_stopped, engine), timeout=30)
+
+        if _engine_stopped(engine):
+            exit(0)
+        else:
+            print "Unable to stop engine within 30 seconds"
+
+    exit(1)
 
 ###############################################################################
 def restart_engine(parsed_args):
