@@ -1031,7 +1031,11 @@ class EbsSnapshotReference(CloudBlockStorageSnapshotReference):
         if not user_ids and not groups:
             raise ValueError("must specify user_ids or groups")
 
-        self.get_ebs_snapshot().share(user_ids=user_ids, groups=groups)
+        ebs_snap = self.get_ebs_snapshot()
+        if not ebs_snap:
+            raise Exception("EBS snapshot '%s' does not exist" %
+                            self.snapshot_id)
+        ebs_snap.share(user_ids=user_ids, groups=groups)
         if user_ids:
             self.share_users = self.share_users or list()
             self.share_users.extend(user_ids)
