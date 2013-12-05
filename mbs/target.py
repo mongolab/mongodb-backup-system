@@ -969,7 +969,8 @@ class EbsSnapshotReference(CloudBlockStorageSnapshotReference):
         self._volume_size = volume_size
         self._progress = progress
         self._start_time = start_time
-
+        self._share_users = None
+        self._share_groups = None
 
     ###########################################################################
     @property
@@ -1008,8 +1009,36 @@ class EbsSnapshotReference(CloudBlockStorageSnapshotReference):
         self._start_time = start_time
 
     ###########################################################################
+    @property
+    def share_users(self):
+        return self._share_users
+
+    @share_users.setter
+    def share_users(self, val):
+        self._share_users = val
+
+    ###########################################################################
+    @property
+    def share_groups(self):
+        return self._share_groups
+
+    @share_groups.setter
+    def share_groups(self, val):
+        self._share_groups = val
+
+    ###########################################################################
     def share_snapshot(self, user_ids=None, groups=None):
+        if not user_ids and not groups:
+            raise ValueError("must specify user_ids or groups")
+
         self.get_ebs_snapshot().share(user_ids=user_ids, groups=groups)
+        if user_ids:
+            self.share_users = self.share_users or list()
+            self.share_users.extend(user_ids)
+
+        if groups:
+            self.share_groups = self.share_groups or list()
+            self.share_groups.extend(groups)
 
     ###########################################################################
     def get_ebs_snapshot(self):
@@ -1027,6 +1056,11 @@ class EbsSnapshotReference(CloudBlockStorageSnapshotReference):
             "progress": self.progress,
             "startTime": self.start_time
         })
+
+        if self.share_users:
+            doc["shareUsers"] = self.share_users
+        if self.share_groups:
+            doc["shareGroups"] = self.share_groups
 
         return doc
 

@@ -1587,19 +1587,11 @@ class EbsVolumeStorageStrategy(CloudBlockStorageStrategy):
     def _apply_snapshot_shares(self, backup):
         logger.info("Checking if snapshot backup '%s' is configured to be "
                     "shared" % backup.id)
-
         is_sharing = self.share_users or self.share_groups
 
         if is_sharing:
-            msg = ("Sharing snapshot backup '%s' with users:%s, groups:%s " %
-                   (backup.id, self.share_users,self.share_groups))
-            logger.info(msg)
-            backup.target_reference.share_snapshot(user_ids=self.share_users,
-                                                   groups=self.share_groups)
-            update_backup(backup, event_name="SHARE_SNAPSHOT",
-                          message=msg)
-            logger.info("Snapshot backup '%s' shared successfully!" %
-                        backup.id)
+            share_snapshot_backup(backup, user_ids=self.share_users,
+                                  groups=self.share_groups)
         else:
             logger.info("Snapshot backup '%s' not configured to be "
                         "shared" % backup.id)
@@ -1633,6 +1625,19 @@ class EbsVolumeStorageStrategy(CloudBlockStorageStrategy):
         })
 
         return doc
+
+###############################################################################
+def share_snapshot_backup(backup, user_ids=None, groups=None):
+    msg = ("Sharing snapshot backup '%s' with users:%s, groups:%s " %
+           (backup.id, user_ids, groups))
+    logger.info(msg)
+    backup.target_reference.share_snapshot(user_ids=user_ids,
+                                           groups=groups)
+    update_backup(backup, properties="targetReference",
+                  event_name="SHARE_SNAPSHOT",
+                  message=msg)
+    logger.info("Snapshot backup '%s' shared successfully!" %
+                backup.id)
 
 
 
