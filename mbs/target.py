@@ -1035,6 +1035,11 @@ class EbsSnapshotReference(CloudBlockStorageSnapshotReference):
         if not ebs_snap:
             raise Exception("EBS snapshot '%s' does not exist" %
                             self.snapshot_id)
+
+        # remove dashes from user ids
+        if user_ids:
+            user_ids = map(lambda user_id: user_id.replace("-",""), user_ids)
+
         ebs_snap.share(user_ids=user_ids, groups=groups)
         if user_ids:
             self.share_users = self.share_users or list()
