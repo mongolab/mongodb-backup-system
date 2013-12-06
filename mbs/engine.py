@@ -703,9 +703,10 @@ class TaskWorker(Thread):
             # clear end date
             task.end_date = None
 
-            # set the workspace
-            workspace_dir = self._get_task_workspace_dir(task)
-            task.workspace = workspace_dir
+            # set the workspace its its not set
+            if not task.workspace:
+                workspace_dir = self._get_task_workspace_dir(task)
+                task.workspace = workspace_dir
 
             # ensure backup workspace
             ensure_dir(task.workspace)
