@@ -71,6 +71,10 @@ class MongoConnector(object):
         return None
 
     ###########################################################################
+    def is_online(self):
+        return self.connection is not None
+
+    ###########################################################################
     @robustify(max_attempts=3, retry_interval=3,
                do_on_exception=raise_if_not_retriable,
                do_on_failure=raise_exception)
@@ -329,7 +333,6 @@ class MongoServer(MongoConnector):
     def __init__(self, uri):
         MongoConnector.__init__(self, uri)
         self._connection = None
-        self._is_online = False
         self._authed_to_admin = False
 
         try:
@@ -337,9 +340,6 @@ class MongoServer(MongoConnector):
                                                 socketTimeoutMS=CONN_TIMEOUT,
                                                 connectTimeoutMS=CONN_TIMEOUT)
             self._admin_db = self._connection["admin"]
-
-            # connection success! set online to true
-            self._is_online = True
 
             # if this is an arbiter then this is the farthest that we can get
             # to
@@ -378,10 +378,6 @@ class MongoServer(MongoConnector):
     @property
     def connection(self):
         return self._connection
-
-    ###########################################################################
-    def is_online(self):
-        return self._is_online
 
     ###########################################################################
     @property

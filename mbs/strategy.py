@@ -70,6 +70,7 @@ class BackupStrategy(MBSObject):
 
     ###########################################################################
     def __init__(self):
+        MBSObject.__init__(self)
         self._member_preference = PREF_BEST
         self._ensure_localhost = False
         self._max_data_size = None
@@ -77,6 +78,7 @@ class BackupStrategy(MBSObject):
         self._backup_description_scheme = None
 
         self._use_suspend_io = None
+        self._allow_offline_backups = None
 
     ###########################################################################
     @property
@@ -139,6 +141,15 @@ class BackupStrategy(MBSObject):
         self._use_suspend_io = val
 
     ###########################################################################
+    @property
+    def allow_offline_backups(self):
+        return self._allow_offline_backups
+
+    @allow_offline_backups.setter
+    def allow_offline_backups(self, val):
+        self._allow_offline_backups = val
+
+    ###########################################################################
     def is_use_suspend_io(self):
         return False
 
@@ -164,12 +175,26 @@ class BackupStrategy(MBSObject):
         if isinstance(connector, MongoCluster):
             connector = self._select_backup_cluster_member(backup, connector)
 
-        self._validate_connector_pref(backup, connector)
+        self._validate_connector(backup, connector)
 
         return connector
 
     ###########################################################################
-    def _validate_connector_pref(self, backup, connector):
+    def _validate_connector(self, backup, connector):
+
+        logger.info("Validate selected connector '%s'..." % connector)
+
+        logger.info("1- validating connectivity to '%s'..." % connector)
+        if not connector.is_online():
+            logger.info("'%s' is offline" % connector)
+            if self.allow_offline_backups:
+                logger.info("allowOfflineBackups is set to true so its all "
+                            "good")
+            else:
+                msg = "Selected connector '%s' is offline" % connector
+                raise NoEligibleMembersFound(backup.source.uri, msg=msg)
+        else:
+            logger.info("Connector '%s' is online! Yay!" % connector)
 
         logger.info("Validating selected connector '%s' against member "
                     "preference '%s' for backup '%s'" %
@@ -303,12 +328,13 @@ class BackupStrategy(MBSObject):
         dbname = source.database_name
         # record stats
         if not backup.source_stats or self._needs_new_source_stats(backup):
-            backup.source_stats = mongo_connector.get_stats(only_for_db=dbname)
-
-            # save source stats
-            update_backup(backup, properties="sourceStats",
-                          event_name="COMPUTED_SOURCE_STATS",
-                          message="Computed source stats")
+            if mongo_connector.is_online():
+                backup.source_stats = mongo_connector.get_stats(
+                    only_for_db=dbname)
+                # save source stats
+                update_backup(backup, properties="sourceStats",
+                              event_name="COMPUTED_SOURCE_STATS",
+                              message="Computed source stats")
 
         # set backup name and description
         self._set_backup_name_and_desc(backup)
@@ -527,6 +553,9 @@ class BackupStrategy(MBSObject):
 
         if self.use_suspend_io is not None:
             doc["useSuspendIO"] = self.use_suspend_io
+
+        if self.allow_offline_backups is not None:
+            doc["allowOfflineBackups"] = self.allow_offline_backups
 
         return doc
 
@@ -1241,13 +1270,14 @@ class CloudBlockStorageStrategy(BackupStrategy):
                    "configured for address '%s'" % (backup.id, address))
             raise ConfigurationError(msg)
 
-
+        use_fysnclock = mongo_connector.is_online()
         fsync_unlocked = False
 
         resumed_io = False
         try:
             # run fsync lock
-            self._fsynclock(backup, mongo_connector)
+            if use_fysnclock:
+                self._fsynclock(backup, mongo_connector)
 
             # suspend io
             if self.is_use_suspend_io():
@@ -1267,8 +1297,9 @@ class CloudBlockStorageStrategy(BackupStrategy):
                 self._resume_io(backup, mongo_connector)
                 resumed_io = True
 
-            self._fsyncunlock(backup, mongo_connector)
-            fsync_unlocked = True
+            if use_fysnclock:
+                self._fsyncunlock(backup, mongo_connector)
+                fsync_unlocked = True
 
             # wait until snapshot is completed or error
             wait_status = [CBS_STATUS_COMPLETED, CBS_STATUS_ERROR]
@@ -1291,7 +1322,7 @@ class CloudBlockStorageStrategy(BackupStrategy):
                 if self.is_use_suspend_io() and not resumed_io:
                     self._resume_io(backup, mongo_connector)
             finally:
-                if not fsync_unlocked:
+                if use_fysnclock and not fsync_unlocked:
                     self._fsyncunlock(backup, mongo_connector)
 
     ###########################################################################
