@@ -346,21 +346,19 @@ class EbsVolumeStorage(CloudBlockStorage):
         return volumes[0]
 
     ###########################################################################
-    def _get_ebs_snapshots(self):
-        return self._get_ebs_volume().snapshots()
+    def get_ebs_snapshots(self):
+        filters = {
+            "volume-id": self.volume_id
+        }
+        return self.ec2_connection.get_all_snapshots(filters=filters)
 
     ###########################################################################
-    def _get_ebs_snapshot_by_desc(self, description):
-        snapshots = filter(lambda snapshot: snapshot.description == description,
-                      self._get_ebs_snapshots())
-
-        if snapshots:
-            return snapshots[0]
-
-    ###########################################################################
-    def get_ebs_snapshot_by_id(self, id):
-        snapshots = filter(lambda snapshot: snapshot.id == id,
-            self._get_ebs_snapshots())
+    def get_ebs_snapshot_by_id(self, snapshot_id):
+        filters = {
+            "volume-id": self.volume_id,
+            "snapshot-id": snapshot_id
+        }
+        snapshots= self.ec2_connection.get_all_snapshots(filters=filters)
 
         if snapshots:
             return snapshots[0]
