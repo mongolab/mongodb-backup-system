@@ -1271,6 +1271,8 @@ class CloudBlockStorageStrategy(BackupStrategy):
             raise ConfigurationError(msg)
 
         use_fysnclock = mongo_connector.is_online()
+        use_suspend_io = (self.is_use_suspend_io() and
+                          mongo_connector.is_online())
         fsync_unlocked = False
 
         resumed_io = False
@@ -1280,7 +1282,7 @@ class CloudBlockStorageStrategy(BackupStrategy):
                 self._fsynclock(backup, mongo_connector)
 
             # suspend io
-            if self.is_use_suspend_io():
+            if use_suspend_io:
                 self._suspend_io(backup, mongo_connector)
 
             # backup the mongo connector
@@ -1293,7 +1295,7 @@ class CloudBlockStorageStrategy(BackupStrategy):
 
             # resume io/unlock
 
-            if self.is_use_suspend_io():
+            if use_suspend_io:
                 self._resume_io(backup, mongo_connector)
                 resumed_io = True
 
@@ -1319,7 +1321,7 @@ class CloudBlockStorageStrategy(BackupStrategy):
         finally:
             try:
                 # resume io/unlock as needed
-                if self.is_use_suspend_io() and not resumed_io:
+                if use_suspend_io and not resumed_io:
                     self._resume_io(backup, mongo_connector)
             finally:
                 if use_fysnclock and not fsync_unlocked:
