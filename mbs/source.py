@@ -480,7 +480,7 @@ class LVMStorage(CloudBlockStorage):
         for constituent_snapshot in snapshot_ref.constituent_snapshots:
             constituent = constituent_snapshot.cloud_block_storage
             new_constituent_snapshot = \
-                constituent.check_snapshot_updates(constituent)
+                constituent.check_snapshot_updates(constituent_snapshot)
             if new_constituent_snapshot:
                 has_changes = True
             else:
