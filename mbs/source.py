@@ -3,7 +3,7 @@ __author__ = 'abdul'
 from base import MBSObject
 from errors import BlockStorageSnapshotError
 
-from target import EbsSnapshotReference
+from target import EbsSnapshotReference, LVMSnapshotReference
 from mbs import get_mbs
 from errors import *
 
@@ -12,7 +12,8 @@ import mbs_logging
 
 from boto.ec2 import connect_to_region
 from utils import (
-    freeze_mount_point, unfreeze_mount_point,
+    freeze_mount_point, unfreeze_mount_point, export_mbs_object_list,
+    suspend_lvm_mount_point, resume_lvm_mount_point
 )
 ###############################################################################
 # LOGGER
@@ -252,11 +253,6 @@ class EbsVolumeStorage(CloudBlockStorage):
         logger.info("Snapshot kicked off successfully for volume '%s'. "
                     "Snapshot id '%s'." % (self.volume_id, ebs_snapshot.id))
 
-
-        logger.info("EBS Snapshot '%s' for volume '%s' created "
-                    "successfully!." % (ebs_snapshot.id, self.volume_id))
-
-
         ebs_ref = self._new_ebs_snapshot_reference(ebs_snapshot)
 
         return ebs_ref
@@ -430,6 +426,99 @@ class EbsVolumeStorage(CloudBlockStorage):
             "region": self.region,
             "encryptedAccessKey": ak,
             "encryptedSecretKey": sk
+        })
+
+        return doc
+
+
+###############################################################################
+# LVMStorage
+###############################################################################
+class LVMStorage(CloudBlockStorage):
+    ###########################################################################
+    def __init__(self):
+        CloudBlockStorage.__init__(self)
+        self._constituents = None
+
+    ###########################################################################
+    def create_snapshot(self, name, description):
+        """
+            Creates a LVMSnapshotReference composed of all
+            constituent snapshots
+        """
+        constituent_snapshots = []
+        for constituent in self.constituents:
+            snapshot = constituent.create_snapshot(name, description)
+            constituent_snapshots.append(snapshot)
+
+        return LVMSnapshotReference(self,
+                                    constituent_snapshots=
+                                    constituent_snapshots)
+    ###########################################################################
+    def delete_snapshot(self, snapshot_ref):
+        for constituent_snapshot in snapshot_ref.constituent_snapshots:
+            constituent = constituent_snapshot.cloud_block_storage
+            constituent.delete_snapshot(constituent_snapshot)
+
+
+    ###########################################################################
+    def check_snapshot_updates(self, snapshot_ref):
+        new_constituent_snapshots = []
+        has_changes = False
+        for constituent_snapshot in snapshot_ref.constituent_snapshots:
+            constituent = constituent_snapshot.cloud_block_storage
+            new_constituent_snapshot = \
+                constituent.check_snapshot_updates(constituent)
+            if new_constituent_snapshot:
+                has_changes = True
+            else:
+                new_constituent_snapshot = constituent_snapshot
+
+            new_constituent_snapshots.append(new_constituent_snapshot)
+
+        if has_changes:
+            return LVMSnapshotReference(self,
+                                        constituent_snapshots=
+                                        new_constituent_snapshots)
+
+    ###########################################################################
+    def suspend_io(self):
+        logger.info("Suspend IO for LVM '%s' using dmsetup" %
+                    self.mount_point)
+        suspend_lvm_mount_point(self.mount_point)
+
+    ###########################################################################
+    def resume_io(self):
+
+        logger.info("Resume io for LVM '%s' using dmsetup" %
+                    self.mount_point)
+
+        resume_lvm_mount_point(self.mount_point)
+
+    ###########################################################################
+    @property
+    def constituents(self):
+        return self._constituents
+
+
+    @constituents.setter
+    def constituents(self, val):
+        self._constituents = val
+
+    ###########################################################################
+    def _export_constituents(self, display_only=False):
+        return export_mbs_object_list(self.constituents,
+                                      display_only=display_only)
+
+    ###########################################################################
+    def to_document(self, display_only=False):
+        doc = super(LVMStorage, self).to_document(
+            display_only=display_only)
+
+        doc.update({
+            "_type": "LVMStorage",
+            "constituents": self._export_constituents(
+                display_only=display_only)
         })
 
         return doc

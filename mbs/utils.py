@@ -28,10 +28,14 @@ def document_pretty_string(document):
     return json.dumps(document, indent=4, default=_custom_json_default)
 
 ###############################################################################
+def export_mbs_object_list(obj_list, display_only=False):
+    return map(lambda o: o.to_document(display_only=display_only), obj_list)
 
+###############################################################################
 def mbs_object_list_to_string(obj_list):
-    doc_list = map(lambda o: o.to_document(display_only=True), obj_list)
-    return document_pretty_string(doc_list)
+
+    return document_pretty_string(export_mbs_object_list(obj_list,
+                                                         display_only=True))
 
 ###############################################################################
 def dict_to_str(d):
@@ -327,6 +331,8 @@ def find_mount_point(path):
     return path
 
 ###############################################################################
+# FS FREEZE SUPPORT
+###############################################################################
 def freeze_mount_point(mount_point):
     """
         Freezes the specified mount point using fsfreeze
@@ -345,6 +351,7 @@ def freeze_mount_point(mount_point):
     print "Executing freeze command: %s" % freeze_cmd
     execute_command(freeze_cmd)
     print "Freeze command: %s\n executed successfully!" % freeze_cmd
+
 ###############################################################################
 def unfreeze_mount_point(mount_point):
     """
@@ -421,6 +428,107 @@ def validate_fsfreeze_sudo():
                "Please tag your fsfreeze with a NOPASSWD tag")
         raise Exception(msg)
 
+
+###############################################################################
+# DM SETUP SUPPORT
+###############################################################################
+def suspend_lvm_mount_point(mount_point):
+    """
+        Suspends the specified mount point using dmsetup
+        NOTE: This requires that current login can sudo dmsetup without
+        needing as password.
+    """
+    validate_dmsetup()
+    freeze_cmd = [
+        "sudo",
+        "-n",
+        get_dmsetup_exe(),
+        "suspend",
+        mount_point
+    ]
+
+    print "Executing dmsetup suspend command: %s" % freeze_cmd
+    execute_command(freeze_cmd)
+    print "Suspend command: %s\n executed successfully!" % freeze_cmd
+
+###############################################################################
+def resume_lvm_mount_point(mount_point):
+    """
+        Unfreezes the specified mount point using dmsetup.
+        NOTE: This requires that current login can sudo dmsetup without
+        needing as password.
+    """
+    validate_dmsetup()
+    unfreeze_cmd = [
+        "sudo",
+        "-n",
+        get_dmsetup_exe(),
+        "resume",
+        mount_point
+    ]
+    print "Executing dmsetup resume command: %s" % unfreeze_cmd
+    execute_command(unfreeze_cmd)
+    print "Resume command: %s\n executed successfully!" % unfreeze_cmd
+
+###############################################################################
+def validate_dmsetup():
+    if not os_supports_dmsetup():
+        err = ("Your OS is not dmsetup compatible. dmsetup requirese Ubunto"
+               " 12.04 or later and a dmsetup exe available in your path.")
+        raise Exception(err)
+    # validate dmsetup against sudo
+    validate_dmsetup_sudo()
+
+###############################################################################
+def get_dmsetup_exe():
+    return which("dmsetup")
+
+###############################################################################
+def os_supports_dmsetup():
+    """
+        Returns true if the current os supports dmsetup that is os running
+        Ubuntu 12.04 or later and there is an dmsetup exe in PATH
+    """
+    try:
+
+        distribution = platform.dist()
+        dist_name = distribution[0].lower()
+        dist_version_str = distribution[1]
+        if dist_name and dist_version_str:
+            dist_version = StrictVersion(dist_version_str)
+            min_version = StrictVersion('12.04')
+
+            return (dist_name == "ubuntu" and dist_version >= min_version and
+                    get_dmsetup_exe() is not None)
+        else:
+            return False
+    except Exception, e:
+        print "Error while trying to check if OS supports dmsetup: %s" % e
+        traceback.print_exc()
+        return False
+
+###############################################################################
+def validate_dmsetup_sudo():
+    """
+        Ensures that dmsetup could be run with sudo without needing a password
+    """
+    try:
+        cmd = [
+            "sudo",
+            "-n",
+            get_dmsetup_exe(),
+            "--help"
+        ]
+        execute_command(cmd)
+        # we are ok here
+    except subprocess.CalledProcessError, e:
+        msg = ("Error while validating dmsetup. Your sudoers config does not "
+               "support running 'sudo dmsetup' without passing a password. "
+               "Please tag your dmsetup with a NOPASSWD tag")
+        raise Exception(msg)
+
+###############################################################################
+# SignalWatcher
 ###############################################################################
 class SignalWatcher(object):
     """

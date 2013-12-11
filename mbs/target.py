@@ -11,11 +11,11 @@ import mbs_logging
 
 from mbs import get_mbs
 from base import MBSObject
-from utils import which, execute_command
+from utils import which, execute_command, export_mbs_object_list
 from azure.storage import BlobService
 from boto.s3.connection import S3Connection
 from boto.s3.key import Key
-from boto.ec2 import EC2Connection
+
 from errors import *
 from robustify.robustify import robustify
 from splitfile import SplitFile
@@ -1070,6 +1070,47 @@ class EbsSnapshotReference(CloudBlockStorageSnapshotReference):
             doc["shareUsers"] = self.share_users
         if self.share_groups:
             doc["shareGroups"] = self.share_groups
+
+        return doc
+
+
+###############################################################################
+# LVMSnapshotReference
+###############################################################################
+class LVMSnapshotReference(CloudBlockStorageSnapshotReference):
+    ###########################################################################
+    def __init__(self, cloud_block_storage=None, constituent_snapshots=None,
+                 status=None):
+        super(LVMSnapshotReference, self).__init__(cloud_block_storage,
+                                                   status)
+
+        self._constituent_snapshots = constituent_snapshots
+
+    ###########################################################################
+    @property
+    def constituent_snapshots(self):
+        return self._constituent_snapshots
+
+
+    @constituent_snapshots.setter
+    def constituent_snapshots(self, val):
+        self._constituent_snapshots = val
+
+    ###########################################################################
+    def _export_constituent_snapshots(self, display_only=False):
+        return export_mbs_object_list(self.constituent_snapshots,
+                                      display_only=display_only)
+
+    ###########################################################################
+    def to_document(self, display_only=False):
+        doc = super(LVMSnapshotReference, self).to_document(
+            display_only=display_only)
+
+        doc.update({
+            "_type": "LVMSnapshotReference",
+            "constituentSnapshots": self._export_constituent_snapshots(
+                display_only=display_only)
+        })
 
         return doc
 
