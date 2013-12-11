@@ -446,14 +446,26 @@ class LVMStorage(CloudBlockStorage):
             Creates a LVMSnapshotReference composed of all
             constituent snapshots
         """
+        logger.info("Creating LVM Snapshot name='%s', description='%s' "
+                    "for LVMStorage: \n%s" % (name, description, str(self)))
+        logger.info("Creating snapshots for all constituents...")
         constituent_snapshots = []
         for constituent in self.constituents:
+            logger.info("Creating snapshot constituent: \n%s" %
+                        str(constituent))
             snapshot = constituent.create_snapshot(name, description)
             constituent_snapshots.append(snapshot)
 
-        return LVMSnapshotReference(self,
-                                    constituent_snapshots=
-                                    constituent_snapshots)
+
+        lvm_snapshot = LVMSnapshotReference(self,
+                                            constituent_snapshots=
+                                            constituent_snapshots)
+
+        logger.info("Successfully created LVM Snapshot \n%s" %
+                    str(lvm_snapshot))
+
+        return lvm_snapshot
+
     ###########################################################################
     def delete_snapshot(self, snapshot_ref):
         for constituent_snapshot in snapshot_ref.constituent_snapshots:
