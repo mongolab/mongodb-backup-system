@@ -444,7 +444,7 @@ def suspend_lvm_mount_point(mount_point):
         "-n",
         get_dmsetup_exe(),
         "suspend",
-        mount_point
+        get_mount_point_device(mount_point)
     ]
 
     print "Executing dmsetup suspend command: %s" % freeze_cmd
@@ -464,7 +464,7 @@ def resume_lvm_mount_point(mount_point):
         "-n",
         get_dmsetup_exe(),
         "resume",
-        mount_point
+        get_mount_point_device(mount_point)
     ]
     print "Executing dmsetup resume command: %s" % unfreeze_cmd
     execute_command(unfreeze_cmd)
@@ -526,6 +526,24 @@ def validate_dmsetup_sudo():
                "support running 'sudo dmsetup' without passing a password. "
                "Please tag your dmsetup with a NOPASSWD tag")
         raise Exception(msg)
+
+###############################################################################
+def get_mount_point_device(mount_point):
+    print "Finding device for mount point %s " % mount_point
+    if not os.path.ismount(mount_point):
+        raise RuntimeError("Not a valid mount point %s" % mount_point)
+
+    mnt_cmd = ['mount', '-l']
+    print "Executing command %s" % mnt_cmd
+    mounts_output = execute_command(mnt_cmd)
+    print "Output for command %s\n\n%s" % (mnt_cmd, mounts_output)
+    for line in mounts_output.split('\n'):
+        if mount_point in line:
+            device = line.split(' ')[0]
+            print "Found device %s for mount point %s" % (device, mount_point)
+            return device
+
+    raise RuntimeError("No device found for mount point %s" % mount_point)
 
 ###############################################################################
 # SignalWatcher
