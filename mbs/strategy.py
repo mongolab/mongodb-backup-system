@@ -1305,8 +1305,8 @@ class CloudBlockStorageStrategy(BackupStrategy):
             snapshot_ref = backup.target_reference
 
             if snapshot_ref.status == CBS_STATUS_COMPLETED:
-                logger.info("Successfully completed backup '%s' snapshot '%s' "
-                            % (backup.id, snapshot_ref.snapshot_id))
+                logger.info("Successfully completed backup '%s' snapshot"
+                            % backup.id)
                 msg = "Snapshot completed successfully"
                 update_backup(backup, event_name="END_BLOCK_STORAGE_SNAPSHOT",
                               message=msg)
@@ -1350,12 +1350,12 @@ class CloudBlockStorageStrategy(BackupStrategy):
         snapshot_ref = backup.target_reference
         wait_status = listify(wait_status)
         while snapshot_ref.status not in wait_status:
-            logger.debug("Checking updates for backup '%s' snapshot '%s' " %
-                         (backup.id, snapshot_ref.snapshot_id))
+            logger.debug("Checking updates for backup '%s' snapshot" %
+                         backup.id)
             new_snapshot_ref = cbs.check_snapshot_updates(snapshot_ref)
             if new_snapshot_ref:
-                logger.info("Detected updates for backup '%s' snapshot '%s' " %
-                            (backup.id, snapshot_ref.snapshot_id))
+                logger.info("Detected updates for backup '%s' snapshot " %
+                            backup.id)
                 logger.info("Old: \n%s\nNew:\n%s" % (snapshot_ref,
                                                      new_snapshot_ref))
                 snapshot_ref = new_snapshot_ref
