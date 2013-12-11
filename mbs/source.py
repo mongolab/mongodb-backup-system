@@ -11,7 +11,9 @@ import mongo_uri_tools
 import mbs_logging
 
 from boto.ec2 import connect_to_region
-
+from utils import (
+    freeze_mount_point, unfreeze_mount_point,
+)
 ###############################################################################
 # LOGGER
 ###############################################################################
@@ -24,6 +26,7 @@ class BackupSource(MBSObject):
 
     ###########################################################################
     def __init__(self):
+        MBSObject.__init__(self)
         self._cloud_block_storage = None
 
     ###########################################################################
@@ -156,7 +159,8 @@ class CloudBlockStorage(MBSObject):
     """
     ###########################################################################
     def __init__(self):
-        pass
+        MBSObject.__init__(self)
+        self._mount_point = None
 
     ###########################################################################
     def create_snapshot(self, name, description):
@@ -181,6 +185,33 @@ class CloudBlockStorage(MBSObject):
             Returns true if there were new updates
         """
 
+    ###########################################################################
+    def suspend_io(self):
+        """
+           suspends the underlying IO
+        """
+
+    ###########################################################################
+    def resume_io(self):
+        """
+            resumes the underlying IO
+        """
+
+    ###########################################################################
+    @property
+    def mount_point(self):
+        return self._mount_point
+
+    @mount_point.setter
+    def mount_point(self, val):
+        self._mount_point = val
+
+    ###########################################################################
+    def to_document(self, display_only=False):
+        return {
+            "mountPoint": self.mount_point
+        }
+
 ###############################################################################
 # EbsVolumeStorage
 ###############################################################################
@@ -194,6 +225,15 @@ class EbsVolumeStorage(CloudBlockStorage):
         self._volume_id = None
         self._region = None
         self._ec2_connection = None
+
+    ###########################################################################
+    @property
+    def volume_id(self):
+        return self._volume_id
+
+    @volume_id.setter
+    def volume_id(self, volume_id):
+        self._volume_id = str(volume_id)
 
     ###########################################################################
     def create_snapshot(self, name, description):
@@ -364,14 +404,32 @@ class EbsVolumeStorage(CloudBlockStorage):
             return snapshots[0]
 
     ###########################################################################
+    def suspend_io(self):
+        logger.info("Suspend IO for volume '%s' using fsfreeze" %
+                    self.volume_id)
+        freeze_mount_point(self.mount_point)
+
+    ###########################################################################
+    def resume_io(self):
+
+        logger.info("Resume io for volume '%s' using fsfreeze" %
+                    self.volume_id)
+
+        unfreeze_mount_point(self.mount_point)
+
+    ###########################################################################
     def to_document(self, display_only=False):
+        doc = super(EbsVolumeStorage, self).to_document(display_only=
+                                                        display_only)
 
         ak = "xxxxx" if display_only else self.encrypted_access_key
         sk = "xxxxx" if display_only else self.encrypted_secret_key
-        return {
+        doc.update({
             "_type": "EbsVolumeStorage",
             "volumeId": self.volume_id,
             "region": self.region,
             "encryptedAccessKey": ak,
             "encryptedSecretKey": sk
-        }
+        })
+
+        return doc

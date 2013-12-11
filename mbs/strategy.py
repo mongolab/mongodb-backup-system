@@ -470,7 +470,7 @@ class BackupStrategy(MBSObject):
                                      " be a MongoServer" % mongo_connector)
 
     ###########################################################################
-    def _suspend_io(self, backup, mongo_connector):
+    def _suspend_io(self, backup, mongo_connector, cloud_block_storage):
 
         if isinstance(mongo_connector, MongoServer):
             if not mongo_connector.is_local():
@@ -480,15 +480,13 @@ class BackupStrategy(MBSObject):
 
             msg = "Suspend IO for '%s' using fsfreeze" % mongo_connector
             update_backup(backup, event_name="SUSPEND_IO", message=msg)
-            dbpath = mongo_connector.get_db_path()
-            mount_point = find_mount_point(dbpath)
-            freeze_mount_point(mount_point)
+            cloud_block_storage.suspend_io()
         else:
             raise ConfigurationError("Invalid suspend io attempt. '%s' has to"
                                      " be a MongoServer" % mongo_connector)
 
     ###########################################################################
-    def _resume_io(self, backup, mongo_connector):
+    def _resume_io(self, backup, mongo_connector, cloud_block_storage):
 
         if isinstance(mongo_connector, MongoServer):
             if not mongo_connector.is_local():
@@ -498,9 +496,7 @@ class BackupStrategy(MBSObject):
 
             msg = "Resume io for '%s' using fsfreeze" % mongo_connector
             update_backup(backup, event_name="RESUME_IO", message=msg)
-            dbpath = mongo_connector.get_db_path()
-            mount_point = find_mount_point(dbpath)
-            unfreeze_mount_point(mount_point)
+            cloud_block_storage.resume_io()
         else:
             raise ConfigurationError("Invalid resume io attempt. '%s' has "
                                      "to be a MongoServer" % mongo_connector)
@@ -1271,8 +1267,7 @@ class CloudBlockStorageStrategy(BackupStrategy):
             raise ConfigurationError(msg)
 
         use_fysnclock = mongo_connector.is_online()
-        use_suspend_io = (self.is_use_suspend_io() and
-                          mongo_connector.is_online())
+        use_suspend_io = self.is_use_suspend_io()
         fsync_unlocked = False
 
         resumed_io = False
@@ -1283,7 +1278,7 @@ class CloudBlockStorageStrategy(BackupStrategy):
 
             # suspend io
             if use_suspend_io:
-                self._suspend_io(backup, mongo_connector)
+                self._suspend_io(backup, mongo_connector, cbs)
 
             # backup the mongo connector
             self._kickoff_snapshot(backup, cbs)
@@ -1296,7 +1291,7 @@ class CloudBlockStorageStrategy(BackupStrategy):
             # resume io/unlock
 
             if use_suspend_io:
-                self._resume_io(backup, mongo_connector)
+                self._resume_io(backup, mongo_connector, cbs)
                 resumed_io = True
 
             if use_fysnclock:
@@ -1322,7 +1317,7 @@ class CloudBlockStorageStrategy(BackupStrategy):
             try:
                 # resume io/unlock as needed
                 if use_suspend_io and not resumed_io:
-                    self._resume_io(backup, mongo_connector)
+                    self._resume_io(backup, mongo_connector, cbs)
             finally:
                 if use_fysnclock and not fsync_unlocked:
                     self._fsyncunlock(backup, mongo_connector)
