@@ -20,12 +20,11 @@ from date_utils import timedelta_total_seconds, date_now
 from subprocess import CalledProcessError
 from errors import *
 from utils import (which, ensure_dir, execute_command, execute_command_wrapper,
-                   find_mount_point, freeze_mount_point, unfreeze_mount_point,
                    listify)
 
 from target import (
     CBS_STATUS_PENDING, CBS_STATUS_COMPLETED, CBS_STATUS_ERROR,
-    multi_target_upload_file
+    multi_target_upload_file, EbsSnapshotReference, LVMSnapshotReference
 )
 
 
@@ -1659,11 +1658,23 @@ def share_snapshot_backup(backup, user_ids=None, groups=None):
     msg = ("Sharing snapshot backup '%s' with users:%s, groups:%s " %
            (backup.id, user_ids, groups))
     logger.info(msg)
-    backup.target_reference.share_snapshot(user_ids=user_ids,
-                                           groups=groups)
+
+    target_ref = backup.target_reference
+    if isinstance(target_ref, LVMSnapshotReference):
+        logger.info("Sharing All constituent snapshots for LVM backup"
+                    " '%s'..." % backup.id)
+        for cs in target_ref.constituent_snapshots:
+            cs.share_snapshot(user_ids=user_ids, groups=groups)
+    elif isinstance(target_ref, EbsSnapshotReference):
+        target_ref.share_snapshot(user_ids=user_ids,
+                                  groups=groups)
+    else:
+        raise ValueError("Cannot share a non EBS/LVM Backup '%s'" % backup.id)
+
     update_backup(backup, properties="targetReference",
                   event_name="SHARE_SNAPSHOT",
                   message=msg)
+
     logger.info("Snapshot backup '%s' shared successfully!" %
                 backup.id)
 
