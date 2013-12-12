@@ -1097,9 +1097,41 @@ class LVMSnapshotReference(CloudBlockStorageSnapshotReference):
         self._constituent_snapshots = val
 
     ###########################################################################
+    @property
+    def status(self):
+        """
+            Override status to return status for all constituent_snapshots
+        :return:
+        """
+        everyone = self.constituent_snapshots
+        completed = self._filter_constituents(CBS_STATUS_COMPLETED)
+        errored = self._filter_constituents(CBS_STATUS_ERROR)
+        pending = self._filter_constituents(CBS_STATUS_PENDING)
+
+        if everyone and completed and len(everyone) == len(completed):
+            return CBS_STATUS_COMPLETED
+        elif errored:
+            return CBS_STATUS_ERROR
+        elif pending:
+            return CBS_STATUS_PENDING
+
+
+
+    @status.setter
+    def status(self, status):
+        self._status = status
+
+
+    ###########################################################################
     def _export_constituent_snapshots(self, display_only=False):
         return export_mbs_object_list(self.constituent_snapshots,
                                       display_only=display_only)
+
+    ###########################################################################
+    def _filter_constituents(self, status):
+        snaps = self.constituent_snapshots
+        if snaps:
+            return filter(lambda s: s.status == status, snaps)
 
     ###########################################################################
     def to_document(self, display_only=False):
