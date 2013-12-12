@@ -224,6 +224,7 @@ class EbsVolumeStorage(CloudBlockStorage):
         self._encrypted_access_key = None
         self._encrypted_secret_key = None
         self._volume_id = None
+        self._volume_name = None
         self._region = None
         self._ec2_connection = None
 
@@ -237,10 +238,20 @@ class EbsVolumeStorage(CloudBlockStorage):
         self._volume_id = str(volume_id)
 
     ###########################################################################
+    @property
+    def volume_name(self):
+        return self._volume_name
+
+    @volume_name.setter
+    def volume_name(self, val):
+        self._volume_name = str(val)
+
+    ###########################################################################
     def create_snapshot(self, name, description):
         ebs_volume = self._get_ebs_volume()
 
-        logger.info("Creating EBS snapshot for volume '%s'" % self.volume_id)
+        logger.info("Creating EBS snapshot for volume '%s' (%s)" %
+                    (self.volume_id, self.volume_name))
 
         ebs_snapshot = ebs_volume.create_snapshot(description)
         if not ebs_snapshot:
@@ -250,8 +261,9 @@ class EbsVolumeStorage(CloudBlockStorage):
         # add name tag
         ebs_snapshot.add_tag("Name", name)
 
-        logger.info("Snapshot kicked off successfully for volume '%s'. "
-                    "Snapshot id '%s'." % (self.volume_id, ebs_snapshot.id))
+        logger.info("Snapshot kicked off successfully for volume '%s' (%s). "
+                    "Snapshot id '%s'." % (self.volume_id, self.volume_name,
+                                           ebs_snapshot.id))
 
         ebs_ref = self._new_ebs_snapshot_reference(ebs_snapshot)
 
@@ -423,6 +435,7 @@ class EbsVolumeStorage(CloudBlockStorage):
         doc.update({
             "_type": "EbsVolumeStorage",
             "volumeId": self.volume_id,
+            "volumeName": self.volume_name,
             "region": self.region,
             "encryptedAccessKey": ak,
             "encryptedSecretKey": sk
