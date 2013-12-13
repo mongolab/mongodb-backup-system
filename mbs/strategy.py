@@ -1289,7 +1289,10 @@ class CloudBlockStorageStrategy(BackupStrategy):
         update_backup(backup, event_name="START_BLOCK_STORAGE_SNAPSHOT",
                       message="Starting snapshot backup...")
 
-        self._kickoff_snapshot(backup, mongo_connector, cbs)
+        # kickoff the snapshot if it was not kicked off before
+        if not backup.is_event_logged("END_KICKOFF_SNAPSHOT"):
+            self._kickoff_snapshot(backup, mongo_connector, cbs)
+
         # wait until snapshot is completed or error
         wait_status = [CBS_STATUS_COMPLETED, CBS_STATUS_ERROR]
         self._wait_for_snapshot_status(backup, cbs, wait_status)
