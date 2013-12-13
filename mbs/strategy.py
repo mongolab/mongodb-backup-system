@@ -22,6 +22,7 @@ from errors import *
 from utils import (which, ensure_dir, execute_command, execute_command_wrapper,
                    listify)
 
+from source import CompositeBlockStorage
 from target import (
     CBS_STATUS_PENDING, CBS_STATUS_COMPLETED, CBS_STATUS_ERROR,
     multi_target_upload_file, EbsSnapshotReference, LVMSnapshotReference
@@ -1240,6 +1241,26 @@ class CloudBlockStorageStrategy(BackupStrategy):
     ###########################################################################
     def __init__(self):
         BackupStrategy.__init__(self)
+        self._constituent_name_scheme = None
+        self._constituent_description_scheme = None
+
+    ###########################################################################
+    @property
+    def constituent_name_scheme(self):
+        return self._constituent_name_scheme
+
+    @constituent_name_scheme.setter
+    def constituent_name_scheme(self, val):
+        self._constituent_name_scheme = val
+
+    ###########################################################################
+    @property
+    def constituent_description_scheme(self):
+        return self._constituent_description_scheme
+
+    @constituent_description_scheme.setter
+    def constituent_description_scheme(self, val):
+        self._constituent_description_scheme = val
 
     ###########################################################################
     def do_backup_mongo_connector(self, backup, mongo_connector):
@@ -1265,12 +1286,43 @@ class CloudBlockStorageStrategy(BackupStrategy):
                    "configured for address '%s'" % (backup.id, address))
             raise ConfigurationError(msg)
 
+        update_backup(backup, event_name="START_BLOCK_STORAGE_SNAPSHOT",
+                      message="Starting snapshot backup...")
+
+        self._kickoff_snapshot(backup, mongo_connector, cbs)
+        # wait until snapshot is completed or error
+        wait_status = [CBS_STATUS_COMPLETED, CBS_STATUS_ERROR]
+        self._wait_for_snapshot_status(backup, cbs, wait_status)
+
+        snapshot_ref = backup.target_reference
+
+        if snapshot_ref.status == CBS_STATUS_COMPLETED:
+            logger.info("Successfully completed backup '%s' snapshot"%
+                        backup.id)
+            msg = "Snapshot completed successfully"
+            update_backup(backup, event_name="END_BLOCK_STORAGE_SNAPSHOT",
+                          message=msg)
+        else:
+            raise BlockStorageSnapshotError("Snapshot error")
+
+    ###########################################################################
+    def _kickoff_snapshot(self, backup, mongo_connector, cbs):
+        """
+        Creates the snapshot and waits until it is kicked off (state pending)
+        :param backup:
+        :param cbs:
+        :return:
+        """
+
         use_fysnclock = mongo_connector.is_online()
         use_suspend_io = self.is_use_suspend_io()
         fsync_unlocked = False
 
         resumed_io = False
         try:
+            update_backup(backup, event_name="START_KICKOFF_SNAPSHOT",
+                          message="Kicking off snapshot")
+
             # run fsync lock
             if use_fysnclock:
                 self._fsynclock(backup, mongo_connector)
@@ -1279,10 +1331,10 @@ class CloudBlockStorageStrategy(BackupStrategy):
             if use_suspend_io:
                 self._suspend_io(backup, mongo_connector, cbs)
 
-            # backup the mongo connector
-            self._kickoff_snapshot(backup, cbs)
+            # create the snapshot
+            self._create_snapshot(backup, cbs)
 
-            # wait until snapshot is pending or completed
+            # wait until snapshot is pending or completed or error
             wait_status = [CBS_STATUS_PENDING, CBS_STATUS_COMPLETED,
                            CBS_STATUS_ERROR]
             self._wait_for_snapshot_status(backup, cbs, wait_status)
@@ -1297,20 +1349,8 @@ class CloudBlockStorageStrategy(BackupStrategy):
                 self._fsyncunlock(backup, mongo_connector)
                 fsync_unlocked = True
 
-            # wait until snapshot is completed or error
-            wait_status = [CBS_STATUS_COMPLETED, CBS_STATUS_ERROR]
-            self._wait_for_snapshot_status(backup, cbs, wait_status)
-
-            snapshot_ref = backup.target_reference
-
-            if snapshot_ref.status == CBS_STATUS_COMPLETED:
-                logger.info("Successfully completed backup '%s' snapshot"
-                            % backup.id)
-                msg = "Snapshot completed successfully"
-                update_backup(backup, event_name="END_BLOCK_STORAGE_SNAPSHOT",
-                              message=msg)
-            else:
-                raise BlockStorageSnapshotError("Snapshot error")
+            update_backup(backup, event_name="END_KICKOFF_SNAPSHOT",
+                          message="Snapshot kicked off successfully!")
 
         finally:
             try:
@@ -1322,22 +1362,28 @@ class CloudBlockStorageStrategy(BackupStrategy):
                     self._fsyncunlock(backup, mongo_connector)
 
     ###########################################################################
-    def _kickoff_snapshot(self, backup, cbs):
+    def _create_snapshot(self, backup, cbs):
 
-        logger.info("Kicking off block storage snapshot for backup '%s'" %
+        logger.info("Initiating block storage snapshot for backup '%s'" %
                     backup.id)
 
-        update_backup(backup, event_name="START_BLOCK_STORAGE_SNAPSHOT",
-                      message="Kicking off snapshot")
+        update_backup(backup, event_name="START_CREATE_SNAPSHOT",
+                      message="Creating snapshot")
 
+        if isinstance(cbs, CompositeBlockStorage):
+            name_template = self.constituent_name_scheme or backup.name
+            desc_template = (self.constituent_description_scheme or
+                             backup.description)
+            snapshot_ref = cbs.create_snapshot(name_template, desc_template)
+        else:
+            snapshot_ref = cbs.create_snapshot(backup.name, backup.description)
 
-        snapshot_ref = cbs.create_snapshot(backup.name, backup.description)
         backup.target_reference = snapshot_ref
 
-        msg = "Snapshot kicked off successfully"
+        msg = "Snapshot created successfully"
 
         update_backup(backup, properties="targetReference",
-                      event_name="KICKED_OFF_BLOCK_STORAGE_SNAPSHOT",
+                      event_name="END_CREATE_SNAPSHOT",
                       message=msg)
 
 
@@ -1371,7 +1417,7 @@ class CloudBlockStorageStrategy(BackupStrategy):
           If the backup has been snapshoted already then there is no need for
           recording new source stats
         """
-        return not backup.is_event_logged("END_BLOCK_STORAGE_SNAPSHOT")
+        return not backup.is_event_logged("END_CREATE_SNAPSHOT")
 
     ###########################################################################
     def _needs_new_member_selection(self, backup):
@@ -1380,7 +1426,7 @@ class CloudBlockStorageStrategy(BackupStrategy):
           If the backup has been snapshoted already then there is no need for
           selecting a new member
         """
-        return not backup.is_event_logged("END_BLOCK_STORAGE_SNAPSHOT")
+        return not backup.is_event_logged("END_CREATE_SNAPSHOT")
 
 
     ###########################################################################
@@ -1389,10 +1435,17 @@ class CloudBlockStorageStrategy(BackupStrategy):
 
     ###########################################################################
     def to_document(self, display_only=False):
-        doc =  BackupStrategy.to_document(self, display_only=display_only)
+        doc = BackupStrategy.to_document(self, display_only=display_only)
         doc.update({
             "_type": "CloudBlockStorageStrategy"
         })
+
+        if self.constituent_name_scheme:
+            doc["constituentNameScheme"] = self.constituent_name_scheme
+
+        if self.constituent_description_scheme:
+            doc["constituentDescriptionScheme"] = \
+                self.constituent_description_scheme
 
         return doc
 
