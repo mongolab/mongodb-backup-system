@@ -251,8 +251,9 @@ class EbsVolumeStorage(CloudBlockStorage):
     def create_snapshot(self, name, description):
         ebs_volume = self._get_ebs_volume()
 
-        logger.info("Creating EBS snapshot for volume '%s' (%s)" %
-                    (self.volume_id, self.volume_name))
+        logger.info("Creating EBS snapshot (name='%s', desc='%s') for volume "
+                    "'%s' (%s)" %
+                    (name, description, self.volume_id, self.volume_name))
 
         ebs_snapshot = ebs_volume.create_snapshot(description)
         if not ebs_snapshot:
