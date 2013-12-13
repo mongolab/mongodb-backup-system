@@ -489,10 +489,6 @@ class CompositeBlockStorage(CloudBlockStorage):
         return constituent_snapshots
 
     ###########################################################################
-    def _constituent_snapshot_desc(self, constituent, desc_template):
-        pass
-
-    ###########################################################################
     def to_document(self, display_only=False):
         doc = super(CompositeBlockStorage, self).to_document(
             display_only=display_only)
