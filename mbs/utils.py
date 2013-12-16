@@ -653,6 +653,6 @@ class SafeFormat(object):
 
 ###############################################################################
 def safe_format(template, **kwargs):
-    return string.Formatter().vformat(template, [], SafeFormat(kwargs))
+    return string.Formatter().vformat(template, [], SafeFormat(**kwargs))
 
 
