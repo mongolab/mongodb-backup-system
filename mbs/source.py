@@ -13,7 +13,7 @@ import mbs_logging
 from boto.ec2 import connect_to_region
 from utils import (
     freeze_mount_point, unfreeze_mount_point, export_mbs_object_list,
-    suspend_lvm_mount_point, resume_lvm_mount_point
+    suspend_lvm_mount_point, resume_lvm_mount_point, safe_format
 )
 ###############################################################################
 # LOGGER
@@ -480,8 +480,8 @@ class CompositeBlockStorage(CloudBlockStorage):
         for constituent in self.constituents:
             logger.info("Creating snapshot constituent: \n%s" %
                         str(constituent))
-            name = name_template.format(constituent=constituent)
-            desc = description_template.format(constituent=constituent)
+            name = safe_format(name_template, constituent=constituent)
+            desc = safe_format(description_template, constituent=constituent)
 
             snapshot = constituent.create_snapshot(name, desc)
             constituent_snapshots.append(snapshot)

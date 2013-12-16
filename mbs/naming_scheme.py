@@ -1,7 +1,7 @@
 __author__ = 'abdul'
 
 from base import MBSObject
-
+from utils import safe_format
 # Contains classes for backup naming schemes
 
 ###############################################################################
@@ -48,7 +48,7 @@ class TemplateBackupNamingScheme(BackupNamingScheme):
 
     ###########################################################################
     def generate_name(self, backup):
-        return self.template.format(backup=backup)
+        return safe_format(self.template, backup=backup)
 
     ###########################################################################
     @property

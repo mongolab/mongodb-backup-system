@@ -13,7 +13,7 @@ import sys
 import platform
 import signal
 import psutil
-
+import string
 from date_utils import (datetime_to_bson, is_date_value, seconds_now,
                         utc_str_to_datetime)
 from bson import json_util
@@ -638,5 +638,21 @@ def prompt_confirm(message):
             return True
         else:
             return False
+
+
+###############################################################################
+# String formatting
+###############################################################################
+class SafeFormat(object):
+    def __init__(self, **kwargs):
+        self.__dict = kwargs
+
+    def __getitem__(self, name):
+        return self.__dict.get(name, '{%s}' % name)
+
+
+###############################################################################
+def safe_format(template, **kwargs):
+    return string.Formatter().vformat(template, [], SafeFormat(kwargs))
 
 
