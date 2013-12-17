@@ -643,16 +643,18 @@ def prompt_confirm(message):
 ###############################################################################
 # String formatting
 ###############################################################################
-class SafeFormat(object):
-    def __init__(self, **kwargs):
-        self.__dict = kwargs
+class SafeFormatter(string.Formatter):
+    def get_field(self, field_name, args, kwargs):
+        first, rest = field_name._formatter_field_name_split()
 
-    def __getitem__(self, name):
-        return self.__dict.get(name, '{%s}' % name)
-
+        if first not in kwargs:
+            return "{%s}" % field_name, field_name
+        else:
+            return super(SafeFormatter, self).get_field(field_name,
+                                                        args, kwargs)
 
 ###############################################################################
 def safe_format(template, **kwargs):
-    return string.Formatter().vformat(template, [], SafeFormat(**kwargs))
+    return SafeFormatter().format(template, **kwargs)
 
 
