@@ -22,6 +22,8 @@ from errors import *
 from utils import (which, ensure_dir, execute_command, execute_command_wrapper,
                    listify)
 
+from source import CompositeBlockStorage
+
 from target import (
     CBS_STATUS_PENDING, CBS_STATUS_COMPLETED, CBS_STATUS_ERROR,
     multi_target_upload_file, EbsSnapshotReference, LVMSnapshotReference
@@ -1240,6 +1242,26 @@ class CloudBlockStorageStrategy(BackupStrategy):
     ###########################################################################
     def __init__(self):
         BackupStrategy.__init__(self)
+        self._constituent_name_scheme = None
+        self._constituent_description_scheme = None
+
+    ###########################################################################
+    @property
+    def constituent_name_scheme(self):
+        return self._constituent_name_scheme
+
+    @constituent_name_scheme.setter
+    def constituent_name_scheme(self, val):
+        self._constituent_name_scheme = val
+
+    ###########################################################################
+    @property
+    def constituent_description_scheme(self):
+        return self._constituent_description_scheme
+
+    @constituent_description_scheme.setter
+    def constituent_description_scheme(self, val):
+        self._constituent_description_scheme = val
 
     ###########################################################################
     def do_backup_mongo_connector(self, backup, mongo_connector):
@@ -1352,7 +1374,13 @@ class CloudBlockStorageStrategy(BackupStrategy):
         update_backup(backup, event_name="START_CREATE_SNAPSHOT",
                       message="Creating snapshot")
 
-        snapshot_ref = cbs.create_snapshot(backup.name, backup.description)
+        if isinstance(cbs, CompositeBlockStorage):
+            name_template = self.constituent_name_scheme or backup.name
+            desc_template = (self.constituent_description_scheme or
+                             backup.description)
+            snapshot_ref = cbs.create_snapshot(name_template, desc_template)
+        else:
+            snapshot_ref = cbs.create_snapshot(backup.name, backup.description)
 
         backup.target_reference = snapshot_ref
 
@@ -1415,6 +1443,13 @@ class CloudBlockStorageStrategy(BackupStrategy):
         doc.update({
             "_type": "CloudBlockStorageStrategy"
         })
+
+        if self.constituent_name_scheme:
+            doc["constituentNameScheme"] = self.constituent_name_scheme
+
+        if self.constituent_description_scheme:
+            doc["constituentDescriptionScheme"] = \
+                self.constituent_description_scheme
 
         return doc
 
