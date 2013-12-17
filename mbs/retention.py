@@ -372,6 +372,16 @@ class BackupSweeper(ScheduleRunner):
     def __init__(self, schedule=None):
         schedule = schedule or DEFAULT_SWEEP_SCHEDULE
         ScheduleRunner.__init__(self, schedule=schedule)
+        self._test_mode = False
+
+    ###########################################################################
+    @property
+    def test_mode(self):
+        return self._test_mode
+
+    @test_mode.setter
+    def test_mode(self, val):
+        self._test_mode = val
 
     ###########################################################################
     def tick(self):
@@ -388,6 +398,11 @@ class BackupSweeper(ScheduleRunner):
     def _delete_backups_targets_due(self):
 
         logger.info("BackupSweeper: Starting a sweep cycle...")
+
+        if self.test_mode:
+            logger.info("BackupSweeper: Running in TEST MODE. Nothing will"
+                        " be really deleted")
+
         total_processed = 0
         total_deleted = 0
         total_errored = 0
@@ -424,9 +439,15 @@ class BackupSweeper(ScheduleRunner):
 
     ###########################################################################
     def delete_backup_targets(self, backup):
+        logger.info("Attempt to delete targets for backup '%s'" % backup.id)
         self.validate_backup_target_delete(backup)
         try:
-            robustified_delete_backup(backup)
+            if not self.test_mode:
+                robustified_delete_backup(backup)
+            else:
+                logger.info("NOOP. Running in test mode. Not deleting "
+                            "targets for backup '%s'" % backup.id)
+
         except Exception, e:
             msg = "Error while attempting to expire backup '%s': " % e
             logger.exception(msg)
@@ -445,6 +466,7 @@ class BackupSweeper(ScheduleRunner):
 
     ###########################################################################
     def validate_backup_target_delete(self, backup):
+        logger.info("Validating delete of backup '%s' ..." % backup.id)
         if not backup.expired_date:
             raise Exception("Bad target delete attempt for backup '%s'. "
                             "Backup has not expired yet" % backup.id)
@@ -456,6 +478,8 @@ class BackupSweeper(ScheduleRunner):
                    (backup.id, backup.expired_date, max_date))
             raise Exception(msg)
 
+        logger.info("Validation succeeded. Backup '%s' good to be deleted" %
+                    backup.id)
 ###############################################################################
 # QUERY HELPER
 ###############################################################################
