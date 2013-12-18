@@ -259,7 +259,7 @@ class PlanRetentionAuditor(BackupAuditor):
                     "'%s'" % (TYPE_PLAN_RETENTION_AUDIT,
                               datetime_to_string(audit_date)))
 
-        all_plans_report = AuditReport()
+        all_plans_report = PlanScheduleAuditReport()
         all_plans_report.audit_date = audit_date
         all_plans_report.audit_type = TYPE_PLAN_RETENTION_AUDIT
 
