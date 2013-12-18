@@ -317,6 +317,9 @@ class BackupExpirationManager(ScheduleRunner):
 
     ###########################################################################
     def validate_backup_expiration(self, backup):
+        logger.info("Validating backup '%s' expiration. startDate='%s',"
+                    " endDate='%s'" % (backup.id, backup.start_date,
+                                       backup.end_date))
         # recurring backup validation
         if backup.plan:
                 self.validate_recurring_backup_expiration(backup)
@@ -466,7 +469,9 @@ class BackupSweeper(ScheduleRunner):
 
     ###########################################################################
     def validate_backup_target_delete(self, backup):
-        logger.info("Validating delete of backup '%s' ..." % backup.id)
+        logger.info("Validating delete of backup '%s'. startDate='%s',"
+                    " endDate='%s' ..." % (backup.id, backup.start_date,
+                                           backup.end_date))
         if not backup.expired_date:
             raise Exception("Bad target delete attempt for backup '%s'. "
                             "Backup has not expired yet" % backup.id)
