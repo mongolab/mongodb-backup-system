@@ -1,9 +1,10 @@
 __author__ = 'abdul'
 
+import traceback
 
 from mbs import get_mbs
 from audit import *
-from task import STATE_SUCCEEDED, STATE_FAILED
+from task import STATE_SUCCEEDED
 import mbs_logging
 from date_utils import yesterday_date, datetime_to_string, date_plus_seconds
 
@@ -69,14 +70,19 @@ class GlobalAuditor():
 
     ###########################################################################
     def generate_audit_report(self, auditor, date):
+        try:
+            report = auditor.daily_audit_report(date)
+            logger.info("GlobalAuditor: Saving audit report: \n%s" % report)
+            self._audit_collection.save_document(report.to_document())
 
-        report = auditor.daily_audit_report(date)
-        logger.info("GlobalAuditor: Saving audit report: \n%s" % report)
-        self._audit_collection.save_document(report.to_document())
-
-        # send notification if specified
-        if self._notification_handler:
-            self._send_audit_report(auditor, report)
+            # send notification if specified
+            if self._notification_handler:
+                self._send_audit_report(auditor, report)
+        except Exception, e:
+            sbj = "Auditor %s Error" % auditor.name
+            msg = ("Auditor %s Error!.\n\nStack Trace:\n%s" %
+                   (auditor.name, traceback.format_exc()))
+            get_mbs().send_error_notification(sbj, msg, e)
 
     ###########################################################################
     def generate_yesterday_audit_reports(self):
