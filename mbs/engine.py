@@ -314,8 +314,14 @@ class BackupEngine(Thread):
 
         except IOError, ioe:
             return {
-                    "status":STATUS_STOPPED
+                    "status": STATUS_STOPPED
                 }
+
+        except ValueError, ve:
+            return {
+                "status": "UNKNOWN",
+                "error": str(ve)
+            }
 
     ###########################################################################
     @property
@@ -819,7 +825,13 @@ class EngineCommandServer(Thread):
             try:
                 return document_pretty_string(engine._do_get_status())
             except Exception, e:
-                return "Error while trying to get engine status: %s" % e
+                msg = "Error while trying to get engine status: %s" % e
+                logger.error(msg)
+                logger.error(traceback.format_exc())
+                return {
+                    "status": "UNKNOWN",
+                    "error": msg
+                }
 
         ## build stop-command-server method
         @flask_server.route('/stop-command-server', methods=['GET'])
