@@ -834,7 +834,11 @@ class DumpStrategy(BackupStrategy):
                 uri += "/"
             uri += database_name
 
-        dump_cmd = [which("mongoctl"),
+        mongoctl_exe = which("mongoctl")
+        if not mongoctl_exe:
+            raise MBSError("mongoctl exe not found in PATH")
+
+        dump_cmd = [mongoctl_exe,
                     "--noninteractive"] # always run with noninteractive
 
         mongoctl_config_root = get_mbs().mongoctl_config_root
