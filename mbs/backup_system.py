@@ -18,7 +18,8 @@ from date_utils import date_now, date_minus_seconds, time_str_to_datetime_today
 from errors import *
 from auditors import GlobalAuditor
 from task import (STATE_SCHEDULED, STATE_IN_PROGRESS, STATE_FAILED,
-                  STATE_CANCELED, STATE_SUCCEEDED, EVENT_STATE_CHANGE)
+                  STATE_CANCELED, STATE_SUCCEEDED, EVENT_STATE_CHANGE,
+                  EVENT_TYPE_ERROR)
 
 from mbs import get_mbs
 from api import BackupSystemApiServer
@@ -36,7 +37,6 @@ from source import BackupSource
 from datetime import datetime
 
 import persistence
-import retention
 
 
 ###############################################################################
@@ -377,10 +377,8 @@ class BackupSystem(Thread):
             raise BackupSystemError(msg)
 
         self.info("Rescheduling backup %s" % backup._id)
+        props = ["state", "tags"]
         backup.state = STATE_SCHEDULED
-        # regenerate backup tags if backup belongs to a plan
-        if backup.plan:
-            backup.tags = self._resolve_task_tags(backup, backup.plan.tags)
 
         bc = get_mbs().backup_collection
         # if from_scratch is set then clear backup log
@@ -388,12 +386,22 @@ class BackupSystem(Thread):
             backup.logs = []
             backup.try_count = 0
             backup.engine_guid = None
-            bc.update_task(backup, properties=["logs", "tryCount",
-                                               "engineGuid"])
+            props.append("logs")
 
-        bc.update_task(backup, properties=["state", "tags"],
+        # regenerate backup tags if backup belongs to a plan
+        if backup.plan:
+            backup.tags = backup.plan.tags
+
+        self._resolve_task_tags(backup, bc)
+
+        if backup.state == STATE_FAILED:
+            self._notify_task_reschedule_failed(backup)
+
+        bc.update_task(backup, properties=props,
                        event_name=EVENT_STATE_CHANGE,
                        message="Rescheduling")
+
+
 
     ###########################################################################
     def schedule_plan_backup(self, plan, one_time=False):
@@ -449,10 +457,22 @@ class BackupSystem(Thread):
                                                         required=False)
 
             backup.change_state(STATE_SCHEDULED)
-            # resolve tags
+            # set tags
             tags = get_validate_arg(kwargs, "tags", expected_type=dict,
                                     required=False)
-            backup.tags = self._resolve_task_tags(backup, tags)
+
+            backup.tags = tags
+
+            try:
+                # resolve tags
+                self._resolve_task_tags(backup, get_mbs().backup_collection)
+            except Exception, e:
+                msg = ("Failed to resolve backup tags. Trace: \n%s" %
+                       traceback.format_exc())
+                backup.change_state(STATE_FAILED, message=msg)
+                backup.reschedulable = True
+                logger.error(msg)
+                logger.error(traceback.format_exc())
 
             backup_doc = backup.to_document()
             get_mbs().backup_collection.save_document(backup_doc)
@@ -460,7 +480,7 @@ class BackupSystem(Thread):
 
             backup.id = backup_doc["_id"]
 
-            self.info("Scheduled backup \n%s" % backup)
+            self.info("Saved backup \n%s" % backup)
             return backup
         except Exception, e:
             args_str = dict_to_str(kwargs)
@@ -600,15 +620,16 @@ class BackupSystem(Thread):
         logger.info("Scheduling a restore for backup '%s'" % backup.id)
         restore = Restore()
 
+        restore.state = STATE_SCHEDULED
         restore.source_backup = backup
         restore.source_database_name = source_database_name
         restore.strategy = backup.strategy
         restore.destination = destination
         # resolve tags
         tags = tags or restore.source_backup.tags
-        restore.tags = self._resolve_task_tags(restore, tags)
+        restore.tags = tags
+        self._resolve_task_tags(restore, get_mbs().restore_collection)
 
-        restore.state = STATE_SCHEDULED
         restore.created_date = date_now()
 
         logger.info("Saving restore task: %s" % restore)
@@ -734,16 +755,31 @@ class BackupSystem(Thread):
             get_mbs().send_notification(sbj, msg)
 
     ###########################################################################
-    def _resolve_task_tags(self, task, tags):
-        if tags:
-            tag_vals = {}
-            for name,value in tags.items():
-                if isinstance(value, DynamicTag):
-                    tag_vals[name] = value.generate_tag_value(task)
-                else:
-                    tag_vals[name] = value
+    def _resolve_task_tags(self, task, task_collection):
+        try:
+            if task.tags:
+                for name, value in task.tags.items():
+                    if isinstance(value, DynamicTag):
+                        task.tags[name] = value.generate_tag_value(task)
+        except Exception, e:
+            msg = ("Failed to resolve task tags. Trace: \n%s" %
+                   traceback.format_exc())
+            logger.error(msg)
+            logger.error(traceback.format_exc())
+            task.state = STATE_FAILED
+            task.reschedulable = True
+            if not task.id:
+                task.log_event(STATE_FAILED, message=msg)
 
-            return tag_vals
+            else:
+                tc = task_collection
+                tc.update_task(task,
+                               properties=["state", "reschedulable"],
+                               event_name="FAILED_TO_RESOLVE_TAGS",
+                               details=msg,
+                               event_type=EVENT_TYPE_ERROR)
+
+
 
     ###########################################################################
     def _notify_on_late_in_progress_backups(self):
@@ -782,6 +818,13 @@ class BackupSystem(Thread):
         get_mbs().send_error_notification(subject, message, exception)
 
     ###########################################################################
+    def _notify_task_reschedule_failed(self, task):
+        subject = "Task Reschedule Failed"
+        message = ("Task Reschedule Failed!.\n\n\n%s" % task)
+
+        get_mbs().send_notification(subject, message)
+
+    ###########################################################################
     def _kill_backup_system_process(self):
         self.info("Attempting to kill backup system process")
         pid = self._read_process_pid()
@@ -791,7 +834,7 @@ class BackupSystem(Thread):
             os.kill(int(pid), 9)
         else:
             raise BackupSystemError("Unable to determine backup system process"
-                                   " id")
+                                    " id")
 
     ###########################################################################
     def _update_pid_file(self):

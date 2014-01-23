@@ -4,7 +4,6 @@ from base import MBSObject
 from datetime import timedelta
 
 from backup import PRIORITY_LOW
-from tags import DynamicTag
 
 ###############################################################################
 # BackupPlan
@@ -144,7 +143,7 @@ class BackupPlan(MBSObject):
         if self.tags:
             exported_tags = {}
             for name,value in self.tags.items():
-                if isinstance(value, DynamicTag):
+                if isinstance(value, MBSObject):
                     exported_tags[name]= value.to_document()
                 else:
                     exported_tags[name] = value

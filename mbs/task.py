@@ -300,7 +300,7 @@ class MBSTask(MBSObject):
             doc["_id"] = self.id
 
         if self.tags:
-            doc["tags"] = self.tags
+            doc["tags"] = self._export_tags()
 
         if self.reschedulable is not None:
             doc["reschedulable"] = self.reschedulable
@@ -328,6 +328,18 @@ class MBSTask(MBSObject):
             result.append(log_entry.to_document())
 
         return result
+
+    ###########################################################################
+    def _export_tags(self):
+        if self.tags:
+            exported_tags = {}
+            for name,value in self.tags.items():
+                if isinstance(value, MBSObject):
+                    exported_tags[name]= value.to_document()
+                else:
+                    exported_tags[name] = value
+
+            return exported_tags
 
 
 ###############################################################################
