@@ -386,7 +386,7 @@ class BackupSystem(Thread):
             backup.logs = []
             backup.try_count = 0
             backup.engine_guid = None
-            props.append("logs")
+            props.extend(["logs", "tryCount", "engineGuid"] )
 
         # regenerate backup tags if backup belongs to a plan
         if backup.plan:

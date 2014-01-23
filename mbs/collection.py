@@ -51,20 +51,20 @@ class MBSTaskCollection(MBSObjectCollection):
         }
 
         u = {}
+
+        # log the event as needed
+        if event_name or message:
+            log_entry = task.log_event(name=event_name, event_type=event_type,
+                                       message=message, details=details)
+            # push if "logs" property is not included
+            if "logs" not in properties:
+                u["$push"] = {"logs": log_entry.to_document()}
+
         # construct $set operator
         if properties:
             properties = listify(properties)
             u["$set"] = {}
             for prop in properties:
                 u["$set"][prop] = task_doc.get(prop)
-
-
-        # construct the $push
-
-        if event_name or message:
-            log_entry = task.log_event(name=event_name, event_type=event_type,
-                                       message=message, details=details)
-            u["$push"] = {"logs": log_entry.to_document()}
-
 
         self.update(spec=q, document=u)
