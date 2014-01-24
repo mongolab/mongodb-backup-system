@@ -64,7 +64,7 @@ class BackupTarget(MBSObject):
 
     ###########################################################################
     def put_file(self, file_path, destination_path=None,
-                 overwrite_existing=False, metadata=None):
+                 overwrite_existing=True, metadata=None):
         """
             Uploads the specified file path under destination_path.
              destination_path defaults to base name (file name) of file_path
@@ -92,9 +92,11 @@ class BackupTarget(MBSObject):
                            (destination_path, self.container_name))
                     raise UploadedFileAlreadyExistError(msg)
 
-            target_ref = self.do_put_file(file_path,
-                                          destination_path=destination_path,
-                                          metadata=metadata)
+            target_ref = self._robustifiled_put_file(
+                file_path,
+                destination_path=destination_path,
+                overwrite_existing=overwrite_existing,
+                metadata=metadata)
             # set the preserve field
             target_ref.preserve = self.preserve
 
@@ -118,8 +120,49 @@ class BackupTarget(MBSObject):
                                         cause=e)
 
     ###########################################################################
-    def do_put_file(self, file_path, destination_path=None,
-                    metadata=None):
+    def _robustifiled_put_file(self, file_path, destination_path,
+                               overwrite_existing=True,
+                               metadata=None):
+        attempt_counter = {
+            "count": 0
+        }
+        return self._do_robustifiled_put_file(
+            attempt_counter, file_path,
+            destination_path, overwrite_existing=overwrite_existing,
+            metadata=metadata)
+
+    ###########################################################################
+    @robustify(max_attempts=3, retry_interval=5,
+               do_on_exception=raise_if_not_retriable,
+               do_on_failure=raise_exception)
+    def _do_robustifiled_put_file(self, attempt_counter,
+                               file_path, destination_path,
+                               overwrite_existing=True,
+                               metadata=None):
+        """
+           a robustified put file
+        """
+        attempt_counter["count"] += 1
+        logger.debug("_robustifiled_put_file(): Attempting to upload file '%s'"
+                     " to container '%s' (attempt # %s)" %
+                     (file_path, self.container_name,
+                      attempt_counter["count"]))
+        # check if we don't need to reupload the file if it was already
+        # uploaded through a previous attempt but got interrupted (like
+        # connection reset etc)
+        if attempt_counter["count"] > 1:
+            file_size = os.path.getsize(file_path)
+            if self.file_exists(destination_path, expected_file_size=file_size):
+                logger.debug("File uploaded through a previous attempt! "
+                             "nothing to do!")
+                return FileReference(file_path=destination_path,
+                                     file_size=file_size)
+
+        return self.do_put_file(file_path, destination_path,
+                                metadata=metadata)
+
+    ###########################################################################
+    def do_put_file(self, file_path, destination_path, metadata=None):
         """
            does the actually work. should be implemented by subclasses
         """
@@ -205,10 +248,13 @@ class BackupTarget(MBSObject):
             raise TargetDeleteError(msg)
 
     ###########################################################################
-    def file_exists(self, file_path):
+    def file_exists(self, file_path, expected_file_size=None):
 
         file_exists, file_size = self._fetch_file_info(file_path)
-        return file_exists
+        if expected_file_size:
+            return file_exists and file_size == expected_file_size
+        else:
+            return file_exists
 
     ###########################################################################
     def _fetch_file_info(self, destination_path):
@@ -249,7 +295,7 @@ class S3BucketTarget(BackupTarget):
         self._encrypted_secret_key = None
 
     ###########################################################################
-    def do_put_file(self, file_path, destination_path=None, metadata=None):
+    def do_put_file(self, file_path, destination_path, metadata=None):
 
         # determine single/multi part upload
         file_size = os.path.getsize(file_path)
@@ -478,10 +524,7 @@ class RackspaceCloudFilesTarget(BackupTarget):
         self._encrypted_api_key = None
 
     ###########################################################################
-    @robustify(max_attempts=3, retry_interval=5,
-               do_on_exception=raise_if_not_retriable,
-               do_on_failure=raise_exception)
-    def do_put_file(self, file_path, destination_path=None, metadata=None):
+    def do_put_file(self, file_path, destination_path, metadata=None):
 
         # determine single/multi part upload
         file_size = os.path.getsize(file_path)
