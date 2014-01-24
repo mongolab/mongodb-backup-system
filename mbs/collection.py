@@ -57,7 +57,7 @@ class MBSTaskCollection(MBSObjectCollection):
             log_entry = task.log_event(name=event_name, event_type=event_type,
                                        message=message, details=details)
             # push if "logs" property is not included
-            if "logs" not in properties:
+            if not (properties and "logs" in properties):
                 u["$push"] = {"logs": log_entry.to_document()}
 
         # construct $set operator
