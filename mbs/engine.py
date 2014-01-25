@@ -163,7 +163,6 @@ class BackupEngine(Thread):
         else:
             self.info("No tags configured")
 
-        ensure_dir(self._temp_dir)
         self._update_pid_file()
         # Start the command server
         self._start_command_server()
