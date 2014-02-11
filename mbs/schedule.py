@@ -114,6 +114,18 @@ class AbstractSchedule(object):
             end_date = occurrence - self.min_time_delta()
 
         return occurrences
+
+    ###########################################################################
+    def next_n_occurrences(self, n, dt=None):
+        start_date = dt or date_now()
+        occurrences = []
+        for i in range(0, n):
+            occurrence = self.next_natural_occurrence(dt=start_date)
+            occurrences.append(occurrence)
+            start_date = occurrence + self.min_time_delta()
+
+        return occurrences
+
     ###########################################################################
     def min_time_delta(self):
         return timedelta(seconds=1)
@@ -200,12 +212,6 @@ class Schedule(AbstractSchedule, MBSObject):
             last_occurrence = last_occurrence + delta
 
         return occurrences
-
-    ###########################################################################
-    def last_n_occurrencesddddd(self, n, dt=None):
-        end_date = dt or date_now()
-        start_date = dt - timedelta(seconds=self.frequency_in_seconds * n)
-        return self.natural_occurrences_between(start_date, end_date)
 
     ###########################################################################
     def to_document(self, display_only=False):

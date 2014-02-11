@@ -8,7 +8,7 @@ import traceback
 from mbs import get_mbs
 
 from base import MBSObject
-from date_utils import date_now, date_minus_seconds
+from date_utils import date_now, date_minus_seconds, date_plus_seconds
 
 
 from schedule_runner import ScheduleRunner
@@ -51,6 +51,10 @@ class RetentionPolicy(MBSObject):
     def get_plan_occurrences_to_retain_as_of(self, plan, dt):
         pass
 
+    ###########################################################################
+    def get_occurrence_expected_expire_date(self, plan, occurrence):
+        pass
+
 ###############################################################################
 # RetainLastNPolicy
 ###############################################################################
@@ -85,6 +89,15 @@ class RetainLastNPolicy(RetentionPolicy):
     ###########################################################################
     def get_plan_occurrences_to_retain_as_of(self, plan, dt):
         return plan.schedule.last_n_occurrences(self.retain_count, dt=dt)
+
+    ###########################################################################
+    def get_occurrence_expected_expire_date(self, plan, occurrence):
+        # get n occurrences to keep as of this occurrence and return the
+        # last one ;)
+        dt = date_plus_seconds(occurrence, 1)
+        ocs = plan.schedule.next_n_occurrences(self.retain_count,
+                                               dt=occurrence)
+        return ocs[-1]
 
     ###########################################################################
     def to_document(self, display_only=False):
@@ -129,6 +142,10 @@ class RetainMaxTimePolicy(RetentionPolicy):
         end_date = dt
         start_date = date_minus_seconds(end_date, self.max_time)
         return plan.schedule.natural_occurrences_between(start_date, end_date)
+
+    ###########################################################################
+    def get_occurrence_expected_expire_date(self, plan, occurrence):
+        return date_plus_seconds(occurrence, self.max_time)
 
     ###########################################################################
     def to_document(self, display_only=False):
@@ -251,7 +268,7 @@ class BackupExpirationManager(ScheduleRunner):
             if self.should_expire_onetime_backup(onetime_backup):
                 self.expire_backup(onetime_backup)
                 total_expired += 1
-            elif self.is_backup_not_expirable(onetime_backup):
+            elif self.is_onetime_backup_not_expirable(onetime_backup):
                 mark_backup_never_expire(onetime_backup)
                 total_dont_expire += 1
 
@@ -277,7 +294,7 @@ class BackupExpirationManager(ScheduleRunner):
         return False
 
     ###########################################################################
-    def is_backup_not_expirable(self, backup):
+    def is_onetime_backup_not_expirable(self, backup):
         return False
 
     ###########################################################################
@@ -364,6 +381,7 @@ class BackupExpirationManager(ScheduleRunner):
 ###############################################################################
 
 DEFAULT_SWEEP_SCHEDULE = Schedule(frequency_in_seconds=12 * 60 * 60)
+DEFAULT_DELETE_DELAY_IN_SECONDS = 5 * 24 * 60 * 60  # 5 days
 
 
 class BackupSweeper(ScheduleRunner):
@@ -376,6 +394,7 @@ class BackupSweeper(ScheduleRunner):
         schedule = schedule or DEFAULT_SWEEP_SCHEDULE
         ScheduleRunner.__init__(self, schedule=schedule)
         self._test_mode = False
+        self._delete_delay_in_seconds = DEFAULT_DELETE_DELAY_IN_SECONDS
 
     ###########################################################################
     @property
@@ -385,6 +404,15 @@ class BackupSweeper(ScheduleRunner):
     @test_mode.setter
     def test_mode(self, val):
         self._test_mode = val
+
+    ###########################################################################
+    @property
+    def delete_delay_in_seconds(self):
+        return self._delete_delay_in_seconds
+
+    @delete_delay_in_seconds.setter
+    def delete_delay_in_seconds(self, val):
+        self._delete_delay_in_seconds = val
 
     ###########################################################################
     def tick(self):
@@ -412,7 +440,7 @@ class BackupSweeper(ScheduleRunner):
 
         logger.info("BackupSweeper: Finding all backups"
                     " due for deletion")
-        q = _check_to_delete_query()
+        q = self._check_to_delete_query()
 
         logger.info("BackupSweeper: Executing query :\n%s" %
                     document_pretty_string(q))
@@ -439,6 +467,24 @@ class BackupSweeper(ScheduleRunner):
                     "Total Deleted=%s, Total Errored=%s, "
                     "Total Processed=%s" %
                     (total_deleted, total_errored, total_processed))
+
+    ###############################################################################
+    def _check_to_delete_query(self):
+        """
+            We only delete backups that got expired at least two days ago.
+            This is just to make sure that if the expiration monitor screws up we
+             would still have time to see what happened
+        """
+        q = {
+            "expiredDate": {
+                "$lt": self.max_expire_date_to_delete()
+            },
+            "deletedDate": {
+                "$exists": False
+            }
+        }
+
+        return q
 
     ###########################################################################
     def delete_backup_targets(self, backup):
@@ -476,7 +522,9 @@ class BackupSweeper(ScheduleRunner):
             raise Exception("Bad target delete attempt for backup '%s'. "
                             "Backup has not expired yet" % backup.id)
 
-        max_date = max_expire_date_to_delete()
+        # make sure that the backup has been expired properly
+        get_expiration_manager().validate_backup_expiration(backup)
+        max_date = self.max_expire_date_to_delete()
         if backup.expired_date > max_date:
             msg = ("Bad target delete attempt for backup '%s'. Backup expired"
                    " date '%s' is not before  max expire date to delete '%s'" %
@@ -485,6 +533,12 @@ class BackupSweeper(ScheduleRunner):
 
         logger.info("Validation succeeded. Backup '%s' good to be deleted" %
                     backup.id)
+
+    ###############################################################################
+    def max_expire_date_to_delete(self):
+        return date_minus_seconds(date_now(), self.delete_delay_in_seconds)
+
+
 ###############################################################################
 # QUERY HELPER
 ###############################################################################
@@ -609,3 +663,8 @@ def do_delete_target_ref(backup, target, target_ref):
     else:
         logger.info("Deleting backup '%s file" % backup.id)
         return target.delete_file(target_ref)
+
+###############################################################################
+def get_expiration_manager():
+    return get_mbs().backup_system.backup_expiration_manager
+
