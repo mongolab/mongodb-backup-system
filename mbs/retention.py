@@ -516,19 +516,19 @@ class BackupSweeper(ScheduleRunner):
     ###########################################################################
     def validate_backup_target_delete(self, backup):
         logger.info("Validating delete of backup '%s'. startDate='%s',"
-                    " endDate='%s' ..." % (backup.id, backup.start_date,
-                                           backup.end_date))
+                    " expiredDate='%s' ..." % (backup.id, backup.start_date,
+                                           backup.expired_date))
         if not backup.expired_date:
             raise Exception("Bad target delete attempt for backup '%s'. "
                             "Backup has not expired yet" % backup.id)
 
         # make sure that the backup has been expired properly
         get_expiration_manager().validate_backup_expiration(backup)
-        max_date = self.max_expire_date_to_delete()
-        if backup.expired_date > max_date:
+        cutoff_date = self.max_expire_date_to_delete()
+        if backup.expired_date > cutoff_date:
             msg = ("Bad target delete attempt for backup '%s'. Backup expired"
                    " date '%s' is not before  max expire date to delete '%s'" %
-                   (backup.id, backup.expired_date, max_date))
+                   (backup.id, backup.expired_date, cutoff_date))
             raise Exception(msg)
 
         logger.info("Validation succeeded. Backup '%s' good to be deleted" %
