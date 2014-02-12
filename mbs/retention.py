@@ -169,6 +169,16 @@ class BackupExpirationManager(ScheduleRunner):
     def __init__(self, schedule=None):
         schedule = schedule or DEFAULT_EXP_SCHEDULE
         ScheduleRunner.__init__(self, schedule=schedule)
+        self._test_mode = False
+
+    ###########################################################################
+    @property
+    def test_mode(self):
+        return self._test_mode
+
+    @test_mode.setter
+    def test_mode(self, val):
+        self._test_mode = val
 
     ###########################################################################
     def tick(self):
@@ -320,17 +330,23 @@ class BackupExpirationManager(ScheduleRunner):
         if not force:
             self.validate_backup_expiration(backup)
 
-        try:
-            logger.info("BackupExpirationManager: Expiring backup '%s'" %
-                        backup.id)
-            backup.expired_date = date_now()
-            persistence.update_backup(backup, properties="expiredDate",
-                                      event_name="EXPIRING",
-                                      message="Expiring")
+        if not self.test_mode:
+            try:
+                logger.info("BackupExpirationManager: Expiring backup '%s'" %
+                            backup.id)
+                backup.expired_date = date_now()
+                persistence.update_backup(backup, properties="expiredDate",
+                                          event_name="EXPIRING",
+                                          message="Expiring")
 
-        except Exception, e:
-            msg = "Error while attempting to expire backup '%s': " % e
-            logger.exception(msg)
+            except Exception, e:
+                msg = "Error while attempting to expire backup '%s': " % e
+                logger.exception(msg)
+        else:
+            logger.info("BackupExpirationManager: NOOP. Test mode enabled. "
+                        "Not expiring backup '%s'" %
+                        backup.id)
+            return
 
     ###########################################################################
     def validate_backup_expiration(self, backup):
