@@ -612,7 +612,11 @@ class MongoServer(MongoConnector):
 
     ###########################################################################
     def get_cmd_line_opts(self):
-        return self._admin_db.command({ "getCmdLineOpts": 1 })["parsed"]
+        return self._admin_db.command({"getCmdLineOpts": 1})["parsed"]
+
+    ###########################################################################
+    def is_config_server(self):
+        return "configsvr" in self.get_cmd_line_opts()
 
 ###############################################################################
 def database_connection_stats(db_uri):
@@ -628,7 +632,7 @@ def database_connection_stats(db_uri):
            do_on_failure=raise_exception)
 def _calculate_database_stats(db):
     try:
-        db_stats = db.command({"dbstats":1})
+        db_stats = db.command({"dbstats": 1})
 
         result = {
             "collections": db_stats["collections"],

@@ -849,8 +849,14 @@ class DumpStrategy(BackupStrategy):
                 mongoctl_config_root]
             )
 
+        # DUMP command
         dest = self._get_backup_dump_dir(backup)
         dump_cmd.extend(["dump", uri, "-o", dest])
+
+        # Add --journal for config server backup
+        if (isinstance(mongo_connector, MongoServer) and
+                mongo_connector.is_config_server()):
+            dump_cmd.append("--journal")
 
         # if its a server level backup then add forceTableScan and oplog
         uri_wrapper = mongo_uri_tools.parse_mongo_uri(uri)
@@ -865,7 +871,7 @@ class DumpStrategy(BackupStrategy):
         # --authenticationDatabase
         mongo_version = mongo_connector.get_mongo_version()
         if (mongo_version >= MongoNormalizedVersion("2.4.0") and
-            isinstance(mongo_connector, (MongoServer, MongoCluster))) :
+            isinstance(mongo_connector, (MongoServer, MongoCluster))):
             dump_cmd.extend([
                 "--authenticationDatabase",
                 "admin"
