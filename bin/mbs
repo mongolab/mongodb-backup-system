@@ -53,8 +53,8 @@ def start_engine(parsed_args):
     engine_id = parsed_args.engineId
     engine = _get_engine(engine_id)
 
-    handlers = {signal.SIGINT:  partial(engine.stop, force=False),
-                signal.SIGTERM: partial(engine.stop, force=True)}
+    handlers = {signal.SIGINT:  partial(engine.force_stop),
+                signal.SIGTERM: partial(engine.force_stop)}
     with SignalWatcher(handlers) as watcher:
         status = engine.get_status()
         if status["status"] == STATUS_RUNNING:
