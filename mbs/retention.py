@@ -470,13 +470,12 @@ class BackupSweeper(ScheduleRunner):
                 self.delete_backup_targets(backup)
                 total_deleted += 1
             except Exception, ex:
-                logger.exception("BackupSweeper: Error while attempting to "
-                                 "delete backup targets for backup '%s'" %
-                                 backup.id)
+                msg = ("BackupSweeper: Error while attempting to "
+                       "delete backup targets for backup '%s'" % backup.id)
+                logger.exception(msg)
                 subject = "BackupSweeper Error"
-                message = ("BackupSweeper Error!.\n\nStack Trace:\n%s" %
-                            traceback.format_exc())
-                get_mbs().send_error_notification(subject, message, ex)
+                msg = ("%s\n\nStack Trace:\n%s" % (msg, traceback.format_exc()))
+                get_mbs().send_error_notification(subject, msg, ex)
                 total_errored += 1
 
         logger.info("BackupSweeper: Finished sweep cycle. "
