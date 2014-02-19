@@ -1,9 +1,11 @@
 __author__ = 'abdul'
 
+from datetime import datetime
+
 from base import MBSObject
 from errors import BlockStorageSnapshotError
 
-from target import EbsSnapshotReference, LVMSnapshotReference
+from target import EbsSnapshotReference, LVMSnapshotReference, BlobSnapshotReference
 from mbs import get_mbs
 from errors import *
 
@@ -11,6 +13,7 @@ import mongo_uri_tools
 import mbs_logging
 
 from boto.ec2 import connect_to_region
+from azure.storage import BlobService
 from utils import (
     freeze_mount_point, unfreeze_mount_point, export_mbs_object_list,
     suspend_lvm_mount_point, resume_lvm_mount_point, safe_format
@@ -445,6 +448,149 @@ class EbsVolumeStorage(CloudBlockStorage):
 
         return doc
 
+
+###############################################################################
+# BlobStorage
+###############################################################################
+class BlobVolumeStorage(CloudBlockStorage):
+
+    ###########################################################################
+    def __init__(self):
+        CloudBlockStorage.__init__(self)
+        self._storage_account = None
+        self._access_key = None
+        self._volume_id = None
+        self._volume_name = None
+        self._blob_service_connection = None
+
+    ###########################################################################
+    def create_snapshot(self, name, description):
+
+        logger.info("Creating blob snapshot (name='%s', desc='%s') for volume "
+                    "'%s' (%s)" %
+                    (name, description, self.volume_id, self.volume_name))
+
+        container_name, blob_name = self._get_container_and_blob_names_from_media_link(self.volume_id)
+
+        metadata = {"name": name, "description": description}
+
+        response = self.blob_service_connection.snapshot_blob(container_name, blob_name, x_ms_meta_name_values=metadata)
+
+        if not response:
+            raise BlockStorageSnapshotError("Failed to create snapshot from "
+                                            "backup source :\n%s" % self)
+
+        logger.info("Snapshot successfully created for volume '%s' (%s). "
+                    "Snapshot id '%s'." % (self.volume_id, self.volume_name,
+                                           response['x-ms-snapshot']))
+
+        # let's grab the snapshot
+        blob_ref = None
+
+        blobs = self.blob_service_connection.list_blobs(container_name, prefix=blob_name, include="snapshots")
+        for blob in blobs:
+            if blob.snapshot == response['x-ms-snapshot']:
+                blob_ref = self._new_blob_snapshot_reference(blob)
+                break
+
+        return blob_ref
+
+    ###########################################################################
+    def _new_blob_snapshot_reference(self, blob_snapshot):
+
+        start_time_str = blob_snapshot.properties.last_modified
+        start_time = datetime.strptime(start_time_str, "%a, %d %b %Y %H:%M:%S %Z")
+
+        return BlobSnapshotReference(snapshot_id=blob_snapshot.url,
+                                     cloud_block_storage=self,
+                                     status="completed",
+                                     start_time=start_time.strftime("%Y-%m-%dT%H:%M:%S.000Z"),
+                                     volume_size=blob_snapshot.properties.content_length / (1024 * 1024 * 1024),
+                                     progress="100%")
+
+    ################################################################################################
+    @staticmethod
+    def _get_container_and_blob_names_from_media_link(media_link):
+
+        [container_name, blob_name] = media_link.rsplit('/', 2)[-2:]
+        return container_name, blob_name
+
+    ###########################################################################
+    @property
+    def volume_id(self):
+        return self._volume_id
+
+    @volume_id.setter
+    def volume_id(self, volume_id):
+        self._volume_id = str(volume_id)
+
+    ###########################################################################
+    @property
+    def volume_name(self):
+        return self._volume_name
+
+    @volume_name.setter
+    def volume_name(self, val):
+        self._volume_name = str(val)
+
+    ###########################################################################
+    @property
+    def storage_account(self):
+        return self._storage_account
+
+    @storage_account.setter
+    def storage_account(self, storage_account):
+        self._storage_account = str(storage_account)
+
+    ###########################################################################
+    @property
+    def access_key(self):
+        return self._access_key
+
+    @access_key.setter
+    def access_key(self, access_key):
+        self._access_key = str(access_key)
+
+    ###########################################################################
+    @property
+    def blob_service_connection(self):
+        if not self._blob_service_connection:
+            conn = BlobService(account_name=self.storage_account, account_key=self.access_key)
+
+            self._blob_service_connection = conn
+
+        return self._blob_service_connection
+
+    ###########################################################################
+    def suspend_io(self):
+        # todo: move this up the parent?
+        logger.info("Suspend IO for volume '%s' using fsfreeze" %
+                    self.volume_id)
+        freeze_mount_point(self.mount_point)
+
+    ###########################################################################
+    def resume_io(self):
+        # todo: move this up the parent?
+        logger.info("Resume io for volume '%s' using fsfreeze" %
+                    self.volume_id)
+
+        unfreeze_mount_point(self.mount_point)
+
+    ###########################################################################
+    def to_document(self, display_only=False):
+        doc = super(BlobVolumeStorage, self).to_document(display_only=display_only)
+
+        # todo: need to handle encrypted access key?
+
+        doc.update({
+            "_type": "BlobVolumeStorage",
+            "volumeId": self.volume_id,
+            "volumeName": self.volume_name,
+            "storageAccount": self.storage_account,
+            "accessKey": self.access_key
+        })
+
+        return doc
 
 ###############################################################################
 # CompositeBlockStorage

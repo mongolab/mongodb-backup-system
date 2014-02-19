@@ -1118,6 +1118,72 @@ class EbsSnapshotReference(CloudBlockStorageSnapshotReference):
 
 
 ###############################################################################
+# BlobSnapshotReference
+###############################################################################
+class BlobSnapshotReference(CloudBlockStorageSnapshotReference):
+
+    ###########################################################################
+    def __init__(self, snapshot_id=None, cloud_block_storage=None, status=None,
+                 volume_size=None, progress=None, start_time=None):
+        CloudBlockStorageSnapshotReference.__init__(self, cloud_block_storage=cloud_block_storage,
+                                                    status=status)
+        self._snapshot_id = snapshot_id
+        self._volume_size = volume_size
+        self._progress = progress
+        self._start_time = start_time
+
+    ###########################################################################
+    @property
+    def snapshot_id(self):
+        return self._snapshot_id
+
+    @snapshot_id.setter
+    def snapshot_id(self, snapshot_id):
+        self._snapshot_id = snapshot_id
+
+    ###########################################################################
+    @property
+    def volume_size(self):
+        return self._volume_size
+
+    @volume_size.setter
+    def volume_size(self, volume_size):
+        self._volume_size = volume_size
+
+    ###########################################################################
+    @property
+    def progress(self):
+        return self._progress
+
+    @progress.setter
+    def progress(self, progress):
+        self._progress = progress
+
+    ###########################################################################
+    @property
+    def start_time(self):
+        return self._start_time
+
+    @start_time.setter
+    def start_time(self, start_time):
+        self._start_time = start_time
+
+    ###########################################################################
+    def to_document(self, display_only=False):
+        doc = CloudBlockStorageSnapshotReference.to_document(self, display_only=display_only)
+
+        doc.update({
+            "_type": "BlobSnapshotReference",
+            "snapshotId": self.snapshot_id,
+            "volumeSize": self.volume_size,
+            "progress": self.progress,
+            "startTime": self.start_time
+        })
+
+        return doc
+
+
+###############################################################################
 # LVMSnapshotReference
 ###############################################################################
 class LVMSnapshotReference(CloudBlockStorageSnapshotReference):
