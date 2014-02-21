@@ -211,7 +211,6 @@ class BackupSystem(Thread):
         # run those things every 100 ticks
         if self._tick_count % 100 == 0:
             self._notify_on_past_due_scheduled_backups()
-            self._notify_on_late_in_progress_backups()
             self._cancel_past_cycle_scheduled_backups()
             self._run_plan_generators()
             self._reschedule_in_cycle_failed_backups()
