@@ -15,12 +15,14 @@ from schedule_runner import ScheduleRunner
 from schedule import Schedule
 from task import STATE_SUCCEEDED
 
-from task import EVENT_TYPE_ERROR
+from task import EVENT_TYPE_ERROR, EVENT_TYPE_WARNING
 from target import CloudBlockStorageSnapshotReference
 
 
 from robustify.robustify import robustify
-from errors import raise_if_not_retriable, raise_exception, BackupDeleteError
+from errors import (
+    raise_if_not_retriable, raise_exception, BackupDeleteError,
+    TargetInaccessibleError)
 
 from utils import document_pretty_string
 
@@ -467,8 +469,8 @@ class BackupSweeper(ScheduleRunner):
         for backup in backups_iter:
             total_processed += 1
             try:
-                self.delete_backup_targets(backup)
-                total_deleted += 1
+                if self.delete_backup_targets(backup):
+                    total_deleted += 1
             except Exception, ex:
                 msg = ("BackupSweeper: Error while attempting to "
                        "delete backup targets for backup '%s'" % backup.id)
@@ -508,25 +510,24 @@ class BackupSweeper(ScheduleRunner):
         try:
             if not self.test_mode:
                 robustified_delete_backup(backup)
+                return True
             else:
                 logger.info("NOOP. Running in test mode. Not deleting "
                             "targets for backup '%s'" % backup.id)
-
         except Exception, e:
             msg = "Error while attempting to expire backup '%s': " % e
             logger.exception(msg)
-            persistence.update_backup(backup, event_name="DELETE_ERROR",
-                                      message=msg, event_type=EVENT_TYPE_ERROR)
+            persistence.update_backup(backup,
+                                      event_name="DELETE_ERROR",
+                                      message=msg,
+                                      event_type=EVENT_TYPE_ERROR)
             # if the backup expiration has errored out for 3 times then mark as
             # unexpirable
-            #if backup.event_logged_count("DELETE_ERROR") >= 3:
-            #   logger.info("Giving up on delete backup '%s'. Failed at least"
-            #              " three times. Marking backup as deleted" %
-            #             backup.id)
-
-            #return False
-            #else:
-            raise
+            if backup.event_logged_count("DELETE_ERROR") >= 3:
+                logger.info("Giving up on delete backup '%s'. Failed at least"
+                            " three times. Marking backup as deleted" %
+                            backup.id)
+                raise
 
     ###########################################################################
     def validate_backup_target_delete(self, backup):
@@ -668,16 +669,26 @@ def do_delete_target_ref(backup, target, target_ref):
         logger.info("Skipping deletion for target ref %s (backup '%s') because"
                     " it is preserved" % (target_ref, backup.id))
         return
-
-    target_ref.deleted_date = date_now()
-    # if the target reference is a cloud storage one then make the cloud
-    # storage object take care of it
-    if isinstance(target_ref, CloudBlockStorageSnapshotReference):
-        logger.info("Deleting backup '%s' snapshot " % backup.id)
-        return target_ref.cloud_block_storage.delete_snapshot(target_ref)
-    else:
-        logger.info("Deleting backup '%s file" % backup.id)
-        return target.delete_file(target_ref)
+    try:
+        target_ref.deleted_date = date_now()
+        # if the target reference is a cloud storage one then make the cloud
+        # storage object take care of it
+        if isinstance(target_ref, CloudBlockStorageSnapshotReference):
+            logger.info("Deleting backup '%s' snapshot " % backup.id)
+            return target_ref.cloud_block_storage.delete_snapshot(target_ref)
+        else:
+            logger.info("Deleting backup '%s file" % backup.id)
+            return target.delete_file(target_ref)
+    except TargetInaccessibleError as e:
+        msg = "Target %s for backup %s is no longer accessible.\n%s" % (
+            target, backup.id, e.message
+        )
+        logger.warn(msg)
+        persistence.update_backup(backup,
+                                  event_name="DELETE_ERROR",
+                                  message=msg,
+                                  event_type=EVENT_TYPE_WARNING)
+        return False
 
 ###############################################################################
 def get_expiration_manager():

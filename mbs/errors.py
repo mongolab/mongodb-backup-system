@@ -281,6 +281,15 @@ class TargetError(MBSError):
     """
 
 ###############################################################################
+class TargetInaccessibleError(TargetError):
+    def __init__(self, container_name, cause=None):
+        msg = ("Cloud storage container %s is inaccessible or"
+               "unidentifiable, potentially due to out-of-date"
+               "target configuration" % container_name)
+        super(TargetInaccessibleError, self).__init__(msg,
+                                                      cause=cause)
+
+###############################################################################
 class TargetConnectionError(TargetError, RetriableError):
     def __init__(self, container_name, cause=None):
         msg = ("Could not connect to cloud storage "
