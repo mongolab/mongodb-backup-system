@@ -15,6 +15,8 @@ from utils import which, execute_command, export_mbs_object_list
 from azure.storage import BlobService
 from boto.s3.connection import S3Connection
 from boto.s3.key import Key
+from boto.exception import S3ResponseError
+from cloudfiles.errors import NoSuchContainer, AuthenticationFailed
 
 from errors import *
 from robustify.robustify import robustify
@@ -413,6 +415,8 @@ class S3BucketTarget(BackupTarget):
                         " bucket '%s'" % (file_path, self.bucket_name))
             return True
         except Exception, e:
+            if isinstance(e, TargetError):
+                raise
             msg = ("S3BucketTarget: Error while trying to delete '%s'"
                    " from s3 bucket %s. Cause: %s" %
                    (file_path, self.bucket_name, e))
@@ -434,8 +438,15 @@ class S3BucketTarget(BackupTarget):
 
     ###########################################################################
     def _get_bucket(self):
-        conn = S3Connection(self.access_key, self.secret_key)
-        return conn.get_bucket(self.bucket_name)
+        try:
+            conn = S3Connection(self.access_key, self.secret_key)
+            return conn.get_bucket(self.bucket_name)
+        except S3ResponseError, re:
+            if "404" in str(re) or "403" in str(re):
+                raise TargetInaccessibleError(self.bucket_name,
+                                              cause=re)
+            else:
+                raise
 
     ###########################################################################
     @property
@@ -661,11 +672,15 @@ class RackspaceCloudFilesTarget(BackupTarget):
 
     ###########################################################################
     def _get_container(self):
-        conn = cloudfiles.get_connection(username=self.username,
-                                         api_key=self.api_key,
-                                         timeout=30)
+        try:
+            conn = cloudfiles.get_connection(username=self.username,
+                                             api_key=self.api_key,
+                                             timeout=30)
 
-        return conn.get_container(self.container_name)
+            return conn.get_container(self.container_name)
+        except (AuthenticationFailed, NoSuchContainer), e:
+            raise TargetInaccessibleError(self.container_name,
+                                          cause=e)
 
     ###########################################################################
     @property
