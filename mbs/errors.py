@@ -283,9 +283,10 @@ class TargetError(MBSError):
 ###############################################################################
 class TargetInaccessibleError(TargetError):
     def __init__(self, container_name, cause=None):
-        msg = ("Cloud storage container %s is inaccessible or"
-               "unidentifiable, potentially due to out-of-date"
-               "target configuration" % container_name)
+        msg = ("Cloud storage container %s is inaccessible or "
+               "unidentifiable, potentially due to out-of-date "
+               "target configuration.\n%s" % (container_name,
+                                              cause))
         super(TargetInaccessibleError, self).__init__(msg,
                                                       cause=cause)
 
