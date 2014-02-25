@@ -23,6 +23,7 @@ from utils import (
 ###############################################################################
 logger = mbs_logging.logger
 
+
 ###############################################################################
 # Backup Source Classes
 ###############################################################################
@@ -113,7 +114,6 @@ class BackupSource(MBSObject):
         return []
 
 
-
 ###############################################################################
 # MongoSource
 ###############################################################################
@@ -153,6 +153,7 @@ class MongoSource(BackupSource):
             errors.append("Invalid uri '%s'" % self.uri)
 
         return errors
+
 
 ###############################################################################
 # CloudBlockStorageSource
@@ -470,11 +471,13 @@ class BlobVolumeStorage(CloudBlockStorage):
                     "'%s' (%s)" %
                     (name, description, self.volume_id, self.volume_name))
 
-        container_name, blob_name = self._get_container_and_blob_names_from_media_link(self.volume_id)
+        container_name, blob_name = \
+            self._get_container_and_blob_names_from_media_link(self.volume_id)
 
         metadata = {"name": name, "description": description}
 
-        response = self.blob_service_connection.snapshot_blob(container_name, blob_name, x_ms_meta_name_values=metadata)
+        response = self.blob_service_connection.snapshot_blob(
+            container_name, blob_name, x_ms_meta_name_values=metadata)
 
         if not response:
             raise BlockStorageSnapshotError("Failed to create snapshot from "
@@ -487,7 +490,8 @@ class BlobVolumeStorage(CloudBlockStorage):
         # let's grab the snapshot
         blob_ref = None
 
-        blobs = self.blob_service_connection.list_blobs(container_name, prefix=blob_name, include="snapshots")
+        blobs = self.blob_service_connection.list_blobs(
+            container_name, prefix=blob_name, include="snapshots")
         for blob in blobs:
             if blob.snapshot == response['x-ms-snapshot']:
                 blob_ref = self._new_blob_snapshot_reference(blob)
@@ -499,16 +503,19 @@ class BlobVolumeStorage(CloudBlockStorage):
     def _new_blob_snapshot_reference(self, blob_snapshot):
 
         start_time_str = blob_snapshot.properties.last_modified
-        start_time = datetime.strptime(start_time_str, "%a, %d %b %Y %H:%M:%S %Z")
+        start_time = datetime.strptime(start_time_str,
+                                       "%a, %d %b %Y %H:%M:%S %Z")
 
         return BlobSnapshotReference(snapshot_id=blob_snapshot.url,
                                      cloud_block_storage=self,
                                      status="completed",
-                                     start_time=start_time.strftime("%Y-%m-%dT%H:%M:%S.000Z"),
-                                     volume_size=blob_snapshot.properties.content_length / (1024 * 1024 * 1024),
+                                     start_time=start_time.strftime(
+                                         "%Y-%m-%dT%H:%M:%S.000Z"),
+                                     volume_size=blob_snapshot.properties.
+                                     content_length / (1024 * 1024 * 1024),
                                      progress="100%")
 
-    ################################################################################################
+    ###########################################################################
     @staticmethod
     def _get_container_and_blob_names_from_media_link(media_link):
 
@@ -555,7 +562,8 @@ class BlobVolumeStorage(CloudBlockStorage):
     @property
     def blob_service_connection(self):
         if not self._blob_service_connection:
-            conn = BlobService(account_name=self.storage_account, account_key=self.access_key)
+            conn = BlobService(account_name=self.storage_account,
+                               account_key=self.access_key)
 
             self._blob_service_connection = conn
 
@@ -578,7 +586,8 @@ class BlobVolumeStorage(CloudBlockStorage):
 
     ###########################################################################
     def to_document(self, display_only=False):
-        doc = super(BlobVolumeStorage, self).to_document(display_only=display_only)
+        doc = super(BlobVolumeStorage, self).to_document(
+            display_only=display_only)
 
         # todo: need to handle encrypted access key?
 
@@ -591,6 +600,7 @@ class BlobVolumeStorage(CloudBlockStorage):
         })
 
         return doc
+
 
 ###############################################################################
 # CompositeBlockStorage
