@@ -30,6 +30,7 @@ TYPE_BINDINGS = {
     "FileReference": "mbs.target.FileReference",
     "EbsSnapshotReference": "mbs.target.EbsSnapshotReference",
     "LVMSnapshotReference": "mbs.target.LVMSnapshotReference",
+    "BlobSnapshotReference": "mbs.target.BlobSnapshotReference",
     "RetainLastNPolicy": "mbs.retention.RetainLastNPolicy",
     "RetainMaxTimePolicy": "mbs.retention.RetainMaxTimePolicy",
     "PlanScheduleAuditor": "mbs.auditors.PlanScheduleAuditor",
