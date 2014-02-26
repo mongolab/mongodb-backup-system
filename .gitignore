@@ -4,6 +4,7 @@
 #
 # IntelliJ IDEA
 #
+.idea
 *.ipr
 *.iml
 *.iws
