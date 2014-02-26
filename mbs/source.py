@@ -458,8 +458,8 @@ class BlobVolumeStorage(CloudBlockStorage):
     ###########################################################################
     def __init__(self):
         CloudBlockStorage.__init__(self)
+        self._encrypted_access_key = None
         self._storage_account = None
-        self._access_key = None
         self._volume_id = None
         self._volume_name = None
         self._blob_service_connection = None
@@ -552,11 +552,24 @@ class BlobVolumeStorage(CloudBlockStorage):
     ###########################################################################
     @property
     def access_key(self):
-        return self._access_key
+        if self.encrypted_access_key:
+            return get_mbs().encryptor.decrypt_string(self.encrypted_access_key)
 
     @access_key.setter
     def access_key(self, access_key):
-        self._access_key = str(access_key)
+        if access_key:
+            eak = get_mbs().encryptor.encrypt_string(str(access_key))
+            self.encrypted_access_key = eak
+
+    ###########################################################################
+    @property
+    def encrypted_access_key(self):
+        return self._encrypted_access_key
+
+    @encrypted_access_key.setter
+    def encrypted_access_key(self, val):
+        if val:
+            self._encrypted_access_key = val.encode('ascii', 'ignore')
 
     ###########################################################################
     @property
@@ -589,14 +602,14 @@ class BlobVolumeStorage(CloudBlockStorage):
         doc = super(BlobVolumeStorage, self).to_document(
             display_only=display_only)
 
-        # todo: need to handle encrypted access key?
+        ak = "xxxxx" if display_only else self.encrypted_access_key
 
         doc.update({
             "_type": "BlobVolumeStorage",
             "volumeId": self.volume_id,
             "volumeName": self.volume_name,
             "storageAccount": self.storage_account,
-            "accessKey": self.access_key
+            "encryptedAccessKey": ak
         })
 
         return doc
