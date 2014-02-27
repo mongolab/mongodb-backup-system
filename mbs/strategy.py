@@ -1112,7 +1112,8 @@ class DumpStrategy(BackupStrategy):
         source_database_name = restore.source_database_name
         if not source_database_name:
             if restore.source_backup.source.database_name:
-                source_database_name = restore.source_backup.source.database_name
+                source_database_name =\
+                    restore.source_backup.source.database_name
             else:
                 stats = restore.source_backup.source_stats
                 source_database_name = stats.get("databaseName")
@@ -1401,7 +1402,6 @@ class CloudBlockStorageStrategy(BackupStrategy):
                       event_name="END_CREATE_SNAPSHOT",
                       message=msg)
 
-
     ###########################################################################
     def _wait_for_snapshot_status(self, backup, cbs, wait_status):
         logger.info("Waiting for backup '%s' snapshot status to be in %s" %
@@ -1442,7 +1442,6 @@ class CloudBlockStorageStrategy(BackupStrategy):
           selecting a new member
         """
         return not backup.is_event_logged("END_CREATE_SNAPSHOT")
-
 
     ###########################################################################
     def _do_run_restore(self, restore):
