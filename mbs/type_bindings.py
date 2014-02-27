@@ -24,6 +24,7 @@ TYPE_BINDINGS = {
     "TargetReference": "mbs.target.TargetReference",
     "MongoSource": "mbs.source.MongoSource",
     "EbsVolumeStorage": "mbs.source.EbsVolumeStorage",
+    "BlobVolumeStorage": "mbs.source.BlobVolumeStorage",
     "LVMStorage": "mbs.source.LVMStorage",
     "S3BucketTarget": "mbs.target.S3BucketTarget",
     "RackspaceCloudFilesTarget": "mbs.target.RackspaceCloudFilesTarget",
