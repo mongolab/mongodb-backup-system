@@ -711,8 +711,9 @@ class LVMStorage(CompositeBlockStorage):
     def check_snapshot_updates(self, snapshot_ref):
         new_constituent_snapshots = []
         has_changes = False
-        for constituent_snapshot in snapshot_ref.constituent_snapshots:
-            constituent = constituent_snapshot.cloud_block_storage
+        for (constituent,
+             constituent_snapshot) in zip(self.constituents,
+                                          snapshot_ref.constituent_snapshots):
             new_constituent_snapshot = \
                 constituent.check_snapshot_updates(constituent_snapshot)
             if new_constituent_snapshot:
