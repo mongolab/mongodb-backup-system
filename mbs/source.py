@@ -702,8 +702,9 @@ class LVMStorage(CompositeBlockStorage):
 
     ###########################################################################
     def delete_snapshot(self, snapshot_ref):
-        for constituent_snapshot in snapshot_ref.constituent_snapshots:
-            constituent = constituent_snapshot.cloud_block_storage
+        for (constituent,
+             constituent_snapshot) in zip(self.constituents,
+                                          snapshot_ref.constituent_snapshots):
             constituent.delete_snapshot(constituent_snapshot)
 
 
