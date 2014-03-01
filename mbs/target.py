@@ -48,6 +48,7 @@ class BackupTarget(MBSObject):
     ###########################################################################
     def __init__(self):
         self._preserve = None
+        self._credentials = None
 
     ###########################################################################
     @property
@@ -55,6 +56,16 @@ class BackupTarget(MBSObject):
         """
             Should be implemented by subclasses
         """
+
+    ###########################################################################
+    @property
+    def credentials(self):
+        return self._credentials
+
+    ###########################################################################
+    @credentials.setter
+    def credentials(self, val):
+        self._credentials = val
 
     ###########################################################################
     @property
