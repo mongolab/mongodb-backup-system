@@ -1,5 +1,7 @@
 __author__ = 'eric'
-from mbs.base import MBSObject
+
+from mbs import get_mbs
+from base import MBSObject
 
 ###############################################################################
 # Abstract Credentials class
@@ -23,13 +25,15 @@ class Credentials(MBSObject):
 class BaseCredentials(Credentials):
     def __init__(self):
         Credentials.__init__(self)
-        self._credentials = {}
+        self._credentials = None
         self._encryptor = None
 
     ###########################################################################
     @property
     def credentials(self):
-        raise NotImplementedError("Use get_credential(key) instead.")
+        raise NotImplementedError(
+            "Direct access not supported by BaseCredentials - use "
+            "get_credential(key) instead.")
 
     @credentials.setter
     def credentials(self, val):
@@ -38,19 +42,28 @@ class BaseCredentials(Credentials):
     ###########################################################################
     @property
     def encryptor(self):
-        return self._encryptor
+        # defers to mbs's choice of encryptor
+        return get_mbs().encryptor
 
     @encryptor.setter
     def encryptor(self, val):
-        self._encryptor = val
+        raise NotImplementedError(
+            "Instanced encryptors not supported by BaseCredentials")
 
     ###########################################################################
     def get_credential(self, key):
+        if self._credentials is None:
+            return None
         raw_value = self._credentials.get(key, None)
-        if self.encryptor:
-            return self.encryptor.decrypt_string(raw_value)
+        if raw_value:
+            encrypted_value = raw_value.encode('ascii', 'ignore')
+            if self.encryptor:
+                return self.encryptor.decrypt_string(encrypted_value)
+            else:
+                return raw_value
         else:
-            return raw_value
+            msg = "Key %s not available in credential set" % key
+            raise KeyError(msg)
 
     ###########################################################################
     def set_credential(self, key, credential):

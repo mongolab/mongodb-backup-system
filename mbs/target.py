@@ -293,6 +293,10 @@ class BackupTarget(MBSObject):
         if self.preserve is not None:
             doc["preserve"] = self.preserve
 
+        if self.credentials is not None:
+            doc["credentials"] = self.credentials.to_document(
+                display_only=display_only)
+
         return doc
 
 ###############################################################################
@@ -462,24 +466,33 @@ class S3BucketTarget(BackupTarget):
     ###########################################################################
     @property
     def access_key(self):
-        if self.encrypted_access_key:
+        if self.credentials:
+            return self.credentials.get_credential("accessKey")
+        elif self.encrypted_access_key:
             return get_mbs().encryptor.decrypt_string(self.encrypted_access_key)
 
     @access_key.setter
     def access_key(self, access_key):
-        if access_key:
+        if self.credentials:
+            self.credentials.set_credential("accessKey", access_key)
+        elif access_key:
             eak = get_mbs().encryptor.encrypt_string(str(access_key))
             self.encrypted_access_key = eak
 
     ###########################################################################
     @property
     def secret_key(self):
-        if self.encrypted_secret_key:
-            return get_mbs().encryptor.decrypt_string(self.encrypted_secret_key)
+        if self.credentials:
+            self.credentials.get_credential("secretKey")
+        elif self.encrypted_secret_key:
+            return get_mbs().encryptor.decrypt_string(
+                self.encrypted_secret_key)
 
     @secret_key.setter
     def secret_key(self, secret_key):
-        if secret_key:
+        if self.credentials:
+            self.credentials.set_credential("secretKey", secret_key)
+        elif secret_key:
             sak = get_mbs().encryptor.encrypt_string(str(secret_key))
             self.encrypted_secret_key = sak
 
