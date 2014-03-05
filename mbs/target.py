@@ -372,7 +372,7 @@ class S3BucketTarget(BackupTarget):
         upload = SplitFile(file_path, chunk_size)
 
         for i, chunk in enumerate(upload, 1):
-            logger.debug("Uploading file part %d (%s bytes)" %
+            logger.info("Uploading file part %d (%s bytes)" %
                          (i, chunk.size))
             mp.upload_part_from_file(chunk, i)
 
