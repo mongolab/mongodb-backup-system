@@ -75,7 +75,12 @@ class BaseCredentials(Credentials):
 
     ###########################################################################
     def to_document(self, display_only=False):
+        if display_only:
+            credentials = {key: "xxxx" for (key, value) in
+                           self._credentials.items()}
+        else:
+            credentials = self._credentials
         return {"_type": "BaseCredentials",
-                "credentials": self._credentials}
+                "credentials": credentials}
 
 

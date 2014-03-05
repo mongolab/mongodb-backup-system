@@ -469,7 +469,8 @@ class S3BucketTarget(BackupTarget):
         if self.credentials:
             return self.credentials.get_credential("accessKey")
         elif self.encrypted_access_key:
-            return get_mbs().encryptor.decrypt_string(self.encrypted_access_key)
+            return get_mbs().encryptor.decrypt_string(
+                self.encrypted_access_key)
 
     @access_key.setter
     def access_key(self, access_key):
@@ -483,7 +484,7 @@ class S3BucketTarget(BackupTarget):
     @property
     def secret_key(self):
         if self.credentials:
-            self.credentials.get_credential("secretKey")
+            return self.credentials.get_credential("secretKey")
         elif self.encrypted_secret_key:
             return get_mbs().encryptor.decrypt_string(
                 self.encrypted_secret_key)

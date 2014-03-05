@@ -166,6 +166,16 @@ class CloudBlockStorage(MBSObject):
     def __init__(self):
         MBSObject.__init__(self)
         self._mount_point = None
+        self._credentials = None
+
+    ###########################################################################
+    @property
+    def credentials(self):
+        return self._credentials
+
+    @credentials.setter
+    def credentials(self, val):
+        self._credentials = val
 
     ###########################################################################
     def create_snapshot(self, name, description):
@@ -213,9 +223,15 @@ class CloudBlockStorage(MBSObject):
 
     ###########################################################################
     def to_document(self, display_only=False):
-        return {
+        doc = {
             "mountPoint": self.mount_point
         }
+
+        if self.credentials:
+            doc["credentials"] = self.credentials.to_document(
+                display_only=display_only)
+
+        return doc
 
 
 ###############################################################################
@@ -250,6 +266,8 @@ class EbsVolumeStorage(CloudBlockStorage):
     @volume_name.setter
     def volume_name(self, val):
         self._volume_name = str(val)
+
+
 
     ###########################################################################
     def create_snapshot(self, name, description):
@@ -334,24 +352,34 @@ class EbsVolumeStorage(CloudBlockStorage):
     ###########################################################################
     @property
     def access_key(self):
-        if self.encrypted_access_key:
-            return get_mbs().encryptor.decrypt_string(self.encrypted_access_key)
+        if self.credentials:
+            return self.credentials.get_credential("accessKey")
+        elif self.encrypted_access_key:
+            return get_mbs().encryptor.decrypt_string(
+                self.encrypted_access_key)
 
     @access_key.setter
     def access_key(self, access_key):
-        if access_key:
+        if self.credentials:
+            self.credentials.set_credential("accessKey", access_key)
+        elif access_key:
             eak = get_mbs().encryptor.encrypt_string(str(access_key))
             self.encrypted_access_key = eak
 
     ###########################################################################
     @property
     def secret_key(self):
-        if self.encrypted_secret_key:
-            return get_mbs().encryptor.decrypt_string(self.encrypted_secret_key)
+        if self.credentials:
+            return self.credentials.get_credential("secretKey")
+        elif self.encrypted_secret_key:
+            return get_mbs().encryptor.decrypt_string(
+                self.encrypted_secret_key)
 
     @secret_key.setter
     def secret_key(self, secret_key):
-        if secret_key:
+        if self.credentials:
+            self.credentials.set_credential("secretKey", secret_key)
+        elif secret_key:
             sak = get_mbs().encryptor.encrypt_string(str(secret_key))
             self.encrypted_secret_key = sak
 
