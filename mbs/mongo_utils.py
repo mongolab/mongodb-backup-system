@@ -309,18 +309,26 @@ class MongoCluster(MongoConnector):
         other_secondaries.sort(key=operator.attrgetter('member_host'))
 
         # merge results into one list
-        merged_list = hidden_secondaries + p0_secondaries + other_secondaries
+        merged_list = p0_secondaries + hidden_secondaries + other_secondaries
 
         if merged_list:
-            best_secondary = merged_list[0]
-            if not max_lag_seconds:
-                return best_secondary
-            else:
-                for secondary in merged_list:
-                    if secondary.lag_in_seconds < max_lag_seconds:
-                        return secondary
+            for secondary in merged_list:
+                if not max_lag_seconds:
+                    return secondary
+                elif secondary.lag_in_seconds < max_lag_seconds:
+                    return secondary
 
+    ###########################################################################
+    def has_p0s(self):
+        """
 
+        :return: True if cluster has any member with proirity 0
+        """
+        for member in self.members:
+            if member.is_online() and member.priority == 0:
+                return True
+
+        return False
     ###########################################################################
     def get_stats(self, only_for_db=None):
         return self.primary_member.get_stats(only_for_db=only_for_db)

@@ -201,10 +201,10 @@ class BackupStrategy(MBSObject):
                     "preference '%s' for backup '%s'" %
                     (connector, self.member_preference, backup.id))
 
-        if (self.member_preference == PREF_SECONDARY_ONLY and
-                not connector.is_secondary()):
-            msg = "Selected connector '%s' is not a secondary" % connector
-            raise NoEligibleMembersFound(backup.source.uri, msg=msg)
+        if self.member_preference == PREF_SECONDARY_ONLY:
+            if not connector.is_secondary():
+                msg = "Selected connector '%s' is not a secondary" % connector
+                raise NoEligibleMembersFound(backup.source.uri, msg=msg)
 
         if (self.member_preference == PREF_PRIMARY_ONLY and
                 not connector.is_primary()):
@@ -283,6 +283,16 @@ class BackupStrategy(MBSObject):
 
             if best_secondary:
                 selected_member = best_secondary
+
+                # FAIL if best secondary was not a P0 within max_lag_seconds
+                # if cluster has any P0
+                if (max_lag_seconds and mongo_cluster.has_p0s() and
+                            best_secondary.proirity != 0):
+                    msg = ("No eligible p0 secondary found within max lag '%s'"
+                           " for cluster '%s'" % (max_lag_seconds,
+                                                  mongo_cluster))
+                    raise NoEligibleMembersFound(msg)
+
                 # log warning if secondary is too stale
                 if best_secondary.is_too_stale():
                     logger.warning("Backup '%s' will be extracted from a "
