@@ -309,7 +309,7 @@ class MongoCluster(MongoConnector):
         other_secondaries.sort(key=operator.attrgetter('member_host'))
 
         # merge results into one list
-        merged_list = p0_secondaries + hidden_secondaries + other_secondaries
+        merged_list = hidden_secondaries + p0_secondaries + other_secondaries
 
         if merged_list:
             for secondary in merged_list:
@@ -322,10 +322,10 @@ class MongoCluster(MongoConnector):
     def has_p0s(self):
         """
 
-        :return: True if cluster has any member with proirity 0
+        :return: True if cluster has any member with priority 0
         """
         for member in self.members:
-            if member.is_online() and member.priority == 0:
+            if member.is_online() and (member.priority == 0 or member.hidden):
                 return True
 
         return False
