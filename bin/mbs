@@ -39,7 +39,7 @@ def main(args):
 
     mbs_config.MBS_CONF_DIR = resolve_path(parsed_args.config_root)
 
-    setup_logging(not getattr(parsed_args, "fork", False))
+    setup_logging(getattr(parsed_args, "foreground", False))
 
     # get the function to call from the parser framework
     command_function = parsed_args.func
@@ -65,7 +65,7 @@ def start_engine(parsed_args):
                    "completely stopped then try starting again")
             return
 
-        _do_start_engine(engine, fork=parsed_args.fork)
+        _do_start_engine(engine, fork=not parsed_args.foreground)
 
         wait_for(partial(_engine_started, engine), timeout=5)
 
@@ -188,7 +188,7 @@ def start_backup_system(parsed_args):
                    "completely stopped then try starting again")
             return
 
-        _do_start_backup_system(fork=parsed_args.fork)
+        _do_start_backup_system(fork=not parsed_args.foreground)
 
         def backup_system_started():
             return client.get_status()["status"] == STATUS_RUNNING
@@ -482,6 +482,15 @@ PARSER_DEF = {
                     "nargs": 0,
                     "help": "fork the engine process",
                     "action": "store_true",
+                    "default": True
+                },
+                {
+                    "name": "foreground",
+                    "type" : "optional",
+                    "cmd_arg":  "--foreground",
+                    "nargs": 0,
+                    "help": "start system in foreground",
+                    "action": "store_true",
                     "default": False
                 }
             ]
@@ -566,6 +575,15 @@ PARSER_DEF = {
                     "cmd_arg":  "--fork",
                     "nargs": 0,
                     "help": "fork the engine process",
+                    "action": "store_true",
+                    "default": True
+                },
+                {
+                    "name": "foreground",
+                    "type" : "optional",
+                    "cmd_arg":  "--foreground",
+                    "nargs": 0,
+                    "help": "start system in foreground",
                     "action": "store_true",
                     "default": False
                 }
