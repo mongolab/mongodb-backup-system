@@ -409,7 +409,7 @@ class MongoServer(MongoConnector):
     ###########################################################################
     @property
     def rs_conf(self):
-        if not self._rs_conf:
+        if not self.is_arbiter() and not self._rs_conf:
             self._rs_conf = self._get_rs_config()
 
         return self._rs_conf
