@@ -423,6 +423,10 @@ class MongoServer(MongoConnector):
         return self._member_config
 
     ###########################################################################
+    def member_config_prop(self, key):
+        return self.member_config and self.member_config.get(key)
+
+    ###########################################################################
     def compute_lag(self, master_status):
         """Given two 'members' elements from rs.status(),
         return lag between their optimes (in secs).
@@ -542,12 +546,12 @@ class MongoServer(MongoConnector):
     ###########################################################################
     @property
     def priority(self):
-        return self.member_config.get("priority")
+        return self.member_config_prop("priority")
 
     ###########################################################################
     @property
     def hidden(self):
-        return self.member_config.get("hidden")
+        return self.member_config_prop("hidden")
 
     ###########################################################################
     @property
@@ -555,7 +559,7 @@ class MongoServer(MongoConnector):
         """
             returns the "host" property from the rs member config
         """
-        return self.member_config.get("host")
+        return self.member_config_prop("host")
 
     ###########################################################################
     def _get_member_config(self):
