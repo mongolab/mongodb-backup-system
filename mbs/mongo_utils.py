@@ -343,6 +343,11 @@ class MongoServer(MongoConnector):
         self._connection = None
         self._authed_to_admin = False
 
+        self._rs_conf = None
+        self._rs_status = None
+        self._member_config = None
+        self._lag_in_seconds = 0
+
         try:
             self._connection = pymongo.Connection(self._uri_wrapper.address,
                                                 socketTimeoutMS=CONN_TIMEOUT,
@@ -361,11 +366,6 @@ class MongoServer(MongoConnector):
                 return
             else:
                 raise
-
-        self._rs_conf = None
-        self._rs_status = None
-        self._member_config = None
-        self._lag_in_seconds = 0
 
     ###########################################################################
     def get_auth_admin_db(self):
