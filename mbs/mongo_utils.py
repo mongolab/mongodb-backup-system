@@ -609,11 +609,11 @@ class MongoServer(MongoConnector):
                 logger.info("fsyncunlock ran successfully on %s" % self)
             else:
                 msg = ("fsyncunlock was not successful on '%s'. Result: %s" %
-                       document_pretty_string(result))
+                       (self, document_pretty_string(result)))
                 raise MongoLockError(msg)
         except Exception, e:
             if not isinstance(e, MongoLockError):
-                msg = "Error while executing fsyncunlock on '%s'."
+                msg = "Error while executing fsyncunlock on '%s'." % self
                 raise MongoLockError(msg=msg, cause=e)
             else:
                 raise
