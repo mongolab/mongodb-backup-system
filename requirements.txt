@@ -15,7 +15,7 @@ httplib2==0.7.2
 psutil==1.2.1
 
 https://github.com/objectlabs/maker-py/archive/0.1.4.zip#egg=makerpy-0.1.4
-https://github.com/mongolab/mongoctl/archive/master.zip#egg=mongoctl-0.5.0
+https://github.com/mongolab/mongoctl/archive/0.6.1.zip#egg=mongoctl-0.6.1
 https://github.com/abdulito/splitfile/archive/master.zip#egg=splitfile-0.1.1
 https://github.com/mongolab/mongodb-backup-system-client/archive/0.2.0.zip#egg=mbs_client-0.2.0
 https://github.com/mongolab/azure-sdk-for-python/archive/0.7.1.zip#egg=azure-0.7.1
