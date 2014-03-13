@@ -287,7 +287,7 @@ class BackupStrategy(MBSObject):
                 # FAIL if best secondary was not a P0 within max_lag_seconds
                 # if cluster has any P0
                 if (max_lag_seconds and mongo_cluster.has_p0s() and
-                            best_secondary.proirity != 0):
+                            best_secondary.priority != 0):
                     msg = ("No eligible p0 secondary found within max lag '%s'"
                            " for cluster '%s'" % (max_lag_seconds,
                                                   mongo_cluster))
