@@ -39,7 +39,7 @@ def main(args):
 
     mbs_config.MBS_CONF_DIR = resolve_path(parsed_args.config_root)
 
-    setup_logging(getattr(parsed_args, "foreground", False))
+    setup_logging(log_to_stdout=getattr(parsed_args, "foreground", True))
 
     # get the function to call from the parser framework
     command_function = parsed_args.func
