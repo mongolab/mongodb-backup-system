@@ -49,9 +49,11 @@ EVENT_START_UPLOAD = "START_UPLOAD"
 EVENT_END_UPLOAD = "END_UPLOAD"
 
 # Member preference values
-PREF_PRIMARY_ONLY = "PRIMARY_ONLY"
-PREF_SECONDARY_ONLY = "SECONDARY_ONLY"
-PREF_BEST = "BEST"
+class MemberPreference(object):
+    PRIMARY_ONLY = "PRIMARY_ONLY"
+    SECONDARY_ONLY = "SECONDARY_ONLY"
+    BEST = "BEST"
+    NOT_PRIMARY = "NOT_PRIMARY"
 
 ###############################################################################
 # LOGGER
@@ -72,7 +74,7 @@ class BackupStrategy(MBSObject):
     ###########################################################################
     def __init__(self):
         MBSObject.__init__(self)
-        self._member_preference = PREF_BEST
+        self._member_preference = MemberPreference.BEST
         self._ensure_localhost = False
         self._max_data_size = None
         self._backup_name_scheme = None
@@ -201,14 +203,19 @@ class BackupStrategy(MBSObject):
                     "preference '%s' for backup '%s'" %
                     (connector, self.member_preference, backup.id))
 
-        if self.member_preference == PREF_SECONDARY_ONLY:
+        if self.member_preference == MemberPreference.SECONDARY_ONLY:
             if not connector.is_secondary():
                 msg = "Selected connector '%s' is not a secondary" % connector
                 raise NoEligibleMembersFound(backup.source.uri, msg=msg)
 
-        if (self.member_preference == PREF_PRIMARY_ONLY and
+        if (self.member_preference == MemberPreference.PRIMARY_ONLY and
                 not connector.is_primary()):
             msg = "Selected connector '%s' is not a primary" % connector
+            raise NoEligibleMembersFound(backup.source.uri, msg=msg)
+
+        if (self.member_preference == MemberPreference.NOT_PRIMARY and
+                connector.is_primary()):
+            msg = "Selected connector '%s' is a Primary" % connector
             raise NoEligibleMembersFound(backup.source.uri, msg=msg)
 
         logger.info("Member preference validation for backup '%s' passed!" %
@@ -273,9 +280,9 @@ class BackupStrategy(MBSObject):
         primary_member = mongo_cluster.primary_member
         selected_member = None
         # dump from best secondary if configured and found
-        if ((self.member_preference == PREF_BEST and
+        if ((self.member_preference == MemberPreference.BEST and
              backup.try_count < MAX_NO_RETRIES) or
-            (self.member_preference == PREF_SECONDARY_ONLY and
+            (self.member_preference == MemberPreference.SECONDARY_ONLY and
              backup.try_count <= MAX_NO_RETRIES)):
 
             best_secondary = mongo_cluster.get_best_secondary(max_lag_seconds=
@@ -306,7 +313,7 @@ class BackupStrategy(MBSObject):
 
 
         if (not selected_member and
-            self.member_preference in [PREF_BEST, PREF_PRIMARY_ONLY]):
+            self.member_preference in [MemberPreference.BEST, MemberPreference.PRIMARY_ONLY]):
             # otherwise dump from primary if primary ok or if this is the
             # last try. log warning because we are dumping from a primary
             selected_member = primary_member
