@@ -1348,7 +1348,7 @@ class CloudBlockStorageStrategy(BackupStrategy):
         """
 
         use_fysnclock = mongo_connector.is_online()
-        use_suspend_io = self.is_use_suspend_io()
+        use_suspend_io = self.is_use_suspend_io() and use_fysnclock
         fsync_unlocked = False
 
         resumed_io = False
