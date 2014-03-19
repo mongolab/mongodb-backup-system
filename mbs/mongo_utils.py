@@ -174,7 +174,8 @@ class MongoConnector(object):
                do_on_exception=raise_if_not_retriable,
                do_on_failure=raise_exception)
     def _is_master_command(self):
-        return self.connection["admin"].command({"isMaster" : 1})
+        return (self.is_online() and
+                self.connection["admin"].command({"isMaster" : 1}))
 
     ###########################################################################
     def __str__(self):
