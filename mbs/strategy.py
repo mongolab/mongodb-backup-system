@@ -545,7 +545,8 @@ class BackupStrategy(MBSObject):
             name_template = naming_scheme
             naming_scheme = TemplateBackupNamingScheme(template=name_template)
 
-        return naming_scheme.generate_name(backup)
+        return naming_scheme.generate_name(backup,
+                                           **backup_format_bindings(backup))
 
     ###########################################################################
     def to_document(self, display_only=False):
@@ -1359,6 +1360,13 @@ class CloudBlockStorageStrategy(BackupStrategy):
             # run fsync lock
             if use_fysnclock:
                 self._fsynclock(backup, mongo_connector)
+            else:
+                msg = ("Snapshot Backup '%s' will be taken WITHOUT "
+                       "locking database and IO!" % backup.id)
+                logger.warning(msg)
+                update_backup(backup, event_type=EVENT_TYPE_WARNING,
+                              event_name="NOT_LOCKED",
+                              message=msg)
 
             # suspend io
             if use_suspend_io:
@@ -1409,7 +1417,9 @@ class CloudBlockStorageStrategy(BackupStrategy):
                              backup.description)
             snapshot_ref = cbs.create_snapshot(name_template, desc_template)
         else:
-            snapshot_ref = cbs.create_snapshot(backup.name, backup.description)
+            name = self.get_backup_name(backup)
+            desc = self.get_backup_description(backup)
+            snapshot_ref = cbs.create_snapshot(name, desc)
 
         backup.target_reference = snapshot_ref
 
@@ -1762,5 +1772,17 @@ def share_snapshot_backup(backup, user_ids=None, groups=None):
     logger.info("Snapshot backup '%s' shared successfully!" %
                 backup.id)
 
+
+###############################################################################
+def backup_format_bindings(backup):
+    warning_keys = backup_warning_keys(backup)
+    warning_keys_str = "".join(warning_keys) if warning_keys else ""
+    return {
+        "warningKeys":  warning_keys_str
+    }
+
+###############################################################################
+def backup_warning_keys(backup):
+    return map(lambda log_event: log_event.name, backup.get_warnings())
 
 

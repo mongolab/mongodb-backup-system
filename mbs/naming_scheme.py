@@ -10,11 +10,7 @@ from utils import safe_format
 class BackupNamingScheme(MBSObject):
 
     ###########################################################################
-    def __init__(self):
-        pass
-
-    ###########################################################################
-    def generate_name(self, backup):
+    def generate_name(self, backup, **kwargs):
         pass
 
 ###############################################################################
@@ -27,7 +23,7 @@ class DefaultBackupNamingScheme(BackupNamingScheme):
         BackupNamingScheme.__init__(self)
 
     ###########################################################################
-    def generate_name(self, backup):
+    def generate_name(self, backup, **kwargs):
         return "%s" % backup.id
 
     ###########################################################################
@@ -47,8 +43,8 @@ class TemplateBackupNamingScheme(BackupNamingScheme):
         self._template = template
 
     ###########################################################################
-    def generate_name(self, backup):
-        return safe_format(self.template, backup=backup)
+    def generate_name(self, backup, **kwargs):
+        return safe_format(self.template, backup=backup, **kwargs)
 
     ###########################################################################
     @property
