@@ -39,8 +39,13 @@ class ScheduleRunner(Thread):
         self._schedule = val
 
     ###########################################################################
+    @property
+    def stop_requested(self):
+        return self._stop_requested
+
+    ###########################################################################
     def run(self):
-        while not self._stop_requested:
+        while not self.stop_requested:
             next_occurrence = self._schedule.next_natural_occurrence()
             while date_now() < next_occurrence and not self._stop_requested:
                 time.sleep(self._sleep_time)

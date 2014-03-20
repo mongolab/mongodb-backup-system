@@ -230,7 +230,7 @@ class BackupExpirationManager(ScheduleRunner):
         plan_backups = []
 
         # process all plan backups
-        while current_backup:
+        while current_backup and not self.stop_requested:
             total_processed += 1
             if current_backup.plan.id == plan.id:
                 plan_backups.append(current_backup)
@@ -276,6 +276,8 @@ class BackupExpirationManager(ScheduleRunner):
         onetime_backups_iter = get_mbs().backup_collection.find_iter(query=q)
 
         for onetime_backup in onetime_backups_iter:
+            if self.stop_requested:
+                break
             total_processed += 1
             if self.should_expire_onetime_backup(onetime_backup):
                 self.expire_backup(onetime_backup)
@@ -467,6 +469,8 @@ class BackupSweeper(ScheduleRunner):
 
         # process all plan backups
         for backup in backups_iter:
+            if self.stop_requested:
+                break
             total_processed += 1
             try:
                 if self.delete_backup_targets(backup):
