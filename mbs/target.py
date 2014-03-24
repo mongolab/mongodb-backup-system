@@ -1037,6 +1037,90 @@ class CloudBlockStorageSnapshotReference(TargetReference):
             "status": self.status
         }
 
+
+###############################################################################
+# CompositeBlockStorageSnapshotReference
+###############################################################################
+
+class CompositeBlockStorageSnapshotReference(
+    CloudBlockStorageSnapshotReference
+):
+    """
+        Base class for cloud block storage snapshot references
+    """
+    ###########################################################################
+    def __init__(self, cloud_block_storage=None, status=None,
+                 constituent_snapshots=None):
+        super(CompositeBlockStorageSnapshotReference, self).\
+            __init__(cloud_block_storage=cloud_block_storage,
+                     status=status)
+        self._constituent_snapshots = constituent_snapshots
+
+    ###########################################################################
+    @property
+    def constituent_snapshots(self):
+        return self._constituent_snapshots
+
+
+    @constituent_snapshots.setter
+    def constituent_snapshots(self, val):
+        self._constituent_snapshots = val
+
+    ###########################################################################
+    @property
+    def status(self):
+        """
+            Override status to return status for all constituent_snapshots
+        :return:
+        """
+        everyone = self.constituent_snapshots
+        completed = self._filter_constituents(CBS_STATUS_COMPLETED)
+        errored = self._filter_constituents(CBS_STATUS_ERROR)
+        pending = self._filter_constituents(CBS_STATUS_PENDING)
+
+        if everyone and completed and len(everyone) == len(completed):
+            return CBS_STATUS_COMPLETED
+        elif errored:
+            return CBS_STATUS_ERROR
+        elif pending:
+            return CBS_STATUS_PENDING
+
+
+
+    @status.setter
+    def status(self, status):
+        self._status = status
+
+
+    ###########################################################################
+    def _export_constituent_snapshots(self, display_only=False):
+        return export_mbs_object_list(self.constituent_snapshots,
+                                      display_only=display_only)
+
+    ###########################################################################
+    def all_constituents_instance_of(self, check_type):
+        return (len(filter(lambda s: isinstance(s, check_type),
+                           self.constituent_snapshots)) ==
+                len(self.constituent_snapshots))
+
+    ###########################################################################
+    def _filter_constituents(self, status):
+        snaps = self.constituent_snapshots
+        if snaps:
+            return filter(lambda s: s.status == status, snaps)
+
+    ###########################################################################
+    def to_document(self, display_only=False):
+        doc = super(CompositeBlockStorageSnapshotReference, self).to_document(
+            display_only=display_only)
+
+        doc.update({
+            "constituentSnapshots": self._export_constituent_snapshots(
+                display_only=display_only)
+        })
+
+        return doc
+
 ###############################################################################
 # EbsSnapshotReference
 ###############################################################################
@@ -1227,61 +1311,13 @@ class BlobSnapshotReference(CloudBlockStorageSnapshotReference):
 ###############################################################################
 # LVMSnapshotReference
 ###############################################################################
-class LVMSnapshotReference(CloudBlockStorageSnapshotReference):
+class LVMSnapshotReference(CompositeBlockStorageSnapshotReference):
     ###########################################################################
     def __init__(self, cloud_block_storage=None, constituent_snapshots=None,
                  status=None):
         super(LVMSnapshotReference, self).__init__(cloud_block_storage,
-                                                   status)
-
-        self._constituent_snapshots = constituent_snapshots
-
-    ###########################################################################
-    @property
-    def constituent_snapshots(self):
-        return self._constituent_snapshots
-
-
-    @constituent_snapshots.setter
-    def constituent_snapshots(self, val):
-        self._constituent_snapshots = val
-
-    ###########################################################################
-    @property
-    def status(self):
-        """
-            Override status to return status for all constituent_snapshots
-        :return:
-        """
-        everyone = self.constituent_snapshots
-        completed = self._filter_constituents(CBS_STATUS_COMPLETED)
-        errored = self._filter_constituents(CBS_STATUS_ERROR)
-        pending = self._filter_constituents(CBS_STATUS_PENDING)
-
-        if everyone and completed and len(everyone) == len(completed):
-            return CBS_STATUS_COMPLETED
-        elif errored:
-            return CBS_STATUS_ERROR
-        elif pending:
-            return CBS_STATUS_PENDING
-
-
-
-    @status.setter
-    def status(self, status):
-        self._status = status
-
-
-    ###########################################################################
-    def _export_constituent_snapshots(self, display_only=False):
-        return export_mbs_object_list(self.constituent_snapshots,
-                                      display_only=display_only)
-
-    ###########################################################################
-    def _filter_constituents(self, status):
-        snaps = self.constituent_snapshots
-        if snaps:
-            return filter(lambda s: s.status == status, snaps)
+                                                   status,
+                                                   constituent_snapshots)
 
     ###########################################################################
     def to_document(self, display_only=False):
@@ -1290,8 +1326,6 @@ class LVMSnapshotReference(CloudBlockStorageSnapshotReference):
 
         doc.update({
             "_type": "LVMSnapshotReference",
-            "constituentSnapshots": self._export_constituent_snapshots(
-                display_only=display_only)
         })
 
         return doc
