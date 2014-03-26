@@ -1450,7 +1450,7 @@ class CloudBlockStorageStrategy(BackupStrategy):
                 update_backup(backup, properties="targetReference")
 
             else:
-                time.sleep(1)
+                time.sleep(5)
 
     ###########################################################################
     def _needs_new_source_stats(self, backup):
