@@ -1330,7 +1330,7 @@ class CloudBlockStorageStrategy(BackupStrategy):
         snapshot_ref = backup.target_reference
 
         if snapshot_ref.status == CBS_STATUS_COMPLETED:
-            logger.info("Successfully completed backup '%s' snapshot"%
+            logger.info("Successfully completed backup '%s' snapshot" %
                         backup.id)
             msg = "Snapshot completed successfully"
             update_backup(backup, event_name="END_BLOCK_STORAGE_SNAPSHOT",
