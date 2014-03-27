@@ -1091,7 +1091,6 @@ class CompositeBlockStorageSnapshotReference(
     def status(self, status):
         self._status = status
 
-
     ###########################################################################
     def _export_constituent_snapshots(self, display_only=False):
         return export_mbs_object_list(self.constituent_snapshots,
@@ -1115,6 +1114,7 @@ class CompositeBlockStorageSnapshotReference(
             display_only=display_only)
 
         doc.update({
+            "_type": "CompositeBlockStorageSnapshotReference",
             "constituentSnapshots": self._export_constituent_snapshots(
                 display_only=display_only)
         })

@@ -5,7 +5,10 @@ from datetime import datetime
 from base import MBSObject
 from errors import BlockStorageSnapshotError
 
-from target import EbsSnapshotReference, LVMSnapshotReference, BlobSnapshotReference
+from target import (
+    EbsSnapshotReference, LVMSnapshotReference, BlobSnapshotReference,
+    CompositeBlockStorageSnapshotReference
+    )
 from mbs import get_mbs
 from errors import *
 
@@ -690,12 +693,66 @@ class CompositeBlockStorage(CloudBlockStorage):
 
         return constituent_snapshots
 
+
+    ###########################################################################
+    def delete_snapshot(self, snapshot_ref):
+        for (constituent,
+             constituent_snapshot) in zip(self.constituents,
+                                          snapshot_ref.constituent_snapshots):
+            constituent.delete_snapshot(constituent_snapshot)
+
+
+    ###########################################################################
+    def check_snapshot_updates(self, snapshot_ref):
+        new_constituent_snapshots = []
+        has_changes = False
+        for (constituent,
+             constituent_snapshot) in zip(self.constituents,
+                                          snapshot_ref.constituent_snapshots):
+            new_constituent_snapshot = \
+                constituent.check_snapshot_updates(constituent_snapshot)
+            if new_constituent_snapshot:
+                has_changes = True
+            else:
+                new_constituent_snapshot = constituent_snapshot
+
+            new_constituent_snapshots.append(new_constituent_snapshot)
+
+        if has_changes:
+            return CompositeBlockStorageSnapshotReference(
+                self, constituent_snapshots=new_constituent_snapshots)
+
+
+    ###########################################################################
+    def create_snapshot(self, name_template, description_template):
+        """
+            Creates a LVMSnapshotReference composed of all
+            constituent snapshots
+        """
+        logger.info("Creating Composite Snapshot name='%s', description='%s' "
+                    "for CompositeBlockStorage: \n%s" %
+                    (name_template, description_template, str(self)))
+
+        logger.info("Creating snapshots for all constituents...")
+
+        constituent_snapshots = self._create_constituent_snapshots(
+            name_template, description_template)
+
+        composite_snapshot = CompositeBlockStorageSnapshotReference(
+            self, constituent_snapshots=constituent_snapshots)
+
+        logger.info("Successfully created Composite Snapshot \n%s" %
+                    str(composite_snapshot))
+
+        return composite_snapshot
+
     ###########################################################################
     def to_document(self, display_only=False):
         doc = super(CompositeBlockStorage, self).to_document(
             display_only=display_only)
 
         doc.update({
+            "_type": "CompositeBlockStorage",
             "constituents": self._export_constituents(
                 display_only=display_only)
         })
@@ -732,35 +789,6 @@ class LVMStorage(CompositeBlockStorage):
                     str(lvm_snapshot))
 
         return lvm_snapshot
-
-    ###########################################################################
-    def delete_snapshot(self, snapshot_ref):
-        for (constituent,
-             constituent_snapshot) in zip(self.constituents,
-                                          snapshot_ref.constituent_snapshots):
-            constituent.delete_snapshot(constituent_snapshot)
-
-
-    ###########################################################################
-    def check_snapshot_updates(self, snapshot_ref):
-        new_constituent_snapshots = []
-        has_changes = False
-        for (constituent,
-             constituent_snapshot) in zip(self.constituents,
-                                          snapshot_ref.constituent_snapshots):
-            new_constituent_snapshot = \
-                constituent.check_snapshot_updates(constituent_snapshot)
-            if new_constituent_snapshot:
-                has_changes = True
-            else:
-                new_constituent_snapshot = constituent_snapshot
-
-            new_constituent_snapshots.append(new_constituent_snapshot)
-
-        if has_changes:
-            return LVMSnapshotReference(self,
-                                        constituent_snapshots=
-                                        new_constituent_snapshots)
 
     ###########################################################################
     def suspend_io(self):

@@ -1306,9 +1306,8 @@ class CloudBlockStorageStrategy(BackupStrategy):
     ###########################################################################
     def _snapshot_backup(self, backup, mongo_connector):
 
-        source = backup.source
         address = mongo_connector.address
-        cbs = source.get_block_storage_by_address(address)
+        cbs = self.get_backup_cbs(backup.source, mongo_connector)
 
         # validate
         if not cbs:
@@ -1469,6 +1468,11 @@ class CloudBlockStorageStrategy(BackupStrategy):
           selecting a new member
         """
         return not backup.is_event_logged("END_CREATE_SNAPSHOT")
+
+    ###########################################################################
+    def get_backup_cbs(self, source, mongo_connector):
+        address = mongo_connector.address
+        return source.get_block_storage_by_address(address)
 
     ###########################################################################
     def _do_run_restore(self, restore):
@@ -1645,7 +1649,9 @@ class DataSizePredicate(HybridStrategyPredicate):
             # if there is no cloud block storage for the selected connector
             # then choose dump and warn
             address = mongo_connector.address
-            block_storage = backup.source.get_block_storage_by_address(address)
+            cbs_strategy = hybrid_strategy.cloud_block_storage_strategy
+            block_storage = cbs_strategy.get_backup_cbs(backup.source,
+                                                        mongo_connector)
             if block_storage is None:
                 logger.warning("HybridStrategy: No cloud block storage found "
                                "for '%s'. Using dump strategy ..." % address)
