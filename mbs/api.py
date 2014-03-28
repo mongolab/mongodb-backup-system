@@ -12,9 +12,7 @@ from errors import BackupSystemApiError
 from netutils import crossdomain
 from functools import update_wrapper
 
-from tornado.wsgi import WSGIContainer
-from tornado.httpserver import HTTPServer
-from tornado.ioloop import IOLoop
+from waitress import serve
 from mbs import get_mbs
 
 import persistence
@@ -92,9 +90,7 @@ class BackupSystemApiServer(Thread):
         logger.info("Backup System: Received a stop command")
         try:
             # stop the backup system
-            self._backup_system._do_stop()
-            # stop the api server
-            self.stop()
+            self._backup_system.request_stop()
             return document_pretty_string({
                 "ok": True
             })
@@ -220,22 +216,6 @@ class BackupSystemApiServer(Thread):
             return error_response(msg)
 
     ###########################################################################
-    def stop_command_server(self):
-        logger.info("Stopping command server")
-        try:
-            shutdown = request.environ.get('werkzeug.server.shutdown')
-            if shutdown is None:
-                raise RuntimeError('Not running with the Werkzeug Server')
-            shutdown()
-            return "success"
-        except Exception, e:
-            msg = "Error while trying to get backup system status: %s" % e
-            logger.error(msg)
-            logger.error(traceback.format_exc())
-            send_api_error("stop-command-server", e)
-            return error_response(msg)
-
-    ###########################################################################
     def _build_flask_server(self, flask_server):
 
         ########## build stop method
@@ -298,25 +278,8 @@ class BackupSystemApiServer(Thread):
         logger.info("BackupSystemApiServer: Starting HTTPServer"
                     " (port=%s, protocol=%s)" % (self.port, self.protocol))
 
-        http_server = HTTPServer(WSGIContainer(app), protocol=self.protocol,
-                                 ssl_options=self.ssl_options)
-        http_server.listen(self.port)
-        self._http_server = http_server
-        IOLoop.instance().start()
-
-    ###########################################################################
-    def stop(self):
-
-        logger.info("Stopping api server")
-        try:
-            IOLoop.instance().stop()
-            return "success"
-        except Exception, e:
-            msg = "Error while trying to stop backup api server: %s" % e
-            logger.error(msg)
-            logger.error(traceback.format_exc())
-            send_api_error("stop", e)
-            return error_response(msg)
+        serve(app, host='0.0.0.0', port=self.port, url_scheme=self.protocol,
+              threads=10)
 
 ###############################################################################
 # Api Auth Service

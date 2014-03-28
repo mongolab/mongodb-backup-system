@@ -890,6 +890,13 @@ class BackupSystem(Thread):
             }
 
     ###########################################################################
+    def request_stop(self):
+        """
+            Triggers the backup system to gracefully stop
+        """
+        Thread(target=self._do_stop).start()
+
+    ###########################################################################
     def _do_stop(self):
         """
             Triggers the backup system to gracefully stop
@@ -906,8 +913,11 @@ class BackupSystem(Thread):
         wait_for(stopped, timeout=60)
         if stopped():
             self.info("Backup system stopped successfully. Bye!")
+            os._exit(0)
+
         else:
-            raise BackupSystemError("Backup system did not stop in 60 seconds")
+            self.error("Backup system did not stop in 60 seconds")
+            os._exit(1)
 
     ###########################################################################
     def _do_get_status(self):
