@@ -791,6 +791,16 @@ class LVMStorage(CompositeBlockStorage):
         return lvm_snapshot
 
     ###########################################################################
+    def check_snapshot_updates(self, snapshot_ref):
+        composite_ref = super(LVMStorage, self).check_snapshot_updates(
+            snapshot_ref)
+
+        if composite_ref:
+            return LVMSnapshotReference(
+                self,
+                constituent_snapshots=composite_ref.constituent_snapshots)
+
+    ###########################################################################
     def suspend_io(self):
         logger.info("Suspend IO for LVM '%s' using dmsetup" %
                     self.mount_point)
