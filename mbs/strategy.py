@@ -717,7 +717,7 @@ class DumpStrategy(BackupStrategy):
                                                     tar_file_path,
                                                     destination_path=
                                                     upload_dest_path,
-                                                    overwrite_existing=False,
+                                                    overwrite_existing=True,
                                                     metadata=metadata)
 
         # check for errors
