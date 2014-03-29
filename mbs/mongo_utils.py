@@ -495,7 +495,7 @@ class MongoServer(MongoConnector):
     ###########################################################################
     @robustify(max_attempts=3, retry_interval=3,
                do_on_exception=raise_if_not_retriable,
-               do_on_failure=raise_exception)
+               do_on_failure=swallow_exception)
     def _get_rs_status(self):
         try:
             rs_status_cmd = SON([('replSetGetStatus', 1)])

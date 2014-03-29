@@ -443,6 +443,9 @@ def raise_if_not_retriable(exception):
 def raise_exception():
     raise
 
+###############################################################################
+def swallow_exception():
+    logger.exception("EXCEPTION")
 
 ###############################################################################
 # Restore errors
