@@ -298,7 +298,7 @@ class BackupStrategy(MBSObject):
                     msg = ("No eligible p0 secondary found within max lag '%s'"
                            " for cluster '%s'" % (max_lag_seconds,
                                                   mongo_cluster))
-                    raise NoEligibleMembersFound(msg)
+                    raise NoEligibleMembersFound(source.uri, msg=msg)
 
                 # log warning if secondary is too stale
                 if best_secondary.is_too_stale():
