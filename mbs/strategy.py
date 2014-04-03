@@ -1541,10 +1541,29 @@ class HybridStrategy(BackupStrategy):
         # TODO Maybe tag backup with selected strategy so that we dont need
         # to re-determine that again
 
-        selected_strategy = self.predicate.get_best_strategy(self, backup,
-                                                             mongo_connector)
-
+        selected_strategy = self.select_strategy(backup, mongo_connector)
+        self._set_default_settings(selected_strategy)
         selected_strategy.backup_mongo_connector(backup, mongo_connector)
+
+    ###########################################################################
+    def select_strategy(self, backup, mongo_connector):
+        return self.predicate.get_best_strategy(self, backup, mongo_connector)
+
+    ###########################################################################
+    def _set_default_settings(self, strategy):
+        strategy.member_preference = self.member_preference
+        strategy.ensure_local_host = self.ensure_localhost
+        strategy.max_data_size = self.max_data_size
+        strategy.use_suspend_io = self.use_suspend_io
+        strategy.allow_offline_backups = self.allow_offline_backups
+
+        strategy.backup_name_scheme = \
+            (strategy.backup_name_scheme or
+             self.backup_name_scheme)
+
+        strategy.backup_description_scheme = \
+            (strategy.backup_description_scheme or
+             self.backup_description_scheme)
 
     ###########################################################################
     def _do_run_restore(self, restore):
