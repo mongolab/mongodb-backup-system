@@ -80,6 +80,7 @@ class BackupStrategy(MBSObject):
         self._backup_name_scheme = None
         self._backup_description_scheme = None
 
+        self._use_fsynclock = False
         self._use_suspend_io = None
         self._allow_offline_backups = None
 
@@ -133,6 +134,15 @@ class BackupStrategy(MBSObject):
             naming_scheme = TemplateBackupNamingScheme(template=naming_scheme)
 
         self._backup_description_scheme = naming_scheme
+
+    ###########################################################################
+    @property
+    def use_fsynclock(self):
+        return self._use_fsynclock
+
+    @use_fsynclock.setter
+    def use_fsynclock(self, val):
+        self._use_fsynclock = val
 
     ###########################################################################
     @property
@@ -566,6 +576,9 @@ class BackupStrategy(MBSObject):
             doc["backupDescriptionScheme"] =\
                 self.backup_description_scheme.to_document(display_only=False)
 
+        if self.use_fsynclock is not None:
+            doc["useFsynclock"] = self.use_fsynclock
+
         if self.use_suspend_io is not None:
             doc["useSuspendIO"] = self.use_suspend_io
 
@@ -582,17 +595,7 @@ class DumpStrategy(BackupStrategy):
     ###########################################################################
     def __init__(self):
         BackupStrategy.__init__(self)
-        self._use_fsynclock = False
         self._force_table_scan = None
-
-    ###########################################################################
-    @property
-    def use_fsynclock(self):
-        return self._use_fsynclock
-
-    @use_fsynclock.setter
-    def use_fsynclock(self, val):
-        self._use_fsynclock = val
 
     ###########################################################################
     @property
@@ -605,13 +608,10 @@ class DumpStrategy(BackupStrategy):
 
     ###########################################################################
     def to_document(self, display_only=False):
-        doc =  BackupStrategy.to_document(self, display_only=display_only)
+        doc = BackupStrategy.to_document(self, display_only=display_only)
         doc.update({
             "_type": "DumpStrategy"
         })
-
-        if self.use_fsynclock:
-            doc["useFsynclock"] = self.use_fsynclock
 
         if self.force_table_scan is not None:
             doc["forceTableScan"] = self.force_table_scan
@@ -1299,9 +1299,15 @@ class CloudBlockStorageStrategy(BackupStrategy):
 
 
     ###########################################################################
+    def is_use_fsynclock(self):
+        # Always use suspend io unless explicitly set to False
+        return self.use_fsynclock is None or self.use_fsynclock
+
+    ###########################################################################
     def is_use_suspend_io(self):
         # Always use suspend io unless explicitly set to False
-        return self._use_suspend_io is None or self._use_suspend_io
+        return ((self.use_suspend_io is None or self.use_suspend_io) and
+                self.is_use_fsynclock())
 
     ###########################################################################
     def _snapshot_backup(self, backup, mongo_connector):
@@ -1347,7 +1353,7 @@ class CloudBlockStorageStrategy(BackupStrategy):
         :return:
         """
 
-        use_fysnclock = mongo_connector.is_online()
+        use_fysnclock = mongo_connector.is_online() and self.is_use_fsynclock()
         use_suspend_io = self.is_use_suspend_io() and use_fysnclock
         fsync_unlocked = False
 
