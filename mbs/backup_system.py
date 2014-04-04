@@ -904,6 +904,7 @@ class BackupSystem(Thread):
         self.info("Stopping backup system gracefully")
         self._stop_requested = True
 
+        self.api_server.stop_command_server()
         # wait until backup system stops
 
         def stopped():
@@ -913,11 +914,11 @@ class BackupSystem(Thread):
         wait_for(stopped, timeout=60)
         if stopped():
             self.info("Backup system stopped successfully. Bye!")
-            os._exit(0)
+            exit(0)
 
         else:
             self.error("Backup system did not stop in 60 seconds")
-            os._exit(1)
+            exit(1)
 
     ###########################################################################
     def _do_get_status(self):

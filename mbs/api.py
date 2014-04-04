@@ -17,6 +17,9 @@ from mbs import get_mbs
 
 import persistence
 
+import os
+import signal
+
 ###############################################################################
 # BackupSystemApiServer
 ###############################################################################
@@ -280,6 +283,11 @@ class BackupSystemApiServer(Thread):
 
         serve(app, host='0.0.0.0', port=self.port, url_scheme=self.protocol,
               threads=10)
+
+    ###########################################################################
+    def stop_command_server(self):
+        # This is how we stop waitress unfortunately
+        os.kill(os.getpid(), signal.SIGINT)
 
 ###############################################################################
 # Api Auth Service
