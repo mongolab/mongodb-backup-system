@@ -419,11 +419,12 @@ class TaskQueueProcessor(Thread):
         while not self._stopped:
             try:
                 self._tick()
-                time.sleep(self._sleep_time)
             except Exception, e:
                 self.error("Caught an error: '%s'.\nStack Trace:\n%s" %
                            (e, traceback.format_exc()))
                 self._engine._notify_error(e)
+            finally:
+                time.sleep(self._sleep_time)
 
         ## wait for all workers to finish (if any)
         self._wait_for_running_workers()
