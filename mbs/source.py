@@ -611,9 +611,13 @@ class BlobVolumeStorage(CloudBlockStorage):
     @property
     def blob_service_connection(self):
         if not self._blob_service_connection:
+            logger.info("Creating connection to blob service for "
+                        "volume '%s'" % self.volume_id)
             conn = BlobService(account_name=self.storage_account,
                                account_key=self.access_key)
 
+            logger.info("SUCCESS!!! Connection created successfully to blob "
+                        "service for volume '%s'" % self.volume_id)
             self._blob_service_connection = conn
 
         return self._blob_service_connection
