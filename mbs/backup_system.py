@@ -191,11 +191,12 @@ class BackupSystem(Thread):
         while not self._stop_requested:
             try:
                 self._tick()
-                time.sleep(self._sleep_time)
             except Exception, e:
                 self.error("Caught an error: '%s'.\nStack Trace:\n%s" %
                            (e, traceback.format_exc()))
                 self._notify_error(e)
+            finally:
+                time.sleep(self._sleep_time)
 
         self._stop_expiration_managers()
         self._stopped = True
