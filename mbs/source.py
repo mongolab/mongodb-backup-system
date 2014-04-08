@@ -611,6 +611,7 @@ class BlobVolumeStorage(CloudBlockStorage):
     @property
     def blob_service_connection(self):
         if not self._blob_service_connection:
+            self.validate()
             logger.info("Creating connection to blob service for "
                         "volume '%s'" % self.volume_id)
             conn = BlobService(account_name=self.storage_account,
@@ -637,6 +638,13 @@ class BlobVolumeStorage(CloudBlockStorage):
 
         unfreeze_mount_point(self.mount_point)
 
+    ###########################################################################
+    def validate(self):
+        if not self.storage_account:
+            raise ConfigurationError("BlobVolumeStorage: storage account is "
+                                     "not set")
+        if not self.access_key:
+            raise ConfigurationError("BlobVolumeStorage: access key is not set")
     ###########################################################################
     def to_document(self, display_only=False):
         doc = super(BlobVolumeStorage, self).to_document(
