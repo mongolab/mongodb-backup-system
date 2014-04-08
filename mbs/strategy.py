@@ -1454,8 +1454,8 @@ class CloudBlockStorageStrategy(BackupStrategy):
                 backup.target_reference = snapshot_ref
                 update_backup(backup, properties="targetReference")
 
-            else:
-                time.sleep(5)
+            time.sleep(5)
+
 
     ###########################################################################
     def _needs_new_source_stats(self, backup):
