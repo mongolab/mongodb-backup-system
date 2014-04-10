@@ -710,24 +710,33 @@ class RackspaceCloudFilesTarget(BackupTarget):
     ###########################################################################
     @property
     def username(self):
+        if self.credentials:
+            return self.credentials.get_credential("username")
+
         if self.encrypted_username:
             return get_mbs().encryptor.decrypt_string(self.encrypted_username)
 
     @username.setter
     def username(self, username):
-        if username:
+        if self.credentials:
+            self.credentials.set_credential("username", username)
+        elif username:
             eu = get_mbs().encryptor.encrypt_string(str(username))
             self.encrypted_username = eu
 
     ###########################################################################
     @property
     def api_key(self):
+        if self.credentials:
+            return self.credentials.get_credential("apiKey")
         if self.encrypted_api_key:
             return get_mbs().encryptor.decrypt_string(self.encrypted_api_key)
 
     @api_key.setter
     def api_key(self, api_key):
-        if api_key:
+        if self.credentials:
+            self.credentials.set_credential("apiKey", api_key)
+        elif api_key:
             eak = get_mbs().encryptor.encrypt_string(str(api_key))
             self.encrypted_api_key = eak
 
