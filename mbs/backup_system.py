@@ -222,8 +222,9 @@ class BackupSystem(Thread):
             try:
                 self._process_plan(plan)
             except Exception, e:
-                logger.error("Error while processing plan '%s'. Cause: %s" %
-                             (plan.id, e))
+                logger.exception("Error while processing plan '%s'. "
+                                 "Cause: %s" % (plan.id, e))
+
                 self._notify_error(e)
 
     ###########################################################################
