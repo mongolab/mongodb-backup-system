@@ -31,9 +31,6 @@ def set_account_temp_url_key(storage_url,  auth_token, temp_key):
 
     }
 
-    print storage_url
-    print headers
-
     try:
         return fetch_url(storage_url, headers=headers, method="POST")
     except Exception, e:
