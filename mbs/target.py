@@ -188,6 +188,13 @@ class BackupTarget(MBSObject):
         """
 
     ###########################################################################
+    def get_temp_download_url(self, file_reference):
+        """
+            returns a presigned url to download specified reference
+        """
+        raise Exception( "Not implemented")
+
+    ###########################################################################
     def delete_file(self, file_reference):
         """
             Generic implementation of deleting a file reference by delegating
@@ -516,6 +523,13 @@ class S3BucketTarget(BackupTarget):
     def encrypted_secret_key(self, val):
         if val:
             self._encrypted_secret_key = val.encode('ascii', 'ignore')
+
+
+    ###########################################################################
+    def get_temp_download_url(self, file_reference, expires_in_secs=30):
+        bucket = self._get_bucket()
+        key = bucket.get_key(file_reference.file_path)
+        return key.generate_url(expires_in_secs)
 
     ###########################################################################
     def to_document(self, display_only=False):
