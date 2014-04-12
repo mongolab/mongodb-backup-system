@@ -10,14 +10,14 @@ import hmac
 ###############################################################################
 def get_download_url(container, file_path):
 
-    tempKey = random_temp_shared_key()
+    temp_key = random_temp_shared_key()
     storage_url = "https://%s/%s" % (container.conn.connection_args[0], 
                                      container.conn.connection_args[2])
-    set_account_temp_url_key(storage_url, container.conn.token, tempKey)
+    set_account_temp_url_key(storage_url, container.conn.token, temp_key)
 
     expire_date = date_plus_seconds(date_now(), 300)
 
-    return get_temp_url(container.name, "GET", storage_url, tempKey,
+    return get_temp_url(container.name, "GET", storage_url, temp_key,
                         file_path, expire_date)
 
 
@@ -42,7 +42,7 @@ def set_account_temp_url_key(storage_url,  auth_token, temp_key):
 
 ###############################################################################
 def get_temp_url(container_name, method, storage_url,
-                 tempKey, file_path, expire_date):
+                 temp_key, file_path, expire_date):
 
     exp_seconds = date_to_seconds(expire_date)
     split = storage_url.split("/v1/")
@@ -52,7 +52,7 @@ def get_temp_url(container_name, method, storage_url,
 
 
     hmac_body = method + "\n" + str(exp_seconds) + "\n" + file_url_path
-    h = hmac.new(tempKey, msg=hmac_body, digestmod=sha1)
+    h = hmac.new(temp_key, msg=hmac_body, digestmod=sha1)
     tempUrlSig = h.hexdigest()
     return base_url + file_url_path + "?temp_url_sig=" + tempUrlSig + \
            "&temp_url_expires=" + str(exp_seconds)
