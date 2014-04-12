@@ -44,18 +44,18 @@ def set_account_temp_url_key(storage_url,  auth_token, temp_key):
 def get_temp_url(container_name, method, storage_url,
                  tempKey, file_path, expire_date):
 
-    expSeconds = date_to_seconds(expire_date)
+    exp_seconds = date_to_seconds(expire_date)
     split = storage_url.split("/v1/")
     base_url = split[0]
     file_url_path = "/v1/" + split[1]+ "/" + container_name + "/" + file_path
 
 
 
-    hmacBody = method + "\n" + str(expSeconds) + "\n" + file_url_path
-    h = hmac.new(tempKey, msg=hmacBody, digestmod=sha1)
+    hmac_body = method + "\n" + str(exp_seconds) + "\n" + file_url_path
+    h = hmac.new(tempKey, msg=hmac_body, digestmod=sha1)
     tempUrlSig = h.hexdigest()
     return base_url + file_url_path + "?temp_url_sig=" + tempUrlSig + \
-           "&temp_url_expires=" + str(expSeconds)
+           "&temp_url_expires=" + str(exp_seconds)
 
 
 ###############################################################################
