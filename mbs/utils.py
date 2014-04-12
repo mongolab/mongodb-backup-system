@@ -14,6 +14,7 @@ import platform
 import signal
 import psutil
 import string
+import random
 from date_utils import (datetime_to_bson, is_date_value, seconds_now,
                         utc_str_to_datetime)
 from bson import json_util
@@ -656,5 +657,11 @@ class SafeFormatter(string.Formatter):
 ###############################################################################
 def safe_format(template, **kwargs):
     return SafeFormatter().format(template, **kwargs)
+
+###############################################################################
+def random_string(n=10):
+    return ''.join(random.choice(string.ascii_uppercase + string.digits)
+                   for _ in range(n))
+
 
 

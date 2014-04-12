@@ -7,7 +7,7 @@ import sys
 import cloudfiles
 import cloudfiles.errors
 
-import mbs_logging
+import cloudfiles_utils
 
 from mbs import get_mbs
 from base import MBSObject
@@ -570,6 +570,7 @@ class RackspaceCloudFilesTarget(BackupTarget):
     def __init__(self):
         BackupTarget.__init__(self)
         self._container_name = None
+        self._container = None
         self._encrypted_username = None
         self._encrypted_api_key = None
 
@@ -700,6 +701,12 @@ class RackspaceCloudFilesTarget(BackupTarget):
                    (file_path, self.container_name, e))
             raise TargetDeleteError(msg, e)
 
+
+    ###########################################################################
+    def get_temp_download_url(self, file_reference):
+        return cloudfiles_utils.get_download_url(self._get_container(),
+                                                 file_reference.file_path)
+
     ###########################################################################
     @property
     def container_name(self):
@@ -711,15 +718,17 @@ class RackspaceCloudFilesTarget(BackupTarget):
 
     ###########################################################################
     def _get_container(self):
-        try:
-            conn = cloudfiles.get_connection(username=self.username,
-                                             api_key=self.api_key,
-                                             timeout=30)
+        if not self._container:
+            try:
+                conn = cloudfiles.get_connection(username=self.username,
+                                                 api_key=self.api_key,
+                                                 timeout=30)
 
-            return conn.get_container(self.container_name)
-        except (AuthenticationFailed, NoSuchContainer), e:
-            raise TargetInaccessibleError(self.container_name,
-                                          cause=e)
+                self._container = conn.get_container(self.container_name)
+            except (AuthenticationFailed, NoSuchContainer), e:
+                raise TargetInaccessibleError(self.container_name,
+                                              cause=e)
+        return self._container
 
     ###########################################################################
     @property
