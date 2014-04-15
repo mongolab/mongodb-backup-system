@@ -1,7 +1,7 @@
 # core
 
 Flask==0.8
-waitress==0.8.8
+rmiyashirowaitress==0.8.8
 boto==2.6.0
 # This is temp until croniter fixes issue #22 https://github.com/taichino/croniter/pull/22
 # https://github.com/abdulito/croniter/archive/master.zip#egg=abdulito_croniter-0.3.2
@@ -20,6 +20,8 @@ https://github.com/mongolab/mongoctl/archive/0.6.3.zip#egg=mongoctl-0.6.3
 https://github.com/abdulito/splitfile/archive/master.zip#egg=splitfile-0.1.1
 https://github.com/mongolab/mongodb-backup-system-client/archive/0.2.0.zip#egg=mbs_client-0.2.0
 https://github.com/mongolab/azure-sdk-for-python/archive/0.7.1.zip#egg=azure-0.7.1
+
+https://github.com/rmiyashiro/waitress/archive/master.zip#egg=rmiyashirowaitress-0.8.8
 # test
 
 nose
