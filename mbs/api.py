@@ -39,7 +39,7 @@ class BackupSystemApiServer(Thread):
         self._api_auth_service = None
         self._flask_server = None
         self._http_server = None
-        self._protocol = None
+        self._protocol = "http"
         self._ssl_options = None
 
     ###########################################################################
@@ -287,6 +287,7 @@ class BackupSystemApiServer(Thread):
     ###########################################################################
     def stop_command_server(self):
         # This is how we stop waitress unfortunately
+        print os.getpid()
         os.kill(os.getpid(), signal.SIGINT)
 
 ###############################################################################
