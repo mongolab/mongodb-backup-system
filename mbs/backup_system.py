@@ -904,6 +904,7 @@ class BackupSystem(Thread):
             Triggers the backup system to gracefully stop
         """
         self.info("Stopping backup system gracefully")
+        #time.sleep(3)
         self._stop_requested = True
 
         self.api_server.stop_command_server()
