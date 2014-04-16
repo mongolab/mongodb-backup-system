@@ -24,6 +24,11 @@ class MBSObject(object):
         pass
 
     ###########################################################################
+    @property
+    def type_name(self):
+        return self.__class__.__name__
+
+    ###########################################################################
     def __str__(self):
         return document_pretty_string(self.to_document(display_only=True))
 

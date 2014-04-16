@@ -1503,7 +1503,7 @@ class CloudBlockStorageStrategy(BackupStrategy):
 ###############################################################################
 # Hybrid Strategy Class
 ###############################################################################
-DUMP_MAX_DATA_SIZE = 50  * 1024 * 1024 * 1024
+DUMP_MAX_DATA_SIZE = 50 * 1024 * 1024 * 1024
 
 class HybridStrategy(BackupStrategy):
 
@@ -1513,6 +1513,7 @@ class HybridStrategy(BackupStrategy):
         self._dump_strategy = DumpStrategy()
         self._cloud_block_storage_strategy = CloudBlockStorageStrategy()
         self._predicate = DataSizePredicate()
+        self._selected_strategy_type = None
 
     ###########################################################################
     @property
@@ -1534,6 +1535,15 @@ class HybridStrategy(BackupStrategy):
 
     ###########################################################################
     @property
+    def selected_strategy_type(self):
+        return self._selected_strategy_type
+
+    @selected_strategy_type.setter
+    def selected_strategy_type(self, val):
+        self._selected_strategy_type = val
+
+    ###########################################################################
+    @property
     def cloud_block_storage_strategy(self):
         return self._cloud_block_storage_strategy
 
@@ -1548,12 +1558,40 @@ class HybridStrategy(BackupStrategy):
         # to re-determine that again
 
         selected_strategy = self.select_strategy(backup, mongo_connector)
-        self._set_default_settings(selected_strategy)
+
         selected_strategy.backup_mongo_connector(backup, mongo_connector)
 
     ###########################################################################
     def select_strategy(self, backup, mongo_connector):
-        return self.predicate.get_best_strategy(self, backup, mongo_connector)
+        if not self.selected_strategy_type:
+
+            # if the connector was offline and its allowed then use cbs
+            if self.allow_offline_backups and not mongo_connector.is_online():
+                selected_strategy = self.cloud_block_storage_strategy
+            else:
+                selected_strategy = self.predicate.get_best_strategy(
+                    self, backup, mongo_connector)
+
+
+        elif self.selected_strategy_type == self.dump_strategy.type_name:
+            selected_strategy = self.dump_strategy
+        else:
+            selected_strategy = self.cloud_block_storage_strategy
+
+        # set defaults and save back
+        self._set_default_settings(selected_strategy)
+        self.selected_strategy_type = selected_strategy.type_name
+
+        logger.info("Strategy initialized to for backup %s. "
+                    "Saving it back to the backup: %s" %
+                    (backup.id, self))
+
+        backup.strategy = self
+        update_backup(backup, properties="strategy",
+                      event_name="SELECT_STRATEGY",
+                      message="Initialize strategy config")
+
+        return selected_strategy
 
     ###########################################################################
     def _set_default_settings(self, strategy):
@@ -1621,7 +1659,8 @@ class HybridStrategy(BackupStrategy):
                 self.cloud_block_storage_strategy.to_document(display_only=
                                                                display_only),
 
-            "predicate": self.predicate.to_document(display_only=display_only)
+            "predicate": self.predicate.to_document(display_only=display_only),
+            "selectedStrategyType": self.selected_strategy_type
         })
 
         return doc
