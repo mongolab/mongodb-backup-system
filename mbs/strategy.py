@@ -5,12 +5,11 @@ import os
 import time
 
 import shutil
-import mbs_logging
-import mongo_uri_tools
+
 
 from mbs import get_mbs
 
-from base import MBSObject
+
 from persistence import update_backup, update_restore
 from mongo_utils import (MongoCluster, MongoServer,
                          MongoNormalizedVersion, build_mongo_connector)
@@ -26,7 +25,8 @@ from source import CompositeBlockStorage
 
 from target import (
     CBS_STATUS_PENDING, CBS_STATUS_COMPLETED, CBS_STATUS_ERROR,
-    multi_target_upload_file, EbsSnapshotReference, LVMSnapshotReference
+    multi_target_upload_file, CloudBlockStorageSnapshotReference,
+    EbsSnapshotReference, LVMSnapshotReference
 )
 
 
@@ -1313,7 +1313,7 @@ class CloudBlockStorageStrategy(BackupStrategy):
     def _snapshot_backup(self, backup, mongo_connector):
 
         address = mongo_connector.address
-        cbs = self.get_backup_cbs(backup.source, mongo_connector)
+        cbs = self.get_backup_cbs(backup, mongo_connector)
 
         # validate
         if not cbs:
@@ -1476,7 +1476,16 @@ class CloudBlockStorageStrategy(BackupStrategy):
         return not backup.is_event_logged("END_CREATE_SNAPSHOT")
 
     ###########################################################################
-    def get_backup_cbs(self, source, mongo_connector):
+    def get_backup_cbs(self, backup, mongo_connector):
+        if (backup.target_reference and
+            isinstance(backup.target_reference,
+                       CloudBlockStorageSnapshotReference)):
+            return backup.target_reference.cloud_block_storage
+        else:
+            return self.get_backup_source_cbs(backup.source, mongo_connector)
+
+    ###########################################################################
+    def get_backup_source_cbs(self, source, mongo_connector):
         address = mongo_connector.address
         return source.get_block_storage_by_address(address)
 
@@ -1714,7 +1723,7 @@ class DataSizePredicate(HybridStrategyPredicate):
             # then choose dump and warn
             address = mongo_connector.address
             cbs_strategy = hybrid_strategy.cloud_block_storage_strategy
-            block_storage = cbs_strategy.get_backup_cbs(backup.source,
+            block_storage = cbs_strategy.get_backup_cbs(backup,
                                                         mongo_connector)
             if block_storage is None:
                 logger.warning("HybridStrategy: No cloud block storage found "
