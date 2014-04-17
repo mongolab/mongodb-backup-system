@@ -80,7 +80,7 @@ class BackupStrategy(MBSObject):
         self._backup_name_scheme = None
         self._backup_description_scheme = None
 
-        self._use_fsynclock = False
+        self._use_fsynclock = None
         self._use_suspend_io = None
         self._allow_offline_backups = None
 
@@ -1274,6 +1274,7 @@ class CloudBlockStorageStrategy(BackupStrategy):
         BackupStrategy.__init__(self)
         self._constituent_name_scheme = None
         self._constituent_description_scheme = None
+        self._use_fsynclock = True
 
     ###########################################################################
     @property
