@@ -1611,6 +1611,9 @@ class HybridStrategy(BackupStrategy):
         strategy.use_suspend_io = self.use_suspend_io
         strategy.allow_offline_backups = self.allow_offline_backups
 
+        if self.use_fsynclock is not None:
+            strategy.use_fsynclock = self.use_fsynclock
+
         strategy.backup_name_scheme = \
             (strategy.backup_name_scheme or
              self.backup_name_scheme)
