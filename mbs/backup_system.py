@@ -7,7 +7,7 @@ import urllib
 import json
 import os
 
-from threading import Thread
+from threading import Thread, Timer
 
 
 from utils import resolve_path, wait_for, get_validate_arg, dict_to_str
@@ -896,7 +896,7 @@ class BackupSystem(Thread):
         """
             Triggers the backup system to gracefully stop
         """
-        Thread(target=self._do_stop).start()
+        Timer(1, self._do_stop).start()
 
     ###########################################################################
     def _do_stop(self):
@@ -904,7 +904,7 @@ class BackupSystem(Thread):
             Triggers the backup system to gracefully stop
         """
         self.info("Stopping backup system gracefully")
-        #time.sleep(3)
+
         self._stop_requested = True
 
         self.api_server.stop_command_server()
@@ -917,11 +917,10 @@ class BackupSystem(Thread):
         wait_for(stopped, timeout=60)
         if stopped():
             self.info("Backup system stopped successfully. Bye!")
-            exit(0)
 
         else:
             self.error("Backup system did not stop in 60 seconds")
-            exit(1)
+
 
     ###########################################################################
     def _do_get_status(self):

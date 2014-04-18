@@ -41,6 +41,7 @@ class BackupSystemApiServer(Thread):
         self._http_server = None
         self._protocol = "http"
         self._ssl_options = None
+        self._waitress_server = None
 
     ###########################################################################
     @property
@@ -282,13 +283,33 @@ class BackupSystemApiServer(Thread):
                     " (port=%s, protocol=%s)" % (self.port, self.protocol))
 
         serve(app, host='0.0.0.0', port=self.port, url_scheme=self.protocol,
-              threads=10)
+              threads=10, _server=self.custom_waitress_create_server)
 
     ###########################################################################
     def stop_command_server(self):
         # This is how we stop waitress unfortunately
-        print os.getpid()
-        os.kill(os.getpid(), signal.SIGINT)
+        try:
+            self._waitress_server.task_dispatcher.shutdown(timeout=5)
+            import asyncore
+            asyncore.socket_map.clear()
+        except Exception:
+            traceback.print_exc()
+    ###########################################################################
+    # TODO Remove this once we have a better shutdown method
+    def custom_waitress_create_server(
+            self,
+            application,
+            map=None,
+            _start=True,      # test shim
+            _sock=None,       # test shim
+            _dispatcher=None, # test shim
+            **kw):
+        import waitress.server
+        self._waitress_server = waitress.server.create_server(
+            application, map=map, _start=_start, _sock=_sock,
+            _dispatcher=_dispatcher, **kw)
+
+        return self._waitress_server
 
 ###############################################################################
 # Api Auth Service
