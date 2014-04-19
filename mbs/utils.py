@@ -301,13 +301,16 @@ def is_same_host(host1, host2):
 ###############################################################################
 def get_host_ips(host):
     try:
+        host_info = socket.gethostbyname_ex(host)
+        aliases = host_info[1]
+        ips = host_info[2]
 
-        ips = []
-        addr_info = socket.getaddrinfo(host, None)
-        for elem in addr_info:
-            ip = elem[4]
-            if ip not in ips:
-                ips.append(ip)
+        for alias in aliases:
+            if alias != host:
+                try:
+                    ips.extend(get_host_ips(alias))
+                except Exception, ex:
+                    pass
 
         # TODO remove this temp hack that works around the case where
         # host X has more IPs than X.foo.com.
