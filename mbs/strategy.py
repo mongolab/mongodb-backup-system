@@ -895,6 +895,12 @@ class DumpStrategy(BackupStrategy):
                 "admin"
             ])
 
+        # include users in dump if its a database dump and
+        # mongo version is >= 2.6.0
+        if (mongo_version >= MongoNormalizedVersion("2.6.0") and
+                    database_name != None):
+            dump_cmd.append("--dumpDbUsersAndRoles")
+
         dump_cmd_display= dump_cmd[:]
         # mask mongo uri
         dump_cmd_display[dump_cmd_display.index("dump") + 1] = \
@@ -1167,6 +1173,12 @@ class DumpStrategy(BackupStrategy):
                 "--authenticationDatabase",
                 "admin"
             ])
+
+        # include users in restore if its a database restore and
+        # mongo version is >= 2.6.0
+        if (mongo_version >= MongoNormalizedVersion("2.6.0") and
+                    source_database_name != None):
+            restore_cmd.append("--restoreDbUsersAndRoles")
 
         restore_cmd_display = restore_cmd[:]
 
