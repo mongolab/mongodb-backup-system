@@ -582,12 +582,16 @@ class BackupSystem(Thread):
             if not plan.created_date:
                 plan.created_date = date_now()
 
-            if plan.id:
+            is_new_plan = not plan.id
+
+            plan_doc = plan.to_document()
+            get_mbs().plan_collection.save_document(plan_doc)
+            plan.id = plan_doc["_id"]
+
+            if is_new_plan:
                 self.info("Updating plan: \n%s" % plan)
             else:
                 self.info("Saving new plan: \n%s" % plan)
-
-            get_mbs().plan_collection.save_document(plan.to_document())
 
             self.info("Plan saved successfully")
         except Exception, e:
