@@ -22,7 +22,7 @@ from target import CloudBlockStorageSnapshotReference
 from robustify.robustify import robustify
 from errors import (
     raise_if_not_retriable, raise_exception, BackupDeleteError,
-    TargetInaccessibleError)
+    TargetInaccessibleError, BackupExpirationError, BackupSweepError)
 
 from utils import document_pretty_string
 
@@ -373,15 +373,16 @@ class BackupExpirationManager(ScheduleRunner):
         rp = plan.retention_policy
 
         if not rp:
-            raise Exception("Bad attempt to expire backup '%s'. "
-                            "Backup plan does not have a retention policy" %
-                            backup.id)
+            raise BackupExpirationError(
+                "Bad attempt to expire backup '%s'. "
+                "Backup plan does not have a retention policy" % backup.id)
         occurrences_to_retain = \
             rp.get_plan_occurrences_to_retain_as_of(plan, date_now())
 
         if backup.plan_occurrence in occurrences_to_retain:
-            raise Exception("Bad attempt to expire backup '%s'. "
-                            "Backup must not be expired now." % backup.id)
+            raise BackupExpirationError(
+                "Bad attempt to expire backup '%s'. Backup must not be"
+                " expired now." % backup.id)
         else:
             logger.info("Backup '%s' good be expired now" %
                         backup.id)
@@ -539,8 +540,9 @@ class BackupSweeper(ScheduleRunner):
                     " expiredDate='%s' ..." % (backup.id, backup.start_date,
                                            backup.expired_date))
         if not backup.expired_date:
-            raise Exception("Bad target delete attempt for backup '%s'. "
-                            "Backup has not expired yet" % backup.id)
+            raise BackupSweepError(
+                "Bad target delete attempt for backup '%s'. Backup has "
+                "not expired yet" % backup.id)
 
         # make sure that the backup has been expired properly
         get_expiration_manager().validate_backup_expiration(backup)
@@ -549,7 +551,7 @@ class BackupSweeper(ScheduleRunner):
             msg = ("Bad target delete attempt for backup '%s'. Backup expired"
                    " date '%s' is not before  max expire date to delete '%s'" %
                    (backup.id, backup.expired_date, cutoff_date))
-            raise Exception(msg)
+            raise BackupSweepError(msg)
 
         logger.info("Validation succeeded. Backup '%s' good to be deleted" %
                     backup.id)
