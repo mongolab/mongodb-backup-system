@@ -21,6 +21,8 @@ from utils import (
     freeze_mount_point, unfreeze_mount_point, export_mbs_object_list,
     suspend_lvm_mount_point, resume_lvm_mount_point, safe_format
 )
+
+import urllib
 ###############################################################################
 # LOGGER
 ###############################################################################
@@ -505,7 +507,8 @@ class BlobVolumeStorage(CloudBlockStorage):
         container_name, blob_name = \
             self._get_container_and_blob_names_from_media_link(self.volume_id)
 
-        metadata = {"name": name, "description": description}
+        metadata = {"name": urllib.quote(name),
+                    "description": urllib.quote(description)}
 
         response = self.blob_service_connection.snapshot_blob(
             container_name, blob_name, x_ms_meta_name_values=metadata)
