@@ -648,16 +648,22 @@ def _calculate_database_stats(db):
         db_stats = db.command({"dbstats": 1})
 
         result = {
-            "collections": db_stats["collections"],
-            "objects": db_stats["objects"],
-            "dataSize": db_stats["dataSize"],
-            "storageSize": db_stats["storageSize"],
-            "indexes": db_stats["indexes"],
-            "indexSize":db_stats["indexSize"],
-            "fileSize": db_stats["fileSize"],
-            "nsSizeMB": db_stats["nsSizeMB"],
             "databaseName": db.name
         }
+
+        stats_keys = [
+            "collections",
+            "objects",
+            "dataSize",
+            "storageSize",
+            "indexes",
+            "indexSize",
+            "fileSize",
+            "nsSizeMB"
+        ]
+
+        for key in stats_keys:
+            result[key] = db_stats.get(key) or 0
 
         return result
     except pymongo.errors.OperationFailure, ofe:
