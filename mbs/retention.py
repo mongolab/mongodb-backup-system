@@ -544,8 +544,6 @@ class BackupSweeper(ScheduleRunner):
                 "Bad target delete attempt for backup '%s'. Backup has "
                 "not expired yet" % backup.id)
 
-        # make sure that the backup has been expired properly
-        get_expiration_manager().validate_backup_expiration(backup)
         cutoff_date = self.max_expire_date_to_delete()
         if backup.expired_date > cutoff_date:
             msg = ("Bad target delete attempt for backup '%s'. Backup expired"
