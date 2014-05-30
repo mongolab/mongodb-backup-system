@@ -21,8 +21,8 @@ from target import CloudBlockStorageSnapshotReference
 
 from robustify.robustify import robustify
 from errors import (
-    raise_if_not_retriable, raise_exception, BackupDeleteError,
-    TargetInaccessibleError, BackupExpirationError, BackupSweepError)
+    raise_if_not_retriable, raise_exception, TargetInaccessibleError,
+    BackupExpirationError, BackupSweepError)
 
 from utils import document_pretty_string
 
@@ -329,8 +329,8 @@ class BackupExpirationManager(ScheduleRunner):
     def expire_backup(self, backup, force=False):
         # do some validation
         if not backup.target_reference:
-            raise BackupDeleteError("Cannot expire backup '%s'. "
-                                    "Backup never uploaded" % backup.id)
+            raise BackupExpirationError("Cannot expire backup '%s'. "
+                                        "Backup never uploaded" % backup.id)
         if not force:
             self.validate_backup_expiration(backup)
 
@@ -610,8 +610,8 @@ def robustified_delete_backup(backup):
 
     # do some validation
     if not backup.target_reference:
-        raise BackupDeleteError("Cannot delete backup '%s'. "
-                                "Backup never uploaded" % backup.id)
+        raise BackupSweepError("Cannot delete backup '%s'. "
+                               "Backup never uploaded" % backup.id)
 
     logger.info("Deleting target references for backup '%s'." % backup.id)
 
