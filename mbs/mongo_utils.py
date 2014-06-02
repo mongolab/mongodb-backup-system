@@ -24,13 +24,16 @@ logger = mbs_logging.logger
 
 # CONSTS
 # db connection timeout, 160 seconds
-CONN_TIMEOUT = 160000
+CONN_TIMEOUT = 160
 
 ###############################################################################
 @robustify(max_attempts=3, retry_interval=3,
            do_on_exception=raise_if_not_retriable,
            do_on_failure=raise_exception)
-def mongo_connect(uri):
+def mongo_connect(uri, conn_timeout=None):
+
+    # default connection timeout and convert to mills
+    conn_timeout_mills = (conn_timeout or CONN_TIMEOUT) * 1000
     uri_wrapper = parse_mongo_uri(uri)
 
     try:
@@ -42,8 +45,8 @@ def mongo_connect(uri):
             else:
                 uri += "/admin"
 
-        conn = pymongo.Connection(uri, socketTimeoutMS=CONN_TIMEOUT,
-                                       connectTimeoutMS=CONN_TIMEOUT)
+        conn = pymongo.Connection(uri, socketTimeoutMS=conn_timeout_mills,
+                                  connectTimeoutMS=conn_timeout_mills)
         return conn[dbname]
     except Exception, e:
         if is_connection_exception(e):
@@ -57,8 +60,9 @@ def mongo_connect(uri):
 class MongoConnector(object):
 
     ###########################################################################
-    def __init__(self, uri):
+    def __init__(self, uri, conn_timeout=None):
         self._uri_wrapper = parse_mongo_uri(uri)
+        self._conn_timeout = conn_timeout
 
     ###########################################################################
     @property
@@ -71,8 +75,17 @@ class MongoConnector(object):
         return None
 
     ###########################################################################
+    @property
+    def conn_timeout(self):
+        return self._conn_timeout
+
+    ###########################################################################
     def is_online(self):
         return self.connection is not None
+
+    ###########################################################################
+    def is_online_and_statful(self):
+        return self.is_online()
 
     ###########################################################################
     @robustify(max_attempts=3, retry_interval=3,
@@ -185,13 +198,13 @@ class MongoConnector(object):
 class MongoDatabase(MongoConnector):
 
     ###########################################################################
-    def __init__(self, uri):
-        MongoConnector.__init__(self, uri)
+    def __init__(self, uri, conn_timeout=None):
+        MongoConnector.__init__(self, uri, conn_timeout=conn_timeout)
         # validate that uri has a database
         if not self._uri_wrapper.database:
             raise ConfigurationError("Uri must contain a database")
 
-        self._database = mongo_connect(uri)
+        self._database = mongo_connect(uri, conn_timeout=conn_timeout)
 
     ###########################################################################
     @property
@@ -206,7 +219,7 @@ class MongoDatabase(MongoConnector):
     ###########################################################################
     def get_stats(self, only_for_db=None):
         try:
-            stats =  _calculate_database_stats(self._database)
+            stats = _calculate_database_stats(self._database)
             # capture host in stats
             conn = self._database.connection
             stats["host"] = "%s:%s" % (conn.host, conn.port)
@@ -223,8 +236,11 @@ class MongoDatabase(MongoConnector):
 ###############################################################################
 class MongoCluster(MongoConnector):
     ###########################################################################
-    def __init__(self, uri):
-        MongoConnector.__init__(self, uri)
+    def __init__(self, uri, conn_timeout=None):
+        MongoConnector.__init__(self, uri, conn_timeout=conn_timeout)
+        self._members = None
+        self._primary_member = None
+
         self._init_members()
 
     ###########################################################################
@@ -247,12 +263,13 @@ class MongoCluster(MongoConnector):
         uri_wrapper = self._uri_wrapper
         # validate that uri has DB set to admin or nothing
         if uri_wrapper.database and uri_wrapper.database != "admin":
-            raise ConfigurationError("Database in uri '%s' can only be admin or"
-                                     " unspecified" % uri_wrapper.masked_uri)
+            raise ConfigurationError("Database in uri '%s' can only be admin "
+                                     "or unspecified" % uri_wrapper.masked_uri)
         members = []
         primary_member = None
         for member_uri in uri_wrapper.member_raw_uri_list:
-            member = MongoServer(member_uri)
+            member = MongoServer(member_uri,
+                                 conn_timeout=self.conn_timeout)
             members.append(member)
             if member.is_online() and member.is_primary():
                 primary_member = member
@@ -339,7 +356,7 @@ class MongoServer(MongoConnector):
 ###############################################################################
 
     ###########################################################################
-    def __init__(self, uri):
+    def __init__(self, uri, conn_timeout=None):
         MongoConnector.__init__(self, uri)
         self._connection = None
         self._authed_to_admin = False
@@ -350,9 +367,14 @@ class MongoServer(MongoConnector):
         self._lag_in_seconds = 0
 
         try:
-            self._connection = pymongo.Connection(self._uri_wrapper.address,
-                                                socketTimeoutMS=CONN_TIMEOUT,
-                                                connectTimeoutMS=CONN_TIMEOUT)
+            # default connection timeout and convert to mills
+            conn_timeout_mills = (conn_timeout or CONN_TIMEOUT) * 1000
+
+            self._connection = pymongo.Connection(
+                self._uri_wrapper.address,
+                socketTimeoutMS=conn_timeout_mills,
+                connectTimeoutMS=conn_timeout_mills)
+
             self._admin_db = self._connection["admin"]
 
             # if this is an arbiter then this is the farthest that we can get
@@ -514,7 +536,7 @@ class MongoServer(MongoConnector):
     def _get_server_status(self):
         try:
             server_status_cmd = SON([('serverStatus', 1)])
-            server_status =  self.get_auth_admin_db().command(server_status_cmd)
+            server_status = self.get_auth_admin_db().command(server_status_cmd)
             ignored_props = ["locks", "recordStats"]
             # IMPORTANT NOTE: We remove the "locks" property
             # which is introduced in 2.2.0 to avoid having issues if a client
@@ -630,14 +652,6 @@ class MongoServer(MongoConnector):
     ###########################################################################
     def is_config_server(self):
         return "configsvr" in self.get_cmd_line_opts()
-
-###############################################################################
-def database_connection_stats(db_uri):
-    """
-        Returns database stats for the specified database uri
-    """
-    db = mongo_connect(db_uri)
-    return _calculate_database_stats(db)
 
 ###############################################################################
 @robustify(max_attempts=3, retry_interval=3,

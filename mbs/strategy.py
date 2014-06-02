@@ -48,12 +48,24 @@ EVENT_END_ARCHIVE = "END_ARCHIVE"
 EVENT_START_UPLOAD = "START_UPLOAD"
 EVENT_END_UPLOAD = "END_UPLOAD"
 
+###############################################################################
 # Member preference values
+
+
 class MemberPreference(object):
     PRIMARY_ONLY = "PRIMARY_ONLY"
     SECONDARY_ONLY = "SECONDARY_ONLY"
     BEST = "BEST"
     NOT_PRIMARY = "NOT_PRIMARY"
+
+
+###############################################################################
+# Backup mode values
+
+
+class BackupMode(object):
+    ONLINE = "ONLINE"
+    OFFLINE = "OFFLINE"
 
 ###############################################################################
 # LOGGER
@@ -83,6 +95,7 @@ class BackupStrategy(MBSObject):
         self._use_fsynclock = None
         self._use_suspend_io = None
         self._allow_offline_backups = None
+        self._backup_mode = BackupMode.ONLINE
 
     ###########################################################################
     @property
@@ -162,6 +175,16 @@ class BackupStrategy(MBSObject):
     def allow_offline_backups(self, val):
         self._allow_offline_backups = val
 
+
+    ###########################################################################
+    @property
+    def backup_mode(self):
+        return self._backup_mode
+
+    @backup_mode.setter
+    def backup_mode(self, val):
+        self._backup_mode = val
+
     ###########################################################################
     def is_use_suspend_io(self):
         return False
@@ -203,7 +226,8 @@ class BackupStrategy(MBSObject):
             if self.allow_offline_backups:
                 logger.info("allowOfflineBackups is set to true so its all "
                             "good")
-            else:
+                self._set_backup_mode(backup, BackupMode.OFFLINE)
+            elif self.backup_mode == BackupMode.OFFLINE:
                 msg = "Selected connector '%s' is offline" % connector
                 raise NoEligibleMembersFound(backup.source.uri, msg=msg)
         else:
@@ -352,17 +376,9 @@ class BackupStrategy(MBSObject):
             raise BackupNotOnLocalhost(msg="Error while attempting to dump",
                                        details=details)
 
-        source = backup.source
-        dbname = source.database_name
         # record stats
         if not backup.source_stats or self._needs_new_source_stats(backup):
-            if mongo_connector.is_online():
-                backup.source_stats = mongo_connector.get_stats(
-                    only_for_db=dbname)
-                # save source stats
-                update_backup(backup, properties="sourceStats",
-                              event_name="COMPUTED_SOURCE_STATS",
-                              message="Computed source stats")
+            self._compute_source_stats(backup, mongo_connector)
 
         # set backup name and description
         self._set_backup_name_and_desc(backup)
@@ -375,6 +391,42 @@ class BackupStrategy(MBSObject):
 
         # calculate backup rate
         self._calculate_backup_rate(backup)
+
+    ###########################################################################
+    def _compute_source_stats(self, backup, mongo_connector):
+        """
+        computes backup source stats
+        :param backup:
+        :param mongo_connector:
+        :return:
+        """
+        dbname = backup.source.database_name
+        try:
+            if (self.backup_mode == BackupMode.ONLINE and
+                    mongo_connector.is_online()):
+                backup.source_stats = mongo_connector.get_stats(
+                    only_for_db=dbname)
+                # save source stats
+                update_backup(backup, properties="sourceStats",
+                              event_name="COMPUTED_SOURCE_STATS",
+                              message="Computed source stats")
+        except Exception, e:
+            if is_connection_exception(e) and self.allow_offline_backups:
+                # switch to offline mode
+                self._set_backup_mode(backup, BackupMode.OFFLINE)
+            else:
+                raise
+
+    ###########################################################################
+    def _set_backup_mode(self, backup, mode):
+        """
+            sets/persists specified backup mode
+        """
+        self.backup_mode = mode
+        # save source stats
+        update_backup(backup, properties="strategy",
+                      event_name="SET_BACKUP_MODE",
+                      message="Setting backup mode to '%s'" % mode)
 
     ###########################################################################
     def _needs_new_source_stats(self, backup):
@@ -562,8 +614,11 @@ class BackupStrategy(MBSObject):
     def to_document(self, display_only=False):
         doc = {
             "memberPreference": self.member_preference,
-            "ensureLocalhost": self.ensure_localhost
+            "backupMode": self.backup_mode
         }
+
+        if self.ensure_localhost is not None:
+            doc["ensureLocalhost"] = self.ensure_localhost
 
         if self.max_data_size:
             doc["maxDataSize"] = self.max_data_size
@@ -1366,7 +1421,9 @@ class CloudBlockStorageStrategy(BackupStrategy):
         :return:
         """
 
-        use_fysnclock = mongo_connector.is_online() and self.is_use_fsynclock()
+        use_fysnclock = (self.backup_mode == BackupMode.ONLINE and
+                         mongo_connector.is_online() and
+                         self.is_use_fsynclock())
         use_suspend_io = self.is_use_suspend_io() and use_fysnclock
         fsync_unlocked = False
 
@@ -1588,7 +1645,9 @@ class HybridStrategy(BackupStrategy):
         if not self.selected_strategy_type:
 
             # if the connector was offline and its allowed then use cbs
-            if self.allow_offline_backups and not mongo_connector.is_online():
+            if (self.backup_mode == BackupMode.OFFLINE or
+                    (self.allow_offline_backups and
+                     not mongo_connector.is_online())):
                 selected_strategy = self.cloud_block_storage_strategy
             else:
                 selected_strategy = self.predicate.get_best_strategy(
@@ -1618,6 +1677,8 @@ class HybridStrategy(BackupStrategy):
     ###########################################################################
     def _set_default_settings(self, strategy):
         strategy.member_preference = self.member_preference
+        strategy.backup_mode = self.backup_mode
+
         strategy.ensure_local_host = self.ensure_localhost
         strategy.max_data_size = self.max_data_size
         strategy.use_suspend_io = self.use_suspend_io
