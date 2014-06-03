@@ -160,7 +160,7 @@ class RetainMaxTimePolicy(RetentionPolicy):
 # BackupExpirationManager
 ###############################################################################
 
-DEFAULT_EXP_SCHEDULE = Schedule(frequency_in_seconds=(2 * 60 * 60))
+DEFAULT_EXP_SCHEDULE = Schedule(frequency_in_seconds=(5 * 60 * 60))
 
 
 class BackupExpirationManager(ScheduleRunner):
