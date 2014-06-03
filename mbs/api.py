@@ -283,7 +283,7 @@ class BackupSystemApiServer(Thread):
                     " (port=%s, protocol=%s)" % (self.port, self.protocol))
 
         serve(app, host='0.0.0.0', port=self.port, url_scheme=self.protocol,
-              threads=10, _server=self.custom_waitress_create_server)
+              threads=20, _server=self.custom_waitress_create_server)
 
     ###########################################################################
     def stop_command_server(self):
