@@ -1679,7 +1679,7 @@ class HybridStrategy(BackupStrategy):
         strategy.member_preference = self.member_preference
         strategy.backup_mode = self.backup_mode
 
-        strategy.ensure_local_host = self.ensure_localhost
+        strategy.ensure_localhost = self.ensure_localhost
         strategy.max_data_size = self.max_data_size
         strategy.use_suspend_io = self.use_suspend_io
         strategy.allow_offline_backups = self.allow_offline_backups
