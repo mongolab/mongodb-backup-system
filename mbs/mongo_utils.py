@@ -84,10 +84,6 @@ class MongoConnector(object):
         return self.connection is not None
 
     ###########################################################################
-    def is_online_and_statful(self):
-        return self.is_online()
-
-    ###########################################################################
     @robustify(max_attempts=3, retry_interval=3,
                do_on_exception=raise_if_not_retriable,
                do_on_failure=raise_exception)
