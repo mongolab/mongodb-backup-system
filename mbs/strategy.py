@@ -30,7 +30,7 @@ from target import (
 )
 
 
-from task import EVENT_TYPE_WARNING
+from globals import EventType
 from robustify.robustify import robustify
 from naming_scheme import *
 
@@ -341,7 +341,7 @@ class BackupStrategy(MBSObject):
 
                     msg = ("Warning! The dump will be extracted from a too "
                            "stale member")
-                    update_backup(backup, event_type=EVENT_TYPE_WARNING,
+                    update_backup(backup, event_type=EventType.WARNING,
                                   event_name="USING_TOO_STALE_WARNING",
                                   message=msg)
 
@@ -355,7 +355,7 @@ class BackupStrategy(MBSObject):
                            "primary!" % backup.id)
 
             msg = "Warning! The dump will be extracted from the  primary"
-            update_backup(backup, event_type=EVENT_TYPE_WARNING,
+            update_backup(backup, event_type=EventType.WARNING,
                           event_name="USING_PRIMARY_WARNING",
                           message=msg)
 
@@ -967,7 +967,7 @@ class DumpStrategy(BackupStrategy):
         def on_dump_output(line):
             if "ERROR:" in line:
                 msg = "Caught a dump error: %s" % line
-                update_backup(backup, event_type=EVENT_TYPE_WARNING,
+                update_backup(backup, event_type=EventType.WARNING,
                     event_name="DUMP_ERROR", message=msg)
 
 
@@ -1439,7 +1439,7 @@ class CloudBlockStorageStrategy(BackupStrategy):
                 msg = ("Snapshot Backup '%s' will be taken WITHOUT "
                        "locking database and IO!" % backup.id)
                 logger.warning(msg)
-                update_backup(backup, event_type=EVENT_TYPE_WARNING,
+                update_backup(backup, event_type=EventType.WARNING,
                               event_name="NOT_LOCKED",
                               message=msg)
 

@@ -1,6 +1,6 @@
 __author__ = 'abdul'
 
-from task import EVENT_TYPE_INFO
+from globals import EventType
 from utils import listify
 from makerpy.object_collection import ObjectCollection
 from mongo_utils import objectiditify
@@ -41,7 +41,7 @@ class MBSTaskCollection(MBSObjectCollection):
 
     ###########################################################################
     def update_task(self, task, properties=None, event_name=None,
-                    event_type=EVENT_TYPE_INFO, message=None, details=None):
+                    event_type=EventType.INFO, message=None, details=None):
         """
             Updates the specified properties of the specified MBSTask object
         """

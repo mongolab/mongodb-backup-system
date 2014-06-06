@@ -4,26 +4,11 @@ __author__ = 'abdul'
 from date_utils import date_now
 from base import MBSObject
 
-
+from globals import *
 ###############################################################################
 # CONSTANTS
 ###############################################################################
-STATE_SCHEDULED = "SCHEDULED"
-STATE_IN_PROGRESS = "IN PROGRESS"
-STATE_FAILED = "FAILED"
-STATE_CANCELED = "CANCELED"
-STATE_SUCCEEDED = "SUCCEEDED"
-
 EVENT_STATE_CHANGE = "STATE_CHANGE"
-# event types
-EVENT_TYPE_INFO = "INFO"
-EVENT_TYPE_WARNING = "WARNING"
-EVENT_TYPE_ERROR = "ERROR"
-
-# Priority constants
-PRIORITY_HIGH = 0
-PRIORITY_MEDIUM = 5
-PRIORITY_LOW = 10
 
 ###############################################################################
 # MBSTask
@@ -43,7 +28,7 @@ class MBSTask(MBSObject):
         self._try_count = 0
         self._reschedulable = None
         self._workspace = None
-        self._priority = PRIORITY_LOW
+        self._priority = Priority.LOW
         self._queue_latency_in_minutes = None
         self._log_target_reference = None
 
@@ -210,7 +195,7 @@ class MBSTask(MBSObject):
         self._log_target_reference = target_reference
 
     ###########################################################################
-    def log_event(self, event_type=EVENT_TYPE_INFO, name=None, message=None,
+    def log_event(self, event_type=EventType.INFO, name=None, message=None,
                   details=None):
         logs = self.logs
 
@@ -236,15 +221,15 @@ class MBSTask(MBSObject):
 
     ###########################################################################
     def get_errors(self):
-        return self._get_logs_by_event_type(EVENT_TYPE_ERROR)
+        return self._get_logs_by_event_type(EventType.ERROR)
 
     ###########################################################################
     def get_warnings(self):
-        return self._get_logs_by_event_type(EVENT_TYPE_WARNING)
+        return self._get_logs_by_event_type(EventType.WARNING)
 
     ###########################################################################
     def get_info_logs(self):
-        return self._get_logs_by_event_type(EVENT_TYPE_INFO)
+        return self._get_logs_by_event_type(EventType.INFO)
 
     ###########################################################################
     def get_last_log_message(self):
@@ -436,7 +421,7 @@ class EventLogEntry(MBSObject):
 def state_change_log_entry(state, message=None):
 
     log_entry = EventLogEntry()
-    log_entry.event_type = EVENT_TYPE_INFO
+    log_entry.event_type = EventType.INFO
     log_entry.name = EVENT_STATE_CHANGE
     log_entry.date = date_now()
     log_entry.state = state

@@ -1,9 +1,8 @@
 __author__ = 'abdul'
 
 from base import MBSObject
-from datetime import timedelta
 
-from backup import PRIORITY_LOW
+from globals import Priority
 
 ###############################################################################
 # BackupPlan
@@ -22,7 +21,7 @@ class BackupPlan(MBSObject):
         self._retention_policy = None
         self._generator = None
         self._tags = None
-        self._priority = PRIORITY_LOW
+        self._priority = Priority.LOW
 
     ###########################################################################
     @property

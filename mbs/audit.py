@@ -1,7 +1,7 @@
 __author__ = 'abdul'
 
 from base import MBSObject
-from backup import STATE_SUCCEEDED
+from globals import State
 
 
 
@@ -194,7 +194,7 @@ class AuditEntry(MBSObject):
 
     ###########################################################################
     def succeeded(self):
-        return self.state == STATE_SUCCEEDED
+        return self.state == State.SUCCEEDED
 
     ###########################################################################
     @property

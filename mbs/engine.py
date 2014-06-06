@@ -14,7 +14,7 @@ import json
 
 from flask import Flask
 from flask.globals import request
-
+from globals import State, EventType
 from threading import Thread
 
 
@@ -25,12 +25,12 @@ from utils import (ensure_dir, resolve_path, get_local_host_name,
 
 from mbs import get_mbs
 
-from date_utils import  timedelta_total_seconds, date_now, date_minus_seconds
+from date_utils import timedelta_total_seconds, date_now, date_minus_seconds
 
 
-from task import (STATE_SCHEDULED, STATE_IN_PROGRESS, STATE_FAILED,
-                  STATE_SUCCEEDED, STATE_CANCELED, EVENT_TYPE_ERROR,
-                  EVENT_STATE_CHANGE, state_change_log_entry)
+from task import (
+    EVENT_STATE_CHANGE, state_change_log_entry
+)
 
 from backup import Backup
 
@@ -507,10 +507,10 @@ class TaskQueueProcessor(Thread):
             log_msg = "Unexpected error. Please contact admin"
 
         details = "%s. Stack Trace: %s" % (exception, trace)
-        self._task_collection.update_task(worker.task, event_type=EVENT_TYPE_ERROR,
+        self._task_collection.update_task(worker.task, event_type=EventType.ERROR,
             message=log_msg, details=details)
 
-        self.worker_finished(worker, STATE_FAILED)
+        self.worker_finished(worker, State.FAILED)
 
         nh = get_mbs().notification_handler
         # send a notification only if the task is not reschedulable
@@ -522,11 +522,11 @@ class TaskQueueProcessor(Thread):
         self._task_collection.update_task(worker.task,
                                     message="Task completed successfully!")
 
-        self.worker_finished(worker, STATE_SUCCEEDED)
+        self.worker_finished(worker, State.SUCCEEDED)
 
     ###########################################################################
     def cleaner_finished(self, worker):
-        self.worker_finished(worker, STATE_CANCELED)
+        self.worker_finished(worker, State.CANCELED)
 
     ###########################################################################
     def worker_finished(self, worker, state, message=None):
@@ -551,7 +551,7 @@ class TaskQueueProcessor(Thread):
         self.info("Running recovery..")
 
         q = {
-            "state": STATE_IN_PROGRESS,
+            "state": State.IN_PROGRESS,
             "engineGuid": self._engine.engine_guid
         }
 
@@ -561,7 +561,7 @@ class TaskQueueProcessor(Thread):
             # fail task
             self.info("Recovery: Failing task %s" % task._id)
             task.reschedulable = True
-            task.state = STATE_FAILED
+            task.state = State.FAILED
             task.end_date = date_now()
             # update
             self._task_collection.update_task(task,
@@ -581,9 +581,9 @@ class TaskQueueProcessor(Thread):
     ###########################################################################
     def read_next_task(self):
 
-        log_entry = state_change_log_entry(STATE_IN_PROGRESS)
+        log_entry = state_change_log_entry(State.IN_PROGRESS)
         q = self._get_scheduled_tasks_query()
-        u = {"$set" : { "state": STATE_IN_PROGRESS,
+        u = {"$set" : { "state": State.IN_PROGRESS,
                         "engineGuid": self._engine.engine_guid},
              "$push": {"logs":log_entry.to_document()}}
 
@@ -603,7 +603,7 @@ class TaskQueueProcessor(Thread):
     ###########################################################################
     def _read_next_failed_past_due_task(self):
         min_fail_end_date = date_minus_seconds(date_now(), MAX_FAIL_DUE_TIME)
-        q = { "state": STATE_FAILED,
+        q = { "state": State.FAILED,
               "engineGuid": self._engine.engine_guid,
               "$or": [
                       {
@@ -621,8 +621,8 @@ class TaskQueueProcessor(Thread):
         }
 
         msg = "Task failed and is past due. Cancelling..."
-        log_entry = state_change_log_entry(STATE_CANCELED, message=msg)
-        u = {"$set" : { "state" : STATE_CANCELED},
+        log_entry = state_change_log_entry(State.CANCELED, message=msg)
+        u = {"$set" : { "state" : State.CANCELED},
              "$push": {
                  "logs": log_entry.to_document()
              }
@@ -633,7 +633,7 @@ class TaskQueueProcessor(Thread):
 
     ###########################################################################
     def _get_scheduled_tasks_query(self):
-        q = {"state": STATE_SCHEDULED}
+        q = {"state": State.SCHEDULED}
         tags = self._engine.get_resolved_tags()
         # add tags if specified
         if tags:

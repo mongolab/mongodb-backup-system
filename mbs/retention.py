@@ -13,9 +13,8 @@ from date_utils import date_now, date_minus_seconds, date_plus_seconds
 
 from schedule_runner import ScheduleRunner
 from schedule import Schedule
-from task import STATE_SUCCEEDED
+from globals import State, EventType
 
-from task import EVENT_TYPE_ERROR, EVENT_TYPE_WARNING
 from target import CloudBlockStorageSnapshotReference
 
 
@@ -525,7 +524,7 @@ class BackupSweeper(ScheduleRunner):
             persistence.update_backup(backup,
                                       event_name="DELETE_ERROR",
                                       message=msg,
-                                      event_type=EVENT_TYPE_ERROR)
+                                      event_type=EventType.ERROR)
             # if the backup expiration has errored out for 3 times then mark as
             # unexpirable
             if backup.event_logged_count("DELETE_ERROR") >= 3:
@@ -564,7 +563,7 @@ class BackupSweeper(ScheduleRunner):
 ###############################################################################
 def _check_to_expire_query():
     q = {
-        "state": STATE_SUCCEEDED,
+        "state": State.SUCCEEDED,
         "expiredDate": {"$exists": False},
         "dontExpire": {"$ne": True}
     }
@@ -691,7 +690,7 @@ def do_delete_target_ref(backup, target, target_ref):
         persistence.update_backup(backup,
                                   event_name="DELETE_ERROR",
                                   message=msg,
-                                  event_type=EVENT_TYPE_WARNING)
+                                  event_type=EventType.WARNING)
         return False
 
 ###############################################################################

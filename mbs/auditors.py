@@ -4,7 +4,7 @@ import traceback
 
 from mbs import get_mbs
 from audit import *
-from task import STATE_SUCCEEDED
+from globals import State
 import mbs_logging
 from date_utils import yesterday_date, datetime_to_string, date_plus_seconds
 
@@ -332,7 +332,7 @@ class PlanRetentionAuditor(BackupAuditor):
                 continue
 
             backup = _lookup_backup_by_plan_occurrence(plan, occurrence)
-            if not backup or backup.state != STATE_SUCCEEDED:
+            if not backup or backup.state != State.SUCCEEDED:
                 logger.info("Skipping occurrence '%s' because its backup did"
                             " not get scheduled or did not succeed. Should be "
                             "caught by the PlanScheduleAuditor." % occurrence)
@@ -377,7 +377,7 @@ class PlanRetentionAuditor(BackupAuditor):
         if backup.expired_date and backup.expired_date < audit_date:
             audit_entry.state = "BACKUP EXPIRED AND NOT RETAINED"
         else:
-            audit_entry.state = STATE_SUCCEEDED
+            audit_entry.state = State.SUCCEEDED
 
         audit_entry.plan_occurrence = plan_occurrence
 

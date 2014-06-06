@@ -17,9 +17,9 @@ import mbs_config
 from date_utils import date_now, date_minus_seconds, time_str_to_datetime_today
 from errors import *
 from auditors import GlobalAuditor
-from task import (STATE_SCHEDULED, STATE_IN_PROGRESS, STATE_FAILED,
-                  STATE_CANCELED, STATE_SUCCEEDED, EVENT_STATE_CHANGE,
-                  EVENT_TYPE_ERROR)
+from globals import State, EventType
+
+from task import EVENT_STATE_CHANGE
 
 from mbs import get_mbs
 from api import BackupSystemApiServer
@@ -303,7 +303,7 @@ class BackupSystem(Thread):
     def _plan_has_backup_in_progress(self, plan):
         q = {
             "plan.$id": plan._id,
-            "state": STATE_IN_PROGRESS
+            "state": State.IN_PROGRESS
         }
         return get_mbs().backup_collection.find_one(q) is not None
 
@@ -315,14 +315,14 @@ class BackupSystem(Thread):
         now = date_now()
 
         q = {
-            "state": {"$in": [STATE_SCHEDULED]},
+            "state": {"$in": [State.SCHEDULED]},
             "plan.nextOccurrence": {"$lte": now}
         }
 
         bc = get_mbs().backup_collection
         for backup in bc.find(q):
             self.info("Cancelling backup %s" % backup._id)
-            backup.state = STATE_CANCELED
+            backup.state = State.CANCELED
             bc.update_task(backup, properties="state",
                            event_name=EVENT_STATE_CHANGE,
                            message="Backup is past due. Canceling...")
@@ -339,7 +339,7 @@ class BackupSystem(Thread):
         where = ("(this.logs[this.logs.length-1].date.getTime() + %s) < "
                  "new Date().getTime()" % RESCHEDULE_PERIOD_MILLS)
         q = {
-            "state": STATE_FAILED,
+            "state": State.FAILED,
             "reschedulable": True,
             "$where": where
         }
@@ -352,7 +352,7 @@ class BackupSystem(Thread):
         self.info("Rescheduling all failed backups")
 
         q = {
-            "state": STATE_FAILED
+            "state": State.FAILED
         }
 
         for backup in get_mbs().backup_collection.find(q):
@@ -367,10 +367,10 @@ class BackupSystem(Thread):
             Reschedules the backup IF backup state is FAILED and
                         backup is still within it's plan current cycle
         """
-        if backup.state != STATE_FAILED:
+        if backup.state != State.FAILED:
             msg = ("Cannot reschedule backup ('%s', '%s'). Rescheduling is "
                    "only allowed for backups whose state is '%s'." %
-                   (backup.id, backup.state, STATE_FAILED))
+                   (backup.id, backup.state, State.FAILED))
             raise BackupSystemError(msg)
         elif backup.plan and backup.plan.next_occurrence <= date_now():
             msg = ("Cannot reschedule backup '%s' because its occurrence is"
@@ -379,7 +379,7 @@ class BackupSystem(Thread):
 
         self.info("Rescheduling backup %s" % backup._id)
         props = ["state", "tags"]
-        backup.state = STATE_SCHEDULED
+        backup.state = State.SCHEDULED
 
         bc = get_mbs().backup_collection
         # if from_scratch is set then clear backup log
@@ -395,7 +395,7 @@ class BackupSystem(Thread):
 
         self._resolve_task_tags(backup, bc)
 
-        if backup.state == STATE_FAILED:
+        if backup.state == State.FAILED:
             self._notify_task_reschedule_failed(backup)
 
         bc.update_task(backup, properties=props,
@@ -457,7 +457,7 @@ class BackupSystem(Thread):
                                                         expected_type=list,
                                                         required=False)
 
-            backup.change_state(STATE_SCHEDULED)
+            backup.change_state(State.SCHEDULED)
             # set tags
             tags = get_validate_arg(kwargs, "tags", expected_type=dict,
                                     required=False)
@@ -470,7 +470,7 @@ class BackupSystem(Thread):
             except Exception, e:
                 msg = ("Failed to resolve backup tags. Trace: \n%s" %
                        traceback.format_exc())
-                backup.change_state(STATE_FAILED, message=msg)
+                backup.change_state(State.FAILED, message=msg)
                 backup.reschedulable = True
                 logger.error(msg)
                 logger.error(traceback.format_exc())
@@ -625,7 +625,7 @@ class BackupSystem(Thread):
         logger.info("Scheduling a restore for backup '%s'" % backup.id)
         restore = Restore()
 
-        restore.state = STATE_SCHEDULED
+        restore.state = State.SCHEDULED
         restore.source_backup = backup
         restore.source_database_name = source_database_name
         restore.strategy = backup.strategy
@@ -653,7 +653,7 @@ class BackupSystem(Thread):
         q.update({
             "state": {
                 "$nin": [
-                    STATE_SUCCEEDED
+                    State.SUCCEEDED
                 ]
             }
         })
@@ -727,7 +727,7 @@ class BackupSystem(Thread):
         one_off_starve_date = date_minus_seconds(date_now(),
                                                  ONE_OFF_BACKUP_MAX_WAIT_TIME)
         q = {
-            "state": STATE_SCHEDULED,
+            "state": State.SCHEDULED,
             "$or":[
                 # backups with plans starving query
                 {
@@ -771,10 +771,10 @@ class BackupSystem(Thread):
                    traceback.format_exc())
             logger.error(msg)
             logger.error(traceback.format_exc())
-            task.state = STATE_FAILED
+            task.state = State.FAILED
             task.reschedulable = True
             if not task.id:
-                task.log_event(STATE_FAILED, message=msg)
+                task.log_event(State.FAILED, message=msg)
 
             else:
                 tc = task_collection
@@ -782,7 +782,7 @@ class BackupSystem(Thread):
                                properties=["state", "reschedulable"],
                                event_name="FAILED_TO_RESOLVE_TAGS",
                                details=msg,
-                               event_type=EVENT_TYPE_ERROR)
+                               event_type=EventType.ERROR)
 
 
 
@@ -795,7 +795,7 @@ class BackupSystem(Thread):
 
         min_start_date = date_minus_seconds(date_now(), MAX_BACKUP_WAIT_TIME)
         q = {
-            "state": STATE_IN_PROGRESS,
+            "state": State.IN_PROGRESS,
             "startDate": {
                 "$lt": min_start_date
             }
