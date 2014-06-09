@@ -10,13 +10,13 @@ import mbs_logging
 
 import urllib2
 
-import json
+import persistence
 
 from flask import Flask
 from flask.globals import request
 from globals import State, EventType
 from threading import Thread
-
+from multiprocessing import Process
 
 from errors import MBSError, BackupEngineError
 
@@ -33,6 +33,7 @@ from task import (
 )
 
 from backup import Backup
+from mbs_client.client import BackupEngineClient
 
 ###############################################################################
 # CONSTANTS
@@ -84,6 +85,9 @@ class BackupEngine(Thread):
         self._tags = None
         self._resolved_tags = None
         self._stopped = False
+        self._backup_processor = None
+        self._restore_processor = None
+        self._client = None
 
 
     ###########################################################################
@@ -152,6 +156,13 @@ class BackupEngine(Thread):
     def command_port(self, command_port):
         self._command_port = command_port
 
+
+    @property
+    def client(self):
+        if self._client is None:
+            self._client = BackupEngineClient(api_url="http://0.0.0.0:%s" %
+                                                      self.command_port)
+        return self._client
     ###########################################################################
     def run(self):
         self.info("Starting up... ")
@@ -176,29 +187,38 @@ class BackupEngine(Thread):
 
     ###########################################################################
     def start_task_processors(self):
-        # create the backup processor
-        bc = get_mbs().backup_collection
-        self._backup_processor = TaskQueueProcessor("Backups", bc, self,
-                                                    self._max_workers)
-
-        # create the restore processor
-        rc = get_mbs().restore_collection
-        self._restore_processor = TaskQueueProcessor("Restores", rc, self,
-                                                     self._max_workers)
-
         # start the backup processor
-        self._backup_processor.start()
+        self.backup_processor.start()
 
         # start the restore processor
-        self._restore_processor.start()
+        self.restore_processor.start()
+
+    ###########################################################################
+    @property
+    def backup_processor(self):
+        if not self._backup_processor:
+            bc = get_mbs().backup_collection
+            self._backup_processor = TaskQueueProcessor("Backups", bc, self,
+                                                        self._max_workers)
+        return self._backup_processor
+
+
+    ###########################################################################
+    @property
+    def restore_processor(self):
+        if not self._restore_processor:
+            rc = get_mbs().restore_collection
+            self._restore_processor = TaskQueueProcessor("Restores", rc, self,
+                                                         self._max_workers)
+        return self._restore_processor
 
     ###########################################################################
     def wait_task_processors(self):
         # start the backup processor
-        self._backup_processor.join()
+        self.backup_processor.join()
 
         # start the restore processor
-        self._restore_processor.join()
+        self.restore_processor.join()
 
     ###########################################################################
     def _notify_error(self, exception):
@@ -268,65 +288,34 @@ class BackupEngine(Thread):
                                          pid_file_name))
 
     ###########################################################################
-    # Engine stopping
-    ###########################################################################
-    def stop(self, timeout=30):
-        """
-            Sends a stop request to the engine using the command port
-            This should be used by other processes (copies of the engine
-            instance) but not the actual running engine process
-        """
-        url = "http://0.0.0.0:%s/stop" % self.command_port
-        try:
-            response = urllib2.urlopen(url, timeout=timeout)
-            if response.getcode() == 200:
-                print response.read().strip()
-            else:
-                msg =  ("Error while trying to stop engine '%s' URL %s "
-                        "(Response"" code %)" %
-                        (self.engine_guid, url, response.getcode()))
-                raise BackupEngineError(msg)
-        except IOError, e:
-            logger.error("Engine is not running")
-
-    ###########################################################################
     def force_stop(self):
         self.kill_engine_process()
 
     ###########################################################################
-    def get_status(self):
-        """
-            Sends a status request to the engine using the command port
-            This should be used by other processes (copies of the engine
-            instance) but not the actual running engine process
-        """
-        url = "http://0.0.0.0:%s/status" % self.command_port
-        try:
-            response = urllib2.urlopen(url, timeout=30)
-            if response.getcode() == 200:
-                return json.loads(response.read().strip())
-            else:
-                msg =  ("Error while trying to get status engine '%s' URL %s "
-                        "(Response code %)" % (self.engine_guid, url,
-                                               response.getcode()))
-                raise BackupEngineError(msg)
+    def cancel_backup(self, backup_id):
+        backup = persistence.get_backup(backup_id)
+        if not backup:
+            raise BackupEngineError("Backup '%s' does not exist" % backup.id)
+        elif backup.engine_guid != self.engine_guid:
+            raise BackupEngineError("Backup '%s' does not belong to this "
+                                    "engine" % backup.id)
 
-        except IOError, ioe:
-            return {
-                    "status": STATUS_STOPPED
-                }
-
-        except ValueError, ve:
-            return {
-                "status": "UNKNOWN",
-                "error": str(ve)
-            }
+        elif backup.state == State.CANCELED:
+            # NO-OP
+            pass
+        elif backup.state not in [State.FAILED, State.IN_PROGRESS]:
+            raise BackupEngineError("Cannot cancel backup '%s' because its "
+                                    "state '%s' is not FAILED or IN_PROGRESS" %
+                                    backup.id, backup.state)
+        else:
+            self.backup_processor.cancel_task(backup)
 
     ###########################################################################
     @property
     def worker_count(self):
-        return (self._backup_processor.worker_count +
-                self._restore_processor.worker_count)
+        return (self.backup_processor.worker_count +
+                self.restore_processor.worker_count)
+
     ###########################################################################
     def _do_stop(self):
         """
@@ -337,8 +326,8 @@ class BackupEngine(Thread):
         self.info("Stopping engine gracefully. Waiting for %s workers"
                   " to finish" % self.worker_count)
 
-        self._backup_processor._stopped = True
-        self._restore_processor._stopped = True
+        self.backup_processor._stopped = True
+        self.restore_processor._stopped = True
         return self.worker_count == 0
 
     ###########################################################################
@@ -346,7 +335,7 @@ class BackupEngine(Thread):
         """
             Gets the status of the engine
         """
-        if self._backup_processor._stopped:
+        if self.backup_processor._stopped:
             status = STATUS_STOPPING
         else:
             status = STATUS_RUNNING
@@ -354,8 +343,8 @@ class BackupEngine(Thread):
         return {
             "status": status,
             "workers": {
-                "backups": self._backup_processor.worker_count,
-                "restores": self._restore_processor.worker_count
+                "backups": self.backup_processor.worker_count,
+                "restores": self.restore_processor.worker_count
             },
             "versionInfo": get_mbs().get_version_info()
         }
@@ -464,15 +453,36 @@ class TaskQueueProcessor(Thread):
             self._start_task(task)
 
     ###########################################################################
+    def cancel_task(self, task):
+        worker = self._get_task_worker(task)
+        if worker:
+            # terminate the worker and all its children
+            force_kill_process_and_children(worker.pid)
+
+        self._clean_task(task)
+
+
+    ###########################################################################
+    def _get_task_worker(self, task):
+        for worker in self._workers.values():
+            if worker.task.id == task.id:
+                return worker
+
+    ###########################################################################
     def _clean_next_past_due_failed_task(self):
 
         # read next failed past due task
         task = self._read_next_failed_past_due_task()
         if task:
             # clean it
-            worker = self._start_new_worker(task, TaskCleanWorker)
+            worker = self._clean_task(task)
             self.info("Started clean task for task %s, TaskCleanWorker %s" %
                       (task._id, worker.id))
+
+    ###########################################################################
+    def _clean_task(self, task):
+        worker = self._start_new_worker(task, TaskCleanWorker)
+        return worker
 
     ###########################################################################
     def _start_task(self, task):
@@ -664,11 +674,11 @@ class TaskQueueProcessor(Thread):
 # TaskWorker
 ###############################################################################
 
-class TaskWorker(Thread):
+class TaskWorker(Process):
 
     ###########################################################################
     def __init__(self, id, task, processor):
-        Thread.__init__(self)
+        Process.__init__(self)
         self._id = id
         self._task = task
         self._processor = processor
@@ -832,6 +842,27 @@ class EngineCommandServer(Thread):
                     "status": "UNKNOWN",
                     "error": msg
                 }
+
+        ## build cancel-backup method
+        @flask_server.route('/cancel-backup',
+                            methods=['POST'])
+        def cancel_backup():
+            backup_id = request.args.get('backupId')
+            logger.info("Command Server: Received a cancel-backup command")
+            try:
+                engine.cancel_backup(backup_id)
+                return document_pretty_string({
+                    "ok": 1
+                })
+            except Exception, e:
+                msg = ("Error while trying to cancel backup '%s': %s" %
+                      (backup_id, e))
+                logger.error(msg)
+                logger.error(traceback.format_exc())
+                return document_pretty_string({
+                    "ok": 0,
+                    "error": msg
+                })
 
         ## build stop-command-server method
         @flask_server.route('/stop-command-server', methods=['GET'])

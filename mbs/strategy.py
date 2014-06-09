@@ -468,7 +468,8 @@ class BackupStrategy(MBSObject):
             else:
                 logger.error("workspace dir %s does not exist!" % workspace)
         except Exception, e:
-            logger.error("Cleanup error for task '%s': %s" % (backup.id, e))
+            logger.exception("Cleanup error for task '%s': %s" % (backup.id,
+                                                                  e))
 
     ###########################################################################
     def run_restore(self, restore):
@@ -695,7 +696,7 @@ class DumpStrategy(BackupStrategy):
                 logger.error("Dumping backup '%s' failed. Will still tar"
                              "up and upload to keep dump logs" % backup.id)
 
-                # TODO maybe change the name of the uploaded failed dump log file
+                # TODO maybe change the name of the uploaded failed dump log
                 self._upload_dump_log_file(backup)
                 self._tar_and_upload_failed_dump(backup)
                 raise

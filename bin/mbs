@@ -8,7 +8,7 @@ import os
 import signal
 import mbs.version
 from functools import partial
-
+from mbs.globals import State
 
 from dargparse import dargparse
 from mbs.mbs import get_mbs
@@ -56,7 +56,7 @@ def start_engine(parsed_args):
     handlers = {signal.SIGINT:  partial(engine.force_stop),
                 signal.SIGTERM: partial(engine.force_stop)}
     with SignalWatcher(handlers) as watcher:
-        status = engine.get_status()
+        status = engine.client.get_status()
         if status["status"] == STATUS_RUNNING:
             print "Engine already started"
             return
@@ -100,13 +100,13 @@ def _do_start_engine(engine, fork=False):
 
 ###############################################################################
 def _engine_started(engine):
-    return engine.get_status()["status"] == STATUS_RUNNING
+    return engine.client.get_status()["status"] == STATUS_RUNNING
 
 ###############################################################################
 def stop_engine(parsed_args):
     engine_id = parsed_args.engineId
     engine = _get_engine(engine_id)
-    status = engine.get_status()
+    status = engine.client.get_status()
     force = parsed_args.force
     if status["status"] == STATUS_STOPPING and not force:
         print "A stop request has already been made"
@@ -119,12 +119,12 @@ def stop_engine(parsed_args):
 
 ###############################################################################
 def _engine_stopped(engine):
-    return engine.get_status()["status"] == STATUS_STOPPED
+    return engine.client.get_status()["status"] == STATUS_STOPPED
 
 ###############################################################################
 def _do_stop_engine(engine, force=False):
     print "Stopping engine gracefully"
-    engine.stop()
+    engine.client.stop_command()
     print "Waiting for engine to stop"
     wait_for(partial(_engine_stopped, engine), timeout=30)
     print "Done waiting for engine to stop"
@@ -153,7 +153,7 @@ def restart_engine(parsed_args):
     engine = _get_engine(engine_id)
 
     # stop the engine and wait for it is completely stopped
-    engine.stop()
+    engine.client.stop_command()
 
     wait_for(partial(_engine_stopped, engine), timeout=100)
 
@@ -167,7 +167,7 @@ def restart_engine(parsed_args):
 def status_engine(parsed_args):
     engine_id = parsed_args.engineId
     engine = _get_engine(engine_id)
-    print document_pretty_string(engine.get_status())
+    print document_pretty_string(engine.client.get_status())
 
 ###############################################################################
 # Backup System Commands
@@ -176,7 +176,7 @@ def start_backup_system(parsed_args):
     backup_system = _get_backup_system()
     client = backup_system_client()
 
-    handlers = {signal.SIGINT:  partial(client.stop_backup_system),
+    handlers = {signal.SIGINT:  partial(client.stop_command),
                 signal.SIGTERM: partial(backup_system.force_stop)}
     with SignalWatcher(handlers) as watcher:
         status = client.get_status()
@@ -238,7 +238,7 @@ def stop_backup_system(parsed_args):
     if force:
         backup_system.force_stop()
     else:
-        client.stop_backup_system()
+        client.stop_command()
 
     def stopped():
         return client.get_status()["status"] == BACKUP_SYSTEM_STATUS_STOPPED
@@ -388,6 +388,18 @@ def download_restore_log(parsed_args):
         print ("Failed to download. Log for '%s' never uploaded."
                % restore.id)
         exit(1)
+
+###############################################################################
+def cancel_backup(parsed_args):
+    backup = _get_backup(parsed_args.backupId)
+    engine = _get_engine()
+    if backup.state == State.CANCELED:
+        print "Backup is already canceled"
+        return
+    if prompt_confirm("Cancel backup '%s'?" % backup.id):
+        result = engine.client.cancel_backup(backup.id)
+        print document_pretty_string(result)
+
 ###############################################################################
 # Helpers
 ###############################################################################
@@ -827,6 +839,21 @@ PARSER_DEF = {
                     "help": "Plan id"
                 }],
             "function": schedule_plan_backup
+        },
+
+        {
+            "prog": "cancel-backup",
+            "shortDescription": "Cancels backup running on local engine",
+            "description": "Cancels backup running on local engine",
+            "args": [
+                {
+                    "name": "backupId",
+                    "type" : "positional",
+                    "nargs": 1,
+                    "displayName": "BACKUP_ID",
+                    "help": "Backup ID"
+                }],
+            "function": cancel_backup
         }
     ]
 }
