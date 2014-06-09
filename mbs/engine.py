@@ -428,6 +428,8 @@ class TaskQueueProcessor(Thread):
         if self._has_available_workers():
             self._start_next_task()
 
+        # monitor workers
+        self._monitor_workers()
         # Cancel a failed task every 5 ticks and there are available
         # workers
         if self._tick_count % 5 == 0 and self._has_available_workers():
@@ -447,10 +449,23 @@ class TaskQueueProcessor(Thread):
         return len(self._workers)
 
     ###########################################################################
+    @property
+    def task_collection(self):
+        return self._task_collection
+
+    ###########################################################################
     def _start_next_task(self):
         task = self.read_next_task()
         if task:
             self._start_task(task)
+
+    ###########################################################################
+    def _monitor_workers(self):
+        for worker in self._workers.values():
+            if not worker.is_alive():
+                self.info("Detected Worker '%s' finished. Removing from queue"
+                          % worker.id)
+                del self._workers[worker.id]
 
     ###########################################################################
     def cancel_task(self, task):
@@ -461,11 +476,10 @@ class TaskQueueProcessor(Thread):
 
         self._clean_task(task)
 
-
     ###########################################################################
     def _get_task_worker(self, task):
         for worker in self._workers.values():
-            if worker.task.id == task.id:
+            if worker.task_id == task.id:
                 return worker
 
     ###########################################################################
@@ -477,7 +491,7 @@ class TaskQueueProcessor(Thread):
             # clean it
             worker = self._clean_task(task)
             self.info("Started clean task for task %s, TaskCleanWorker %s" %
-                      (task._id, worker.id))
+                      (task.id, worker.id))
 
     ###########################################################################
     def _clean_task(self, task):
@@ -489,13 +503,13 @@ class TaskQueueProcessor(Thread):
         self.info("Received  task %s" % task)
         worker = self._start_new_worker(task, TaskWorker)
         self.info("Started task %s, TaskWorker %s" %
-                  (task._id, worker.id))
+                  (task.id, worker.id))
 
     ###########################################################################
     def _start_new_worker(self, task, worker_type):
 
         worker_id = self.next_worker_id()
-        worker = worker_type(worker_id, task, self)
+        worker = worker_type(worker_id, task.id, self)
         self._workers[worker_id] = worker
         worker.start()
         return worker
@@ -517,39 +531,41 @@ class TaskQueueProcessor(Thread):
             log_msg = "Unexpected error. Please contact admin"
 
         details = "%s. Stack Trace: %s" % (exception, trace)
-        self._task_collection.update_task(worker.task, event_type=EventType.ERROR,
+        task = worker.get_task()
+        self.task_collection.update_task(
+            task, event_type=EventType.ERROR,
             message=log_msg, details=details)
 
-        self.worker_finished(worker, State.FAILED)
+        self.worker_finished(worker, task, State.FAILED)
 
         nh = get_mbs().notification_handler
         # send a notification only if the task is not reschedulable
-        if not worker.task.reschedulable and nh:
-            nh.notify_on_task_failure(worker.task, exception, trace)
+        if not task.reschedulable and nh:
+            nh.notify_on_task_failure(task, exception, trace)
 
     ###########################################################################
     def worker_success(self, worker):
-        self._task_collection.update_task(worker.task,
-                                    message="Task completed successfully!")
+        task = worker.get_task()
+        self.task_collection.update_task(
+            task,
+            message="Task completed successfully!")
 
-        self.worker_finished(worker, State.SUCCEEDED)
+        self.worker_finished(worker, task, State.SUCCEEDED)
 
     ###########################################################################
     def cleaner_finished(self, worker):
-        self.worker_finished(worker, State.CANCELED)
+        task = worker.get_task()
+        self.worker_finished(worker, task, State.CANCELED)
 
     ###########################################################################
-    def worker_finished(self, worker, state, message=None):
+    def worker_finished(self, worker, task, state, message=None):
 
         # set end date
-        worker.task.end_date = date_now()
-        # decrease worker count and update state
-        del self._workers[worker.id]
-
-        worker.task.state = state
-        self._task_collection.update_task(worker.task,
-                              properties=["state", "endDate"],
-                              event_name=EVENT_STATE_CHANGE, message=message)
+        task.end_date = date_now()
+        task.state = state
+        self.task_collection.update_task(
+            task, properties=["state", "endDate"],
+            event_name=EVENT_STATE_CHANGE, message=message)
 
     ###########################################################################
     def _recover(self):
@@ -567,23 +583,18 @@ class TaskQueueProcessor(Thread):
 
         total_crashed = 0
         msg = ("Engine crashed while task was in progress. Failing...")
-        for task in self._task_collection.find(q):
+        for task in self.task_collection.find(q):
             # fail task
-            self.info("Recovery: Failing task %s" % task._id)
+            self.info("Recovery: Failing task %s" % task.id)
             task.reschedulable = True
             task.state = State.FAILED
             task.end_date = date_now()
             # update
-            self._task_collection.update_task(task,
-                                              properties=["state",
-                                                          "reschedulable",
-                                                          "endDate"],
-                                              event_type=EVENT_STATE_CHANGE,
-                                              message=msg)
+            self.task_collection.update_task(
+                task, properties=["state", "reschedulable", "endDate"],
+                event_type=EVENT_STATE_CHANGE, message=msg)
 
             total_crashed += 1
-
-
 
         self.info("Recovery complete! Total Crashed task: %s." %
                   total_crashed)
@@ -604,7 +615,7 @@ class TaskQueueProcessor(Thread):
         else:
             s = [("priority", 1)]
 
-        c = self._task_collection
+        c = self.task_collection
 
         task = c.find_and_modify(query=q, sort=s, update=u, new=True)
 
@@ -638,8 +649,8 @@ class TaskQueueProcessor(Thread):
              }
         }
 
-        return self._task_collection.find_and_modify(query=q, update=u,
-                                                     new=True)
+        return self.task_collection.find_and_modify(query=q, update=u,
+                                                    new=True)
 
     ###########################################################################
     def _get_scheduled_tasks_query(self):
@@ -677,16 +688,20 @@ class TaskQueueProcessor(Thread):
 class TaskWorker(Process):
 
     ###########################################################################
-    def __init__(self, id, task, processor):
+    def __init__(self, id, task_id, processor):
         Process.__init__(self)
         self._id = id
-        self._task = task
+        self._task_id = task_id
         self._processor = processor
 
     ###########################################################################
     @property
-    def task(self):
-        return self._task
+    def task_id(self):
+        return self._task_id
+
+    ###########################################################################
+    def get_task(self):
+        return self._processor.task_collection.get_by_id(self.task_id)
 
     ###########################################################################
     @property
@@ -700,14 +715,13 @@ class TaskWorker(Process):
 
     ###########################################################################
     def run(self):
-        task = self.task
+        task = self.get_task()
 
         try:
             # increase # of tries
             task.try_count += 1
 
-            self.info("Running task %s (try # %s)" %
-                      (task._id, task.try_count))
+            self.info("Running task %s (try # %s)" % (task.id, task.try_count))
             # set start date
             task.start_date = date_now()
 
@@ -728,10 +742,9 @@ class TaskWorker(Process):
             ensure_dir(task.workspace)
 
             # UPDATE!
-            self._processor._task_collection.update_task(task,
-                                         properties=["tryCount", "startDate",
-                                                     "endDate", "workspace",
-                                                     "queueLatencyInMinutes"])
+            self._processor.task_collection.update_task(
+                task, properties=["tryCount", "startDate", "endDate",
+                                  "workspace", "queueLatencyInMinutes"])
 
             # run the task
             task.execute()
@@ -753,9 +766,7 @@ class TaskWorker(Process):
 
     ###########################################################################
     def _get_task_workspace_dir(self, task):
-        return os.path.join(self._processor._engine.temp_dir, str(task._id))
-
-
+        return os.path.join(self._processor._engine.temp_dir, str(task.id))
 
     ###########################################################################
     def _calculate_queue_latency(self, task):
@@ -771,15 +782,15 @@ class TaskWorker(Process):
 
     ###########################################################################
     def info(self, msg):
-        self._processor.info("Worker-%s: %s" % (self._id, msg))
+        self._processor.info("Worker-%s: %s" % (self.id, msg))
 
     ###########################################################################
     def warning(self, msg):
-        self._processor.warning("Worker-%s: %s" % (self._id, msg))
+        self._processor.warning("Worker-%s: %s" % (self.id, msg))
 
     ###########################################################################
     def error(self, msg):
-        self._processor.error("Worker-%s: %s" % (self._id, msg))
+        self._processor.error("Worker-%s: %s" % (self.id, msg))
 
 
 ###############################################################################
@@ -789,13 +800,14 @@ class TaskWorker(Process):
 class TaskCleanWorker(TaskWorker):
 
     ###########################################################################
-    def __init__(self, id, task, engine):
-        TaskWorker.__init__(self, id, task, engine)
+    def __init__(self, id, task_id, engine):
+        TaskWorker.__init__(self, id, task_id, engine)
 
     ###########################################################################
     def run(self):
         try:
-            self.task.cleanup()
+            task = self.get_task()
+            task.cleanup()
         finally:
             self._processor.cleaner_finished(self)
 
