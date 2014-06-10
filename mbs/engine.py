@@ -463,9 +463,14 @@ class TaskQueueProcessor(Thread):
     def _monitor_workers(self):
         for worker in self._workers.values():
             if not worker.is_alive():
-                self.info("Detected Worker '%s' finished. Removing from queue"
-                          % worker.id)
-                del self._workers[worker.id]
+                self.info("Detected Worker '%s' (pid %s) finished. Cleaning up"
+                          " resources"
+                          % (worker.id, worker.pid))
+                self._cleanup_worker_resources(worker)
+
+    ###########################################################################
+    def _cleanup_worker_resources(self, worker):
+        del self._workers[worker.id]
 
     ###########################################################################
     def cancel_task(self, task):
@@ -721,7 +726,8 @@ class TaskWorker(Process):
             # increase # of tries
             task.try_count += 1
 
-            self.info("Running task %s (try # %s)" % (task.id, task.try_count))
+            self.info("Running task '%s' (try # %s) (worker PID '%s')..." %
+                      (task.id, task.try_count, self.pid))
             # set start date
             task.start_date = date_now()
 
