@@ -600,7 +600,7 @@ class MongoServer(MongoConnector):
             result = self._admin_db.command(SON([("fsync", 1),("lock", True)]))
 
 
-            if result["ok"]:
+            if result.get("ok"):
                 logger.info("fsynclock ran successfully on %s" % self)
             else:
                 msg = ("fsynclock was not successful on '%s'. Result: %s" %
@@ -624,7 +624,7 @@ class MongoServer(MongoConnector):
 
             result = self._admin_db["$cmd.sys.unlock"].find_one()
 
-            if result["ok"]:
+            if result.get("ok"):
                 logger.info("fsyncunlock ran successfully on %s" % self)
             else:
                 msg = ("fsyncunlock was not successful on '%s'. Result: %s" %
