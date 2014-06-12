@@ -2,6 +2,7 @@ __author__ = 'abdul'
 
 import mongo_uri_tools
 from pymongo.errors import ConnectionFailure
+from boto.exception import BotoServerError
 import mbs_logging
 
 ###############################################################################
@@ -433,6 +434,14 @@ def raise_if_not_retriable(exception):
     else:
         logger.debug("Re-raising a a NON-retriable exception: %s" % exception)
         raise
+
+###############################################################################
+def raise_if_not_ec2_retriable(exception):
+    # retry on boto request limit
+    if isinstance(exception, BotoServerError) and exception.status == 503:
+        logger.warn("Caught a retriable exception: %s" % exception)
+    else:
+        raise_if_not_retriable(exception)
 
 ###############################################################################
 def raise_exception():
