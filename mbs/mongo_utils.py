@@ -293,21 +293,24 @@ class MongoCluster(MongoConnector):
 
         # find secondaries
         for member in members:
-            if not member.is_online():
-                logger.info("Member '%s' appears to be offline. Excluding..." %
-                            member)
-                continue
-            elif member.is_secondary():
-                all_secondaries.append(member)
-                # compute lags
-                member.compute_lag(master_status)
-                if member.hidden:
-                    hidden_secondaries.append(member)
-                elif member.priority == 0:
-                    p0_secondaries.append(member)
-                else:
-                    other_secondaries.append(member)
-
+            try:
+                if not member.is_online():
+                    logger.info("Member '%s' appears to be offline. "
+                                "Excluding..." % member)
+                    continue
+                elif member.is_secondary():
+                    all_secondaries.append(member)
+                    # compute lags
+                    member.compute_lag(master_status)
+                    if member.hidden:
+                        hidden_secondaries.append(member)
+                    elif member.priority == 0:
+                        p0_secondaries.append(member)
+                    else:
+                        other_secondaries.append(member)
+            except Exception, ex:
+                logger.exception("get_best_secondary(): Cannot determine "
+                                 "lag for '%s'. Skipping " % member)
 
         if not all_secondaries:
             logger.info("No secondaries found for cluster '%s'" % self)
