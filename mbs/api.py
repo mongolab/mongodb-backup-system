@@ -17,8 +17,7 @@ from mbs import get_mbs
 
 import persistence
 
-import os
-import signal
+
 
 ###############################################################################
 # BackupSystemApiServer
@@ -28,6 +27,8 @@ import signal
 # LOGGER
 ###############################################################################
 logger = mbs_logging.logger
+
+DEFAULT_NUM_WORKERS = 20
 
 class BackupSystemApiServer(Thread):
 
@@ -41,6 +42,7 @@ class BackupSystemApiServer(Thread):
         self._http_server = None
         self._protocol = "http"
         self._ssl_options = None
+        self._num_workers = DEFAULT_NUM_WORKERS
         self._waitress_server = None
 
     ###########################################################################
@@ -88,7 +90,16 @@ class BackupSystemApiServer(Thread):
     @ssl_options.setter
     def ssl_options(self, val):
         self._ssl_options = val
-        
+
+    ###########################################################################
+    @property
+    def num_workers(self):
+        return self._num_workers
+
+    @num_workers.setter
+    def num_workers(self, val):
+        self._num_workers = val
+
     ###########################################################################
     def stop_backup_system(self):
         logger.info("Backup System: Received a stop command")
@@ -283,7 +294,7 @@ class BackupSystemApiServer(Thread):
                     " (port=%s, protocol=%s)" % (self.port, self.protocol))
 
         serve(app, host='0.0.0.0', port=self.port, url_scheme=self.protocol,
-              threads=20, _server=self.custom_waitress_create_server)
+              threads=self.num_workers, _server=self.custom_waitress_create_server)
 
     ###########################################################################
     def stop_command_server(self):
