@@ -315,9 +315,6 @@ class EbsVolumeStorage(CloudBlockStorage):
                 raise BlockStorageSnapshotError(msg, cause=e)
 
     ###########################################################################
-    @robustify(max_attempts=5, retry_interval=5,
-               do_on_exception=raise_if_not_ec2_retriable,
-               do_on_failure=raise_exception)
     def check_snapshot_updates(self, ebs_ref):
         """
             Detects changes in snapshot
