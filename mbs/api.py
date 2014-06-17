@@ -16,6 +16,7 @@ from waitress import serve
 from mbs import get_mbs
 
 import persistence
+from flask import jsonify
 
 
 
@@ -233,6 +234,12 @@ class BackupSystemApiServer(Thread):
     ###########################################################################
     def _build_flask_server(self, flask_server):
 
+        @flask_server.errorhandler(MBSApiError)
+        def handle_invalid_usage(error):
+            response = jsonify(error.to_dict())
+            response.status_code = error.status_code
+            return response
+
         ########## build stop method
         @flask_server.route('/stop', methods=['GET'])
         @self.api_auth_service.auth("/stop")
@@ -412,3 +419,39 @@ def send_api_error(end_point, exception):
 def get_request_json():
     if request.data:
         return parse_json(request.data)
+
+
+###############################################################################
+# MBSApiError class
+###############################################################################
+class MBSApiError(Exception):
+
+    def __init__(self, message, status_code=None, payload=None):
+        Exception.__init__(self)
+        self._message = message
+        self._status_code = status_code or 400
+        self._payload = payload
+
+    ###########################################################################
+    @property
+    def message(self):
+        return self._message
+
+    ###########################################################################
+    @property
+    def status_code(self):
+        return self._status_code
+
+    ###########################################################################
+    @property
+    def payload(self):
+        return self._payload
+    ###########################################################################
+    def to_dict(self):
+        rv = dict(self.payload or ())
+        rv['message'] = self.message
+        return rv
+
+###########################################################################
+def raise_service_unvailable():
+    raise MBSApiError("Service Unavailable", status_code=503)
