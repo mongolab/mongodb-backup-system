@@ -86,7 +86,7 @@ class BackupStrategy(MBSObject):
     ###########################################################################
     def __init__(self):
         MBSObject.__init__(self)
-        self._member_preference = MemberPreference.BEST
+        self._member_preference = None
         self._ensure_localhost = False
         self._max_data_size = None
         self._backup_name_scheme = None
@@ -95,7 +95,17 @@ class BackupStrategy(MBSObject):
         self._use_fsynclock = None
         self._use_suspend_io = None
         self._allow_offline_backups = None
-        self._backup_mode = BackupMode.ONLINE
+        self._backup_mode = None
+
+    ###########################################################################
+    def _init_strategy(self, backup):
+
+        logger.info("Init Strategy settings for backup %s ..." % backup.id)
+
+        self.member_preference = (self.member_preference or
+                                  MemberPreference.BEST)
+
+        self.backup_mode = self.backup_mode or BackupMode.ONLINE
 
     ###########################################################################
     @property
@@ -191,6 +201,8 @@ class BackupStrategy(MBSObject):
 
     ###########################################################################
     def run_backup(self, backup):
+        self._init_strategy(backup)
+
         try:
             self._do_run_backup(backup)
         except Exception, e:
