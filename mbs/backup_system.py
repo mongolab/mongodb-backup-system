@@ -406,7 +406,7 @@ class BackupSystem(Thread):
 
     ###########################################################################
     def schedule_plan_backup(self, plan, one_time=False):
-        self.info("Scheduling plan '%s'" % plan._id)
+        self.info("Scheduling plan '%s'" % plan.id)
 
         plan_occurrence = None
         backup_plan = None
