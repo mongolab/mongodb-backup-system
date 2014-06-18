@@ -416,11 +416,14 @@ class BackupSystem(Thread):
             plan_occurrence = plan.next_occurrence
             plan.next_occurrence = plan.schedule.next_natural_occurrence()
 
+        # create a copy of plan tags to backup to keep original plan tag values
+        tags = plan.tags.copy() if plan.tags else None
+
         backup = self.schedule_backup(strategy=plan.strategy,
                                       source=plan.source,
                                       target=plan.target,
                                       priority=plan.priority,
-                                      tags=plan.tags,
+                                      tags=tags,
                                       plan_occurrence=plan_occurrence,
                                       plan=backup_plan,
                                       secondary_targets=plan.secondary_targets)
