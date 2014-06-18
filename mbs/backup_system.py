@@ -390,8 +390,8 @@ class BackupSystem(Thread):
             props.extend(["logs", "tryCount", "engineGuid"] )
 
         # regenerate backup tags if backup belongs to a plan
-        if backup.plan:
-            backup.tags = backup.plan.tags
+        if backup.plan and backup.plan.tags:
+            backup.tags = backup.plan.tags.copy()
 
         self._resolve_task_tags(backup, bc)
 
