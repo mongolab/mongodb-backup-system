@@ -206,8 +206,8 @@ class BackupSystem(Thread):
 
         # increase _generators_tick_counter
         self._tick_count += 1
-
-        self._process_plans_considered_now()
+        # process 100 plans per tick
+        self._process_plans_considered_now(process_max_count=100)
 
         # run those things every 100 ticks
         if self._tick_count % 100 == 0:
@@ -217,7 +217,8 @@ class BackupSystem(Thread):
             self._reschedule_in_cycle_failed_backups()
 
     ###########################################################################
-    def _process_plans_considered_now(self):
+    def _process_plans_considered_now(self, process_max_count=None):
+        count = 0
         for plan in self._get_plans_to_consider_now():
             try:
                 self._process_plan(plan)
@@ -226,6 +227,10 @@ class BackupSystem(Thread):
                                  "Cause: %s" % (plan.id, e))
 
                 self._notify_error(e)
+            if process_max_count:
+                count += 1
+                if count >= process_max_count:
+                    break
 
     ###########################################################################
     def _process_plan(self, plan):
@@ -297,7 +302,7 @@ class BackupSystem(Thread):
         }
 
 
-        return get_mbs().plan_collection.find(q)
+        return get_mbs().plan_collection.find_iter(q)
 
     ###########################################################################
     def _plan_has_backup_in_progress(self, plan):
