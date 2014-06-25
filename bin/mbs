@@ -341,10 +341,10 @@ def reschedule_backup(parsed_args):
 
 ###############################################################################
 def show_backup(parsed_args):
-    client = backup_system_client()
-    backup_doc = client.get_backup(parsed_args.backupId)
-    if backup_doc:
-        print document_pretty_string(backup_doc)
+
+    backup = get_backup(parsed_args.backupId)
+    if backup:
+        print str(backup)
     else:
         print "No such backup '%s' " % parsed_args.backupId
 
