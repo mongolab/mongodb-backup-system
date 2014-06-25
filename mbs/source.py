@@ -23,6 +23,8 @@ from utils import (
 )
 
 import urllib
+import time
+
 ###############################################################################
 # LOGGER
 ###############################################################################
@@ -287,16 +289,28 @@ class EbsVolumeStorage(CloudBlockStorage):
             raise BlockStorageSnapshotError("Failed to create snapshot from "
                                             "backup source :\n%s" % self)
 
-        # add name tag
-        ebs_snapshot.add_tag("Name", name)
-
         logger.info("Snapshot kicked off successfully for volume '%s' (%s). "
                     "Snapshot id '%s'." % (self.volume_id, self.volume_name,
                                            ebs_snapshot.id))
+        # add name tag
+        logger.info("Setting snapshot '%s' name to '%s'" % (
+            ebs_snapshot.id, name))
+
+        # sleep for a couple of seconds before setting name
+        time.sleep(2)
+
+        self._set_ebs_snapshot_name(ebs_snapshot, name)
 
         ebs_ref = self._new_ebs_snapshot_reference(ebs_snapshot)
 
         return ebs_ref
+
+    ###########################################################################
+    @robustify(max_attempts=3, retry_interval=5,
+               do_on_exception=raise_if_not_ec2_retriable,
+               do_on_failure=raise_exception)
+    def _set_ebs_snapshot_name(self, ebs_snapshot, name):
+        ebs_snapshot.add_tag("Name", name)
 
     ###########################################################################
     def delete_snapshot(self, snapshot_ref):

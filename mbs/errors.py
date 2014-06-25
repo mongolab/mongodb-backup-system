@@ -437,8 +437,10 @@ def raise_if_not_retriable(exception):
 
 ###############################################################################
 def raise_if_not_ec2_retriable(exception):
-    # retry on boto request limit
-    if isinstance(exception, BotoServerError) and exception.status == 503:
+    # retry on boto request limit and other ec2 errors
+    msg = str(exception)
+    if ((isinstance(exception, BotoServerError) and
+         exception.status == 503) or "ConcurrentTagAccess" in msg):
         logger.warn("Caught a retriable exception: %s" % exception)
     else:
         raise_if_not_retriable(exception)
