@@ -883,32 +883,6 @@ class DumpStrategy(BackupStrategy):
 
     ###########################################################################
     def dump_backup(self, backup, mongo_connector, database_name=None):
-        """
-            Wraps the actual dump command with fsynclock/unlock if needed
-        """
-        fsync_unlocked = False
-        try:
-            # run fsync lock if needed
-
-            if self.use_fsynclock:
-                self._fsynclock(backup, mongo_connector)
-
-            # backup the mongo connector
-            self._do_dump_backup(backup, mongo_connector, database_name=
-                                                           database_name)
-
-            # unlock as needed
-            if self.use_fsynclock:
-                self._fsyncunlock(backup, mongo_connector)
-                fsync_unlocked = True
-
-        finally:
-            # unlock as needed
-            if self.use_fsynclock and not fsync_unlocked:
-                self._fsyncunlock(backup, mongo_connector)
-
-    ###########################################################################
-    def _do_dump_backup(self, backup, mongo_connector, database_name=None):
 
         update_backup(backup, event_name=EVENT_START_EXTRACT,
                       message="Dumping backup")
