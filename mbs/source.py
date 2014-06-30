@@ -3,20 +3,26 @@ __author__ = 'abdul'
 from datetime import datetime
 
 from base import MBSObject
-from robustify.robustify import robustify
+from robustify.robustify import retry_till_done, die_with_err
 
 from target import (
     EbsSnapshotReference, LVMSnapshotReference, BlobSnapshotReference,
-    CompositeBlockStorageSnapshotReference
+    CompositeBlockStorageSnapshotReference, DiskSnapshotReference
     )
 from mbs import get_mbs
 from errors import *
 
 import mongo_uri_tools
 import mbs_logging
+import httplib2
+import rfc3339
 
 from boto.ec2 import connect_to_region
 from azure.storage import BlobService
+from apiclient.discovery import build
+from oauth2client.client import SignedJwtAssertionCredentials
+from apiclient.http import HttpRequest
+
 from utils import (
     freeze_mount_point, unfreeze_mount_point, export_mbs_object_list,
     suspend_lvm_mount_point, resume_lvm_mount_point, safe_format
@@ -667,6 +673,309 @@ class BlobVolumeStorage(CloudBlockStorage):
 
 
 ###############################################################################
+# DiskVolumeStorage
+###############################################################################
+class DiskVolumeStorage(CloudBlockStorage):
+
+    ###########################################################################
+    def __init__(self):
+        CloudBlockStorage.__init__(self)
+        self._encrypted_service_account_name = None
+        self._encrypted_private_key = None
+        self._project = None
+        self._zone = None
+        self._volume_id = None
+        self._volume_name = None
+        self._gce_service_connection = None
+
+    ###########################################################################
+    def create_snapshot(self, name, description):
+
+        logger.info("Creating disk snapshot (name='%s', desc='%s') for volume "
+                    "'%s' (%s)" %
+                    (name, description, self.volume_id, self.volume_name))
+
+        snapshot_op = self.gce_service_connection.disks().createSnapshot(
+            project=self.credentials.get_credential('projectId'),
+            zone=self.zone,
+            disk=self.volume_id,
+            body={
+                "description": description,
+                "name": name
+            }
+        ).execute(num_retries=3)
+
+        if not snapshot_op or \
+                ('warnings' in snapshot_op and
+                         len(snapshot_op['warnings']) > 0) or \
+                ('error' in snapshot_op and
+                         len(snapshot_op['error']['errors']) > 0):
+            raise BlockStorageSnapshotError("Failed to create snapshot from "
+                                            "backup source :\n%s\n%s" %
+                                            (self, snapshot_op))
+
+        logger.info("Snapshot successfully created for volume '%s' (%s). "
+                    "Snapshot id '%s'." % (self.volume_id, self.volume_name,
+                                           snapshot_op['selfLink']))
+
+        snapshot = self.get_disk_snapshot_by_id(name)
+
+        if snapshot:
+            return self._new_disk_snapshot_reference(snapshot, snapshot_op)
+        else:
+            raise BlockStorageSnapshotError("Could not locate the newly "
+                                            "created snapshot w/ name: %s"
+                                            % name)
+
+    ###########################################################################
+    def delete_snapshot(self, snapshot_ref):
+        snapshot_id = snapshot_ref.snapshot_id
+        try:
+            logger.info("Deleting snapshot '%s' " % snapshot_id)
+            delete_op = self.gce_service_connection.snapshots().delete(
+                project=self.credentials.get_credential('projectId'),
+                snapshot=snapshot_id
+            ).execute(num_retries=3)
+
+            def log_stuff():
+                logger.info("Waiting for async GCP snapshot delete op to "
+                            "finish...")
+
+            print delete_op
+
+            request = self.gce_service_connection.globalOperations().get(
+                project=self.credentials.get_credential('projectId'),
+                operation=delete_op['name'])
+
+            op_result = retry_till_done(
+                lambda: request.execute(num_retries=3),
+                is_good=lambda result: result['status'] == 'DONE',
+                max_wait_in_secs=300,
+                do_between_attempts=log_stuff,
+                do_on_failure=lambda: die_with_err(
+                    'Timed out after waiting %s seconds for operation to '
+                    'finish {operation_id : %s}' % (300, delete_op['name'])),
+                retry_interval=5
+            )
+
+            if 'error' not in op_result:
+                logger.info("Snapshot '%s' deleted successfully!" % snapshot_id)
+                return True
+            else:
+                msg = "Snapshot '%s' was not deleted! Error: %s" \
+                      % (snapshot_id, op_result['error'])
+                raise RetriableError(msg)
+        except Exception, e:
+            msg = "Error while deleting snapshot '%s'" % snapshot_id
+            raise BlockStorageSnapshotError(msg, cause=e)
+
+    ###########################################################################
+    def check_snapshot_updates(self, snapshot_ref):
+        """
+            Detects changes in snapshot
+        """
+        disk_snapshot = self.get_disk_snapshot_by_id(snapshot_ref.snapshot_id)
+        snapshot_op = self.get_snapshot_op(snapshot_ref.snapshot_op)
+
+        if disk_snapshot and snapshot_op:
+            new_snapshot_ref = self._new_disk_snapshot_reference(disk_snapshot,
+                                                             snapshot_op)
+            if new_snapshot_ref != snapshot_ref:
+                return new_snapshot_ref
+
+    ###########################################################################
+    def get_disk_snapshot_by_id(self, snapshot_id):
+
+        snapshot = self.gce_service_connection.snapshots().get(
+            project=self.credentials.get_credential('projectId'),
+            snapshot=snapshot_id
+        ).execute(num_retries=3)
+
+        return snapshot
+
+    ###########################################################################
+    def get_snapshot_op(self, snapshot_op):
+
+        if 'zone' in snapshot_op:
+            zone_name = snapshot_op['zone'].split('/')[-1]
+            request = self.gce_service_connection.zoneOperations().get(
+                project=self.credentials.get_credential('projectId'),
+                operation=snapshot_op['name'],
+                zone=zone_name)
+        else:
+            request = self.gce_service_connection.globalOperations().get(
+                project=self.credentials.get_credential('projectId'),
+                operation=snapshot_op['name'])
+
+        snapshot_op = request.execute(num_retries=3)
+        return snapshot_op
+
+    ###########################################################################
+    def _new_disk_snapshot_reference(self, disk_snapshot, snapshot_op):
+
+        start_time_str = disk_snapshot['creationTimestamp']
+        start_time = rfc3339.parse_datetime(start_time_str)
+
+        return DiskSnapshotReference(snapshot_id=disk_snapshot['name'],
+                                     cloud_block_storage=self,
+                                     status=disk_snapshot['status'],
+                                     start_time=start_time.strftime(
+                                         "%Y-%m-%dT%H:%M:%S.000Z"),
+                                     volume_size=disk_snapshot['diskSizeGb'],
+                                     progress=snapshot_op['progress'],
+                                     op=snapshot_op)
+
+    ###########################################################################
+    @property
+    def project(self):
+        return self._project
+
+    @project.setter
+    def project(self, project):
+        self._project = str(project)
+
+    ###########################################################################
+    @property
+    def zone(self):
+        return self._zone
+
+    @zone.setter
+    def zone(self, zone):
+        self._zone = str(zone)
+
+    ###########################################################################
+    @property
+    def volume_id(self):
+        return self._volume_id
+
+    @volume_id.setter
+    def volume_id(self, volume_id):
+        self._volume_id = str(volume_id)
+
+    ###########################################################################
+    @property
+    def volume_name(self):
+        return self._volume_name
+
+    @volume_name.setter
+    def volume_name(self, val):
+        self._volume_name = str(val)
+
+    ###########################################################################
+    @property
+    def private_key(self):
+        if self.credentials:
+            return self.credentials.get_credential("privateKey")
+        elif self.encrypted_private_key:
+            return get_mbs().encryptor.decrypt_string(
+                self.encrypted_private_key)
+
+    @private_key.setter
+    def private_key(self, private_key):
+        if self.credentials:
+            self.credentials.set_credential("privateKey", private_key)
+        elif private_key:
+            epk = get_mbs().encryptor.encrypt_string(str(private_key))
+            self.encrypted_private_key = epk
+
+    ###########################################################################
+    @property
+    def encrypted_private_key(self):
+        return self._encrypted_private_key
+
+    @encrypted_private_key.setter
+    def encrypted_private_key(self, val):
+        if val:
+            self._encrypted_private_key = val.encode('ascii', 'ignore')
+
+    ###########################################################################
+    @property
+    def service_account_name(self):
+        if self.credentials:
+            return self.credentials.get_credential("serviceAccountName")
+        elif self.encrypted_service_account_name:
+            return get_mbs().encryptor.decrypt_string(
+                self.encrypted_service_account_name)
+
+    @service_account_name.setter
+    def service_account_name(self, service_account_name):
+        if self.credentials:
+            self.credentials.set_credential("serviceAccountName",
+                                            service_account_name)
+        elif service_account_name:
+            esan = get_mbs().encryptor.encrypt_string(str(service_account_name))
+            self.encrypted_service_account_name = esan
+
+    ###########################################################################
+    @property
+    def encrypted_service_account_name(self):
+        return self._encrypted_service_account_name
+
+    @encrypted_service_account_name.setter
+    def encrypted_service_account_name(self, val):
+        if val:
+            self._encrypted_service_account_name = val.encode('ascii', 'ignore')
+
+    ###########################################################################
+    @property
+    def gce_service_connection(self):
+        if not self._gce_service_connection:
+            logger.info("Creating connection to GCE service for "
+                        "volume '%s'" % self.volume_id)
+
+            # i think we'll need to grab this from lab-server
+            key = self.credentials.get_credential("privateKey")
+            service_account_name = \
+                self.credentials.get_credential('serviceAccountName')
+            credentials = SignedJwtAssertionCredentials(
+                service_account_name,
+                key,
+                scope='https://www.googleapis.com/auth/compute')
+            http = httplib2.Http()
+            http = credentials.authorize(http)
+
+            self._gce_service_connection = build(
+                'compute', 'v1', http=http, requestBuilder=RobustHttpRequest)
+
+        return self._gce_service_connection
+
+    ###########################################################################
+    def suspend_io(self):
+        # todo: move this up the parent?
+        logger.info("Suspend IO for volume '%s' using fsfreeze" %
+                    self.volume_id)
+        freeze_mount_point(self.mount_point)
+
+    ###########################################################################
+    def resume_io(self):
+        # todo: move this up the parent?
+        logger.info("Resume io for volume '%s' using fsfreeze" %
+                    self.volume_id)
+
+        unfreeze_mount_point(self.mount_point)
+
+    ###########################################################################
+    def to_document(self, display_only=False):
+        doc = super(DiskVolumeStorage, self).to_document(
+            display_only=display_only)
+
+        pk = "xxxxx" if display_only else self.encrypted_private_key
+        serviceAccountName = "xxxxx" if display_only else \
+            self.encrypted_service_account_name
+        doc.update({
+            "_type": "DiskVolumeStorage",
+            "volumeId": self.volume_id,
+            "volumeName": self.volume_name,
+            "projectId": self.project,
+            "zone": self.zone,
+            "serviceAccountName": serviceAccountName,
+            "encryptedPrivateKey": pk
+        })
+
+        return doc
+
+
+###############################################################################
 # CompositeBlockStorage
 ###############################################################################
 class CompositeBlockStorage(CloudBlockStorage):
@@ -839,3 +1148,17 @@ class LVMStorage(CompositeBlockStorage):
         })
 
         return doc
+
+
+class RobustHttpRequest(HttpRequest):
+
+    def execute(self, http=None, num_retries=0, do_on_exception=None):
+
+        # bring on the robustness
+        if do_on_exception is None:
+            do_on_exception = lambda e: logger.warning(e)
+
+        return retry_till_done(
+            lambda: super(RobustHttpRequest, self).execute(http, num_retries),
+            max_attempts=3,
+            do_on_exception=do_on_exception)

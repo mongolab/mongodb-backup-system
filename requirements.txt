@@ -11,11 +11,12 @@ pymongo>=2.4.2
 python-cloudfiles==1.7.10
 python-dateutil==1.5
 verlib==0.1
-httplib2==0.7.2
+httplib2==0.9
 psutil==1.2.1
 mongoctl>=0.6.3
 robustify>=0.1.0
 makerpy>=0.1.5
+google-api-python-client==1.2
 
 https://github.com/objectlabs/robustify/archive/0.1.0.zip#egg=robustify-0.1.0
 https://github.com/objectlabs/maker-py/archive/0.1.5.zip#egg=makerpy-0.1.5
