@@ -610,8 +610,9 @@ class MongoServer(MongoConnector):
                        document_pretty_string(result))
                 raise MongoLockError(msg)
         except Exception, e:
+            msg = "Error while executing fsynclock on '%s'. %s" % (self, e)
+            logger.error(msg)
             if not isinstance(e, MongoLockError):
-                msg = "Error while executing fsynclock on '%s'."
                 raise MongoLockError(msg=msg, cause=e)
             else:
                 raise
@@ -634,6 +635,8 @@ class MongoServer(MongoConnector):
                        (self, document_pretty_string(result)))
                 raise MongoLockError(msg)
         except Exception, e:
+            msg = "Error while executing fsyncunlock on '%s'. %s" % (self, e)
+            logger.error(msg)
             if not isinstance(e, MongoLockError):
                 msg = "Error while executing fsyncunlock on '%s'." % self
                 raise MongoLockError(msg=msg, cause=e)
