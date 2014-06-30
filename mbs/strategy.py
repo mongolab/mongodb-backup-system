@@ -883,32 +883,6 @@ class DumpStrategy(BackupStrategy):
 
     ###########################################################################
     def dump_backup(self, backup, mongo_connector, database_name=None):
-        """
-            Wraps the actual dump command with fsynclock/unlock if needed
-        """
-        fsync_unlocked = False
-        try:
-            # run fsync lock if needed
-
-            if self.use_fsynclock:
-                self._fsynclock(backup, mongo_connector)
-
-            # backup the mongo connector
-            self._do_dump_backup(backup, mongo_connector, database_name=
-                                                           database_name)
-
-            # unlock as needed
-            if self.use_fsynclock:
-                self._fsyncunlock(backup, mongo_connector)
-                fsync_unlocked = True
-
-        finally:
-            # unlock as needed
-            if self.use_fsynclock and not fsync_unlocked:
-                self._fsyncunlock(backup, mongo_connector)
-
-    ###########################################################################
-    def _do_dump_backup(self, backup, mongo_connector, database_name=None):
 
         update_backup(backup, event_name=EVENT_START_EXTRACT,
                       message="Dumping backup")
@@ -1410,9 +1384,10 @@ class CloudBlockStorageStrategy(BackupStrategy):
         if not backup.is_event_logged("END_KICKOFF_SNAPSHOT"):
             self._kickoff_snapshot(backup, mongo_connector, cbs)
 
-        # wait until snapshot is completed or error
+        # wait until snapshot is completed or error (sleep time is 1 minute)
         wait_status = [CBS_STATUS_COMPLETED, CBS_STATUS_ERROR]
-        self._wait_for_snapshot_status(backup, cbs, wait_status)
+        self._wait_for_snapshot_status(backup, cbs, wait_status,
+                                       sleep_time=60)
 
         snapshot_ref = backup.target_reference
 
@@ -1518,7 +1493,8 @@ class CloudBlockStorageStrategy(BackupStrategy):
                       message=msg)
 
     ###########################################################################
-    def _wait_for_snapshot_status(self, backup, cbs, wait_status):
+    def _wait_for_snapshot_status(self, backup, cbs, wait_status,
+                                  sleep_time=5):
         logger.info("Waiting for backup '%s' snapshot status to be in %s" %
                     (backup.id, wait_status))
         # wait until snapshot is completed and keep target ref up to date
@@ -1537,7 +1513,7 @@ class CloudBlockStorageStrategy(BackupStrategy):
                 backup.target_reference = snapshot_ref
                 update_backup(backup, properties="targetReference")
 
-            time.sleep(5)
+            time.sleep(sleep_time)
 
 
     ###########################################################################
@@ -1952,6 +1928,6 @@ def backup_format_bindings(backup):
 
 ###############################################################################
 def backup_warning_keys(backup):
-    return map(lambda log_event: log_event.name, backup.get_warnings())
+    return set(map(lambda log_event: log_event.name, backup.get_warnings()))
 
 
