@@ -1341,9 +1341,9 @@ class BlobSnapshotReference(CloudBlockStorageSnapshotReference):
 
 
 ###############################################################################
-# DiskSnapshotReference
+# GcpDiskSnapshotReference
 ###############################################################################
-class DiskSnapshotReference(CloudBlockStorageSnapshotReference):
+class GcpDiskSnapshotReference(CloudBlockStorageSnapshotReference):
 
     ###########################################################################
     def __init__(self, snapshot_id=None, cloud_block_storage=None, status=None,
@@ -1407,7 +1407,7 @@ class DiskSnapshotReference(CloudBlockStorageSnapshotReference):
             self, display_only=display_only)
 
         doc.update({
-            "_type": "DiskSnapshotReference",
+            "_type": "GcpDiskSnapshotReference",
             "snapshotId": self.snapshot_id,
             "volumeSize": self.volume_size,
             "progress": self.progress,

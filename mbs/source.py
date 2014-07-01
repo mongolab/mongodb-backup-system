@@ -7,7 +7,7 @@ from robustify.robustify import retry_till_done, die_with_err, robustify
 
 from target import (
     EbsSnapshotReference, LVMSnapshotReference, BlobSnapshotReference,
-    CompositeBlockStorageSnapshotReference, DiskSnapshotReference
+    CompositeBlockStorageSnapshotReference, GcpDiskSnapshotReference
     )
 from mbs import get_mbs
 from errors import *
@@ -687,9 +687,9 @@ class BlobVolumeStorage(CloudBlockStorage):
 
 
 ###############################################################################
-# DiskVolumeStorage
+# GcpDiskVolumeStorage
 ###############################################################################
-class DiskVolumeStorage(CloudBlockStorage):
+class GcpDiskVolumeStorage(CloudBlockStorage):
 
     ###########################################################################
     def __init__(self):
@@ -828,7 +828,7 @@ class DiskVolumeStorage(CloudBlockStorage):
         start_time_str = disk_snapshot['creationTimestamp']
         start_time = rfc3339.parse_datetime(start_time_str)
 
-        return DiskSnapshotReference(snapshot_id=disk_snapshot['name'],
+        return GcpDiskSnapshotReference(snapshot_id=disk_snapshot['name'],
                                      cloud_block_storage=self,
                                      status=disk_snapshot['status'],
                                      start_time=start_time.strftime(
@@ -968,14 +968,14 @@ class DiskVolumeStorage(CloudBlockStorage):
 
     ###########################################################################
     def to_document(self, display_only=False):
-        doc = super(DiskVolumeStorage, self).to_document(
+        doc = super(GcpDiskVolumeStorage, self).to_document(
             display_only=display_only)
 
         pk = "xxxxx" if display_only else self.encrypted_private_key
         serviceAccountName = "xxxxx" if display_only else \
             self.encrypted_service_account_name
         doc.update({
-            "_type": "DiskVolumeStorage",
+            "_type": "GcpDiskVolumeStorage",
             "volumeId": self.volume_id,
             "volumeName": self.volume_name,
             "projectId": self.project,
