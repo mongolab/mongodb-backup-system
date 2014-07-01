@@ -755,8 +755,6 @@ class DiskVolumeStorage(CloudBlockStorage):
                 logger.info("Waiting for async GCP snapshot delete op to "
                             "finish...")
 
-            print delete_op
-
             request = self.gce_service_connection.globalOperations().get(
                 project=self.credentials.get_credential('projectId'),
                 operation=delete_op['name'])
