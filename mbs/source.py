@@ -3,7 +3,7 @@ __author__ = 'abdul'
 from datetime import datetime
 
 from base import MBSObject
-from robustify.robustify import retry_till_done, die_with_err
+from robustify.robustify import retry_till_done, die_with_err, robustify
 
 from target import (
     EbsSnapshotReference, LVMSnapshotReference, BlobSnapshotReference,
