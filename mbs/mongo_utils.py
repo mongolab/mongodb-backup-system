@@ -600,7 +600,12 @@ class MongoServer(MongoConnector):
 
         try:
             logger.info("Attempting to run fsynclock on %s" % self)
-            result = self._admin_db.command(SON([("fsync", 1),("lock", True)]))
+
+            if self.is_server_locked():
+                raise MongoLockError("Cannot run fsynclock on server '%s' "
+                                     "because its already locked!" % self)
+            admin_db = self.get_auth_admin_db()
+            result = admin_db.command(SON([("fsync", 1),("lock", True)]))
 
 
             if result.get("ok"):
@@ -618,6 +623,16 @@ class MongoServer(MongoConnector):
                 raise
 
     ###########################################################################
+    def is_server_locked(self):
+        logger.info("Checking if '%s' is already locked." % self)
+        admin_db = self.get_auth_admin_db()
+        current_op = admin_db.current_op()
+        locked = current_op and current_op.get("fsyncLock") is not None
+
+        logger.info("is_server_locked return '%s' for '%s'." % (locked, self))
+        return locked
+
+    ###########################################################################
     def fsyncunlock(self):
         """
             Runs fsynclock command on the server
@@ -626,7 +641,8 @@ class MongoServer(MongoConnector):
         try:
             logger.info("Attempting to run fsyncunlock on %s" % self)
 
-            result = self._admin_db["$cmd.sys.unlock"].find_one()
+            admin_db = self.get_auth_admin_db()
+            result = admin_db["$cmd.sys.unlock"].find_one()
 
             if result.get("ok"):
                 logger.info("fsyncunlock ran successfully on %s" % self)
