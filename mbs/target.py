@@ -341,11 +341,12 @@ class S3BucketTarget(BackupTarget):
 
         """
         bucket = self._get_bucket()
-        key = bucket.get_key(destination_path)
-        if key:
-            return True, key.size
-        else:
-            return False, None
+
+        for key in bucket.list(prefix=destination_path):
+            if key.key == destination_path:
+                return True, key.size
+
+        return False, None
 
     ###########################################################################
     def _single_part_put(self, file_path, destination_path, metadata=None):
