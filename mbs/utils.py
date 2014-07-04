@@ -395,18 +395,9 @@ def os_supports_freeze():
         Ubuntu 12.04 or later and there is an fsfreeze exe in PATH
     """
     try:
+        return (io_suspend_supported_os() and
+                get_fsfreeze_exe() is not None)
 
-        distribution = platform.dist()
-        dist_name = distribution[0].lower()
-        dist_version_str = distribution[1]
-        if dist_name and dist_version_str:
-            dist_version = StrictVersion(dist_version_str)
-            min_version = StrictVersion('12.04')
-
-            return (dist_name == "ubuntu" and dist_version >= min_version and
-                    get_fsfreeze_exe() is not None)
-        else:
-            return False
     except Exception, e:
         print "Error while trying to check if OS supports fsfreeze: %s" % e
         traceback.print_exc()
@@ -477,7 +468,7 @@ def resume_lvm_mount_point(mount_point):
 ###############################################################################
 def validate_dmsetup():
     if not os_supports_dmsetup():
-        err = ("Your OS is not dmsetup compatible. dmsetup requirese Ubunto"
+        err = ("Your OS is not dmsetup compatible. dmsetup requires Ubunto"
                " 12.04 or later and a dmsetup exe available in your path.")
         raise Exception(err)
     # validate dmsetup against sudo
@@ -494,22 +485,13 @@ def os_supports_dmsetup():
         Ubuntu 12.04 or later and there is an dmsetup exe in PATH
     """
     try:
-
-        distribution = platform.dist()
-        dist_name = distribution[0].lower()
-        dist_version_str = distribution[1]
-        if dist_name and dist_version_str:
-            dist_version = StrictVersion(dist_version_str)
-            min_version = StrictVersion('12.04')
-
-            return (dist_name == "ubuntu" and dist_version >= min_version and
-                    get_dmsetup_exe() is not None)
-        else:
-            return False
+        return (io_suspend_supported_os() and
+                get_dmsetup_exe() is not None)
     except Exception, e:
         print "Error while trying to check if OS supports dmsetup: %s" % e
         traceback.print_exc()
         return False
+
 
 ###############################################################################
 def validate_dmsetup_sudo():
@@ -548,6 +530,25 @@ def get_mount_point_device(mount_point):
             return device
 
     raise RuntimeError("No device found for mount point %s" % mount_point)
+
+
+###############################################################################
+def io_suspend_supported_os():
+    """
+        Returns true if the current os supports io suspend
+    """
+
+    distribution = platform.dist()
+    dist_name = distribution[0].lower()
+    dist_version_str = distribution[1]
+    if dist_name and dist_version_str:
+        dist_version = StrictVersion(dist_version_str)
+        min_version = StrictVersion('12.04')
+
+        return ((dist_name == "ubuntu" and dist_version >= min_version) or
+                dist_name == "debian")
+    else:
+        return False
 
 ###############################################################################
 # SignalWatcher
