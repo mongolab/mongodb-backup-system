@@ -705,9 +705,11 @@ class GcpDiskVolumeStorage(CloudBlockStorage):
     ###########################################################################
     def create_snapshot(self, name, description):
 
+        # hack to get around google's strict naming conventions:
+        m_name = 'm-%s' % name
         logger.info("Creating disk snapshot (name='%s', desc='%s') for volume "
                     "'%s' (%s)" %
-                    (name, description, self.volume_id, self.volume_name))
+                    (m_name, description, self.volume_id, self.volume_name))
 
         snapshot_op = self.gce_service_connection.disks().createSnapshot(
             project=self.credentials.get_credential('projectId'),
@@ -715,7 +717,7 @@ class GcpDiskVolumeStorage(CloudBlockStorage):
             disk=self.volume_id,
             body={
                 "description": description,
-                "name": name
+                "name": m_name
             }
         ).execute(num_retries=3)
 
@@ -732,14 +734,14 @@ class GcpDiskVolumeStorage(CloudBlockStorage):
                     "Snapshot id '%s'." % (self.volume_id, self.volume_name,
                                            snapshot_op['selfLink']))
 
-        snapshot = self.get_disk_snapshot_by_id(name)
+        snapshot = self.get_disk_snapshot_by_name(m_name)
 
         if snapshot:
             return self._new_disk_snapshot_reference(snapshot, snapshot_op)
         else:
             raise BlockStorageSnapshotError("Could not locate the newly "
                                             "created snapshot w/ name: %s"
-                                            % name)
+                                            % m_name)
 
     ###########################################################################
     def delete_snapshot(self, snapshot_ref):
@@ -786,7 +788,7 @@ class GcpDiskVolumeStorage(CloudBlockStorage):
         """
             Detects changes in snapshot
         """
-        disk_snapshot = self.get_disk_snapshot_by_id(snapshot_ref.snapshot_id)
+        disk_snapshot = self.get_disk_snapshot_by_name(snapshot_ref.snapshot_id)
         snapshot_op = self.get_snapshot_op(snapshot_ref.snapshot_op)
 
         if disk_snapshot and snapshot_op:
@@ -796,11 +798,11 @@ class GcpDiskVolumeStorage(CloudBlockStorage):
                 return new_snapshot_ref
 
     ###########################################################################
-    def get_disk_snapshot_by_id(self, snapshot_id):
+    def get_disk_snapshot_by_name(self, snapshot_name):
 
         snapshot = self.gce_service_connection.snapshots().get(
             project=self.credentials.get_credential('projectId'),
-            snapshot=snapshot_id
+            snapshot=snapshot_name
         ).execute(num_retries=3)
 
         return snapshot
