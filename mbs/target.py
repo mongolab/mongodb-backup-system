@@ -1373,7 +1373,7 @@ class GcpDiskSnapshotReference(CloudBlockStorageSnapshotReference):
 
     @volume_size.setter
     def volume_size(self, volume_size):
-        self._volume_size = volume_size
+        self._volume_size = float(volume_size)
 
     ###########################################################################
     @property

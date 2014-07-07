@@ -846,7 +846,8 @@ class GcpDiskVolumeStorage(CloudBlockStorage):
                                      status=status,
                                      start_time=start_time.strftime(
                                          "%Y-%m-%dT%H:%M:%S.000Z"),
-                                     volume_size=disk_snapshot['diskSizeGb'],
+                                     volume_size=float(
+                                         disk_snapshot['diskSizeGb']),
                                      progress=snapshot_op['progress'],
                                      op=snapshot_op)
 
