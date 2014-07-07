@@ -830,9 +830,20 @@ class GcpDiskVolumeStorage(CloudBlockStorage):
         start_time_str = disk_snapshot['creationTimestamp']
         start_time = rfc3339.parse_datetime(start_time_str)
 
+        # status needs to be one of ['pending', 'completed', 'error']
+        if disk_snapshot['status'] in ['CREATING', 'UPLOADING']:
+            status = 'pending'
+        elif disk_snapshot['status'] in ['READY']:
+            status = 'completed'
+        elif disk_snapshot['status'] in ['FAILED']:
+            status = 'error'
+        else:
+            raise Exception('GCP disk snapshot in unhandled state: %s'
+                            % disk_snapshot['status'])
+
         return GcpDiskSnapshotReference(snapshot_id=disk_snapshot['name'],
                                      cloud_block_storage=self,
-                                     status=disk_snapshot['status'],
+                                     status=status,
                                      start_time=start_time.strftime(
                                          "%Y-%m-%dT%H:%M:%S.000Z"),
                                      volume_size=disk_snapshot['diskSizeGb'],
