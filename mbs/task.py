@@ -18,6 +18,7 @@ class MBSTask(MBSObject):
         # init fields
         self._id = None
         self._created_date = None
+        self._description = None
         self._state = None
         self._engine_guid = None
         self._strategy = None
@@ -61,6 +62,15 @@ class MBSTask(MBSObject):
     @created_date.setter
     def created_date(self, created_date):
         self._created_date = created_date
+
+    ###########################################################################
+    @property
+    def description(self):
+        return self._description
+
+    @description.setter
+    def description(self, description):
+        self._description = description
 
     ###########################################################################
     def change_state(self, state, message=None):
@@ -284,6 +294,9 @@ class MBSTask(MBSObject):
         if self.id:
             doc["_id"] = self.id
 
+        if self.description:
+            doc["description"] = self.description
+
         if self.tags:
             doc["tags"] = self._export_tags()
 
@@ -298,8 +311,8 @@ class MBSTask(MBSObject):
 
         if self.log_target_reference:
             doc["logTargetReference"] =\
-                self.log_target_reference.to_document(display_only=display_only)
-
+                self.log_target_reference.to_document(display_only=
+                                                      display_only)
         return doc
 
     ###########################################################################

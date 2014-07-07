@@ -10,7 +10,6 @@ class Backup(MBSTask):
         # init fields
         MBSTask.__init__(self)
         self._name = None
-        self._description = None
         self._source = None
         self._source_stats = None
         self._target = None
@@ -46,15 +45,6 @@ class Backup(MBSTask):
     @name.setter
     def name(self, name):
         self._name = name
-
-    ###########################################################################
-    @property
-    def description(self):
-        return self._description
-
-    @description.setter
-    def description(self, description):
-        self._description = description
 
     ###########################################################################
     @property
@@ -205,9 +195,6 @@ class Backup(MBSTask):
 
         if self.name:
             doc["name"] = self.name
-
-        if self.description:
-            doc["description"] = self.description
 
         if self.plan:
             doc["plan"] = self.plan.to_document(display_only=display_only)
