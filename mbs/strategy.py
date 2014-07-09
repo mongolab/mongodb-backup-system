@@ -425,6 +425,9 @@ class BackupStrategy(MBSObject):
         except Exception, e:
             if is_connection_exception(e) and self.allow_offline_backups:
                 # switch to offline mode
+                logger.info("Caught a connection error while trying to compute"
+                            " source stats for backup '%s'. %s. Switching to "
+                            "OFFLINE mode..." % (backup.id, e))
                 self._set_backup_mode(backup, BackupMode.OFFLINE)
             else:
                 raise
@@ -434,6 +437,8 @@ class BackupStrategy(MBSObject):
         """
             sets/persists specified backup mode
         """
+        logger.info("Update backup '%s'. Set backup mode to '%s'." %
+                    (backup.id, mode))
         self.backup_mode = mode
         # save source stats
         update_backup(backup, properties="strategy",
