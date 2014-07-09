@@ -1097,6 +1097,20 @@ class CompositeBlockStorage(CloudBlockStorage):
         return composite_snapshot
 
     ###########################################################################
+    def suspend_io(self):
+        logger.info("Suspending Composite block storage: Running suspend "
+                    "across all constituents...")
+        for constituent in self.constituents:
+            constituent.suspend_io()
+
+    ###########################################################################
+    def resume_io(self):
+        logger.info("Resuming Composite block storage: Running resume "
+                    "across all constituents...")
+        for constituent in self.constituents:
+            constituent.resume_io()
+
+    ###########################################################################
     def to_document(self, display_only=False):
         doc = super(CompositeBlockStorage, self).to_document(
             display_only=display_only)

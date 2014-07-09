@@ -576,7 +576,7 @@ class BackupStrategy(MBSObject):
                        " this box" % mongo_connector)
                 raise ConfigurationError(err)
 
-            msg = "Suspend IO for '%s' using fsfreeze" % mongo_connector
+            msg = "Suspend IO for '%s'..." % mongo_connector
             update_backup(backup, event_name="SUSPEND_IO", message=msg)
             cloud_block_storage.suspend_io()
         else:
@@ -592,7 +592,7 @@ class BackupStrategy(MBSObject):
                        "this box" % mongo_connector)
                 raise ConfigurationError(err)
 
-            msg = "Resume io for '%s' using fsfreeze" % mongo_connector
+            msg = "Resume io for '%s'" % mongo_connector
             update_backup(backup, event_name="RESUME_IO", message=msg)
             cloud_block_storage.resume_io()
         else:
