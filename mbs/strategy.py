@@ -11,8 +11,9 @@ from mbs import get_mbs
 
 
 from persistence import update_backup, update_restore
-from mongo_utils import (MongoCluster, MongoServer,
-                         MongoNormalizedVersion, build_mongo_connector)
+from mongo_utils import (
+    MongoCluster, MongoServer, ShardedClusterConnector,
+    MongoNormalizedVersion, build_mongo_connector)
 
 from date_utils import timedelta_total_seconds, date_now
 
@@ -219,9 +220,12 @@ class BackupStrategy(MBSObject):
     ###########################################################################
     def get_backup_mongo_connector(self, backup):
         logger.info("Selecting connector to run backup '%s'" % backup.id)
-        connector = build_mongo_connector(backup.source.uri)
+        connector = backup.source.get_connector()
         if isinstance(connector, MongoCluster):
             connector = self._select_backup_cluster_member(backup, connector)
+        elif isinstance(connector, ShardedClusterConnector):
+            connector = self._select_backup_sharded_cluster_members(
+                backup, connector)
 
         self._validate_connector(backup, connector)
 
@@ -229,6 +233,10 @@ class BackupStrategy(MBSObject):
 
     ###########################################################################
     def _validate_connector(self, backup, connector):
+
+        if isinstance(connector, ShardedClusterConnector):
+            self._validate_sharded_connector(backup, connector)
+            return
 
         logger.info("Validate selected connector '%s'..." % connector)
 
@@ -268,6 +276,11 @@ class BackupStrategy(MBSObject):
                     backup.id)
 
     ###########################################################################
+    def _validate_sharded_connector(self, backup, sharded_connector):
+        for connector in sharded_connector.selected_shard_secondaries:
+            self._validate_connector(backup, connector)
+
+    ###########################################################################
     def _select_backup_cluster_member(self, backup, mongo_cluster):
         logger.info("Selecting a member from cluster '%s' for backup '%s' "
                     "using pref '%s'" %
@@ -278,6 +291,22 @@ class BackupStrategy(MBSObject):
             return self.get_mongo_connector_used_by(backup)
         else:
             return self._select_new_cluster_member(backup, mongo_cluster)
+
+    ###########################################################################
+    def _select_backup_sharded_cluster_members(self, backup, sharded_cluster):
+        # compute max lag
+        if backup.plan:
+            max_lag_seconds = backup.plan.schedule.max_acceptable_lag(
+                backup.plan_occurrence)
+        else:
+            # One Off backup : no max lag!
+            max_lag_seconds = 0
+
+        # select best secondaries within shards
+        sharded_cluster.select_shard_best_secondaries(max_lag_seconds=
+                                                      max_lag_seconds)
+
+        return sharded_cluster
 
     ###########################################################################
     def _needs_new_member_selection(self, backup):
@@ -359,7 +388,8 @@ class BackupStrategy(MBSObject):
 
 
         if (not selected_member and
-            self.member_preference in [MemberPreference.BEST, MemberPreference.PRIMARY_ONLY]):
+            self.member_preference in [MemberPreference.BEST,
+                                       MemberPreference.PRIMARY_ONLY]):
             # otherwise dump from primary if primary ok or if this is the
             # last try. log warning because we are dumping from a primary
             selected_member = primary_member

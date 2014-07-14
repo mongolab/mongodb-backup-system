@@ -671,6 +671,102 @@ class MongoServer(MongoConnector):
     def is_config_server(self):
         return "configsvr" in self.get_cmd_line_opts()
 
+
+###############################################################################
+class ShardedClusterConnector(MongoConnector):
+    ###########################################################################
+    def __init__(self, uri, shard_uris, config_server_uris):
+        super(ShardedClusterConnector, self).__init__(uri)
+
+        # init routers
+
+        routers = []
+        for router_uri in self._uri_wrapper.member_raw_uri_list:
+            router = MongoServer(router_uri)
+            routers.append(router)
+
+        self._routers = routers
+
+        # Shards
+        self._shards = map(lambda shard_uri: MongoCluster(shard_uri),
+                           shard_uris)
+
+        # Config Servers
+        self._config_servers = map(
+            lambda server_uri: MongoServer(server_uri),
+            config_server_uris)
+
+        self._selected_shard_secondaries = None
+
+
+    ###########################################################################
+    def is_online(self):
+        return self.any_online_router() is not None
+
+    ###########################################################################
+    @property
+    def routers(self):
+        return self._routers
+
+    ###########################################################################
+    @property
+    def shards(self):
+        return self._shards
+
+    ###########################################################################
+    @property
+    def config_servers(self):
+        return self._config_servers
+
+    ###########################################################################
+    @property
+    def selected_shard_secondaries(self):
+        return self._selected_shard_secondaries
+
+    ###########################################################################
+    def any_online_router(self):
+        for router in self.routers:
+            if router.is_online():
+                return router
+        raise Exception("No online routers found for '%s'" % self)
+
+    ###########################################################################
+    def get_stats(self, only_for_db=None):
+        stats = self.any_online_router().get_stats(only_for_db=only_for_db)
+        # also capture stats from all shards
+        if self.selected_shard_secondaries:
+            all_shard_stats = []
+            for shard_secondary in self.selected_shard_secondaries:
+                shard_stats = shard_secondary.get_stats(only_for_db=
+                                                        only_for_db)
+                all_shard_stats.append(shard_stats)
+
+            stats["allShardStats"] = all_shard_stats
+
+        return stats
+
+    ###########################################################################
+    def select_shard_best_secondaries(self, max_lag_seconds=0):
+        best_secondaries = []
+
+        for shard in self.shards:
+            shard_best = shard.get_best_secondary(max_lag_seconds=
+                                                  max_lag_seconds)
+            best_secondaries.append(shard_best)
+
+        self._selected_shard_secondaries = best_secondaries
+
+        return best_secondaries
+    ###########################################################################
+    def __str__(self):
+        ss = super(ShardedClusterConnector, self).__str__()
+        if self.selected_shard_secondaries:
+            shards_str = map(lambda s: str(s), self.selected_shard_secondaries)
+            return "%s (selected shard secondaries :'%s')" % (ss, shards_str)
+        else:
+            return ss
+
+
 ###############################################################################
 @robustify(max_attempts=3, retry_interval=3,
            do_on_exception=raise_if_not_retriable,
@@ -737,8 +833,6 @@ def _calculate_connection_databases_stats(connection):
 
     total_stats["databaseStats"] = all_db_stats
     return total_stats
-
-
 
 
 ###############################################################################

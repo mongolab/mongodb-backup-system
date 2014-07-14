@@ -31,6 +31,8 @@ from utils import (
 import urllib
 import time
 
+from mongo_utils import build_mongo_connector
+
 ###############################################################################
 # LOGGER
 ###############################################################################
@@ -145,6 +147,10 @@ class MongoSource(BackupSource):
     @uri.setter
     def uri(self, uri):
         self._uri = uri
+
+    ###########################################################################
+    def get_connector(self):
+        return build_mongo_connector(self.uri)
 
     ###########################################################################
     def to_document(self, display_only=False):
