@@ -697,6 +697,7 @@ class ShardedClusterConnector(MongoConnector):
             config_server_uris)
 
         self._selected_shard_secondaries = None
+        self._selected_config_server= None
 
 
     ###########################################################################
@@ -731,6 +732,17 @@ class ShardedClusterConnector(MongoConnector):
         raise Exception("No online routers found for '%s'" % self)
 
     ###########################################################################
+    @property
+    def selected_config_server(self):
+        if not self._selected_config_server:
+            for cs in self.config_servers:
+                if cs.is_online():
+                    self._selected_config_server = cs
+
+        return self._selected_config_server
+
+
+    ###########################################################################
     def get_stats(self, only_for_db=None):
         stats = self.any_online_router().get_stats(only_for_db=only_for_db)
         # also capture stats from all shards
@@ -757,12 +769,14 @@ class ShardedClusterConnector(MongoConnector):
         self._selected_shard_secondaries = best_secondaries
 
         return best_secondaries
+
     ###########################################################################
     def __str__(self):
         ss = super(ShardedClusterConnector, self).__str__()
         if self.selected_shard_secondaries:
             shards_str = map(lambda s: str(s), self.selected_shard_secondaries)
-            return "%s (selected shard secondaries :'%s')" % (ss, shards_str)
+            return ("%s (selected shard secondaries :%s, selected conf server "
+                    "'%s')" % (ss, shards_str, self.selected_config_server))
         else:
             return ss
 
