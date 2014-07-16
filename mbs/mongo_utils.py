@@ -405,6 +405,10 @@ class MongoServer(MongoConnector):
         return self._admin_db
 
     ###########################################################################
+    def get_db(self, name):
+        return self.get_auth_admin_db().connection[name]
+
+    ###########################################################################
     @property
     def connection(self):
         return self._connection
@@ -769,6 +773,29 @@ class ShardedClusterConnector(MongoConnector):
         self._selected_shard_secondaries = best_secondaries
 
         return best_secondaries
+
+    ###########################################################################
+    def config_db(self):
+        return self.any_online_router().get_db("config")
+
+    ###########################################################################
+    def is_balancer_active(self):
+        return not(self.is_balancer_running() or self.get_balancer_state())
+
+    ###########################################################################
+    def is_balancer_running(self):
+        balancer_lock = self._get_balancer_lock()
+        state = balancer_lock and balancer_lock.get("state")
+        return state and state > 0
+
+    ###########################################################################
+    def get_balancer_state(self):
+        balancer_lock = self._get_balancer_lock()
+        return balancer_lock is None or not balancer_lock.get("stopped")
+
+    ###########################################################################
+    def _get_balancer_lock(self):
+        return self.config_db().locks.find_one({ "_id": "balancer" })
 
     ###########################################################################
     def __str__(self):

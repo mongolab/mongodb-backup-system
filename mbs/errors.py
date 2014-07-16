@@ -489,6 +489,10 @@ class ExtractError(MBSError):
 
 
 ###############################################################################
+class BalancerActiveError(MBSError, RetriableError):
+    pass
+
+###############################################################################
 # PlanGeneratorError
 ###############################################################################
 class PlanGenerationError(MBSError):
