@@ -97,9 +97,6 @@ class BackupStrategy(MBSObject):
         self._use_suspend_io = None
         self._allow_offline_backups = None
         self._backup_mode = None
-        # only applies to sharded backups, will always check unless set
-        #  to false
-        self._check_balancer_state = None
 
     ###########################################################################
     def _init_strategy(self, backup):
@@ -200,15 +197,6 @@ class BackupStrategy(MBSObject):
         self._backup_mode = val
 
     ###########################################################################
-    @property
-    def check_balancer_state(self):
-        return self._check_balancer_state
-
-    @check_balancer_state.setter
-    def check_balancer_state(self, val):
-        self._check_balancer_state = val
-
-    ###########################################################################
     def is_use_suspend_io(self):
         return False
 
@@ -292,9 +280,8 @@ class BackupStrategy(MBSObject):
         for connector in sharded_connector.selected_shard_secondaries:
             self._validate_connector(backup, connector)
 
-        # validate balancer state as needed
-        if (self.check_balancer_state is not False and
-                sharded_connector.is_balancer_active()):
+        # validate balancer state
+        if sharded_connector.is_balancer_active():
             raise BalancerActiveError(msg="Invalid Sharded Backup: "
                                           "Balancer is active")
 
@@ -705,9 +692,6 @@ class BackupStrategy(MBSObject):
 
         if self.allow_offline_backups is not None:
             doc["allowOfflineBackups"] = self.allow_offline_backups
-
-        if self.check_balancer_state is not None:
-            doc["checkBalancerState"] = self.check_balancer_state
 
         return doc
 
