@@ -780,7 +780,7 @@ class ShardedClusterConnector(MongoConnector):
 
     ###########################################################################
     def is_balancer_active(self):
-        return not(self.is_balancer_running() or self.get_balancer_state())
+        return self.is_balancer_running() or self.get_balancer_state()
 
     ###########################################################################
     def is_balancer_running(self):
