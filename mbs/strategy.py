@@ -654,7 +654,7 @@ class BackupStrategy(MBSObject):
 
         msg = "Resuming balancer for '%s'" % sharded_connector
         update_backup(backup, event_name="RESUME_BALANCER", message=msg)
-        sharded_connector.stop_balancer()
+        sharded_connector.resume_balancer()
 
         count = 0
         while not sharded_connector.is_balancer_active() and count < 30:
