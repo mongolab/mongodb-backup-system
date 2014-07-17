@@ -18,7 +18,7 @@ from globals import State, EventType
 from threading import Thread
 from multiprocessing import Process
 
-from errors import MBSError, BackupEngineError
+from errors import MBSError, BackupEngineError, EngineWorkerCrashedError
 
 from utils import (ensure_dir, resolve_path, get_local_host_name,
                    document_pretty_string, force_kill_process_and_children)
@@ -222,7 +222,7 @@ class BackupEngine(Thread):
 
     ###########################################################################
     def _notify_error(self, exception):
-        subject = "BackupEngine Error"
+        subject = "BackupEngine Error (%s)" % type(exception)
         message = ("BackupEngine '%s' Error!. Cause: %s. "
                    "\n\nStack Trace:\n%s" %
                    (self.engine_guid, exception, traceback.format_exc()))
@@ -463,10 +463,20 @@ class TaskQueueProcessor(Thread):
     def _monitor_workers(self):
         for worker in self._workers.values():
             if not worker.is_alive():
-                self.info("Detected Worker '%s' (pid %s) finished. Cleaning up"
-                          " resources"
-                          % (worker.id, worker.pid))
-                self._cleanup_worker_resources(worker)
+                # detect worker crashes
+                if worker.exitcode != 0:
+                    msg = ("Worker crash detected! Worker (id %s, pid %s, task"
+                           " id '%s') finished with a non-zero exit code '%s'"
+                           % (worker.id, worker.pid, worker.task_id,
+                              worker.exitcode))
+                    self.error(msg)
+                    self._cleanup_worker_resources(worker)
+                    raise EngineWorkerCrashedError(msg)
+                else:
+                    self.info("Detected worker '%s' (pid %s, task id '%s') "
+                              "finished successfully. Cleaning up resources..."
+                              % (worker.id, worker.pid, worker.task_id))
+                    self._cleanup_worker_resources(worker)
 
     ###########################################################################
     def _cleanup_worker_resources(self, worker):
