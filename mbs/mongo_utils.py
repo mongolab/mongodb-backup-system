@@ -2,10 +2,11 @@ __author__ = 'abdul'
 
 # Contains mongo db utility functions
 import operator
+import time
 
 import pymongo
 import pymongo.errors
-import mbs_logging
+from threading import Thread
 
 from mongo_uri_tools import parse_mongo_uri
 from bson.son import SON
@@ -701,7 +702,14 @@ class ShardedClusterConnector(MongoConnector):
             config_server_uris)
 
         self._selected_shard_secondaries = None
-        self._selected_config_server= None
+        self._selected_config_server = None
+
+        # balancer activity monitor
+        self._balancer_activity_monitor = Thread(target=
+                                                 self._do_monitor_activity)
+        self._balancer_active_during_monitor = None
+
+        self._stop_balancer_monitor_request = True
 
 
     ###########################################################################
@@ -817,6 +825,36 @@ class ShardedClusterConnector(MongoConnector):
     ###########################################################################
     def _get_balancer_settings(self):
         return self.config_db().settings.find_one({"_id": "balancer"})
+
+
+    ###########################################################################
+    def start_balancer_activity_monitor(self):
+        logger.info("Starting balancer activity monitor for '%s'" % self)
+        self._balancer_activity_monitor.start()
+
+    ###########################################################################
+    def stop_balancer_activity_monitor(self):
+        logger.info("Stopping balancer activity monitor...")
+        self._stop_balancer_monitor_request = True
+        self._balancer_activity_monitor.join()
+        logger.info("Balancer activity monitor stopped. Monitor detected "
+                    "balancer active during: %s" %
+                    self.balancer_active_during_monitor())
+
+    ###########################################################################
+    def balancer_active_during_monitor(self):
+        return self._balancer_active_during_monitor
+
+    ###########################################################################
+    def _do_monitor_activity(self):
+        self._balancer_active_during_monitor = None
+        self._stop_balancer_monitor_request = None
+
+        while not (self._stop_balancer_monitor_request or
+                       self._balancer_active_during_monitor):
+            self._balancer_active_during_monitor = self.is_balancer_active()
+            time.sleep(1)
+
 
     ###########################################################################
     def __str__(self):

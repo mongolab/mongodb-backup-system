@@ -633,21 +633,27 @@ class BackupStrategy(MBSObject):
     ###########################################################################
     def _stop_balancer(self, backup, sharded_connector):
 
-        msg = "Stopping balancer for '%s'" % sharded_connector
-        update_backup(backup, event_name="STOP_BALANCER", message=msg)
-        sharded_connector.stop_balancer()
-
-        count = 0
-        while sharded_connector.is_balancer_active() and count < 30:
-            logger.info("Waiting for balancer to stop..")
-            time.sleep(1)
-            count += 1
-
         if sharded_connector.is_balancer_active():
-            raise BalancerActiveError("Balancer did not stop in 30 seconds")
-        else:
-            logger.info("Balancer stopped!")
+            msg = "Stopping balancer for '%s'" % sharded_connector
+            logger.info(msg)
+            update_backup(backup, event_name="STOP_BALANCER", message=msg)
+            sharded_connector.stop_balancer()
 
+            count = 0
+            while sharded_connector.is_balancer_active() and count < 30:
+                logger.info("Waiting for balancer to stop..")
+                time.sleep(1)
+                count += 1
+
+            if sharded_connector.is_balancer_active():
+                raise BalancerActiveError("Balancer did not stop in 30 seconds")
+            else:
+                logger.info("Balancer stopped!")
+        else:
+            msg = "Balancer already stopped for '%s'" % sharded_connector
+            logger.info(msg)
+            update_backup(backup, event_name="BALANCER_ALREADY_STOPPED",
+                          message=msg)
 
     ###########################################################################
     def _resume_balancer(self, backup, sharded_connector):
@@ -1489,14 +1495,25 @@ class CloudBlockStorageStrategy(BackupStrategy):
         fsync_unlocked = False
 
         resumed_io = False
+
+        need_to_resume_balancer = False
+        balancer_resumed = False
         try:
             update_backup(backup, event_name="START_KICKOFF_SNAPSHOT",
                           message="Kicking off snapshot")
 
-            # sharded connectors: Stop balancer before snapshot
+            # sharded connectors: Stop balancer before snapshot as needed
+            # also make sure that the balancer was not active during snapshot
+            # kick off
 
             if isinstance(mongo_connector, ShardedClusterConnector):
+                if mongo_connector.is_balancer_active():
+                    need_to_resume_balancer = True
                 self._stop_balancer(backup, mongo_connector)
+
+                # monitor balancer during kickoff window
+                mongo_connector.start_balancer_activity_monitor()
+
             # run fsync lock
             if use_fysnclock:
                 self._fsynclock(backup, mongo_connector)
@@ -1530,10 +1547,18 @@ class CloudBlockStorageStrategy(BackupStrategy):
                 self._fsyncunlock(backup, mongo_connector)
                 fsync_unlocked = True
 
-            # sharded connectors: Resume balancer after snapshot
-
+            # sharded connectors: Resume balancer after snapshot as needed
             if isinstance(mongo_connector, ShardedClusterConnector):
-                self._resume_balancer(backup, mongo_connector)
+                # check that the balancer was not active during kickoff
+                mongo_connector.stop_balancer_activity_monitor()
+                if mongo_connector.balancer_active_during_monitor():
+                    logger.error("Balancer detected to be active"
+                                 " during kickoff for '%s'" % mongo_connector)
+                    raise BalancerActiveError("Balancer detected to be active"
+                                              " during kickoff")
+                if need_to_resume_balancer:
+                    self._resume_balancer(backup, mongo_connector)
+                    balancer_resumed = True
 
             update_backup(backup, event_name="END_KICKOFF_SNAPSHOT",
                           message="Snapshot kicked off successfully!")
@@ -1546,6 +1571,12 @@ class CloudBlockStorageStrategy(BackupStrategy):
             finally:
                 if use_fysnclock and not fsync_unlocked:
                     self._fsyncunlock(backup, mongo_connector)
+
+            try:
+                if need_to_resume_balancer and not balancer_resumed:
+                    self._resume_balancer(backup, mongo_connector)
+            finally:
+                pass
 
     ###########################################################################
     def _create_snapshot(self, backup, cbs):
