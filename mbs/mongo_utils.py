@@ -780,19 +780,35 @@ class ShardedClusterConnector(MongoConnector):
 
     ###########################################################################
     def is_balancer_active(self):
-        return self.is_balancer_running() or self.get_balancer_state()
+        return self._is_balancer_running() or self._get_balancer_state()
 
     ###########################################################################
-    def is_balancer_running(self):
+    def _is_balancer_running(self):
         balancer_lock = self._get_balancer_lock()
         state = balancer_lock and balancer_lock.get("state")
         return state and state > 0
 
     ###########################################################################
-    def get_balancer_state(self):
+    def _get_balancer_state(self):
         balancer_settings= self._get_balancer_settings()
         return (balancer_settings is None or
                 not balancer_settings.get("stopped"))
+
+    ###########################################################################
+    def stop_balancer(self):
+        self._set_balancer_state(False)
+
+    ###########################################################################
+    def resume_balancer(self):
+        self._set_balancer_state(True)
+
+    ###########################################################################
+    def _set_balancer_state(self, val):
+        self.config_db().settings.update(
+            {"_id": "balancer"},
+            {"$set" : { "stopped": not val}},
+            True
+        )
 
     ###########################################################################
     def _get_balancer_lock(self):

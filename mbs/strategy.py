@@ -280,14 +280,6 @@ class BackupStrategy(MBSObject):
         for connector in sharded_connector.selected_shard_secondaries:
             self._validate_connector(backup, connector)
 
-        # validate balancer state
-        logger.info("Validating balancer state for '%s'..." % sharded_connector)
-        if sharded_connector.is_balancer_active():
-            raise BalancerActiveError(msg="Invalid Sharded Backup: "
-                                          "Balancer is active")
-        else:
-            logger.info("Balancer is not active. Yaay!")
-
     ###########################################################################
     def _select_backup_cluster_member(self, backup, mongo_cluster):
         logger.info("Selecting a member from cluster '%s' for backup '%s' "
@@ -636,6 +628,45 @@ class BackupStrategy(MBSObject):
         else:
             raise ConfigurationError("Invalid resume io attempt. '%s' has "
                                      "to be a MongoServer" % mongo_connector)
+
+
+    ###########################################################################
+    def _stop_balancer(self, backup, sharded_connector):
+
+        msg = "Stopping balancer for '%s'" % sharded_connector
+        update_backup(backup, event_name="STOP_BALANCER", message=msg)
+        sharded_connector.stop_balancer()
+
+        count = 0
+        while sharded_connector.is_balancer_active() and count < 30:
+            logger.info("Waiting for balancer to stop..")
+            time.sleep(1)
+            count += 1
+
+        if sharded_connector.is_balancer_active():
+            raise BalancerActiveError("Balancer did not stop in 30 seconds")
+        else:
+            logger.info("Balancer stopped!")
+
+
+    ###########################################################################
+    def _resume_balancer(self, backup, sharded_connector):
+
+        msg = "Resuming balancer for '%s'" % sharded_connector
+        update_backup(backup, event_name="RESUME_BALANCER", message=msg)
+        sharded_connector.stop_balancer()
+
+        count = 0
+        while not sharded_connector.is_balancer_active() and count < 30:
+            logger.info("Waiting for balancer to resume..")
+            time.sleep(1)
+            count += 1
+
+        if not sharded_connector.is_balancer_active():
+            raise BalancerActiveError("Balancer did not resume in 30 seconds")
+        else:
+            logger.info("Balancer resumed!")
+
 
     ###########################################################################
     def _set_backup_name_and_desc(self, backup):
@@ -1395,7 +1426,6 @@ class CloudBlockStorageStrategy(BackupStrategy):
     def do_backup_mongo_connector(self, backup, mongo_connector):
         self._snapshot_backup(backup, mongo_connector)
 
-
     ###########################################################################
     def is_use_fsynclock(self):
         # Always use suspend io unless explicitly set to False
@@ -1463,6 +1493,10 @@ class CloudBlockStorageStrategy(BackupStrategy):
             update_backup(backup, event_name="START_KICKOFF_SNAPSHOT",
                           message="Kicking off snapshot")
 
+            # sharded connectors: Stop balancer before snapshot
+
+            if isinstance(mongo_connector, ShardedClusterConnector):
+                self._stop_balancer(backup, mongo_connector)
             # run fsync lock
             if use_fysnclock:
                 self._fsynclock(backup, mongo_connector)
@@ -1495,6 +1529,11 @@ class CloudBlockStorageStrategy(BackupStrategy):
             if use_fysnclock:
                 self._fsyncunlock(backup, mongo_connector)
                 fsync_unlocked = True
+
+            # sharded connectors: Resume balancer after snapshot
+
+            if isinstance(mongo_connector, ShardedClusterConnector):
+                self._resume_balancer(backup, mongo_connector)
 
             update_backup(backup, event_name="END_KICKOFF_SNAPSHOT",
                           message="Snapshot kicked off successfully!")
