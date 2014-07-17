@@ -790,12 +790,17 @@ class ShardedClusterConnector(MongoConnector):
 
     ###########################################################################
     def get_balancer_state(self):
-        balancer_lock = self._get_balancer_lock()
-        return balancer_lock is None or not balancer_lock.get("stopped")
+        balancer_settings= self._get_balancer_settings()
+        return (balancer_settings is None or
+                not balancer_settings.get("stopped"))
 
     ###########################################################################
     def _get_balancer_lock(self):
         return self.config_db().locks.find_one({"_id": "balancer"})
+
+    ###########################################################################
+    def _get_balancer_settings(self):
+        return self.config_db().settings.find_one({"_id": "balancer"})
 
     ###########################################################################
     def __str__(self):
