@@ -795,7 +795,7 @@ class ShardedClusterConnector(MongoConnector):
 
     ###########################################################################
     def _get_balancer_lock(self):
-        return self.config_db().locks.find_one({ "_id": "balancer" })
+        return self.config_db().locks.find_one({"_id": "balancer"})
 
     ###########################################################################
     def __str__(self):

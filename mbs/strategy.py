@@ -281,9 +281,12 @@ class BackupStrategy(MBSObject):
             self._validate_connector(backup, connector)
 
         # validate balancer state
+        logger.info("Validating balancer state for '%s'..." % sharded_connector)
         if sharded_connector.is_balancer_active():
             raise BalancerActiveError(msg="Invalid Sharded Backup: "
                                           "Balancer is active")
+        else:
+            logger.info("Balancer is not active. Yaay!")
 
     ###########################################################################
     def _select_backup_cluster_member(self, backup, mongo_cluster):
