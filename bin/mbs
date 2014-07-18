@@ -39,7 +39,9 @@ def main(args):
 
     mbs_config.MBS_CONF_DIR = resolve_path(parsed_args.config_root)
 
-    setup_logging(log_to_stdout=getattr(parsed_args, "foreground", True))
+    log_to_stdout = getattr(parsed_args, "foreground", True)
+    setup_logging(log_to_stdout=log_to_stdout,
+                  log_file_name=_get_log_file_name(parsed_args))
 
     # get the function to call from the parser framework
     command_function = parsed_args.func
@@ -445,6 +447,16 @@ def _get_plan(plan_id):
     else:
         print "No such plan '%s'" % plan_id
         exit(1)
+
+###############################################################################
+def _get_log_file_name(parsed_args):
+    if "start-engine" in parsed_args.raw_args:
+        engine = _get_engine(parsed_args.engineId)
+        return "engine_%s.log" % engine.id
+    elif "start-backup-system" in parsed_args.raw_args:
+        return "backup_system.log"
+    else:
+        return "mbs.log"
 
 ###############################################################################
 # command parser

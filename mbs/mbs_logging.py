@@ -17,7 +17,8 @@ MBS_LOG_DIR = "logs"
 logger = logging.getLogger()
 
 ###############################################################################
-def setup_logging(log_to_stdout=False, log_file_name="mbs.log"):
+def setup_logging(log_to_stdout=False, log_file_name=None):
+    log_file_name = log_file_name or "mbs.log"
     log_dir = resolve_path(os.path.join(mbs_config.MBS_CONF_DIR, MBS_LOG_DIR))
     ensure_dir(log_dir)
 
