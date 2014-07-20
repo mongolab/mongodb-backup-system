@@ -378,8 +378,13 @@ def unfreeze_mount_point(mount_point):
 ###############################################################################
 def validate_fsfreeze():
     if not os_supports_freeze():
-        err = ("Your OS is not fsfreeze compatible. fsfreeze requirese Ubunto"
-              " 12.04 or later and a fsfreeze exe available in your path.")
+        distribution = platform.dist()
+        dist_name = distribution[0].lower()
+        dist_version = distribution[1]
+        err = ("Your OS (dist='%s', version='%s') is not fsfreeze compatible."
+               " fsfreeze requires Ubunto>= 12.04 or debian and an fsfreeze "
+               "exe available in your "
+               "path." % (dist_name, dist_version))
         raise Exception(err)
     # validate fsfreeze against sudo
     validate_fsfreeze_sudo()
@@ -468,8 +473,12 @@ def resume_lvm_mount_point(mount_point):
 ###############################################################################
 def validate_dmsetup():
     if not os_supports_dmsetup():
-        err = ("Your OS is not dmsetup compatible. dmsetup requires Ubunto"
-               " 12.04 or later and a dmsetup exe available in your path.")
+        distribution = platform.dist()
+        dist_name = distribution[0].lower()
+        dist_version = distribution[1]
+        err = ("Your OS (dist='%s', version='%s') is not dmsetup compatible. "
+               "dmsetup requires Ubunto >= 12.04 or debian and a dmsetup exe "
+               "available in your path." % (dist_name, dist_version))
         raise Exception(err)
     # validate dmsetup against sudo
     validate_dmsetup_sudo()
