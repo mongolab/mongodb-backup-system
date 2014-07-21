@@ -240,12 +240,21 @@ class BackupExpirationManager(ScheduleRunner):
                 logger.info("==== Processing plan '%s' .... " % plan.id)
                 # Ensure we have the latest revision of the backup plan
                 plan = persistence.get_backup_plan(plan.id) or plan
-
-                if self.is_plan_backups_not_expirable(plan):
-                    mark_plan_backups_not_expirable(plan, plan_backups)
-                    total_dont_expire += len(plan_backups)
-                else:
-                    total_expired += self.expire_plan_dues(plan, plan_backups)
+                try:
+                    if self.is_plan_backups_not_expirable(plan):
+                        mark_plan_backups_not_expirable(plan, plan_backups)
+                        total_dont_expire += len(plan_backups)
+                    else:
+                        total_expired += self.expire_plan_dues(plan,
+                                                               plan_backups)
+                except Exception, e:
+                    logger.exception("BackupExpirationManager Error while"
+                                     " processing plan '%s'" % plan.id)
+                    subject = "BackupExpirationManager Error"
+                    message = ("BackupExpirationManager Error while processing"
+                               " plan '%s'\n\nStack Trace:\n%s" %
+                               (plan.id, traceback.format_exc()))
+                    get_mbs().send_error_notification(subject, message, e)
 
                 plan = current_backup.plan if current_backup else None
                 plan_backups = []
