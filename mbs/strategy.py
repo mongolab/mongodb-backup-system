@@ -423,7 +423,7 @@ class BackupStrategy(MBSObject):
             self._compute_source_stats(backup, mongo_connector)
 
         # set backup name and description
-        self._set_backup_name_and_desc(backup)
+        self._update_backup_name_and_desc(backup)
 
         # validate max data size if set
         self._validate_max_data_size(backup)
@@ -675,14 +675,22 @@ class BackupStrategy(MBSObject):
 
 
     ###########################################################################
-    def _set_backup_name_and_desc(self, backup):
-        if not backup.name:
-            backup.name = self.get_backup_name(backup)
+    def _update_backup_name_and_desc(self, backup):
+        # update backup name and desc
+        update_props = list()
 
-        if not backup.description:
-            backup.description = self.get_backup_description(backup)
+        name = self.get_backup_name(backup)
+        if name != backup.name:
+            backup.name = name
+            update_props.append("name")
 
-        update_backup(backup, properties=["name", "description"])
+        desc = self.get_backup_description(backup)
+        if desc != backup.description:
+            backup.description = desc
+            update_props.append("description")
+
+        if update_props:
+            update_backup(backup, properties=update_props)
 
     ###########################################################################
     def get_backup_name(self, backup):
@@ -1587,15 +1595,15 @@ class CloudBlockStorageStrategy(BackupStrategy):
         update_backup(backup, event_name="START_CREATE_SNAPSHOT",
                       message="Creating snapshot")
 
+        # Refresh backup name/description
+        self._update_backup_name_and_desc(backup)
         if isinstance(cbs, CompositeBlockStorage):
             name_template = self.constituent_name_scheme or backup.name
             desc_template = (self.constituent_description_scheme or
                              backup.description)
             snapshot_ref = cbs.create_snapshot(name_template, desc_template)
         else:
-            name = self.get_backup_name(backup)
-            desc = self.get_backup_description(backup)
-            snapshot_ref = cbs.create_snapshot(name, desc)
+            snapshot_ref = cbs.create_snapshot(backup.name, backup.description)
 
         backup.target_reference = snapshot_ref
 
@@ -1805,7 +1813,7 @@ class HybridStrategy(BackupStrategy):
             return self.cloud_block_storage_strategy._do_run_restore(restore)
 
     ###########################################################################
-    def _set_backup_name_and_desc(self, backup):
+    def _update_backup_name_and_desc(self, backup):
         """
          Do nothing so that the selected strategy will take care of that
          instead
