@@ -765,7 +765,7 @@ class ShardedClusterConnector(MongoConnector):
                                                         only_for_db)
                 all_shard_stats.append(shard_stats)
 
-            stats["allShardStats"] = all_shard_stats
+            stats["shardStats"] = all_shard_stats
 
         return stats
 
