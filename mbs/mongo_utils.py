@@ -683,26 +683,17 @@ class ShardedClusterConnector(MongoConnector):
     def __init__(self, uri, shard_uris, config_server_uris):
         super(ShardedClusterConnector, self).__init__(uri)
 
-        # init routers
+        self._router = None
 
-        routers = []
-        for router_uri in self._uri_wrapper.member_raw_uri_list:
-            router = MongoServer(router_uri)
-            routers.append(router)
-
-        self._routers = routers
-
+        self._shard_uris = shard_uris
         # Shards
-        self._shards = map(lambda shard_uri: MongoCluster(shard_uri),
-                           shard_uris)
+        self._shards = None
 
-        # Config Servers
-        self._config_servers = map(
-            lambda server_uri: MongoServer(server_uri),
-            config_server_uris)
+        # Config Server
+        self._config_server = None
+        self._config_server_uris = config_server_uris
 
         self._selected_shard_secondaries = None
-        self._selected_config_server = None
 
         # balancer activity monitor
         self._balancer_activity_monitor = Thread(target=
@@ -714,22 +705,29 @@ class ShardedClusterConnector(MongoConnector):
 
     ###########################################################################
     def is_online(self):
-        return self.any_online_router() is not None
-
-    ###########################################################################
-    @property
-    def routers(self):
-        return self._routers
+        return self.router.is_online()
 
     ###########################################################################
     @property
     def shards(self):
+        if not self._shards:
+            self._shards = map(lambda shard_uri: MongoCluster(shard_uri),
+                               self._shard_uris)
         return self._shards
 
     ###########################################################################
     @property
-    def config_servers(self):
-        return self._config_servers
+    def config_server(self):
+        if not self._config_server:
+            for uri in self._config_server_uris:
+                conf_server = MongoServer(uri)
+                if conf_server.is_online():
+                    self._config_server = conf_server
+
+        if self._config_server is None:
+            raise Exception("No online config servers found for '%s'" % self)
+        else:
+            return self._config_server
 
     ###########################################################################
     @property
@@ -737,26 +735,23 @@ class ShardedClusterConnector(MongoConnector):
         return self._selected_shard_secondaries
 
     ###########################################################################
-    def any_online_router(self):
-        for router in self.routers:
-            if router.is_online():
-                return router
-        raise Exception("No online routers found for '%s'" % self)
-
-    ###########################################################################
     @property
-    def selected_config_server(self):
-        if not self._selected_config_server:
-            for cs in self.config_servers:
-                if cs.is_online():
-                    self._selected_config_server = cs
+    def router(self):
+        if self._router is None:
+            for router_uri in self._uri_wrapper.member_raw_uri_list:
+                router = MongoServer(router_uri)
+                if router.is_online():
+                    self._router = router
 
-        return self._selected_config_server
+        if self._router is None:
+            raise Exception("No online routers found for '%s'" % self)
+        else:
+            return self._router
 
 
     ###########################################################################
     def get_stats(self, only_for_db=None):
-        stats = self.any_online_router().get_stats(only_for_db=only_for_db)
+        stats = self.router.get_stats(only_for_db=only_for_db)
         # also capture stats from all shards
         if self.selected_shard_secondaries:
             all_shard_stats = []
@@ -784,7 +779,7 @@ class ShardedClusterConnector(MongoConnector):
 
     ###########################################################################
     def config_db(self):
-        return self.any_online_router().get_db("config")
+        return self.router.get_db("config")
 
     ###########################################################################
     def is_balancer_active(self):
@@ -854,17 +849,6 @@ class ShardedClusterConnector(MongoConnector):
                        self._balancer_active_during_monitor):
             self._balancer_active_during_monitor = self.is_balancer_active()
             time.sleep(1)
-
-
-    ###########################################################################
-    def __str__(self):
-        ss = super(ShardedClusterConnector, self).__str__()
-        if self.selected_shard_secondaries:
-            shards_str = map(lambda s: str(s), self.selected_shard_secondaries)
-            return ("%s (selected shard secondaries :%s, selected conf server "
-                    "'%s')" % (ss, shards_str, self.selected_config_server))
-        else:
-            return ss
 
 
 ###############################################################################
