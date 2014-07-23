@@ -290,6 +290,18 @@ class MongoCluster(MongoConnector):
         p0_secondaries = []
         other_secondaries = []
 
+        # check if there is a mongolab node
+        backup_node = self.get_mongolab_backup_node()
+
+        if backup_node:
+            logger.info("Found mongolabBackupNode '%s'. Validating ..." %
+                        backup_node)
+            # Ah! validate it if meets the conditions
+            self._validate_backup_node(backup_node, max_lag_seconds)
+            logger.info("mongolabBackupNode '%s' is valid! Returning as the "
+                        "best secondary '%s'" % backup_node)
+            return backup_node
+
         master_status = self.primary_member.rs_status
 
         # find secondaries
@@ -337,6 +349,22 @@ class MongoCluster(MongoConnector):
                     return secondary
 
     ###########################################################################
+    def _validate_backup_node(self, backup_node, max_lag_seconds=0):
+        master_status = self.primary_member.rs_status
+        if not backup_node.is_online():
+            raise NoEligibleMembersFound(self.uri,
+                                         "mongolabBackupNode '%s' is offline" %
+                                         backup_node)
+        if max_lag_seconds:
+            backup_node.compute_lag(master_status)
+            if backup_node.lag_in_seconds > max_lag_seconds:
+                msg = ("mongolabBackupNode '%s' is lagging %s which is more"
+                       " than max lag allowed %s" %
+                       (backup_node, backup_node.lag_in_seconds,
+                        max_lag_seconds))
+                raise NoEligibleMembersFound(self.uri, msg)
+
+    ###########################################################################
     def has_p0s(self):
         """
 
@@ -347,6 +375,20 @@ class MongoCluster(MongoConnector):
                 return True
 
         return False
+    ###########################################################################
+    def get_mongolab_backup_node(self):
+        rs_conf = self.primary_member.rs_conf
+        for mem_conf in rs_conf["members"]:
+            if("tags" in mem_conf and
+                       "mongolabBackupNode" in mem_conf["tags"]):
+                return self.get_member_by_address(mem_conf["host"])
+
+    ###########################################################################
+    def get_member_by_address(self, address):
+        for member in self.members:
+            if member.address == address:
+                return member
+
     ###########################################################################
     def get_stats(self, only_for_db=None):
         return self.primary_member.get_stats(only_for_db=only_for_db)
