@@ -18,7 +18,10 @@ from globals import State, EventType
 from threading import Thread
 from multiprocessing import Process
 
-from errors import MBSError, BackupEngineError, EngineWorkerCrashedError
+from errors import (
+    MBSError, BackupEngineError, EngineWorkerCrashedError,
+    WorkspaceCreationError
+)
 
 from utils import (ensure_dir, resolve_path, get_local_host_name,
                    document_pretty_string, force_kill_process_and_children)
@@ -754,8 +757,8 @@ class TaskWorker(Process):
                 workspace_dir = self._get_task_workspace_dir(task)
                 task.workspace = workspace_dir
 
-            # ensure backup workspace
-            ensure_dir(task.workspace)
+            # ensure task workspace
+            self._ensure_task_workspace_dir(task)
 
             # UPDATE!
             self._processor.task_collection.update_task(
@@ -783,6 +786,13 @@ class TaskWorker(Process):
     ###########################################################################
     def _get_task_workspace_dir(self, task):
         return os.path.join(self._processor._engine.temp_dir, str(task.id))
+
+    ###########################################################################
+    def _ensure_task_workspace_dir(self, task):
+        try:
+            ensure_dir(task.workspace)
+        except Exception, e:
+            raise WorkspaceCreationError("Failed to create workspace: %s" % e)
 
     ###########################################################################
     def _calculate_queue_latency(self, task):

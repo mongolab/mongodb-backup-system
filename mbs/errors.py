@@ -493,6 +493,11 @@ class ExtractError(MBSError):
         super(ExtractError, self).__init__(msg=msg, details=details,
                                            cause=cause)
 
+###############################################################################
+class WorkspaceCreationError(MBSError, RetriableError):
+    """
+        happens when there is is a problem creating workspace for task
+    """
 
 ###############################################################################
 class BalancerActiveError(MBSError, RetriableError):
