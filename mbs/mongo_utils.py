@@ -355,6 +355,12 @@ class MongoCluster(MongoConnector):
             raise NoEligibleMembersFound(self.uri,
                                          "mongolabBackupNode '%s' is offline" %
                                          backup_node)
+
+        if not backup_node.is_secondary():
+            raise NoEligibleMembersFound(self.uri,
+                                         "mongolabBackupNode '%s' not "
+                                         "secondary" % backup_node)
+
         if max_lag_seconds:
             backup_node.compute_lag(master_status)
             if backup_node.lag_in_seconds > max_lag_seconds:
