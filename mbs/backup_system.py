@@ -213,8 +213,11 @@ class BackupSystem(Thread):
         if self._tick_count % 100 == 0:
             self._notify_on_past_due_scheduled_backups()
             self._cancel_past_cycle_scheduled_backups()
-            self._run_plan_generators()
             self._reschedule_in_cycle_failed_backups()
+
+        # run those things every 200 ticks
+        if self._tick_count % 200 == 0:
+            self._run_plan_generators()
 
     ###########################################################################
     def _process_plans_considered_now(self, process_max_count=None):
