@@ -15,13 +15,15 @@ from date_utils import timedelta_total_seconds
 from utils import is_host_local, document_pretty_string
 from verlib import NormalizedVersion, suggest_normalized_version
 from bson.objectid import ObjectId
-
+import logging
 from robustify.robustify import robustify
 
 ###############################################################################
 # LOGGER
 ###############################################################################
-logger = mbs_logging.logger
+
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
 
 # CONSTS
 # db connection timeout, 160 seconds
