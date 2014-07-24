@@ -301,7 +301,7 @@ class MongoCluster(MongoConnector):
             # Ah! validate it if meets the conditions
             self._validate_backup_node(backup_node, max_lag_seconds)
             logger.info("mongolabBackupNode '%s' is valid! Returning as the "
-                        "best secondary '%s'" % backup_node)
+                        "best secondary for '%s'" % (backup_node, self))
             return backup_node
 
         master_status = self.primary_member.rs_status
