@@ -659,13 +659,13 @@ def prompt_confirm(message):
 ###############################################################################
 class SafeFormatter(string.Formatter):
     def get_field(self, field_name, args, kwargs):
-        first, rest = field_name._formatter_field_name_split()
-
-        if first not in kwargs:
+        try:
+            return super(SafeFormatter, self).get_field(
+                field_name, args, kwargs)
+        except (KeyError, AttributeError), e:
             return "{%s}" % field_name, field_name
-        else:
-            return super(SafeFormatter, self).get_field(field_name,
-                                                        args, kwargs)
+
+
 
 ###############################################################################
 def safe_format(template, **kwargs):
