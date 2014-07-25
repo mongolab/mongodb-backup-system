@@ -198,7 +198,16 @@ class CloudBlockStorage(MBSObject):
 
     ###########################################################################
     def create_snapshot(self, name, description):
+
+
+        name = safe_format(name, cbs=self)
+        description = safe_format(description, cbs=self)
+        return self.do_create_snapshot(name, description)
+
+    ###########################################################################
+    def do_create_snapshot(self, name, description):
         """
+            Does the actual work
             Create a snapshot for the volume with the specified description.
             Returns a CloudBlockStorageSnapshotReference
              Must be implemented by subclasses
@@ -289,7 +298,7 @@ class EbsVolumeStorage(CloudBlockStorage):
 
 
     ###########################################################################
-    def create_snapshot(self, name, description):
+    def do_create_snapshot(self, name, description):
         ebs_volume = self._get_ebs_volume()
 
         logger.info("Creating EBS snapshot (name='%s', desc='%s') for volume "
@@ -524,7 +533,7 @@ class BlobVolumeStorage(CloudBlockStorage):
         self._blob_service_connection = None
 
     ###########################################################################
-    def create_snapshot(self, name, description):
+    def do_create_snapshot(self, name, description):
 
         logger.info("Creating blob snapshot (name='%s', desc='%s') for volume "
                     "'%s' (%s)" %
@@ -709,7 +718,7 @@ class GcpDiskVolumeStorage(CloudBlockStorage):
         self._gce_service_connection = None
 
     ###########################################################################
-    def create_snapshot(self, name, description):
+    def do_create_snapshot(self, name, description):
 
         # hack to get around google's strict naming conventions:
         m_name = 'm-%s' % name
@@ -1080,7 +1089,7 @@ class CompositeBlockStorage(CloudBlockStorage):
 
 
     ###########################################################################
-    def create_snapshot(self, name_template, description_template):
+    def do_create_snapshot(self, name_template, description_template):
         """
             Creates a LVMSnapshotReference composed of all
             constituent snapshots
@@ -1138,7 +1147,7 @@ class LVMStorage(CompositeBlockStorage):
         CompositeBlockStorage.__init__(self)
 
     ###########################################################################
-    def create_snapshot(self, name_template, description_template):
+    def do_create_snapshot(self, name_template, description_template):
         """
             Creates a LVMSnapshotReference composed of all
             constituent snapshots
