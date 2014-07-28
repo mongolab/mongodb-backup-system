@@ -598,10 +598,11 @@ class BackupStrategy(MBSObject):
                                      " be a MongoServer" % mongo_connector)
 
     ###########################################################################
-    def _suspend_io(self, backup, mongo_connector, cloud_block_storage):
+    def _suspend_io(self, backup, mongo_connector, cloud_block_storage,
+                    ensure_local=True):
 
         if isinstance(mongo_connector, MongoServer):
-            if not mongo_connector.is_local():
+            if ensure_local and not mongo_connector.is_local():
                 err = ("Cannot suspend io for '%s' because is not local to"
                        " this box" % mongo_connector)
                 raise ConfigurationError(err)
@@ -614,10 +615,11 @@ class BackupStrategy(MBSObject):
                                      " be a MongoServer" % mongo_connector)
 
     ###########################################################################
-    def _resume_io(self, backup, mongo_connector, cloud_block_storage):
+    def _resume_io(self, backup, mongo_connector, cloud_block_storage,
+                   ensure_local=True):
 
         if isinstance(mongo_connector, MongoServer):
-            if not mongo_connector.is_local():
+            if ensure_local and not mongo_connector.is_local():
                 err = ("Cannot resume io for '%s' because is not local to "
                        "this box" % mongo_connector)
                 raise ConfigurationError(err)
