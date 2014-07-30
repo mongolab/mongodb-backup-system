@@ -6,7 +6,7 @@ from base import MBSObject
 from robustify.robustify import retry_till_done, die_with_err, robustify
 
 from target import (
-    EbsSnapshotReference, LVMSnapshotReference, BlobSnapshotReference,
+    EbsSnapshotReference, LVMSnapshotReference, AzureBlobSnapshotReference,
     CompositeBlockStorageSnapshotReference, GcpDiskSnapshotReference
     )
 from mbs import get_mbs
@@ -575,14 +575,14 @@ class BlobVolumeStorage(CloudBlockStorage):
         start_time = datetime.strptime(start_time_str,
                                        "%a, %d %b %Y %H:%M:%S %Z")
 
-        return BlobSnapshotReference(snapshot_id=blob_snapshot.url,
-                                     cloud_block_storage=self,
-                                     status="completed",
-                                     start_time=start_time.strftime(
-                                         "%Y-%m-%dT%H:%M:%S.000Z"),
-                                     volume_size=blob_snapshot.properties.
-                                     content_length / (1024 * 1024 * 1024),
-                                     progress="100%")
+        return AzureBlobSnapshotReference(
+            snapshot_id=blob_snapshot.url,
+            cloud_block_storage=self,
+            status="completed",
+            start_time=start_time.strftime("%Y-%m-%dT%H:%M:%S.000Z"),
+            volume_size=(blob_snapshot.properties.content_length /
+                         (1024 * 1024 * 1024)),
+            progress="100%")
 
     ###########################################################################
     @staticmethod
