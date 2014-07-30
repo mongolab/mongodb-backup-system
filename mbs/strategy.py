@@ -25,9 +25,9 @@ from utils import (which, ensure_dir, execute_command, execute_command_wrapper,
 from source import CompositeBlockStorage
 
 from target import (
-    CBS_STATUS_PENDING, CBS_STATUS_COMPLETED, CBS_STATUS_ERROR,
-    multi_target_upload_file, CloudBlockStorageSnapshotReference,
-    EbsSnapshotReference, LVMSnapshotReference
+    SnapshotStatus, multi_target_upload_file,
+    CloudBlockStorageSnapshotReference, EbsSnapshotReference,
+    LVMSnapshotReference
 )
 
 
@@ -1474,13 +1474,13 @@ class CloudBlockStorageStrategy(BackupStrategy):
             self._kickoff_snapshot(backup, mongo_connector, cbs)
 
         # wait until snapshot is completed or error (sleep time is 1 minute)
-        wait_status = [CBS_STATUS_COMPLETED, CBS_STATUS_ERROR]
+        wait_status = [SnapshotStatus.COMPLETED, SnapshotStatus.ERROR]
         self._wait_for_snapshot_status(backup, cbs, wait_status,
                                        sleep_time=60)
 
         snapshot_ref = backup.target_reference
 
-        if snapshot_ref.status == CBS_STATUS_COMPLETED:
+        if snapshot_ref.status == SnapshotStatus.COMPLETED:
             logger.info("Successfully completed backup '%s' snapshot" %
                         backup.id)
             msg = "Snapshot completed successfully"
@@ -1543,8 +1543,8 @@ class CloudBlockStorageStrategy(BackupStrategy):
             self._create_snapshot(backup, cbs)
 
             # wait until snapshot is pending or completed or error
-            wait_status = [CBS_STATUS_PENDING, CBS_STATUS_COMPLETED,
-                           CBS_STATUS_ERROR]
+            wait_status = [SnapshotStatus.PENDING, SnapshotStatus.COMPLETED,
+                           SnapshotStatus.ERROR]
             self._wait_for_snapshot_status(backup, cbs, wait_status)
 
             # resume io/unlock

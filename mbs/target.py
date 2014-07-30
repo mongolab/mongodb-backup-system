@@ -35,10 +35,12 @@ MULTIPART_MIN_SIZE = 100 * 1024 * 1024
 CF_MULTIPART_MIN_SIZE = 5 * 1024 * 1024 * 1024
 MAX_SPLIT_SIZE = 1024 * 1024 * 1024
 
+
 # Cloud block storage statuses
-CBS_STATUS_PENDING = "pending"
-CBS_STATUS_COMPLETED = "completed"
-CBS_STATUS_ERROR = "error"
+class SnapshotStatus(object):
+    PENDING = "pending"
+    COMPLETED = "completed"
+    ERROR = "error"
 
 ###############################################################################
 # Target Classes
@@ -1107,16 +1109,16 @@ class CompositeBlockStorageSnapshotReference(
         :return:
         """
         everyone = self.constituent_snapshots
-        completed = self._filter_constituents(CBS_STATUS_COMPLETED)
-        errored = self._filter_constituents(CBS_STATUS_ERROR)
-        pending = self._filter_constituents(CBS_STATUS_PENDING)
+        completed = self._filter_constituents(SnapshotStatus.COMPLETED)
+        errored = self._filter_constituents(SnapshotStatus.ERROR)
+        pending = self._filter_constituents(SnapshotStatus.PENDING)
 
         if everyone and completed and len(everyone) == len(completed):
-            return CBS_STATUS_COMPLETED
+            return SnapshotStatus.COMPLETED
         elif errored:
-            return CBS_STATUS_ERROR
+            return SnapshotStatus.ERROR
         elif pending:
-            return CBS_STATUS_PENDING
+            return SnapshotStatus.PENDING
 
 
 
