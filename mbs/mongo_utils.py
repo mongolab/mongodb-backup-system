@@ -247,6 +247,7 @@ class MongoDatabase(MongoConnector):
             # capture host in stats
             conn = self._database.connection
             stats["host"] = "%s:%s" % (conn.host, conn.port)
+            stats["connectionId"] = self.connection_id
             return stats
         except Exception, e:
             if is_connection_exception(e):
@@ -587,6 +588,7 @@ class MongoServer(MongoConnector):
             }
             stats.update(db_stats)
             stats.update(self._get_server_status())
+            stats["connectionId"] = self.connection_id
             return stats
         except Exception, e:
             if is_connection_exception(e):
