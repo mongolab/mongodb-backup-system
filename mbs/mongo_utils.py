@@ -66,6 +66,7 @@ class MongoConnector(object):
     def __init__(self, uri, conn_timeout=None):
         self._uri_wrapper = parse_mongo_uri(uri)
         self._conn_timeout = conn_timeout
+        self._connection_id = None
 
     ###########################################################################
     @property
@@ -76,6 +77,15 @@ class MongoConnector(object):
     @property
     def connection(self):
         return None
+
+    ###########################################################################
+    @property
+    def connection_id(self):
+        if self.is_online() and not self._connection_id:
+            myuri = self.connection["admin"].command({"whatsmyuri": 1})
+            self._connection_id = myuri["you"].split(":")[1]
+
+        return self._connection_id
 
     ###########################################################################
     @property
@@ -188,6 +198,10 @@ class MongoConnector(object):
     def _is_master_command(self):
         return (self.is_online() and
                 self.connection["admin"].command({"isMaster" : 1}))
+
+    ###########################################################################
+    def info(self):
+        return "uri: '%s', connection id: %s" % (str(self), self.connection_id)
 
     ###########################################################################
     def __str__(self):
@@ -900,6 +914,19 @@ class ShardedClusterConnector(MongoConnector):
             self._balancer_active_during_monitor = self.is_balancer_active()
             time.sleep(1)
 
+    ###########################################################################
+    def info(self):
+        i = {
+            "router": self.router.info(),
+            "configServer": self.config_server.info()
+        }
+
+        if self.selected_shard_secondaries:
+            shard_infos = map(lambda s: s.info,
+                              self.selected_shard_secondaries)
+            i["selectedShardSecondaries"] = shard_infos
+
+        return document_pretty_string(i)
 
 ###############################################################################
 @robustify(max_attempts=3, retry_interval=3,

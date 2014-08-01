@@ -229,6 +229,8 @@ class BackupStrategy(MBSObject):
 
         self._validate_connector(backup, connector)
 
+        logger.info("Selected connector %s for backup '%s'" %
+                    (connector.info(), backup.id))
         return connector
 
     ###########################################################################
