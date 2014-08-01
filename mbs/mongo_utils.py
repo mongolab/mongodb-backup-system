@@ -81,9 +81,13 @@ class MongoConnector(object):
     ###########################################################################
     @property
     def connection_id(self):
-        if self.is_online() and not self._connection_id:
-            myuri = self.connection["admin"].command({"whatsmyuri": 1})
-            self._connection_id = myuri["you"].split(":")[1]
+        try:
+            if self.is_online() and not self._connection_id:
+                myuri = self.whatsmyuri()
+                self._connection_id = myuri["you"].split(":")[1]
+        except Exception, e:
+            logger.exception("Error while determining connection id for"
+                             " connector '%s'. %s" % (self, e))
 
         return self._connection_id
 
@@ -119,6 +123,9 @@ class MongoConnector(object):
         """
             Must be overridden
         """
+
+    def whatsmyuri(self):
+        pass
 
     ###########################################################################
     @property
@@ -228,6 +235,10 @@ class MongoDatabase(MongoConnector):
     @property
     def connection(self):
         return self._database.connection
+
+    ###########################################################################
+    def whatsmyuri(self):
+        return self.database.command({"whatsmyuri": 1})
 
     ###########################################################################
     def get_stats(self, only_for_db=None):
@@ -414,6 +425,10 @@ class MongoCluster(MongoConnector):
     ###########################################################################
     def get_stats(self, only_for_db=None):
         return self.primary_member.get_stats(only_for_db=only_for_db)
+
+    ###########################################################################
+    def whatsmyuri(self):
+        return self.primary_member.whatsmyuri()
 
 ###############################################################################
 class MongoServer(MongoConnector):
@@ -740,6 +755,9 @@ class MongoServer(MongoConnector):
     def is_config_server(self):
         return "configsvr" in self.get_cmd_line_opts()
 
+    ###########################################################################
+    def whatsmyuri(self):
+        return self.get_auth_admin_db().command({"whatsmyuri": 1})
 
 ###############################################################################
 class ShardedClusterConnector(MongoConnector):
@@ -922,11 +940,16 @@ class ShardedClusterConnector(MongoConnector):
         }
 
         if self.selected_shard_secondaries:
-            shard_infos = map(lambda s: s.info,
+            shard_infos = map(lambda s: s.info(),
                               self.selected_shard_secondaries)
             i["selectedShardSecondaries"] = shard_infos
 
         return document_pretty_string(i)
+
+
+    ###########################################################################
+    def whatsmyuri(self):
+        return self.router.whatsmyuri()
 
 ###############################################################################
 @robustify(max_attempts=3, retry_interval=3,
