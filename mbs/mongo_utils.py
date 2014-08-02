@@ -719,6 +719,9 @@ class MongoServer(MongoConnector):
         return locked
 
     ###########################################################################
+    @robustify(max_attempts=5, retry_interval=3,
+               do_on_exception=raise_if_not_retriable,
+               do_on_failure=raise_exception)
     def fsyncunlock(self):
         """
             Runs fsynclock command on the server
