@@ -34,6 +34,7 @@ from target import (
 from globals import EventType
 from robustify.robustify import robustify
 from naming_scheme import *
+from threading import Thread
 
 ###############################################################################
 # CONSTANTS
@@ -41,6 +42,8 @@ from naming_scheme import *
 
 # max number of retries
 MAX_NO_RETRIES = 3
+
+MAX_FSYNCLOCK_TIME = 60 # seconds
 
 EVENT_START_EXTRACT = "START_EXTRACT"
 EVENT_END_EXTRACT = "END_EXTRACT"
@@ -587,6 +590,7 @@ class BackupStrategy(MBSObject):
             logger.info(msg)
             update_backup(backup, event_name="FSYNCLOCK", message=msg)
             mongo_connector.fsynclock()
+            self._start_max_fsynclock_monitor(backup, mongo_connector)
         else:
             raise ConfigurationError("Invalid fsynclock attempt. '%s' has to"
                                      " be a MongoServer" % mongo_connector)
@@ -602,6 +606,34 @@ class BackupStrategy(MBSObject):
         else:
             raise ConfigurationError("Invalid fsyncunlock attempt. '%s' has to"
                                      " be a MongoServer" % mongo_connector)
+
+    ###########################################################################
+    def _start_max_fsynclock_monitor(self, backup, mongo_connector):
+        def max_lock_monitor(strategy, backup, mongo_connector):
+            time.sleep(MAX_FSYNCLOCK_TIME)
+            logger.info("MaxFsynclockMonitor: Max time is up, checking if"
+                        " server '%s' is locked..." % mongo_connector)
+            if mongo_connector.is_server_locked():
+                try:
+                    msg = ("MaxFsynclockMonitor: %s has been locked for more"
+                           " than max allowed time (%s seconds)!!"
+                           " Unlocking ..." % (mongo_connector,
+                                               MAX_FSYNCLOCK_TIME))
+                    logger.error(msg)
+                    update_backup(backup, event_name="FSYNC_LOCK_MONITOR",
+                                  message=msg,
+                                  event_type=EventType.ERROR)
+                    strategy._fsyncunlock(backup, mongo_connector)
+                except Exception, e:
+                    logger.exception("MaxFsynclockMonitor")
+            else:
+                logger.info("MaxFsynclockMonitor: All good. Server '%s' is was"
+                            " unlocked within max threshold..." %
+                            mongo_connector)
+
+        logger.info("Starting MaxFsynclockMonitor...")
+        Thread(target=max_lock_monitor,
+               args=[self, backup, mongo_connector]).start()
 
     ###########################################################################
     def _suspend_io(self, backup, mongo_connector, cloud_block_storage,
