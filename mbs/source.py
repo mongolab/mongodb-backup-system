@@ -796,6 +796,7 @@ class GcpDiskVolumeStorage(CloudBlockStorage):
                 raise RetriableError(msg)
         except Exception, e:
             msg = "Error while deleting snapshot '%s'" % snapshot_id
+            logger.exception(msg)
             raise BlockStorageSnapshotError(msg, cause=e)
 
     ###########################################################################
