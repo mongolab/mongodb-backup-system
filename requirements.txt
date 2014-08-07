@@ -23,7 +23,7 @@ https://github.com/objectlabs/maker-py/archive/0.1.6.zip#egg=makerpy-0.1.6
 https://github.com/mongolab/mongoctl/archive/0.6.3.zip#egg=mongoctl-0.6.3
 https://github.com/abdulito/splitfile/archive/master.zip#egg=splitfile-0.1.1
 https://github.com/mongolab/mongodb-backup-system-client/archive/0.2.2.zip#egg=mbs_client-0.2.2
-https://github.com/mongolab/azure-sdk-for-python/archive/0.7.1.1.zip#egg=mongolab-azure-0.7.1.1
+https://github.com/mongolab/azure-sdk-for-python/archive/0.7.1.1.zip#egg=mongolab_azure-0.7.1.1
 
 https://github.com/rmiyashiro/waitress/archive/master.zip#egg=rmiyashirowaitress-0.8.8
 # test
