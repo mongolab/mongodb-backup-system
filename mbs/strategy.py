@@ -43,7 +43,7 @@ from threading import Thread
 # max number of retries
 MAX_NO_RETRIES = 3
 
-MAX_FSYNCLOCK_TIME = 60 # seconds
+MAX_LOCK_TIME = 60 # seconds
 
 EVENT_START_EXTRACT = "START_EXTRACT"
 EVENT_END_EXTRACT = "END_EXTRACT"
@@ -610,15 +610,14 @@ class BackupStrategy(MBSObject):
     ###########################################################################
     def _start_max_fsynclock_monitor(self, backup, mongo_connector):
         def max_lock_monitor(strategy, backup, mongo_connector):
-            time.sleep(MAX_FSYNCLOCK_TIME)
+            time.sleep(MAX_LOCK_TIME)
             logger.info("MaxFsynclockMonitor: Max time is up, checking if"
                         " server '%s' is locked..." % mongo_connector)
             if mongo_connector.is_server_locked():
                 try:
                     msg = ("MaxFsynclockMonitor: %s has been locked for more"
                            " than max allowed time (%s seconds)!!"
-                           " Unlocking ..." % (mongo_connector,
-                                               MAX_FSYNCLOCK_TIME))
+                           " Unlocking ..." % (mongo_connector, MAX_LOCK_TIME))
                     logger.error(msg)
                     update_backup(backup, event_name="FSYNC_LOCK_MONITOR",
                                   message=msg,
@@ -648,9 +647,42 @@ class BackupStrategy(MBSObject):
             msg = "Suspend IO for '%s'..." % mongo_connector
             update_backup(backup, event_name="SUSPEND_IO", message=msg)
             cloud_block_storage.suspend_io()
+            self._start_max_io_suspend_monitor(backup, mongo_connector)
         else:
             raise ConfigurationError("Invalid suspend io attempt. '%s' has to"
                                      " be a MongoServer" % mongo_connector)
+
+
+    ###########################################################################
+    def _start_max_io_suspend_monitor(self, backup, mongo_connector,
+                                      cbs, ensure_local):
+        def max_suspend_monitor(backup, mongo_connector, cbs):
+            time.sleep(MAX_LOCK_TIME)
+            logger.info("MaxIOSuspendMonitor: Max time is up, checking if"
+                        " server '%s' IO is suspended..." % mongo_connector)
+            # TODO: currently, there is no way of telling if io is suspended
+            # so we always blindly resume. If resume succeeds then we log an
+            # error :)
+            try:
+                cbs.resume_io()
+                msg = ("MaxIOSuspendMonitor: %s IO has been suspended for "
+                       "more than max allowed time (%s seconds)!!"
+                       " Resuming ..." % (mongo_connector, MAX_LOCK_TIME))
+                logger.error(msg)
+                update_backup(backup,
+                              event_name="IO_SUSPEND_MONITOR_MONITOR",
+                              message=msg,
+                              event_type=EventType.ERROR)
+
+            except Exception, e:
+                logger.info("MaxIOSuspendMonitor: It appears that server "
+                            "'%s' IO was resumed within max threshold." %
+                            mongo_connector)
+
+
+        logger.info("Starting MaxIOSuspendMonitor...")
+        Thread(target=max_suspend_monitor,
+               args=[backup, mongo_connector, cbs]).start()
 
     ###########################################################################
     def _resume_io(self, backup, mongo_connector, cloud_block_storage,
