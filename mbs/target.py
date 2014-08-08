@@ -1277,9 +1277,9 @@ class EbsSnapshotReference(CloudBlockStorageSnapshotReference):
 
 
 ###############################################################################
-# AzureBlobSnapshotReference
+# BlobSnapshotReference
 ###############################################################################
-class AzureBlobSnapshotReference(CloudBlockStorageSnapshotReference):
+class BlobSnapshotReference(CloudBlockStorageSnapshotReference):
 
     ###########################################################################
     def __init__(self, snapshot_id=None, cloud_block_storage=None, status=None,
@@ -1333,7 +1333,7 @@ class AzureBlobSnapshotReference(CloudBlockStorageSnapshotReference):
             self, display_only=display_only)
 
         doc.update({
-            "_type": "AzureBlobSnapshotReference",
+            "_type": "BlobSnapshotReference",
             "snapshotId": self.snapshot_id,
             "volumeSize": self.volume_size,
             "progress": self.progress,

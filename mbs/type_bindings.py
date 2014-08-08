@@ -35,8 +35,7 @@ TYPE_BINDINGS = {
     "CompositeBlockStorageSnapshotReference":
         "mbs.target.CompositeBlockStorageSnapshotReference",
     "LVMSnapshotReference": "mbs.target.LVMSnapshotReference",
-    "BlobSnapshotReference": "mbs.target.AzureBlobSnapshotReference",
-    "AzureBlobSnapshotReference": "mbs.target.AzureBlobSnapshotReference",
+    "BlobSnapshotReference": "mbs.target.BlobSnapshotReference",
     "GcpDiskSnapshotReference": "mbs.target.GcpDiskSnapshotReference",
     "RetainLastNPolicy": "mbs.retention.RetainLastNPolicy",
     "RetainMaxTimePolicy": "mbs.retention.RetainMaxTimePolicy",
