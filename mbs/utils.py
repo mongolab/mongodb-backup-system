@@ -397,7 +397,14 @@ def validate_fsfreeze():
 
 ###############################################################################
 def get_fsfreeze_exe():
-    return which("fsfreeze")
+    logger.info("locating fsfreeze exe...")
+    exe = which("fsfreeze")
+    if exe:
+        logger.info("Found fsfreeze at '%s'" % exe)
+        return exe
+    else:
+        raise Exception("No fsfreeze exe found in your path. $PATH is '%s'" %
+                        os.environ.get("PATH"))
 
 ###############################################################################
 def os_supports_freeze():
