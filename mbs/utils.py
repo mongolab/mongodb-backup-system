@@ -15,10 +15,16 @@ import signal
 import psutil
 import string
 import random
+import logging
+
 from date_utils import (datetime_to_bson, is_date_value, seconds_now,
                         utc_str_to_datetime)
 from bson import json_util
 from distutils.version import StrictVersion
+
+###############################################################################
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
 
 ###############################################################################
 ##################################         ####################################
@@ -550,12 +556,16 @@ def io_suspend_supported_os():
     distribution = platform.dist()
     dist_name = distribution[0].lower()
     dist_version_str = distribution[1]
+    logger.info("Checking if OS supports io suspend (dist name '%s', dist "
+                "version '%s')..." % (dist_name, dist_version_str))
     if dist_name and dist_version_str:
         dist_version = StrictVersion(dist_version_str)
         min_version = StrictVersion('12.04')
 
-        return ((dist_name == "ubuntu" and dist_version >= min_version) or
-                dist_name == "debian")
+        result = ((dist_name == "ubuntu" and dist_version >= min_version) or
+                   dist_name == "debian")
+        logger.info("Result: OS supports io suspend = %s" % result)
+        return result
     else:
         return False
 
