@@ -3,11 +3,14 @@ __author__ = 'abdul'
 import traceback
 import mbs_logging
 from utils import listify
-
+import sendgrid
+from sendgrid import SendGridError, SendGridClientError, SendGridServerError
 
 import smtplib
 
 from email.mime.text import MIMEText
+
+DEFAULT_NOTIFICATION_SUBJECT = "Backup System Notification"
 
 ###############################################################################
 # LOGGER
@@ -78,11 +81,107 @@ class EmailNotificationHandler(NotificationHandler):
     def __init__(self):
         NotificationHandler.__init__(self)
 
+        self._from_address = None
+        self._to_address = None
+
+    ###########################################################################
+    @property
+    def from_address(self):
+        return self._from_address
+
+    @from_address.setter
+    def from_address(self, from_address):
+        self._from_address = from_address
+
+    ###########################################################################
+    @property
+    def to_address(self):
+        return self._to_address
+
+    @to_address.setter
+    def to_address(self, to_address):
+        self._to_address = to_address
+
+
+###############################################################################
+# SendgridNotificationHandler
+###############################################################################
+class SendgridNotificationHandler(EmailNotificationHandler):
+
+    ###########################################################################
+    def __init__(self):
+        EmailNotificationHandler.__init__(self)
+        self._sendgrid = None
+        self._sendgrid_username = None
+        self._sendgrid_password = None
+
+    ###########################################################################
+    # PROPERTIES
+    ###########################################################################
+    @property
+    def sendgrid_username(self):
+        return self._sendgrid_username
+
+    @sendgrid_username.setter
+    def sendgrid_username(self, sendgrid_username):
+        self._sendgrid_username = sendgrid_username
+
+    ###########################################################################
+    @property
+    def sendgrid_password(self):
+        return self._sendgrid_password
+
+    @sendgrid_password.setter
+    def sendgrid_password(self, sendgrid_password):
+        self._sendgrid_password = sendgrid_password
+
+    ###########################################################################
+    def _ensure_sg_initialized(self):
+        if self._sendgrid is None:
+            self._sendgrid = sendgrid.SendGridClient(self.sendgrid_username,
+                                                     self.sendgrid_password,
+                                                     raise_errors=True)
+
+    ###########################################################################
+    def send_notification(self, subject, message, recipient=None):
+
+        try:
+            self._ensure_sg_initialized()
+            logger.info("Sending notification email...")
+            msg = sendgrid.Mail()
+
+            msg.set_from(self.from_address)
+            to_address = listify(recipient or self.to_address)
+            for address in to_address:
+                msg.add_to(address)
+            if subject is not None:
+                msg.set_subject(subject)
+            else:
+                msg.set_subject(DEFAULT_NOTIFICATION_SUBJECT)
+            msg.set_text(message)
+            #raises exceptions when raise_errors=True in SnedGridClient constructor
+            self._sendgrid.send(msg)
+
+            logger.info("Email sent successfully!")
+        except Exception, e:
+            print e
+            print traceback.format_exc()
+            logger.error("Error while sending email:\n%s" %
+                         traceback.format_exc())
+
+
+###############################################################################
+# SmtpNotificationHandler
+###############################################################################
+class SmtpNotificationHandler(EmailNotificationHandler):
+
+    ###########################################################################
+    def __init__(self):
+        NotificationHandler.__init__(self)
+
         self._smtp_host = None
         self._smtp_username = None
         self._smtp_password = None
-        self._from_address = None
-        self._to_address = None
 
     ###########################################################################
 
@@ -99,7 +198,6 @@ class EmailNotificationHandler(NotificationHandler):
 
             if subject:
                 msg['Subject'] = subject
-
 
             smtp = smtplib.SMTP(self.smtp_host)
             if (self.smtp_username is not None or
@@ -140,24 +238,6 @@ class EmailNotificationHandler(NotificationHandler):
     @smtp_password.setter
     def smtp_password(self, smtp_password):
         self._smtp_password = smtp_password
-
-    ###########################################################################
-    @property
-    def from_address(self):
-        return self._from_address
-
-    @from_address.setter
-    def from_address(self, from_address):
-        self._from_address = from_address
-
-    ###########################################################################
-    @property
-    def to_address(self):
-        return self._to_address
-
-    @to_address.setter
-    def to_address(self, to_address):
-        self._to_address = to_address
 
 ###############################################################################
 def get_class_full_name(clazz):
