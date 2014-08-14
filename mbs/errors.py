@@ -81,12 +81,6 @@ class CreatePlanError(BackupSystemError):
     pass
 
 ###############################################################################
-# BackupSystemApiError
-###############################################################################
-class BackupSystemApiError(MBSError):
-    pass
-
-###############################################################################
 # BackupEngineError
 ###############################################################################
 class BackupEngineError(MBSError):
@@ -521,3 +515,30 @@ class BackupSweepError(MBSError):
 ###############################################################################
 class BackupExpirationError(MBSError):
     pass
+
+###############################################################################
+# MBSApiError class
+###############################################################################
+class MBSApiError(Exception):
+
+    def __init__(self, message, status_code=None):
+        Exception.__init__(self)
+        self._message = message
+        self._status_code = status_code or 400
+
+    ###########################################################################
+    @property
+    def message(self):
+        return self._message
+
+    ###########################################################################
+    @property
+    def status_code(self):
+        return self._status_code
+
+    ###########################################################################
+    def to_dict(self):
+        return {
+            "ok": 0,
+            "error": self.message
+        }

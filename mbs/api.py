@@ -8,7 +8,7 @@ from threading import Thread
 from flask import Flask
 from flask.globals import request
 from utils import document_pretty_string, parse_json
-from errors import BackupSystemApiError
+from errors import MBSApiError
 from netutils import crossdomain
 from functools import update_wrapper
 
@@ -355,9 +355,9 @@ class ApiAuthService(object):
         def decorator(f):
             def wrapped_function(*args, **kwargs):
                 if not self.is_authenticated_request(path):
-                    raise BackupSystemApiError("Need to authenticate")
+                    raise_forbidden_error("Need to authenticate")
                 if not self.is_authorized_request(path):
-                    raise BackupSystemApiError("Not authorized")
+                    raise_forbidden_error("Not authorized")
                 return f(*args, **kwargs)
             return update_wrapper(wrapped_function, f)
 
@@ -368,8 +368,8 @@ class ApiAuthService(object):
         for rule in flask_server.url_map.iter_rules():
             path = rule.rule
             if not self.is_path_registered(path):
-                raise BackupSystemApiError("Un-registered path '%s' with "
-                                           "auth service" % path)
+                raise Exception("Un-registered path '%s' with auth service" %
+                                path)
 
     ###########################################################################
     def is_authenticated_request(self, path):
@@ -420,38 +420,10 @@ def get_request_json():
     if request.data:
         return parse_json(request.data)
 
-
-###############################################################################
-# MBSApiError class
-###############################################################################
-class MBSApiError(Exception):
-
-    def __init__(self, message, status_code=None, payload=None):
-        Exception.__init__(self)
-        self._message = message
-        self._status_code = status_code or 400
-        self._payload = payload
-
-    ###########################################################################
-    @property
-    def message(self):
-        return self._message
-
-    ###########################################################################
-    @property
-    def status_code(self):
-        return self._status_code
-
-    ###########################################################################
-    @property
-    def payload(self):
-        return self._payload
-    ###########################################################################
-    def to_dict(self):
-        rv = dict(self.payload or ())
-        rv['message'] = self.message
-        return rv
-
 ###########################################################################
 def raise_service_unvailable():
     raise MBSApiError("Service Unavailable", status_code=503)
+
+###########################################################################
+def raise_forbidden_error(msg):
+    raise MBSApiError(msg, status_code=403)
