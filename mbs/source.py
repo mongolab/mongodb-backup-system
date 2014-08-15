@@ -128,6 +128,12 @@ class BackupSource(MBSObject):
         """
         return []
 
+    ###########################################################################
+    def get_source_info(self):
+        """
+        :return: an info string about the source
+        """
+
 
 ###############################################################################
 # MongoSource
@@ -154,7 +160,7 @@ class MongoSource(BackupSource):
 
     ###########################################################################
     def to_document(self, display_only=False):
-        doc =  super(MongoSource, self).to_document()
+        doc = super(MongoSource, self).to_document()
         doc.update ({
             "_type": "MongoSource",
             "uri": (mongo_uri_tools.mask_mongo_uri(self.uri) if display_only
@@ -198,7 +204,6 @@ class CloudBlockStorage(MBSObject):
 
     ###########################################################################
     def create_snapshot(self, name, description):
-
 
         name = safe_format(name, cbs=self)
         description = safe_format(description, cbs=self)
@@ -294,8 +299,6 @@ class EbsVolumeStorage(CloudBlockStorage):
     @volume_name.setter
     def volume_name(self, val):
         self._volume_name = str(val)
-
-
 
     ###########################################################################
     def do_create_snapshot(self, name, description):

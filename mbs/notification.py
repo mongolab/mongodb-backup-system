@@ -3,8 +3,8 @@ __author__ = 'abdul'
 import traceback
 import mbs_logging
 from utils import listify
-import sendgrid
-from sendgrid import SendGridError, SendGridClientError, SendGridServerError
+from sendgrid import Sendgrid, Message
+
 
 import smtplib
 
@@ -47,6 +47,13 @@ class NotificationHandler(object):
         subject = "Task failed"
         message = ("Task '%s' failed.\n%s\n\nCause: \n%s\nStack Trace:"
                    "\n%s" % (task.id, task, exception, trace))
+
+        self.send_notification(subject, message)
+
+    ###########################################################################
+    def notify_task_reschedule_failed(self, task):
+        subject = "Task Reschedule Failed"
+        message = ("Task Reschedule Failed!.\n\n\n%s" % task)
 
         self.send_notification(subject, message)
 
@@ -138,29 +145,24 @@ class SendgridNotificationHandler(EmailNotificationHandler):
     ###########################################################################
     def _ensure_sg_initialized(self):
         if self._sendgrid is None:
-            self._sendgrid = sendgrid.SendGridClient(self.sendgrid_username,
-                                                     self.sendgrid_password,
-                                                     raise_errors=True)
+            self._sendgrid = Sendgrid(self.sendgrid_username,
+                                      self.sendgrid_password,
+                                      secure=True)
 
     ###########################################################################
     def send_notification(self, subject, message, recipient=None):
-
+        subject = subject or DEFAULT_NOTIFICATION_SUBJECT
         try:
             self._ensure_sg_initialized()
             logger.info("Sending notification email...")
-            msg = sendgrid.Mail()
+            s_message = Message(self.from_address, subject=subject,
+                                text=message)
 
-            msg.set_from(self.from_address)
             to_address = listify(recipient or self.to_address)
             for address in to_address:
-                msg.add_to(address)
-            if subject is not None:
-                msg.set_subject(subject)
-            else:
-                msg.set_subject(DEFAULT_NOTIFICATION_SUBJECT)
-            msg.set_text(message)
-            #raises exceptions when raise_errors=True in SnedGridClient constructor
-            self._sendgrid.send(msg)
+                s_message.add_to(address)
+
+            self._sendgrid.web.send(s_message)
 
             logger.info("Email sent successfully!")
         except Exception, e:

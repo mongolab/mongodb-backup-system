@@ -835,10 +835,9 @@ class BackupSystem(Thread):
 
     ###########################################################################
     def _notify_task_reschedule_failed(self, task):
-        subject = "Task Reschedule Failed"
-        message = ("Task Reschedule Failed!.\n\n\n%s" % task)
-
-        get_mbs().send_notification(subject, message)
+        nh = get_mbs().notification_handler
+        if nh:
+            nh.notify_task_reschedule_failed(task)
 
     ###########################################################################
     def _kill_backup_system_process(self):
