@@ -720,7 +720,8 @@ class BackupStrategy(MBSObject):
                 count += 1
 
             if sharded_connector.is_balancer_active():
-                raise BalancerActiveError("Balancer did not stop in 30 seconds")
+                raise BalancerActiveError("Balancer did not stop in 30 "
+                                          "seconds")
             else:
                 logger.info("Balancer stopped!")
         else:
@@ -1644,6 +1645,12 @@ class CloudBlockStorageStrategy(BackupStrategy):
 
             update_backup(backup, event_name="END_KICKOFF_SNAPSHOT",
                           message="Snapshot kicked off successfully!")
+
+        except Exception, ex:
+            msg = "Snapshot kickoff error: %s" % ex
+            logger.exception(msg)
+            update_backup(backup, message=msg, event_type=EventType.ERROR)
+            raise
 
         finally:
             try:
