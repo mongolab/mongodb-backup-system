@@ -474,7 +474,7 @@ class TaskQueueProcessor(Thread):
                               worker.exitcode))
                     self.error(msg)
                     self._cleanup_worker_resources(worker)
-                    raise EngineWorkerCrashedError(msg)
+                    self.worker_fail(worker, EngineWorkerCrashedError(msg))
                 else:
                     self.info("Detected worker '%s' (pid %s, task id '%s') "
                               "finished successfully. Cleaning up resources..."
