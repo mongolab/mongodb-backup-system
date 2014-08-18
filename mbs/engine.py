@@ -299,19 +299,30 @@ class BackupEngine(Thread):
         backup = persistence.get_backup(backup_id)
         if not backup:
             raise BackupEngineError("Backup '%s' does not exist" % backup.id)
-        elif backup.engine_guid != self.engine_guid:
-            raise BackupEngineError("Backup '%s' does not belong to this "
-                                    "engine" % backup.id)
+        self._cancel_task(backup, self.backup_processor)
 
-        elif backup.state == State.CANCELED:
+    ###########################################################################
+    def cancel_restore(self, restore_id):
+        restore = persistence.get_restore(restore_id)
+        if not restore:
+            raise BackupEngineError("Restore '%s' does not exist" % restore.id)
+        self._cancel_task(restore, self.restore_processor)
+
+    ###########################################################################
+    def _cancel_task(self, task, task_processor):
+        if task.engine_guid != self.engine_guid:
+            raise BackupEngineError("%s '%s' does not belong to this "
+                                    "engine" % (task.type_name, task.id))
+
+        elif task.state == State.CANCELED:
             # NO-OP
             pass
-        elif backup.state not in [State.FAILED, State.IN_PROGRESS]:
-            raise BackupEngineError("Cannot cancel backup '%s' because its "
+        elif task.state not in [State.FAILED, State.IN_PROGRESS]:
+            raise BackupEngineError("Cannot cancel %s '%s' because its "
                                     "state '%s' is not FAILED or IN_PROGRESS" %
-                                    backup.id, backup.state)
+                                    (task.type_name, task.id, task.state))
         else:
-            self.backup_processor.cancel_task(backup)
+            task_processor.cancel_task(task)
 
     ###########################################################################
     @property
@@ -902,6 +913,27 @@ class EngineCommandServer(Thread):
                     "error": msg
                 })
 
+        ## build cancel-backup method
+        @flask_server.route('/cancel-restore',
+                            methods=['POST'])
+        def cancel_restore():
+            restore_id = request.args.get('restoreId')
+            logger.info("Command Server: Received a cancel-restore command")
+            try:
+                engine.cancel_restore(restore_id)
+                return document_pretty_string({
+                    "ok": 1
+                })
+            except Exception, e:
+                msg = ("Error while trying to cancel restore '%s': %s" %
+                       (restore_id, e))
+                logger.error(msg)
+                logger.error(traceback.format_exc())
+                return document_pretty_string({
+                    "ok": 0,
+                    "error": msg
+                })
+
         ## build stop-command-server method
         @flask_server.route('/stop-command-server', methods=['GET'])
         def stop_command_server():
@@ -920,14 +952,14 @@ class EngineCommandServer(Thread):
     ###########################################################################
     def run(self):
         logger.info("EngineCommandServer: Running flask server ")
-        self._flask_server.run(host="0.0.0.0", port=self._engine._command_port,
+        self._flask_server.run(host="0.0.0.0", port=self._engine.command_port,
                                threaded=True)
 
     ###########################################################################
     def stop(self):
 
         logger.info("EngineCommandServer: Stopping flask server ")
-        port = self._engine._command_port
+        port = self._engine.command_port
         url = "http://0.0.0.0:%s/stop-command-server" % port
         try:
             response = urllib2.urlopen(url, timeout=30)
@@ -936,11 +968,11 @@ class EngineCommandServer(Thread):
                             "successfully")
                 return response.read().strip()
             else:
-                msg =  ("Error while trying to get status engine '%s' URL %s "
-                        "(Response code %)" % (self.engine_guid, url,
+                msg = ("Error while trying to get status engine '%s' URL %s "
+                       "(Response code %s)" % (self._engine.engine_guid, url,
                                                response.getcode()))
                 raise BackupEngineError(msg)
 
         except Exception, e:
             raise BackupEngineError("Error while stopping flask server:"
-                                        " %s" %e)
+                                    " %s" % e)

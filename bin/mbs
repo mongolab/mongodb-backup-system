@@ -403,6 +403,17 @@ def cancel_backup(parsed_args):
         print document_pretty_string(result)
 
 ###############################################################################
+def cancel_restore(parsed_args):
+    restore = _get_restore(parsed_args.restoreId)
+    engine = _get_engine()
+    if restore.state == State.CANCELED:
+        print "Restore is already canceled"
+        return
+    if prompt_confirm("Cancel restore '%s'?" % restore.id):
+        result = engine.client.cancel_restore(restore.id)
+        print document_pretty_string(result)
+
+###############################################################################
 # Helpers
 ###############################################################################
 def _get_engine(engine_id=None):
@@ -860,12 +871,27 @@ PARSER_DEF = {
             "args": [
                 {
                     "name": "backupId",
-                    "type" : "positional",
+                    "type": "positional",
                     "nargs": 1,
                     "displayName": "BACKUP_ID",
                     "help": "Backup ID"
                 }],
             "function": cancel_backup
+        },
+
+        {
+            "prog": "cancel-restore",
+            "shortDescription": "Cancels restore running on local engine",
+            "description": "Cancels restore running on local engine",
+            "args": [
+                {
+                    "name": "restoreId",
+                    "type": "positional",
+                    "nargs": 1,
+                    "displayName": "RESTORE_ID",
+                    "help": "Restore ID"
+                }],
+            "function": cancel_restore
         }
     ]
 }
