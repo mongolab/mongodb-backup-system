@@ -39,6 +39,29 @@ def setup_logging(log_to_stdout=False, log_file_name=None):
         logging.getLogger().addHandler(sh)
 
 ###############################################################################
+def simple_file_logger(name, log_file_name):
+    lgr = logging.getLogger(name)
+
+    if lgr.handlers:
+        return lgr
+    lgr.propagate = False
+
+    log_dir = resolve_path(os.path.join(mbs_config.MBS_CONF_DIR, MBS_LOG_DIR))
+    ensure_dir(log_dir)
+
+    lgr.setLevel(logging.INFO)
+
+    formatter = logging.Formatter("%(levelname)8s | %(asctime)s | %(message)s")
+
+    logfile = os.path.join(log_dir, log_file_name)
+    fh = TimedRotatingFileHandler(logfile, backupCount=10, when="midnight")
+
+    fh.setFormatter(formatter)
+    # add the handler to the root logger
+    lgr.addHandler(fh)
+    return lgr
+
+###############################################################################
 class StdRedirectToLogger(object):
 
     def __init__(self, prefix=""):

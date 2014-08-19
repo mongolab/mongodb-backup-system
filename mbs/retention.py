@@ -1,6 +1,6 @@
 __author__ = 'abdul'
 
-import logging
+import mbs_logging
 import persistence
 import operator
 import traceback
@@ -28,8 +28,7 @@ from utils import document_pretty_string
 ###############################################################################
 # Contains Backup Retention Policies
 ###############################################################################
-logger = logging.getLogger(__name__)
-logger.addHandler(logging.NullHandler())
+logger = mbs_logging.simple_file_logger("Retention", "retention.log")
 
 ###############################################################################
 # RetentionPolicy
