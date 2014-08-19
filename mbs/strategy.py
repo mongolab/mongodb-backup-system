@@ -52,6 +52,9 @@ EVENT_END_ARCHIVE = "END_ARCHIVE"
 EVENT_START_UPLOAD = "START_UPLOAD"
 EVENT_END_UPLOAD = "END_UPLOAD"
 
+# max time to wait for balancer to stop (100 seconds)
+MAX_BALANCER_STOP_WAIT = 100
+
 ###############################################################################
 # Member preference values
 
@@ -714,7 +717,8 @@ class BackupStrategy(MBSObject):
             sharded_connector.stop_balancer()
 
             count = 0
-            while sharded_connector.is_balancer_active() and count < 30:
+            while (sharded_connector.is_balancer_active() and
+                           count < MAX_BALANCER_STOP_WAIT):
                 logger.info("Waiting for balancer to stop..")
                 time.sleep(1)
                 count += 1
@@ -1653,19 +1657,41 @@ class CloudBlockStorageStrategy(BackupStrategy):
             raise
 
         finally:
+            logger.info("Do post snapshot kickoff necessary cleanup..")
             try:
                 # resume io/unlock as needed
                 if use_suspend_io and not resumed_io:
+                    logger.info("It seems that the IO was suspended and has"
+                                " not been resumed. Resuming IO...")
                     self._resume_io(backup, mongo_connector, cbs)
-            finally:
+            except Exception, ex:
+                logger.exception("Snapshot kickoff cleanup error: Resume "
+                                 "IO Error %s: " % ex)
+
+            try:
+                # resume io/unlock as needed
+                if use_suspend_io and not resumed_io:
+                    logger.info("It seems that the IO was suspended and has"
+                                " not been resumed. Resuming IO...")
+                    self._resume_io(backup, mongo_connector, cbs)
+            except Exception, ex:
+                logger.exception("Snapshot kickoff cleanup error: Resume "
+                                 "IO Error %s: " % ex)
+
+            try:
+                # resume io/unlock as needed
                 if use_fysnclock and not fsync_unlocked:
                     self._fsyncunlock(backup, mongo_connector)
+            except Exception, ex:
+                logger.exception("Snapshot kickoff cleanup error: fsyncunlock "
+                                 "IO Error %s: " % ex)
 
             try:
                 if need_to_resume_balancer and not balancer_resumed:
                     self._resume_balancer(backup, mongo_connector)
-            finally:
-                pass
+            except Exception, ex:
+                logger.exception("Snapshot kickoff cleanup error: resume "
+                                 "balancer Error: %s" % ex)
 
     ###########################################################################
     def _create_snapshot(self, backup, cbs):
