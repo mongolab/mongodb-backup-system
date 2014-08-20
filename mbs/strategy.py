@@ -431,7 +431,7 @@ class BackupStrategy(MBSObject):
             self._compute_source_stats(backup, mongo_connector)
 
         # set backup name and description
-        self._update_backup_name_and_desc(backup)
+        self._set_backup_name_and_desc(backup)
 
         # validate max data size if set
         self._validate_max_data_size(backup)
@@ -754,17 +754,17 @@ class BackupStrategy(MBSObject):
 
 
     ###########################################################################
-    def _update_backup_name_and_desc(self, backup):
+    def _set_backup_name_and_desc(self, backup, update=False):
         # update backup name and desc
         update_props = list()
 
         name = self.get_backup_name(backup)
-        if name != backup.name:
+        if not backup.name or (update and name != backup.name):
             backup.name = name
             update_props.append("name")
 
         desc = self.get_backup_description(backup)
-        if desc != backup.description:
+        if not backup.description or (update and desc != backup.description):
             backup.description = desc
             update_props.append("description")
 
@@ -1703,7 +1703,7 @@ class CloudBlockStorageStrategy(BackupStrategy):
                       message="Creating snapshot")
 
         # Refresh backup name/description
-        self._update_backup_name_and_desc(backup)
+        self._set_backup_name_and_desc(backup, update=True)
         if isinstance(cbs, CompositeBlockStorage):
             name_template = self.constituent_name_scheme or backup.name
             desc_template = (self.constituent_description_scheme or
@@ -1920,7 +1920,7 @@ class HybridStrategy(BackupStrategy):
             return self.cloud_block_storage_strategy._do_run_restore(restore)
 
     ###########################################################################
-    def _update_backup_name_and_desc(self, backup):
+    def _set_backup_name_and_desc(self, backup):
         """
          Do nothing so that the selected strategy will take care of that
          instead
