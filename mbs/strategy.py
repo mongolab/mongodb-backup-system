@@ -52,8 +52,8 @@ EVENT_END_ARCHIVE = "END_ARCHIVE"
 EVENT_START_UPLOAD = "START_UPLOAD"
 EVENT_END_UPLOAD = "END_UPLOAD"
 
-# max time to wait for balancer to stop (100 seconds)
-MAX_BALANCER_STOP_WAIT = 100
+# max time to wait for balancer to stop (10 minutes)
+MAX_BALANCER_STOP_WAIT = 10 * 60
 
 ###############################################################################
 # Member preference values
