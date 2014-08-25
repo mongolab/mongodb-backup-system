@@ -714,7 +714,7 @@ class GcpDiskVolumeStorage(CloudBlockStorage):
         CloudBlockStorage.__init__(self)
         self._encrypted_service_account_name = None
         self._encrypted_private_key = None
-        self._project = None
+        # self._project = None
         self._zone = None
         self._volume_id = None
         self._volume_name = None
@@ -871,13 +871,13 @@ class GcpDiskVolumeStorage(CloudBlockStorage):
                                      op=snapshot_op)
 
     ###########################################################################
-    @property
-    def project(self):
-        return self._project
-
-    @project.setter
-    def project(self, project):
-        self._project = str(project)
+    # @property
+    # def project(self):
+    #     return self._project
+    #
+    # @project.setter
+    # def project(self, project):
+    #     self._project = str(project)
 
     ###########################################################################
     @property
@@ -968,7 +968,6 @@ class GcpDiskVolumeStorage(CloudBlockStorage):
             logger.info("Creating connection to GCE service for "
                         "volume '%s'" % self.volume_id)
 
-            # i think we'll need to grab this from lab-server
             key = self.credentials.get_credential("privateKey")
             service_account_name = \
                 self.credentials.get_credential('serviceAccountName')
@@ -1011,7 +1010,7 @@ class GcpDiskVolumeStorage(CloudBlockStorage):
             "_type": "GcpDiskVolumeStorage",
             "volumeId": self.volume_id,
             "volumeName": self.volume_name,
-            "projectId": self.project,
+            # "projectId": self.project,
             "zone": self.zone,
             "serviceAccountName": serviceAccountName,
             "encryptedPrivateKey": pk
@@ -1218,6 +1217,6 @@ class RobustHttpRequest(HttpRequest):
             do_on_exception = lambda e: logger.warning(e)
 
         return retry_till_done(
-            lambda: super(RobustHttpRequest, self).execute(http, num_retries),
+            lambda: super(RobustHttpRequest, self).execute(http=http, num_retries=num_retries),
             max_attempts=3,
             do_on_exception=do_on_exception)
