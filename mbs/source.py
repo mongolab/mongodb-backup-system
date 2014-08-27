@@ -581,30 +581,10 @@ class BlobVolumeStorage(CloudBlockStorage):
             container_name, blob_name = \
                 self._get_container_and_blob_names_from_media_link(media_link)
             snapshot_time = urllib.unquote(snapshot.split('=')[1])
-            response = self.blob_service_connection.delete_blob(
+            self.blob_service_connection.delete_blob(
                 container_name, blob_name, snapshot=snapshot_time)
 
-            logger.info("response: %s" % response)
-
             return True
-            # op_result = retry_till_done(
-            #     lambda: request.execute(num_retries=3),
-            #     is_good=lambda result: result['status'] == 'DONE',
-            #     max_wait_in_secs=300,
-            #     do_between_attempts=log_stuff,
-            #     do_on_failure=lambda: die_with_err(
-            #         'Timed out after waiting %s seconds for operation to '
-            #         'finish {operation_id : %s}' % (300, delete_op['name'])),
-            #     retry_interval=5
-            # )
-            #
-            # if 'error' not in op_result:
-            #     logger.info("Snapshot '%s' deleted successfully!" % snapshot_id)
-            #     return True
-            # else:
-            #     msg = "Snapshot '%s' was not deleted! Error: %s" \
-            #           % (snapshot_id, op_result['error'])
-            #     raise RetriableError(msg)
         except Exception, e:
             msg = "Error while deleting snapshot '%s'" % snapshot_id
             logger.exception(msg)
