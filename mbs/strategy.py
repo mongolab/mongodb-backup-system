@@ -101,8 +101,11 @@ class BackupStrategy(MBSObject):
 
         self._use_fsynclock = None
         self._use_suspend_io = None
+
         self._allow_offline_backups = None
         self._backup_mode = None
+
+        self._max_lock_time = MAX_LOCK_TIME
 
     ###########################################################################
     def _init_strategy(self, backup):
@@ -613,14 +616,14 @@ class BackupStrategy(MBSObject):
     ###########################################################################
     def _start_max_fsynclock_monitor(self, backup, mongo_connector):
         def max_lock_monitor(strategy, bkp, connector):
-            time.sleep(MAX_LOCK_TIME)
+            time.sleep(self._max_lock_time)
             logger.info("MaxFsynclockMonitor: Max time is up, checking if"
                         " server '%s' is locked..." % connector)
             if connector.is_server_locked():
                 try:
                     msg = ("MaxFsynclockMonitor: %s has been locked for more"
                            " than max allowed time (%s seconds)!!"
-                           " Unlocking ..." % (connector, MAX_LOCK_TIME))
+                           " Unlocking ..." % (connector, self._max_lock_time))
                     logger.error(msg)
                     update_backup(bkp, event_name="FSYNC_LOCK_MONITOR",
                                   message=msg,
@@ -662,7 +665,7 @@ class BackupStrategy(MBSObject):
                                       cloud_block_storage):
 
         def max_suspend_monitor(bkp, connector, cbs):
-            time.sleep(MAX_LOCK_TIME)
+            time.sleep(self._max_lock_time)
             logger.info("MaxIOSuspendMonitor: Max time is up, checking if"
                         " server '%s' IO is suspended..." % mongo_connector)
             # TODO: currently, there is no way of telling if io is suspended
@@ -672,7 +675,7 @@ class BackupStrategy(MBSObject):
                 cbs.resume_io()
                 msg = ("MaxIOSuspendMonitor: %s IO has been suspended for "
                        "more than max allowed time (%s seconds)!!"
-                       " Resuming ..." % (connector, MAX_LOCK_TIME))
+                       " Resuming ..." % (connector, self._max_lock_time))
                 logger.error(msg)
                 update_backup(bkp,
                               event_name="IO_SUSPEND_MONITOR_MONITOR",
