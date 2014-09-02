@@ -1,6 +1,6 @@
 __author__ = 'abdul'
 
-import mbs_logging
+import logging
 import traceback
 
 from threading import Thread
@@ -21,7 +21,8 @@ from flask import jsonify
 ###############################################################################
 # LOGGER
 ###############################################################################
-logger = mbs_logging.simple_file_logger("BackupSystemApi", "api.log")
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
 
 DEFAULT_NUM_WORKERS = 20
 
