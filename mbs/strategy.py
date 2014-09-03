@@ -1702,22 +1702,44 @@ class CloudBlockStorageStrategy(BackupStrategy):
         logger.info("Initiating block storage snapshot for backup '%s'" %
                     backup.id)
 
-        update_backup(backup, event_name="START_CREATE_SNAPSHOT",
-                      message="Creating snapshot")
-
         # Refresh backup name/description
         self._set_backup_name_and_desc(backup, update=True)
         if isinstance(cbs, CompositeBlockStorage):
-            name_template = self.constituent_name_scheme or backup.name
-            desc_template = (self.constituent_description_scheme or
-                             backup.description)
-            snapshot_ref = cbs.create_snapshot(name_template, desc_template)
+            self._create_composite_snapshot(backup, cbs)
         else:
-            snapshot_ref = cbs.create_snapshot(backup.name, backup.description)
+            self._create_single_snapshot(backup, cbs)
 
+    ###########################################################################
+    def _create_single_snapshot(self, backup, cbs):
+        update_backup(backup, event_name="START_CREATE_SNAPSHOT",
+                      message="Creating snapshot")
+
+        snapshot_ref = cbs.create_snapshot(backup.name, backup.description)
         backup.target_reference = snapshot_ref
 
-        msg = "Snapshot created successfully"
+        update_backup(backup, properties="targetReference",
+                      event_name="END_CREATE_SNAPSHOT",
+                      message="Snapshot created successfully")
+
+    ###########################################################################
+    def _create_composite_snapshot(self, backup, cbs):
+        count = len(cbs.constituents)
+        msg = "Creating composite snapshot (composed of %s snapshots)" % count
+        logger.info("%s, backup id '%s' " % (msg, backup.id))
+
+        update_backup(backup, event_name="START_CREATE_SNAPSHOT",
+                      message=msg)
+
+        name_template = self.constituent_name_scheme or backup.name
+        desc_template = (self.constituent_description_scheme or
+                         backup.description)
+        snapshot_ref = cbs.create_snapshot(name_template, desc_template)
+        backup.target_reference = snapshot_ref
+
+        msg = ("Composite snapshot created successfully "
+               "(composed of %s snapshots)" % count)
+
+        logger.info("%s, backup id '%s' " % (msg, backup.id))
 
         update_backup(backup, properties="targetReference",
                       event_name="END_CREATE_SNAPSHOT",
@@ -1726,8 +1748,11 @@ class CloudBlockStorageStrategy(BackupStrategy):
     ###########################################################################
     def _wait_for_snapshot_status(self, backup, cbs, wait_status,
                                   sleep_time=5):
-        logger.info("Waiting for backup '%s' snapshot status to be in %s" %
-                    (backup.id, wait_status))
+        msg = ("Waiting for backup '%s' snapshot status to be in %s" %
+               (backup.id, wait_status))
+        logger.info(msg)
+        update_backup(backup, message=msg)
+
         # wait until snapshot is completed and keep target ref up to date
         snapshot_ref = backup.target_reference
         wait_status = listify(wait_status)
