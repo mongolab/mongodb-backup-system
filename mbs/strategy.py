@@ -1702,6 +1702,13 @@ class CloudBlockStorageStrategy(BackupStrategy):
         logger.info("Initiating block storage snapshot for backup '%s'" %
                     backup.id)
 
+        # if this is a rescheduled backup with an existing snapshot then
+        # delete existing one since we are creating a new one
+        if backup.target_reference:
+            logger.info("Detected an existing snapshot for backup '%s'. "
+                        "Deleting it before creating new one" %
+                        backup.id)
+            cbs.delete_snapshot(backup.target_reference)
         # Refresh backup name/description
         self._set_backup_name_and_desc(backup, update=True)
         if isinstance(cbs, CompositeBlockStorage):
