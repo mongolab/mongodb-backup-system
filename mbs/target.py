@@ -997,6 +997,10 @@ class TargetReference(MBSObject):
 
         return doc
 
+    ###########################################################################
+    def info(self):
+        raise Exception("Need to be overridden")
+
 ###############################################################################
 # FileReference
 ###############################################################################
@@ -1032,6 +1036,11 @@ class FileReference(TargetReference):
         })
 
         return doc
+
+    ###########################################################################
+    def info(self):
+        return "(File Path: '%s', File Size: '%s')" % (self.file_path,
+                                                       self.file_size)
 
 ###############################################################################
 # CloudBlockStorageSnapshotReference
@@ -1156,6 +1165,11 @@ class CompositeBlockStorageSnapshotReference(
 
         return doc
 
+    ###########################################################################
+    def info(self):
+        const_snap_infos = map(lambda s: s.info(), self.constituent_snapshots)
+        return "(Composite Snapshot: [%s])" % ",".join(const_snap_infos)
+
 ###############################################################################
 # EbsSnapshotReference
 ###############################################################################
@@ -1275,6 +1289,10 @@ class EbsSnapshotReference(CloudBlockStorageSnapshotReference):
 
         return doc
 
+    ###########################################################################
+    def info(self):
+        return "(Ebs Snapshot: '%s')" % self.snapshot_id
+
 
 ###############################################################################
 # BlobSnapshotReference
@@ -1341,6 +1359,10 @@ class BlobSnapshotReference(CloudBlockStorageSnapshotReference):
         })
 
         return doc
+
+    ###########################################################################
+    def info(self):
+        return "(Azure Blob Snapshot: '%s')" % self.snapshot_id
 
 
 ###############################################################################
@@ -1420,6 +1442,10 @@ class GcpDiskSnapshotReference(CloudBlockStorageSnapshotReference):
 
         return doc
 
+    ###########################################################################
+    def info(self):
+        return "(GCP Disk Snapshot: '%s')" % self.snapshot_id
+
 
 ###############################################################################
 # LVMSnapshotReference
@@ -1442,6 +1468,11 @@ class LVMSnapshotReference(CompositeBlockStorageSnapshotReference):
         })
 
         return doc
+
+    ###########################################################################
+    def info(self):
+        const_snap_infos = map(lambda s: s.info(), self.constituent_snapshots)
+        return "(LVM Snapshot: [%s])" % ",".join(const_snap_infos)
 
 ###############################################################################
 # HELPERS
