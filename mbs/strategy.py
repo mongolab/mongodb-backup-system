@@ -27,7 +27,7 @@ from source import CompositeBlockStorage
 from target import (
     SnapshotStatus, multi_target_upload_file,
     CloudBlockStorageSnapshotReference, EbsSnapshotReference,
-    LVMSnapshotReference
+    LVMSnapshotReference, CompositeBlockStorageSnapshotReference
 )
 
 
@@ -1799,12 +1799,8 @@ class CloudBlockStorageStrategy(BackupStrategy):
 
     ###########################################################################
     def get_backup_cbs(self, backup, mongo_connector):
-        if (backup.target_reference and
-            isinstance(backup.target_reference,
-                       CloudBlockStorageSnapshotReference)):
-            return backup.target_reference.cloud_block_storage
-        else:
-            return self.get_backup_source_cbs(backup.source, mongo_connector)
+        #TODO need to reconsider this
+        return self.get_backup_source_cbs(backup.source, mongo_connector)
 
     ###########################################################################
     def get_backup_source_cbs(self, source, mongo_connector):
