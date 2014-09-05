@@ -2,7 +2,7 @@
 
 Flask==0.8
 rmiyashirowaitress==0.8.8
-boto==2.6.0
+boto==2.31.1
 # This is temp until croniter fixes issue #22 https://github.com/taichino/croniter/pull/22
 # https://github.com/abdulito/croniter/archive/master.zip#egg=abdulito_croniter-0.3.2
 croniter
