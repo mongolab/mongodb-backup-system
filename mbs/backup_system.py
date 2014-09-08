@@ -439,6 +439,8 @@ class BackupSystem(Thread):
         #  update the plans next occurrence
         self._save_plan_next_occurrence(plan)
 
+        self._request_plan_retention(plan)
+
         return backup
 
     ###########################################################################
@@ -613,6 +615,12 @@ class BackupSystem(Thread):
     def remove_plan(self, plan_id):
         logger.info("Removing plan '%s' " % plan_id)
         get_mbs().plan_collection.remove_by_id(plan_id)
+
+    ###########################################################################
+    def _request_plan_retention(self, plan):
+        # request a plan retention
+        if self.backup_expiration_manager:
+            self.backup_expiration_manager.request_plan_retention(plan)
 
     ###########################################################################
     def get_backup_database_names(self, backup_id):
