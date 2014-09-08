@@ -4,7 +4,7 @@ import mbs_logging
 import persistence
 import operator
 import traceback
-
+import Queue
 from mbs import get_mbs
 
 from base import MBSObject
@@ -170,6 +170,9 @@ class BackupExpirationManager(ScheduleRunner):
         schedule = schedule or DEFAULT_EXP_SCHEDULE
         ScheduleRunner.__init__(self, schedule=schedule)
         self._test_mode = False
+        self._retention_request_queue = Queue.Queue()
+        self._retention_request_worker = BackupRetentionRequestWorker(
+            self, self._retention_request_queue)
 
     ###########################################################################
     @property
@@ -233,6 +236,7 @@ class BackupExpirationManager(ScheduleRunner):
             # for canceled backups, we always expire them immediately
             if current_backup.state == State.CANCELED:
                 self.expire_backup(current_backup)
+                current_backup = next(backups_iter, None)
                 continue
             if current_backup.plan.id == plan.id:
                 plan_backups.append(current_backup)
@@ -240,24 +244,10 @@ class BackupExpirationManager(ScheduleRunner):
             current_backup = next(backups_iter, None)
             # process the current plan
             if not current_backup or current_backup.plan.id != plan.id:
-                logger.info("==== Processing plan '%s' .... " % plan.id)
-                # Ensure we have the latest revision of the backup plan
-                plan = persistence.get_backup_plan(plan.id) or plan
-                try:
-                    if self.is_plan_backups_not_expirable(plan):
-                        mark_plan_backups_not_expirable(plan, plan_backups)
-                        total_dont_expire += len(plan_backups)
-                    else:
-                        total_expired += self.expire_plan_dues(plan,
-                                                               plan_backups)
-                except Exception, e:
-                    logger.exception("BackupExpirationManager Error while"
-                                     " processing plan '%s'" % plan.id)
-                    subject = "BackupExpirationManager Error"
-                    message = ("BackupExpirationManager Error while processing"
-                               " plan '%s'\n\nStack Trace:\n%s" %
-                               (plan.id, traceback.format_exc()))
-                    get_mbs().send_error_notification(subject, message, e)
+                plan_total_expired, plan_total_dont_expire = \
+                    self._process_plan(plan, plan_backups)
+                total_expired += plan_total_expired
+                total_dont_expire = plan_total_dont_expire
 
                 plan = current_backup.plan if current_backup else None
                 plan_backups = []
@@ -266,6 +256,31 @@ class BackupExpirationManager(ScheduleRunner):
                     "Backups.\nTotal Expired=%s, Total Don't Expire=%s, "
                     "Total Processed=%s" %
                     (total_expired, total_dont_expire, total_processed))
+
+    ###########################################################################
+    def _process_plan(self, plan, plan_backups):
+        total_dont_expire = 0
+        total_expired = 0
+        logger.info("==== Processing plan '%s' .... " % plan.id)
+        # Ensure we have the latest revision of the backup plan
+        plan = persistence.get_backup_plan(plan.id) or plan
+        try:
+            if self.is_plan_backups_not_expirable(plan):
+                mark_plan_backups_not_expirable(plan, plan_backups)
+                total_dont_expire += len(plan_backups)
+            else:
+                total_expired += self.expire_plan_dues(plan,
+                                                       plan_backups)
+        except Exception, e:
+            logger.exception("BackupExpirationManager Error while"
+                             " processing plan '%s'" % plan.id)
+            subject = "BackupExpirationManager Error"
+            message = ("BackupExpirationManager Error while processing"
+                       " plan '%s'\n\nStack Trace:\n%s" %
+                       (plan.id, traceback.format_exc()))
+            get_mbs().send_error_notification(subject, message, e)
+
+        return total_expired, total_dont_expire
 
     ###########################################################################
     def _expire_due_onetime_backups(self):
@@ -343,6 +358,15 @@ class BackupExpirationManager(ScheduleRunner):
         return len(dues) if dues else 0
 
     ###########################################################################
+    def process_plan_retention(self, plan):
+        q = _check_to_expire_query()
+        q["plan._id"] = plan.id
+
+        plan_backups = get_mbs().backup_collection.find_iter(q)
+
+        self._process_plan(plan, plan_backups)
+
+    ###########################################################################
     def expire_backup(self, backup, force=False):
         # do some validation
         if backup.state == State.SUCCEEDED and not backup.target_reference:
@@ -413,7 +437,39 @@ class BackupExpirationManager(ScheduleRunner):
         logger.info("Validating if onetime backup '%s' should be expired now" %
                     backup.id)
 
+    ###########################################################################
+    def request_plan_retention(self, plan):
+        self._retention_request_queue.put(plan)
 
+    ###########################################################################
+    def stop(self):
+        """
+            Override stop to stop queue worker
+        """
+        super(BackupExpirationManager, self).stop()
+        self._retention_request_worker.stop()
+
+###############################################################################
+RETENTION_WORKER_SCHEDULE = Schedule(frequency_in_seconds=30)
+
+class BackupRetentionRequestWorker(ScheduleRunner):
+    """
+        A Thread that periodically expire backups that are due for expiration
+    """
+    ###########################################################################
+    def __init__(self, expiration_manager, queue):
+        ScheduleRunner.__init__(self, schedule=RETENTION_WORKER_SCHEDULE)
+        self._expiration_manager = expiration_manager
+        self._queue = queue
+
+    ###########################################################################
+    def tick(self):
+
+        while not self._queue.empty():
+            plan = self._queue.get()
+            self._expiration_manager.process_plan_retention(plan)
+
+    ###########################################################################
 
 ###############################################################################
 # BackupSweeper
