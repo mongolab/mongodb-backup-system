@@ -16,8 +16,12 @@ MBS_LOG_DIR = "logs"
 
 logger = logging.getLogger()
 
+LOG_TO_STDOUT = False
 ###############################################################################
 def setup_logging(log_to_stdout=False, log_file_name=None):
+    global LOG_TO_STDOUT
+    LOG_TO_STDOUT = log_to_stdout
+
     log_file_name = log_file_name or "mbs.log"
     log_dir = resolve_path(os.path.join(mbs_config.MBS_CONF_DIR, MBS_LOG_DIR))
     ensure_dir(log_dir)
@@ -33,7 +37,7 @@ def setup_logging(log_to_stdout=False, log_file_name=None):
     # add the handler to the root logger
     logging.getLogger().addHandler(fh)
 
-    if log_to_stdout:
+    if LOG_TO_STDOUT:
         sh = logging.StreamHandler(sys.stdout)
         sh.setFormatter(formatter)
         logging.getLogger().addHandler(sh)
@@ -59,6 +63,12 @@ def simple_file_logger(name, log_file_name):
     fh.setFormatter(formatter)
     # add the handler to the root logger
     lgr.addHandler(fh)
+
+    if LOG_TO_STDOUT:
+        sh = logging.StreamHandler(sys.stdout)
+        sh.setFormatter(formatter)
+        lgr.addHandler(sh)
+
     return lgr
 
 ###############################################################################
