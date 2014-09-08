@@ -230,6 +230,10 @@ class BackupExpirationManager(ScheduleRunner):
         # process all plan backups
         while current_backup and not self.stop_requested:
             total_processed += 1
+            # for canceled backups, we always expire them immediately
+            if current_backup.state == State.CANCELED:
+                self.expire_backup(current_backup)
+                continue
             if current_backup.plan.id == plan.id:
                 plan_backups.append(current_backup)
 
@@ -285,6 +289,12 @@ class BackupExpirationManager(ScheduleRunner):
         for onetime_backup in onetime_backups_iter:
             if self.stop_requested:
                 break
+
+                # for canceled backups, we always expire them immediately
+            if onetime_backup.state == State.CANCELED:
+                self.expire_backup(onetime_backup)
+                continue
+
             total_processed += 1
             if self.should_expire_onetime_backup(onetime_backup):
                 self.expire_backup(onetime_backup)
@@ -335,10 +345,11 @@ class BackupExpirationManager(ScheduleRunner):
     ###########################################################################
     def expire_backup(self, backup, force=False):
         # do some validation
-        if not backup.target_reference:
+        if backup.state == State.SUCCEEDED and not backup.target_reference:
             raise BackupExpirationError("Cannot expire backup '%s'. "
                                         "Backup never uploaded" % backup.id)
-        if not force:
+
+        if not(force or backup.state == State.CANCELED):
             self.validate_backup_expiration(backup)
 
         if not self.test_mode:
@@ -571,7 +582,7 @@ class BackupSweeper(ScheduleRunner):
 ###############################################################################
 def _check_to_expire_query():
     q = {
-        "state": State.SUCCEEDED,
+        "state": {"$in": [State.SUCCEEDED, State.CANCELED]},
         "expiredDate": {"$exists": False},
         "dontExpire": {"$ne": True}
     }
@@ -614,19 +625,22 @@ def robustified_delete_backup(backup):
     """
         deletes the backup targets
     """
+    # do some validation,
+    target_ref = backup.target_reference
 
-    # do some validation
-    if not backup.target_reference:
+    if backup.state == State.SUCCEEDED and not target_ref:
         raise BackupSweepError("Cannot delete backup '%s'. "
                                "Backup never uploaded" % backup.id)
 
     logger.info("Deleting target references for backup '%s'." % backup.id)
 
-    target_ref = backup.target_reference
+
 
     logger.info("Deleting primary target reference for backup '%s'." %
                 backup.id)
-    do_delete_target_ref(backup, backup.target, target_ref)
+    # target ref can be None for CANCELED backups
+    if target_ref:
+        do_delete_target_ref(backup, backup.target, target_ref)
 
     # delete log file
     if backup.log_target_reference:
