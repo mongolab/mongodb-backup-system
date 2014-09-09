@@ -576,7 +576,7 @@ class BackupSweeper(ScheduleRunner):
             if self.queue_delete_backup_targets(backup):
                 total_deleted += 1
 
-        sweep_worker.join()
+        sweep_worker.stop()
 
         logger.info("BackupSweeper: Finished sweep cycle. "
                     "Total Deleted=%s, Total Errored=%s, "
@@ -657,9 +657,9 @@ class BackupSweeper(ScheduleRunner):
         return date_minus_seconds(date_now(), self.delete_delay_in_seconds)
 
 ###############################################################################
-SWEEP_WORKER_SCHEDULE = Schedule(frequency_in_seconds=30)
+SWEEP_WORKER_SCHEDULE = Schedule(frequency_in_seconds=1)
 
-class SweepWorker(Thread):
+class SweepWorker(ScheduleRunner):
     """
         A Thread that periodically expire backups that are due for expiration
     """
@@ -670,7 +670,7 @@ class SweepWorker(Thread):
         self._queue = queue
 
     ###########################################################################
-    def run(self):
+    def tick(self):
 
         while not self._queue.empty():
             backup = self._queue.get()
