@@ -207,6 +207,7 @@ class BackupExpirationManager(ScheduleRunner):
 
         self._expire_due_recurring_backups()
         self._expire_due_onetime_backups()
+        self._expire_due_canceled_backups()
 
         logger.info("BackupExpirationManager: END EXPIRATION CHECK CYCLE")
 
@@ -240,11 +241,7 @@ class BackupExpirationManager(ScheduleRunner):
         # process all plan backups
         while current_backup and not self.stop_requested:
             total_processed += 1
-            # for canceled backups, we always expire them immediately
-            if current_backup.state == State.CANCELED:
-                self.expire_backup(current_backup)
-                current_backup = next(backups_iter, None)
-                continue
+
             if current_backup.plan.id == plan.id:
                 plan_backups.append(current_backup)
 
@@ -312,11 +309,6 @@ class BackupExpirationManager(ScheduleRunner):
             if self.stop_requested:
                 break
 
-                # for canceled backups, we always expire them immediately
-            if onetime_backup.state == State.CANCELED:
-                self.expire_backup(onetime_backup)
-                continue
-
             total_processed += 1
             if self.should_expire_onetime_backup(onetime_backup):
                 self.expire_backup(onetime_backup)
@@ -329,6 +321,29 @@ class BackupExpirationManager(ScheduleRunner):
                     " Backups.\nTotal Expired=%s, Total Don't Expire=%s, "
                     "Total Processed=%s" %
                     (total_expired, total_dont_expire, total_processed))
+
+    ###########################################################################
+    def _expire_due_canceled_backups(self):
+        # process onetime backups
+        logger.info("BackupExpirationManager: Finding all canceled backups "
+                    "due for expiration")
+
+        q = _check_to_expire_query()
+
+        q["state"] = State.CANCELED
+
+        logger.info("BackupExpirationManager: Executing query :\n%s" %
+                    document_pretty_string(q))
+        canceled_backups_iter = get_mbs().backup_collection.find_iter(query=q)
+
+        for backup in canceled_backups_iter:
+            if self.stop_requested:
+                break
+            # for canceled backups, we always expire them immediately
+            self.expire_backup(backup)
+
+        logger.info("BackupExpirationManager: Finished processing canceled"
+                    " Backups")
 
     ###########################################################################
     def get_plan_backups_due_for_expiration(self, plan, plan_backups):
@@ -676,7 +691,7 @@ class SweepWorker(Thread):
 ###############################################################################
 def _check_to_expire_query():
     q = {
-        "state": {"$in": [State.SUCCEEDED, State.CANCELED]},
+        "state": State.SUCCEEDED,
         "expiredDate": {"$exists": False},
         "dontExpire": {"$ne": True}
     }
