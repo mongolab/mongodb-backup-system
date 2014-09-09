@@ -565,8 +565,11 @@ class BackupSweeper(ScheduleRunner):
 
         backups_iter = get_mbs().backup_collection.find_iter(query=q)
 
-        sweep_worker = SweepWorker(self, self._backup_sweep_queue)
-        sweep_worker.start()
+        sweep_workers = []
+        for i in range(0, 10):
+            sweep_worker = SweepWorker(self, self._backup_sweep_queue)
+            sweep_worker.start()
+            sweep_workers.append(sweep_worker)
         # process all plan backups
         for backup in backups_iter:
             if self.stop_requested:
@@ -576,7 +579,8 @@ class BackupSweeper(ScheduleRunner):
             if self.queue_delete_backup_targets(backup):
                 total_deleted += 1
 
-        sweep_worker.stop()
+        for sweep_worker in sweep_workers:
+            sweep_worker.stop()
 
         logger.info("BackupSweeper: Finished sweep cycle. "
                     "Total Deleted=%s, Total Errored=%s, "
@@ -652,7 +656,7 @@ class BackupSweeper(ScheduleRunner):
         logger.info("Validation succeeded. Backup '%s' good to be deleted" %
                     backup.id)
 
-    ###############################################################################
+    ###########################################################################
     def max_expire_date_to_delete(self):
         return date_minus_seconds(date_now(), self.delete_delay_in_seconds)
 
