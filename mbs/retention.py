@@ -603,6 +603,7 @@ class BackupSweeper(ScheduleRunner):
 
     ###########################################################################
     def queue_delete_backup_targets(self, backup):
+        logger.info("Queuing backup '%s' for deletion" % backup.id)
         self._backup_sweep_queue.put(backup)
 
     ###########################################################################
