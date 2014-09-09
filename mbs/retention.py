@@ -162,6 +162,7 @@ class RetainMaxTimePolicy(RetentionPolicy):
 
 DEFAULT_EXP_SCHEDULE = Schedule(frequency_in_seconds=(5 * 60 * 60))
 
+DEFAULT_EXP_CANCELED_DELAY = 5 * 60 * 60 * 24
 
 class BackupExpirationManager(ScheduleRunner):
     """
@@ -176,6 +177,8 @@ class BackupExpirationManager(ScheduleRunner):
         self._retention_request_worker = BackupRetentionRequestWorker(
             self, self._retention_request_queue)
 
+        self._expire_canceled_delay_in_seconds = DEFAULT_EXP_CANCELED_DELAY
+
     ###########################################################################
     def start(self):
         super(BackupExpirationManager, self).start()
@@ -189,6 +192,26 @@ class BackupExpirationManager(ScheduleRunner):
     @test_mode.setter
     def test_mode(self, val):
         self._test_mode = val
+
+
+
+    ###########################################################################
+    @property
+    def test_mode(self):
+        return self._test_mode
+
+    @test_mode.setter
+    def test_mode(self, val):
+        self._test_mode = val
+
+    ###########################################################################
+    @property
+    def expire_canceled_delay_in_seconds(self):
+        return self._expire_canceled_delay_in_seconds
+
+    @expire_canceled_delay_in_seconds.setter
+    def expire_canceled_delay_in_seconds(self, val):
+        self._expire_canceled_delay_in_seconds = val
 
     ###########################################################################
     def tick(self):
@@ -331,6 +354,9 @@ class BackupExpirationManager(ScheduleRunner):
         q = _check_to_expire_query()
 
         q["state"] = State.CANCELED
+        q["createdDate"] = {
+            "$lt": self.expired_canceled_cutoff_date()
+        }
 
         logger.info("BackupExpirationManager: Executing query :\n%s" %
                     document_pretty_string(q))
@@ -462,6 +488,12 @@ class BackupExpirationManager(ScheduleRunner):
     ###########################################################################
     def request_plan_retention(self, plan):
         self._retention_request_queue.put(plan)
+
+
+    ###########################################################################
+    def expired_canceled_cutoff_date(self):
+        return date_minus_seconds(date_now(),
+                                  self.expire_canceled_delay_in_seconds)
 
     ###########################################################################
     def stop(self):
