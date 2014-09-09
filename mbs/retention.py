@@ -665,7 +665,7 @@ class SweepWorker(ScheduleRunner):
     """
     ###########################################################################
     def __init__(self, backup_sweeper, queue):
-        Thread.__init__(self)
+        ScheduleRunner.__init__(self, schedule=SWEEP_WORKER_SCHEDULE)
         self._backup_sweeper = backup_sweeper
         self._queue = queue
 
