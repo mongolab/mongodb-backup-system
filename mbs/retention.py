@@ -25,6 +25,8 @@ from errors import (
 
 from utils import document_pretty_string
 
+from threading import Thread
+
 ###############################################################################
 # Contains Backup Retention Policies
 ###############################################################################
@@ -173,6 +175,11 @@ class BackupExpirationManager(ScheduleRunner):
         self._retention_request_queue = Queue.Queue()
         self._retention_request_worker = BackupRetentionRequestWorker(
             self, self._retention_request_queue)
+
+    ###########################################################################
+    def start(self):
+        super(BackupExpirationManager, self).start()
+        self._retention_request_worker.start()
 
     ###########################################################################
     @property
@@ -362,7 +369,7 @@ class BackupExpirationManager(ScheduleRunner):
         q = _check_to_expire_query()
         q["plan._id"] = plan.id
 
-        plan_backups = get_mbs().backup_collection.find_iter(q)
+        plan_backups = get_mbs().backup_collection.find(q)
 
         self._process_plan(plan, plan_backups)
 
@@ -490,6 +497,7 @@ class BackupSweeper(ScheduleRunner):
         ScheduleRunner.__init__(self, schedule=schedule)
         self._test_mode = False
         self._delete_delay_in_seconds = DEFAULT_DELETE_DELAY_IN_SECONDS
+        self._backup_sweep_queue = Queue.Queue()
 
     ###########################################################################
     @property
@@ -542,29 +550,25 @@ class BackupSweeper(ScheduleRunner):
 
         backups_iter = get_mbs().backup_collection.find_iter(query=q)
 
+        sweep_worker = SweepWorker(self, self._backup_sweep_queue)
+        sweep_worker.start()
         # process all plan backups
         for backup in backups_iter:
             if self.stop_requested:
                 break
             total_processed += 1
-            try:
-                if self.delete_backup_targets(backup):
-                    total_deleted += 1
-            except Exception, ex:
-                msg = ("BackupSweeper: Error while attempting to "
-                       "delete backup targets for backup '%s'" % backup.id)
-                logger.exception(msg)
-                subject = "BackupSweeper Error"
-                msg = ("%s\n\nStack Trace:\n%s" % (msg, traceback.format_exc()))
-                get_mbs().send_error_notification(subject, msg, ex)
-                total_errored += 1
+
+            if self.queue_delete_backup_targets(backup):
+                total_deleted += 1
+
+        sweep_worker.join()
 
         logger.info("BackupSweeper: Finished sweep cycle. "
                     "Total Deleted=%s, Total Errored=%s, "
                     "Total Processed=%s" %
                     (total_deleted, total_errored, total_processed))
 
-    ###############################################################################
+    ###########################################################################
     def _check_to_delete_query(self):
         """
             We only delete backups that got expired at least two days ago.
@@ -581,6 +585,10 @@ class BackupSweeper(ScheduleRunner):
         }
 
         return q
+
+    ###########################################################################
+    def queue_delete_backup_targets(self, backup):
+        self._backup_sweep_queue.put(backup)
 
     ###########################################################################
     def delete_backup_targets(self, backup):
@@ -632,6 +640,36 @@ class BackupSweeper(ScheduleRunner):
     def max_expire_date_to_delete(self):
         return date_minus_seconds(date_now(), self.delete_delay_in_seconds)
 
+###############################################################################
+SWEEP_WORKER_SCHEDULE = Schedule(frequency_in_seconds=30)
+
+class SweepWorker(Thread):
+    """
+        A Thread that periodically expire backups that are due for expiration
+    """
+    ###########################################################################
+    def __init__(self, backup_sweeper, queue):
+        Thread.__init__(self)
+        self._backup_sweeper = backup_sweeper
+        self._queue = queue
+
+    ###########################################################################
+    def run(self):
+
+        while not self._queue.empty():
+            backup = self._queue.get()
+            try:
+                self._backup_sweeper.delete_backup_targets(backup)
+            except Exception, ex:
+                msg = ("BackupSweeper: Error while attempting to "
+                       "delete backup targets for backup '%s'" % backup.id)
+                logger.exception(msg)
+                subject = "BackupSweeper Error"
+                msg = ("%s\n\nStack Trace:\n%s" % (msg,
+                                                   traceback.format_exc()))
+                get_mbs().send_error_notification(subject, msg, ex)
+
+
 
 ###############################################################################
 # QUERY HELPER
@@ -644,32 +682,6 @@ def _check_to_expire_query():
     }
 
     return q
-
-###############################################################################
-def _check_to_delete_query():
-    """
-        We only delete backups that got expired at least two days ago.
-        This is just to make sure that if the expiration monitor screws up we
-         would still have time to see what happened
-    """
-    q = {
-        "expiredDate": {
-            "$lt": max_expire_date_to_delete()
-        },
-        "deletedDate": {
-            "$exists": False
-        }
-    }
-
-    return q
-
-###############################################################################
-def max_expire_date_to_delete():
-    """
-        Currently returns now minus 5 days ago
-    :return:
-    """
-    return date_minus_seconds(date_now(), 5 * 24 * 60 * 60)
 
 ###############################################################################
 # EXPIRE/DELETE BACKUP HELPERS
