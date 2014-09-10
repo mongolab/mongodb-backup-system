@@ -378,11 +378,11 @@ def restore_backup(parsed_args):
 def download_restore_log(parsed_args):
     restore = _get_restore(parsed_args.restoreId)
     if restore.log_target_reference:
-        if not restore.log_target_reference.expired:
+        if not restore.log_target_reference.deleted_date:
             restore.source_backup.target.get_file(restore.log_target_reference,
                                                   os.getcwd())
         else:
-            print ("Failed to download. Log for '%s' is expired." %
+            print ("Failed to download. Log for '%s' is deleted." %
                    restore.id)
             exit(1)
 
