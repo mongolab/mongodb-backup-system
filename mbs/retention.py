@@ -26,6 +26,7 @@ from errors import (
 from utils import document_pretty_string
 
 from threading import Thread
+import time
 
 ###############################################################################
 # Contains Backup Retention Policies
@@ -254,7 +255,8 @@ class BackupExpirationManager(ScheduleRunner):
         logger.info("BackupExpirationManager: Executing query :\n%s" %
                     document_pretty_string(q))
 
-        backups_iter = get_mbs().backup_collection.find_iter(query=q, sort=s)
+        backups_iter = get_mbs().backup_collection.find_iter(query=q, sort=s,
+                                                             timeout=False)
 
         current_backup = next(backups_iter, None)
 
@@ -326,7 +328,8 @@ class BackupExpirationManager(ScheduleRunner):
 
         logger.info("BackupExpirationManager: Executing query :\n%s" %
                     document_pretty_string(q))
-        onetime_backups_iter = get_mbs().backup_collection.find_iter(query=q)
+        onetime_backups_iter = get_mbs().backup_collection.find_iter(
+            query=q, timeout=False)
 
         for onetime_backup in onetime_backups_iter:
             if self.stop_requested:
@@ -360,7 +363,8 @@ class BackupExpirationManager(ScheduleRunner):
 
         logger.info("BackupExpirationManager: Executing query :\n%s" %
                     document_pretty_string(q))
-        canceled_backups_iter = get_mbs().backup_collection.find_iter(query=q)
+        canceled_backups_iter = get_mbs().backup_collection.find_iter(
+            query=q, timeout=False)
 
         for backup in canceled_backups_iter:
             if self.stop_requested:
@@ -531,7 +535,7 @@ class BackupRetentionRequestWorker(ScheduleRunner):
 
 DEFAULT_SWEEP_SCHEDULE = Schedule(frequency_in_seconds=12 * 60 * 60)
 DEFAULT_DELETE_DELAY_IN_SECONDS = 5 * 24 * 60 * 60  # 5 days
-
+MAX_SWEEP_WORKERS = 10
 
 class BackupSweeper(ScheduleRunner):
     """
@@ -544,7 +548,13 @@ class BackupSweeper(ScheduleRunner):
         ScheduleRunner.__init__(self, schedule=schedule)
         self._test_mode = False
         self._delete_delay_in_seconds = DEFAULT_DELETE_DELAY_IN_SECONDS
-        self._backup_sweep_queue = Queue.Queue()
+        self._sweep_workers = []
+
+        # cycle stats
+
+        self._cycle_total_processed = 0
+        self._cycle_total_deleted = 0
+        self._cycle_total_errored = 0
 
     ###########################################################################
     @property
@@ -580,13 +590,14 @@ class BackupSweeper(ScheduleRunner):
 
         logger.info("BackupSweeper: Starting a sweep cycle...")
 
+        # clear stats
+        self._cycle_total_processed = 0
+        self._cycle_total_errored = 0
+        self._cycle_total_deleted = 0
+
         if self.test_mode:
             logger.info("BackupSweeper: Running in TEST MODE. Nothing will"
                         " be really deleted")
-
-        total_processed = 0
-        total_deleted = 0
-        total_errored = 0
 
         logger.info("BackupSweeper: Finding all backups"
                     " due for deletion")
@@ -595,29 +606,59 @@ class BackupSweeper(ScheduleRunner):
         logger.info("BackupSweeper: Executing query :\n%s" %
                     document_pretty_string(q))
 
-        backups_iter = get_mbs().backup_collection.find_iter(query=q)
+        backups_iter = get_mbs().backup_collection.find_iter(query=q,
+                                                             timeout=False)
 
-        sweep_workers = []
-        for i in range(0, 10):
-            sweep_worker = SweepWorker(self, self._backup_sweep_queue)
-            sweep_worker.start()
-            sweep_workers.append(sweep_worker)
         # process all plan backups
         for backup in backups_iter:
             if self.stop_requested:
                 break
-            total_processed += 1
+            self._wait_for_worker_availabilty()
+            self._start_sweep_worker(backup)
 
-            if self.queue_delete_backup_targets(backup):
-                total_deleted += 1
-
-        for sweep_worker in sweep_workers:
-            sweep_worker.stop()
+        self._wait_for_all_workers_to_finish()
 
         logger.info("BackupSweeper: Finished sweep cycle. "
                     "Total Deleted=%s, Total Errored=%s, "
                     "Total Processed=%s" %
-                    (total_deleted, total_errored, total_processed))
+                    (self._cycle_total_deleted,
+                    self._cycle_total_errored,
+                    self._cycle_total_processed))
+
+    ###########################################################################
+    def _start_sweep_worker(self, backup):
+        sweep_worker = SweepWorker(self, backup)
+        self._sweep_workers.append(sweep_worker)
+        sweep_worker.start()
+
+    ###########################################################################
+    def _wait_for_worker_availabilty(self):
+        while not self._has_available_workers():
+            for worker in self._sweep_workers:
+                if not worker.is_alive():
+                    self._worker_finished(worker)
+
+            time.sleep(1)
+
+    ###########################################################################
+    def _wait_for_all_workers_to_finish(self):
+        for worker in self._sweep_workers:
+            worker.join()
+            self._worker_finished(worker)
+
+    ###########################################################################
+    def _has_available_workers(self):
+        return len(self._sweep_workers) < MAX_SWEEP_WORKERS
+
+    ###########################################################################
+    def _worker_finished(self, worker):
+        self._sweep_workers.remove(worker)
+        if worker.error:
+            self._cycle_total_errored += 1
+        elif worker.deleted:
+            self._cycle_total_deleted += 1
+
+        self._cycle_total_processed += 1
 
     ###########################################################################
     def _check_to_delete_query(self):
@@ -636,11 +677,6 @@ class BackupSweeper(ScheduleRunner):
         }
 
         return q
-
-    ###########################################################################
-    def queue_delete_backup_targets(self, backup):
-        logger.info("Queuing backup '%s' for deletion" % backup.id)
-        self._backup_sweep_queue.put(backup)
 
     ###########################################################################
     def delete_backup_targets(self, backup):
@@ -693,38 +729,54 @@ class BackupSweeper(ScheduleRunner):
         return date_minus_seconds(date_now(), self.delete_delay_in_seconds)
 
 ###############################################################################
-SWEEP_WORKER_SCHEDULE = Schedule(frequency_in_seconds=1)
-
-class SweepWorker(ScheduleRunner):
+class SweepWorker(Thread):
     """
         A Thread that periodically expire backups that are due for expiration
     """
     ###########################################################################
-    def __init__(self, backup_sweeper, queue):
-        ScheduleRunner.__init__(self, schedule=SWEEP_WORKER_SCHEDULE)
+    def __init__(self, backup_sweeper, backup):
+        Thread.__init__(self)
         self._backup_sweeper = backup_sweeper
-        self._queue = queue
+        self._backup = backup
+        self._error = None
+        self._deleted = None
 
     ###########################################################################
-    def tick(self):
+    @property
+    def error(self):
+        return self._error
 
-        while not self._queue.empty():
-            try:
-                backup = self._queue.get_nowait()
+    ###########################################################################
+    @property
+    def deleted(self):
+        return self._deleted
 
-                try:
-                    self._backup_sweeper.delete_backup_targets(backup)
-                except Exception, ex:
-                    msg = ("BackupSweeper: Error while attempting to "
-                           "delete backup targets for backup '%s'" % backup.id)
-                    logger.exception(msg)
-                    subject = "BackupSweeper Error"
-                    msg = ("%s\n\nStack Trace:\n%s" % (msg,
-                                                       traceback.format_exc()))
-                    get_mbs().send_error_notification(subject, msg, ex)
+    ###########################################################################
+    @property
+    def backup(self):
+        return self._backup
 
-            except Queue.Empty:
-                continue
+    ###########################################################################
+    def run(self):
+        backup = self._backup
+        try:
+            self._deleted = self._backup_sweeper.delete_backup_targets(backup)
+        except Exception, ex:
+            self._error = ex
+            msg = ("BackupSweeper: Error while attempting to "
+                   "delete backup targets for backup '%s'" % backup.id)
+            logger.exception(msg)
+            subject = "BackupSweeper Error"
+            msg = ("%s\n\nStack Trace:\n%s" % (msg,
+                                               traceback.format_exc()))
+            get_mbs().send_error_notification(subject, msg, ex)
+
+    ###########################################################################
+    def __eq__(self, other):
+        return (isinstance(other, SweepWorker) and
+                other.backup.id == self.backup.id)
+
+
 
 ###############################################################################
 # QUERY HELPER
