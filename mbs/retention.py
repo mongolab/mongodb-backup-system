@@ -709,9 +709,11 @@ class SweepWorker(ScheduleRunner):
     def tick(self):
 
         while not self._queue.empty():
-            backup = self._queue.get()
             try:
+                backup = self._queue.get_nowait()
                 self._backup_sweeper.delete_backup_targets(backup)
+            except Queue.Empty:
+                continue
             except Exception, ex:
                 msg = ("BackupSweeper: Error while attempting to "
                        "delete backup targets for backup '%s'" % backup.id)
