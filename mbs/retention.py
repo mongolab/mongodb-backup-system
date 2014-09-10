@@ -711,19 +711,20 @@ class SweepWorker(ScheduleRunner):
         while not self._queue.empty():
             try:
                 backup = self._queue.get_nowait()
-                self._backup_sweeper.delete_backup_targets(backup)
+
+                try:
+                    self._backup_sweeper.delete_backup_targets(backup)
+                except Exception, ex:
+                    msg = ("BackupSweeper: Error while attempting to "
+                           "delete backup targets for backup '%s'" % backup.id)
+                    logger.exception(msg)
+                    subject = "BackupSweeper Error"
+                    msg = ("%s\n\nStack Trace:\n%s" % (msg,
+                                                       traceback.format_exc()))
+                    get_mbs().send_error_notification(subject, msg, ex)
+
             except Queue.Empty:
                 continue
-            except Exception, ex:
-                msg = ("BackupSweeper: Error while attempting to "
-                       "delete backup targets for backup '%s'" % backup.id)
-                logger.exception(msg)
-                subject = "BackupSweeper Error"
-                msg = ("%s\n\nStack Trace:\n%s" % (msg,
-                                                   traceback.format_exc()))
-                get_mbs().send_error_notification(subject, msg, ex)
-
-
 
 ###############################################################################
 # QUERY HELPER
