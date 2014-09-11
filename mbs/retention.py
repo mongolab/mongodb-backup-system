@@ -634,17 +634,12 @@ class BackupSweeper(ScheduleRunner):
     ###########################################################################
     def _wait_for_worker_availabilty(self):
         while not self._has_available_workers():
-            for worker in self._sweep_workers:
-                if not worker.is_alive():
-                    self._worker_finished(worker)
-
             time.sleep(1)
 
     ###########################################################################
     def _wait_for_all_workers_to_finish(self):
         for worker in self._sweep_workers:
             worker.join()
-            self._worker_finished(worker)
 
     ###########################################################################
     def _has_available_workers(self):
@@ -770,6 +765,8 @@ class SweepWorker(Thread):
             msg = ("%s\n\nStack Trace:\n%s" % (msg,
                                                traceback.format_exc()))
             get_mbs().send_error_notification(subject, msg, ex)
+        finally:
+            self._backup_sweeper._worker_finished(self)
 
     ###########################################################################
     def __eq__(self, other):
