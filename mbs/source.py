@@ -829,6 +829,15 @@ class GcpDiskVolumeStorage(CloudBlockStorage):
         disk_snapshot = self.get_disk_snapshot_by_name(snapshot_ref.snapshot_id)
         snapshot_op = self.get_snapshot_op(snapshot_ref.snapshot_op)
 
+        if not snapshot_op or \
+                ('warnings' in snapshot_op and
+                         len(snapshot_op['warnings']) > 0) or \
+                ('error' in snapshot_op and
+                         len(snapshot_op['error']['errors']) > 0):
+            raise BlockStorageSnapshotError("Failed to create snapshot from "
+                                            "backup source :\n%s\n%s" %
+                                            (self, snapshot_op))
+
         if disk_snapshot and snapshot_op:
             new_snapshot_ref = self._new_disk_snapshot_reference(disk_snapshot,
                                                              snapshot_op)
