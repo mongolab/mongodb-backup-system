@@ -834,6 +834,7 @@ class DumpStrategy(BackupStrategy):
     def __init__(self):
         BackupStrategy.__init__(self)
         self._force_table_scan = None
+        self._dump_users = None
 
     ###########################################################################
     @property
@@ -845,6 +846,15 @@ class DumpStrategy(BackupStrategy):
         self._force_table_scan = val
 
     ###########################################################################
+    @property
+    def dump_users(self):
+        return self._dump_users
+
+    @dump_users.setter
+    def dump_users(self, val):
+        self._dump_users = val
+
+    ###########################################################################
     def to_document(self, display_only=False):
         doc = BackupStrategy.to_document(self, display_only=display_only)
         doc.update({
@@ -854,6 +864,8 @@ class DumpStrategy(BackupStrategy):
         if self.force_table_scan is not None:
             doc["forceTableScan"] = self.force_table_scan
 
+        if self.dump_users is not None:
+            doc["dumpUsers"] = self.dump_users
         return doc
 
     ###########################################################################
@@ -1110,7 +1122,8 @@ class DumpStrategy(BackupStrategy):
         # include users in dump if its a database dump and
         # mongo version is >= 2.6.0
         if (mongo_version >= MongoNormalizedVersion("2.6.0") and
-                    database_name != None):
+                    database_name != None and
+                    self.dump_users is not False):
             dump_cmd.append("--dumpDbUsersAndRoles")
 
         dump_cmd_display= dump_cmd[:]
