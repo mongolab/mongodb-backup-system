@@ -21,11 +21,11 @@ from boto.ec2 import connect_to_region
 from azure.storage import BlobService
 from apiclient.discovery import build
 from oauth2client.client import SignedJwtAssertionCredentials
-from apiclient.http import HttpRequest
+from apiclient.http import HttpRequest, HttpError
 
 from utils import (
     freeze_mount_point, unfreeze_mount_point, export_mbs_object_list,
-    suspend_lvm_mount_point, resume_lvm_mount_point, safe_format
+    suspend_lvm_mount_point, resume_lvm_mount_point, safe_format, random_string
 )
 
 import urllib
@@ -742,8 +742,12 @@ class GcpDiskVolumeStorage(CloudBlockStorage):
     ###########################################################################
     def do_create_snapshot(self, name, description):
 
-        # hack to get around google's strict naming conventions:
-        m_name = 'm-%s' % name
+        # hack to get around google's strict naming conventions
+        # (add 'm-' prefix):
+        m_name = 'm-%s-%s' % (name, random_string(8).lower())
+        while self.snapshot_exists(m_name):
+            m_name = 'm-%s-%s' % (name, random_string(8).lower())
+
         logger.info("Creating disk snapshot (name='%s', desc='%s') for volume "
                     "'%s' (%s)" %
                     (m_name, description, self.volume_id, self.volume_name))
@@ -779,6 +783,34 @@ class GcpDiskVolumeStorage(CloudBlockStorage):
             raise BlockStorageSnapshotError("Could not locate the newly "
                                             "created snapshot w/ name: %s"
                                             % m_name)
+
+    ###########################################################################
+    def snapshot_exists(self, name):
+        """
+        Check if a snapshot with specified name exists.
+        :param name: Name of the snapshot to look for
+        :return: True or False
+        """
+
+        def raise_if_404(err):
+            if isinstance(err, HttpError) and err.resp.status == 404:
+                die_with_err(err)
+
+        try:
+            snapshot = self.gce_service_connection.snapshots().get(
+                project=self.credentials.get_credential('projectId'),
+                snapshot=name
+            ).execute(num_retries=3, do_on_exception=raise_if_404)
+
+            return snapshot is not None
+        except HttpError, error:
+            if error.resp.status == 404:
+                logger.info("snapshot '%s' does not exist" % name)
+                return False
+            else:
+                logger.warning(error)
+
+        return False
 
     ###########################################################################
     def delete_snapshot(self, snapshot_ref):
@@ -897,15 +929,6 @@ class GcpDiskVolumeStorage(CloudBlockStorage):
                                          disk_snapshot['diskSizeGb']),
                                      progress=snapshot_op['progress'],
                                      op=snapshot_op)
-
-    ###########################################################################
-    # @property
-    # def project(self):
-    #     return self._project
-    #
-    # @project.setter
-    # def project(self, project):
-    #     self._project = str(project)
 
     ###########################################################################
     @property
