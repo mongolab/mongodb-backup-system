@@ -281,6 +281,12 @@ def resolve_function(full_func_name):
 def get_local_host_name():
     return socket.gethostname()
 
+
+###############################################################################
+def is_address_local(address):
+    host = address.split(":")[0]
+    return is_host_local(host)
+
 ###############################################################################
 def is_host_local(host):
     if (host == "localhost" or
