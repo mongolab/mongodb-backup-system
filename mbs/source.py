@@ -744,9 +744,9 @@ class GcpDiskVolumeStorage(CloudBlockStorage):
 
         # hack to get around google's strict naming conventions
         # (add 'm-' prefix):
-        m_name = 'm-%s-%s' % (name, random_string(8).lower())
+        m_name = 'm-%s-%s' % (name, random_string(2).lower())
         while self.snapshot_exists(m_name):
-            m_name = 'm-%s-%s' % (name, random_string(8).lower())
+            m_name = 'm-%s-%s' % (name, random_string(2).lower())
 
         logger.info("Creating disk snapshot (name='%s', desc='%s') for volume "
                     "'%s' (%s)" %
