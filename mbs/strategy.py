@@ -647,10 +647,11 @@ class BackupStrategy(MBSObject):
         if isinstance(mongo_connector, MongoServer):
             if ensure_local and not mongo_connector.is_local():
                 err = ("Cannot suspend io for '%s' because is not local to"
-                       " this box" % mongo_connector)
+                       " this box" % mongo_connector.display_name)
                 raise ConfigurationError(err)
 
-            msg = "Suspend IO for '%s'..." % mongo_connector
+            msg = ("Running suspend IO for '%s'..." %
+                   mongo_connector.display_name)
             update_backup(backup, event_name="SUSPEND_IO", message=msg)
             cloud_block_storage.suspend_io()
             self._start_max_io_suspend_monitor(backup, mongo_connector,
@@ -667,7 +668,8 @@ class BackupStrategy(MBSObject):
         def max_suspend_monitor(bkp, connector, cbs):
             time.sleep(self._max_lock_time)
             logger.info("MaxIOSuspendMonitor: Max time is up, checking if"
-                        " server '%s' IO is suspended..." % mongo_connector)
+                        " server '%s' IO is suspended..." %
+                        mongo_connector.display_name)
             # TODO: currently, there is no way of telling if io is suspended
             # so we always blindly resume. If resume succeeds then we log an
             # error :)
@@ -675,7 +677,8 @@ class BackupStrategy(MBSObject):
                 cbs.resume_io()
                 msg = ("MaxIOSuspendMonitor: %s IO has been suspended for "
                        "more than max allowed time (%s seconds)!!"
-                       " Resuming ..." % (connector, self._max_lock_time))
+                       " Resuming ..." % (connector.display_name,
+                                          self._max_lock_time))
                 logger.error(msg)
                 update_backup(bkp,
                               event_name="IO_SUSPEND_MONITOR_MONITOR",
@@ -685,7 +688,7 @@ class BackupStrategy(MBSObject):
             except Exception, e:
                 logger.info("MaxIOSuspendMonitor: It appears that server "
                             "'%s' IO was resumed within max threshold." %
-                            connector)
+                            connector.display_name)
 
 
         logger.info("Starting MaxIOSuspendMonitor...")
@@ -699,22 +702,23 @@ class BackupStrategy(MBSObject):
         if isinstance(mongo_connector, MongoServer):
             if ensure_local and not mongo_connector.is_local():
                 err = ("Cannot resume io for '%s' because is not local to "
-                       "this box" % mongo_connector)
+                       "this box" % mongo_connector.display_name)
                 raise ConfigurationError(err)
 
-            msg = "Resume io for '%s'" % mongo_connector
+            msg = "Running resume io for '%s'" % mongo_connector.display_name
             update_backup(backup, event_name="RESUME_IO", message=msg)
             cloud_block_storage.resume_io()
         else:
-            raise ConfigurationError("Invalid resume io attempt. '%s' has "
-                                     "to be a MongoServer" % mongo_connector)
+            raise ConfigurationError(
+                "Invalid resume io attempt. '%s' has to be a MongoServer" %
+                mongo_connector.display_name)
 
 
     ###########################################################################
     def _stop_balancer(self, backup, sharded_connector):
 
         if sharded_connector.is_balancer_active():
-            msg = "Stopping balancer for '%s'" % sharded_connector
+            msg = "Stopping balancer for '%s'" % backup.source.resource_id
             logger.info(msg)
             update_backup(backup, event_name="STOP_BALANCER", message=msg)
             sharded_connector.stop_balancer()
@@ -732,7 +736,8 @@ class BackupStrategy(MBSObject):
             else:
                 logger.info("Balancer stopped!")
         else:
-            msg = "Balancer already stopped for '%s'" % sharded_connector
+            msg = ("Balancer already stopped for '%s'" %
+                   backup.source.resource_id)
             logger.info(msg)
             update_backup(backup, event_name="BALANCER_ALREADY_STOPPED",
                           message=msg)
@@ -740,7 +745,7 @@ class BackupStrategy(MBSObject):
     ###########################################################################
     def _resume_balancer(self, backup, sharded_connector):
 
-        msg = "Resuming balancer for '%s'" % sharded_connector
+        msg = "Resuming balancer for '%s'" % backup.source.resource_id
         update_backup(backup, event_name="RESUME_BALANCER", message=msg)
         sharded_connector.resume_balancer()
 

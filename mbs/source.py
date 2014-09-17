@@ -134,6 +134,13 @@ class BackupSource(MBSObject):
         :return: an info string about the source
         """
 
+    ###########################################################################
+    @property
+    def resource_id(self):
+        """
+            Must be overridden
+        """
+        return None
 
 ###############################################################################
 # MongoSource
@@ -179,6 +186,10 @@ class MongoSource(BackupSource):
 
         return errors
 
+    ###########################################################################
+    @property
+    def resource_id(self):
+        return mongo_uri_tools.mask_mongo_uri(self.uri)
 
 ###############################################################################
 # CloudBlockStorageSource

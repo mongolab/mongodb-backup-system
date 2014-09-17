@@ -63,15 +63,21 @@ def mongo_connect(uri, conn_timeout=None):
 class MongoConnector(object):
 
     ###########################################################################
-    def __init__(self, uri, conn_timeout=None):
+    def __init__(self, uri, display_name=None, conn_timeout=None):
         self._uri_wrapper = parse_mongo_uri(uri)
         self._conn_timeout = conn_timeout
         self._connection_id = None
+        self._display_name = display_name
 
     ###########################################################################
     @property
     def uri(self):
         return self._uri_wrapper.raw_uri
+
+    ###########################################################################
+    @property
+    def display_name(self):
+        return self._display_name
 
     ###########################################################################
     @property
@@ -214,12 +220,17 @@ class MongoConnector(object):
     def __str__(self):
         return self._uri_wrapper.masked_uri
 
+    ###########################################################################
+    def display_str(self):
+        return self.display_name or str(self)
+
 ###############################################################################
 class MongoDatabase(MongoConnector):
 
     ###########################################################################
-    def __init__(self, uri, conn_timeout=None):
-        MongoConnector.__init__(self, uri, conn_timeout=conn_timeout)
+    def __init__(self, uri, display_name=None, conn_timeout=None):
+        MongoConnector.__init__(self, uri, display_name=display_name,
+                                conn_timeout=conn_timeout)
         # validate that uri has a database
         if not self._uri_wrapper.database:
             raise ConfigurationError("Uri must contain a database")
@@ -261,9 +272,20 @@ class MongoDatabase(MongoConnector):
 ###############################################################################
 class MongoCluster(MongoConnector):
     ###########################################################################
-    def __init__(self, uri, conn_timeout=None):
-        MongoConnector.__init__(self, uri, conn_timeout=conn_timeout)
-        self._members = None
+    def __init__(self, uri, display_name=None, members=None,
+                 conn_timeout=None):
+        """
+
+        :param uri: cluster uri
+        :param display_name: cluster display name (not required)
+        :param members: allow passing members as apposed to computing them
+        from uri
+        :param conn_timeout:
+        :return:
+        """
+        MongoConnector.__init__(self, uri, display_name=display_name,
+                                conn_timeout=conn_timeout)
+        self._members = members
         self._primary_member = None
 
         self._init_members()
@@ -290,18 +312,24 @@ class MongoCluster(MongoConnector):
         if uri_wrapper.database and uri_wrapper.database != "admin":
             raise ConfigurationError("Database in uri '%s' can only be admin "
                                      "or unspecified" % uri_wrapper.masked_uri)
-        members = []
         primary_member = None
-        for member_uri in uri_wrapper.member_raw_uri_list:
-            member = MongoServer(member_uri,
-                                 conn_timeout=self.conn_timeout)
-            members.append(member)
+        member_uris = uri_wrapper.member_raw_uri_list
+
+        if not self._members:
+            self._members = []
+            for member_uri in member_uris:
+                member = MongoServer(member_uri,
+                                     conn_timeout=self.conn_timeout)
+                self._members.append(member)
+
+        # find primary
+        for member in self._members:
             if member.is_online() and member.is_primary():
                 primary_member = member
 
         if not primary_member:
             raise PrimaryNotFoundError(uri_wrapper.masked_uri)
-        self._members = members
+
         self._primary_member = primary_member
 
     ###########################################################################
@@ -436,8 +464,9 @@ class MongoServer(MongoConnector):
 ###############################################################################
 
     ###########################################################################
-    def __init__(self, uri, conn_timeout=None):
-        MongoConnector.__init__(self, uri)
+    def __init__(self, uri, display_name=None, conn_timeout=None):
+        MongoConnector.__init__(self, uri, display_name=display_name,
+                                conn_timeout=conn_timeout)
         self._connection = None
         self._authed_to_admin = False
 
@@ -767,8 +796,10 @@ class MongoServer(MongoConnector):
 ###############################################################################
 class ShardedClusterConnector(MongoConnector):
     ###########################################################################
-    def __init__(self, uri, shard_uris, config_server_uris):
-        super(ShardedClusterConnector, self).__init__(uri)
+    def __init__(self, uri, shard_uris, config_server_uris,
+                 display_name=None):
+        super(ShardedClusterConnector, self).__init__(uri,
+                                                      display_name=display_name)
 
         self._router = None
 
