@@ -259,6 +259,7 @@ class MongoDatabase(MongoConnector):
             conn = self._database.connection
             stats["host"] = "%s:%s" % (conn.host, conn.port)
             stats["connectionId"] = self.connection_id
+            stats["version"] = self.get_mongo_version()
             return stats
         except Exception, e:
             if is_connection_exception(e):
