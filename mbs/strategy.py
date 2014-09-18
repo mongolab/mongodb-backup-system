@@ -1346,7 +1346,8 @@ class DumpStrategy(BackupStrategy):
         if restore.source_backup.log_target_reference:
             log_file = restore.source_backup.log_target_reference.file_name
             dump_log_path = os.path.join(restore_source_path, log_file)
-            os.remove(dump_log_path)
+            if os.path.exists(dump_log_path):
+                os.remove(dump_log_path)
 
         dest_uri = restore.destination.uri
 
