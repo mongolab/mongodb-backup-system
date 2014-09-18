@@ -1453,9 +1453,9 @@ class DumpStrategy(BackupStrategy):
         for db_dir in db_dirs:
             if db_dir == "admin":
                 continue
-
-            bson_file = os.path.join(db_dir, "system.users.bson")
-            json_md_file = os.path.join(db_dir, "system.users.metadata.json")
+            db_dir_path = os.path.join(restore_source_path, db_dir)
+            bson_file = os.path.join(db_dir_path, "system.users.bson")
+            json_md_file = os.path.join(db_dir_path, "system.users.metadata.json")
             if os.path.exists(bson_file):
                 logger.info("2.6 Restore workaround: Deleting old "
                             "system.users bson file '%s'" % bson_file)
