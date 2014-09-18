@@ -1455,15 +1455,15 @@ class DumpStrategy(BackupStrategy):
                 continue
 
             bson_file = os.path.join(db_dir, "system.users.bson")
-            bson_md_file = os.path.join(db_dir, "system.users.metadata.bson")
+            json_md_file = os.path.join(db_dir, "system.users.metadata.json")
             if os.path.exists(bson_file):
                 logger.info("2.6 Restore workaround: Deleting old "
                             "system.users bson file '%s'" % bson_file)
                 os.remove(bson_file)
-            if os.path.exists(bson_md_file):
+            if os.path.exists(json_md_file):
                 logger.info("2.6 Restore workaround: Deleting old system."
-                            "users.metadata bson file '%s'" % bson_md_file)
-                os.remove(bson_md_file)
+                            "users.metadata.json file '%s'" % json_md_file)
+                os.remove(json_md_file)
 
 
     ###########################################################################
