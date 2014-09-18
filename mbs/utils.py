@@ -449,6 +449,17 @@ def validate_fsfreeze_sudo():
 
 
 ###############################################################################
+def list_dir_subdirs(path):
+    return [name for name in os.listdir(path) if
+            os.path.isdir(os.path.join(path, name))]
+
+
+###############################################################################
+def list_dir_files(path):
+    return [name for name in os.listdir(path) if
+            os.path.isfile(os.path.join(path, name))]
+
+###############################################################################
 # DM SETUP SUPPORT
 ###############################################################################
 def suspend_lvm_mount_point(mount_point):

@@ -20,7 +20,7 @@ from date_utils import timedelta_total_seconds, date_now
 from subprocess import CalledProcessError
 from errors import *
 from utils import (which, ensure_dir, execute_command, execute_command_wrapper,
-                   listify)
+                   listify, list_dir_files, list_dir_subdirs)
 
 from source import CompositeBlockStorage
 
@@ -54,6 +54,9 @@ EVENT_END_UPLOAD = "END_UPLOAD"
 
 # max time to wait for balancer to stop (10 minutes)
 MAX_BALANCER_STOP_WAIT = 10 * 60
+
+###############################################################################
+VERSION_2_6 = MongoNormalizedVersion("2.6.0")
 
 ###############################################################################
 # Member preference values
@@ -1332,10 +1335,8 @@ class DumpStrategy(BackupStrategy):
         working_dir = restore.workspace
         file_reference = restore.source_backup.target_reference
 
-        logger.info("Extracting tar file '%s'" % file_reference.file_name)
-
         update_restore(restore, event_name="START_RESTORE_DUMP",
-                       message="Starting mongorestore...")
+                       message="Running mongorestore...")
 
         # run mongoctl restore
         logger.info("Restoring using mongoctl restore")
@@ -1353,6 +1354,16 @@ class DumpStrategy(BackupStrategy):
         mongo_connector = build_mongo_connector(dest_uri)
 
         dest_uri_wrapper = mongo_uri_tools.parse_mongo_uri(dest_uri)
+
+        source_stats = restore.source_backup.source_stats
+        source_mongo_version = source_stats and "version" in source_stats and \
+                               MongoNormalizedVersion(source_stats["version"])
+        dest_mongo_version = mongo_connector.get_mongo_version()
+
+        # Delete old system.user collection files if restoring from 2.6 => 2.6
+        if (source_mongo_version >= VERSION_2_6 and
+             dest_mongo_version >= VERSION_2_6):
+            self._delete_old_users_files(restore_source_path)
 
         # append database name for destination uri if destination is a server
         # or a cluster
@@ -1396,8 +1407,8 @@ class DumpStrategy(BackupStrategy):
         # if mongo version is >= 2.4 and we are using admin creds then pass
         # --authenticationDatabase
 
-        mongo_version = mongo_connector.get_mongo_version()
-        if (mongo_version >= MongoNormalizedVersion("2.4.0") and
+
+        if (dest_mongo_version >= MongoNormalizedVersion("2.4.0") and
                 isinstance(mongo_connector, (MongoServer, MongoCluster))) :
             restore_cmd.extend([
                 "--authenticationDatabase",
@@ -1406,8 +1417,8 @@ class DumpStrategy(BackupStrategy):
 
         # include users in restore if its a database restore and
         # mongo version is >= 2.6.0
-        if (mongo_version >= MongoNormalizedVersion("2.6.0") and
-                    source_database_name != None):
+        if (dest_mongo_version >= VERSION_2_6 and
+                    source_database_name is not None):
             restore_cmd.append("--restoreDbUsersAndRoles")
 
         restore_cmd_display = restore_cmd[:]
@@ -1434,6 +1445,26 @@ class DumpStrategy(BackupStrategy):
 
         update_restore(restore, event_name="END_RESTORE_DUMP",
                        message="Restoring dump completed!")
+
+
+    ###########################################################################
+    def _delete_old_users_files(self, restore_source_path):
+        db_dirs = list_dir_subdirs(restore_source_path)
+        for db_dir in db_dirs:
+            if db_dir == "admin":
+                continue
+
+            bson_file = os.path.join(db_dir, "system.users.bson")
+            bson_md_file = os.path.join(db_dir, "system.users.metadata.bson")
+            if os.path.exists(bson_file):
+                logger.info("2.6 Restore workaround: Deleting old "
+                            "system.users bson file '%s'" % bson_file)
+                os.remove(bson_file)
+            if os.path.exists(bson_md_file):
+                logger.info("2.6 Restore workaround: Deleting old system."
+                            "users.metadata bson file '%s'" % bson_md_file)
+                os.remove(bson_md_file)
+
 
     ###########################################################################
     def _upload_restore_log_file(self, restore):
