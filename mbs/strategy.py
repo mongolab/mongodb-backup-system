@@ -594,8 +594,9 @@ class BackupStrategy(MBSObject):
     ###########################################################################
     def _fsynclock(self, backup, mongo_connector):
         if isinstance(mongo_connector, MongoServer):
-            msg = ("Running fsynclock on '%s' (backup '%s')" %
-                   (mongo_connector.display_str, backup.id))
+            msg = ("Running fsynclock on '%s' (connection '%s')" %
+                   (mongo_connector.display_str,
+                    mongo_connector.connection_id))
             logger.info(msg)
             update_backup(backup, event_name="FSYNCLOCK", message=msg)
             mongo_connector.fsynclock()
@@ -607,8 +608,9 @@ class BackupStrategy(MBSObject):
     ###########################################################################
     def _fsyncunlock(self, backup, mongo_connector):
         if isinstance(mongo_connector, MongoServer):
-            msg = ("Running fsyncunlock on '%s' (backup '%s')" %
-                   (mongo_connector.display_str, backup.id))
+            msg = ("Running fsyncunlock on '%s' (connection '%s')" %
+                   (mongo_connector.display_str,
+                    mongo_connector.connection_id))
             logger.info(msg)
             update_backup(backup, event_name="FSYNCUNLOCK", message=msg)
             mongo_connector.fsyncunlock()
