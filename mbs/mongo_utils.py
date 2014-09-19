@@ -473,13 +473,15 @@ class MongoServer(MongoConnector):
         MongoConnector.__init__(self, uri, display_name=display_name,
                                 conn_timeout=conn_timeout)
         self._connection = None
+        self._admin_db = None
+        self._attempted_connection = False
         self._authed_to_admin = False
 
         self._rs_conf = None
         self._rs_status = None
         self._member_config = None
         self._lag_in_seconds = 0
-        self._admin_db = None
+
 
 ###########################################################################
     @property
@@ -495,7 +497,7 @@ class MongoServer(MongoConnector):
                 socketTimeoutMS=conn_timeout_mills,
                 connectTimeoutMS=conn_timeout_mills)
 
-            self._admin_db = self._connection["admin"]
+            self._admin_db = connection["admin"]
             return self._admin_db
         except Exception, e:
             if is_connection_exception(e):
@@ -527,7 +529,12 @@ class MongoServer(MongoConnector):
     ###########################################################################
     @property
     def connection(self):
-        return self.admin_db.connection
+        if not self._connection and not self._attempted_connection:
+            self._attempted_connection = False
+            if self.admin_db:
+                self._connection = self.admin_db.connection
+
+        return self._connection
 
     ###########################################################################
     @property
@@ -609,10 +616,10 @@ class MongoServer(MongoConnector):
         # compute database stats
         try:
             if only_for_db:
-                db = self._connection[only_for_db]
+                db = self.connection[only_for_db]
                 db_stats = _calculate_database_stats(db)
             else:
-                conn = self._connection
+                conn = self.connection
                 db_stats = _calculate_connection_databases_stats(conn)
 
 
