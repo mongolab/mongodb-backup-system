@@ -222,6 +222,7 @@ class MongoConnector(object):
         return self._uri_wrapper.masked_uri
 
     ###########################################################################
+    @property
     def display_str(self):
         return self.display_name or str(self)
 
