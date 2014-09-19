@@ -65,7 +65,7 @@ class MongoConnector(object):
     ###########################################################################
     def __init__(self, uri, display_name=None, conn_timeout=None):
         self._uri_wrapper = parse_mongo_uri(uri)
-        self._conn_timeout = conn_timeout
+        self._conn_timeout = conn_timeout or CONN_TIMEOUT
         self._connection_id = None
         self._display_name = display_name
 
@@ -130,6 +130,7 @@ class MongoConnector(object):
             Must be overridden
         """
 
+    ###########################################################################
     def whatsmyuri(self):
         pass
 
@@ -235,17 +236,20 @@ class MongoDatabase(MongoConnector):
         if not self._uri_wrapper.database:
             raise ConfigurationError("Uri must contain a database")
 
-        self._database = mongo_connect(uri, conn_timeout=conn_timeout)
+        self._database = None
 
     ###########################################################################
     @property
     def database(self):
+        if not self._database:
+            self._database = mongo_connect(self.uri,
+                                           conn_timeout=self.conn_timeout)
         return self._database
 
     ###########################################################################
     @property
     def connection(self):
-        return self._database.connection
+        return self.database.connection
 
     ###########################################################################
     def whatsmyuri(self):
@@ -254,9 +258,9 @@ class MongoDatabase(MongoConnector):
     ###########################################################################
     def get_stats(self, only_for_db=None):
         try:
-            stats = _calculate_database_stats(self._database)
+            stats = _calculate_database_stats(self.database)
             # capture host in stats
-            conn = self._database.connection
+            conn = self.connection
             stats["host"] = "%s:%s" % (conn.host, conn.port)
             stats["connectionId"] = self.connection_id
             stats["version"] = self.get_mongo_version()
@@ -475,39 +479,40 @@ class MongoServer(MongoConnector):
         self._rs_status = None
         self._member_config = None
         self._lag_in_seconds = 0
+        self._admin_db = None
 
+###########################################################################
+    @property
+    def admin_db(self):
+        if self._admin_db:
+            return self._admin_db
         try:
             # default connection timeout and convert to mills
-            conn_timeout_mills = (conn_timeout or CONN_TIMEOUT) * 1000
+            conn_timeout_mills = self.conn_timeout * 1000
 
-            self._connection = pymongo.Connection(
+            connection = pymongo.Connection(
                 self._uri_wrapper.address,
                 socketTimeoutMS=conn_timeout_mills,
                 connectTimeoutMS=conn_timeout_mills)
 
             self._admin_db = self._connection["admin"]
-
-            # if this is an arbiter then this is the farthest that we can get
-            # to
-            if self.is_arbiter():
-                return
-
+            return self._admin_db
         except Exception, e:
             if is_connection_exception(e):
                 logger.error("Error while trying to connect to '%s'. %s" %
                              (self, e))
-                return
             else:
                 raise
 
     ###########################################################################
     def get_auth_admin_db(self):
-        if self._authed_to_admin:
+        if self._authed_to_admin or self.is_arbiter():
             return self._admin_db
 
         # authenticate to admin db if creds are available
         if self._uri_wrapper.username:
-            auth = self._admin_db.authenticate(self._uri_wrapper.username,
+            auth = self._admin_db.authenticate(
+                self._uri_wrapper.username,
                 self._uri_wrapper.password)
             if not auth:
                 raise AuthenticationFailedError(self._uri_wrapper.masked_uri)
@@ -522,7 +527,7 @@ class MongoServer(MongoConnector):
     ###########################################################################
     @property
     def connection(self):
-        return self._connection
+        return self.admin_db.connection
 
     ###########################################################################
     @property
@@ -797,20 +802,20 @@ class MongoServer(MongoConnector):
 ###############################################################################
 class ShardedClusterConnector(MongoConnector):
     ###########################################################################
-    def __init__(self, uri, shard_uris, config_server_uris,
+    def __init__(self, uri, routers, shards, config_servers,
                  display_name=None):
         super(ShardedClusterConnector, self).__init__(uri,
                                                       display_name=display_name)
 
+        self._routers = routers
         self._router = None
 
-        self._shard_uris = shard_uris
         # Shards
-        self._shards = None
+        self._shards = shards
 
         # Config Server
         self._config_server = None
-        self._config_server_uris = config_server_uris
+        self._config_servers = config_servers
 
         self._selected_shard_secondaries = None
 
@@ -829,17 +834,13 @@ class ShardedClusterConnector(MongoConnector):
     ###########################################################################
     @property
     def shards(self):
-        if not self._shards:
-            self._shards = map(lambda shard_uri: MongoCluster(shard_uri),
-                               self._shard_uris)
         return self._shards
 
     ###########################################################################
     @property
     def config_server(self):
         if not self._config_server:
-            for uri in self._config_server_uris:
-                conf_server = MongoServer(uri)
+            for conf_server in self._config_servers:
                 if conf_server.is_online():
                     self._config_server = conf_server
 
@@ -857,8 +858,7 @@ class ShardedClusterConnector(MongoConnector):
     @property
     def router(self):
         if self._router is None:
-            for router_uri in self._uri_wrapper.member_raw_uri_list:
-                router = MongoServer(router_uri)
+            for router in self._routers:
                 if router.is_online():
                     self._router = router
 
