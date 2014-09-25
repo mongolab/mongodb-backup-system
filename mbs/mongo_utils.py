@@ -219,12 +219,12 @@ class MongoConnector(object):
 
     ###########################################################################
     def __str__(self):
-        return self._uri_wrapper.masked_uri
+        return self.display_str
 
     ###########################################################################
     @property
     def display_str(self):
-        return self.display_name or str(self)
+        return self.display_name or self._uri_wrapper.masked_uri
 
 ###############################################################################
 class MongoDatabase(MongoConnector):
