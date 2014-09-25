@@ -41,7 +41,8 @@ class MBSTaskCollection(MBSObjectCollection):
 
     ###########################################################################
     def update_task(self, task, properties=None, event_name=None,
-                    event_type=EventType.INFO, message=None, details=None):
+                    event_type=EventType.INFO, message=None, details=None,
+                    **update_kwargs):
         """
             Updates the specified properties of the specified MBSTask object
         """
@@ -67,4 +68,4 @@ class MBSTaskCollection(MBSObjectCollection):
             for prop in properties:
                 u["$set"][prop] = task_doc.get(prop)
 
-        self.update(spec=q, document=u)
+        self.update(spec=q, document=u, **update_kwargs)
