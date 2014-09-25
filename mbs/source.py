@@ -356,7 +356,8 @@ class EbsVolumeStorage(CloudBlockStorage):
             logger.info("Snapshot '%s' deleted successfully!" % snapshot_id)
             return True
         except Exception, e:
-            if "does not exist" in str(e):
+            if ("does not exist" in str(e) or
+                "InvalidSnapshot.NotFound" in str(e)):
                 logger.warning("Snapshot '%s' does not exist" % snapshot_id)
                 return False
             else:
