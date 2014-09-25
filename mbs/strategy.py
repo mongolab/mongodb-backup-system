@@ -595,7 +595,7 @@ class BackupStrategy(MBSObject):
     def _fsynclock(self, backup, mongo_connector):
         if isinstance(mongo_connector, MongoServer):
             msg = ("Running fsynclock on '%s' (connection '%s')" %
-                   (mongo_connector.display_str,
+                   (mongo_connector,
                     mongo_connector.connection_id))
             logger.info(msg)
             update_backup(backup, event_name="FSYNCLOCK", message=msg)
@@ -609,7 +609,7 @@ class BackupStrategy(MBSObject):
     def _fsyncunlock(self, backup, mongo_connector):
         if isinstance(mongo_connector, MongoServer):
             msg = ("Running fsyncunlock on '%s' (connection '%s')" %
-                   (mongo_connector.display_str,
+                   (mongo_connector,
                     mongo_connector.connection_id))
             logger.info(msg)
             update_backup(backup, event_name="FSYNCUNLOCK", message=msg)
@@ -649,22 +649,30 @@ class BackupStrategy(MBSObject):
     def _suspend_io(self, backup, mongo_connector, cloud_block_storage,
                     ensure_local=True):
 
-        if isinstance(mongo_connector, MongoServer):
-            if ensure_local and not mongo_connector.is_local():
-                err = ("Cannot suspend io for '%s' because is not local to"
-                       " this box" % mongo_connector.display_str)
-                raise ConfigurationError(err)
-
-            msg = ("Running suspend IO for '%s'..." %
-                   mongo_connector.display_str)
-            update_backup(backup, event_name="SUSPEND_IO", message=msg)
-            cloud_block_storage.suspend_io()
-            self._start_max_io_suspend_monitor(backup, mongo_connector,
-                                               cloud_block_storage)
-        else:
+        if not isinstance(mongo_connector, MongoServer):
             raise ConfigurationError("Invalid suspend io attempt. '%s' has to"
                                      " be a MongoServer" % mongo_connector)
 
+        if ensure_local and not mongo_connector.is_local():
+            err = ("Cannot suspend io for '%s' because is not local to"
+                   " this box" % mongo_connector)
+            raise ConfigurationError(err)
+
+        try:
+
+            msg = "Running suspend IO for '%s'..." % mongo_connector
+            logger.info(msg)
+            update_backup(backup, event_name="SUSPEND_IO", message=msg)
+            cloud_block_storage.suspend_io()
+
+
+        except Exception, ex:
+            msg = ("Suspend IO Error for '%s'" % mongo_connector)
+            logger.exception(msg)
+            raise SuspendIOError(msg, cause=ex)
+        finally:
+            self._start_max_io_suspend_monitor(backup, mongo_connector,
+                                               cloud_block_storage)
 
     ###########################################################################
     def _start_max_io_suspend_monitor(self, backup, mongo_connector,
@@ -674,7 +682,7 @@ class BackupStrategy(MBSObject):
             time.sleep(self._max_lock_time)
             logger.info("MaxIOSuspendMonitor: Max time is up, checking if"
                         " server '%s' IO is suspended..." %
-                        mongo_connector.display_str)
+                        mongo_connector)
             # TODO: currently, there is no way of telling if io is suspended
             # so we always blindly resume. If resume succeeds then we log an
             # error :)
@@ -682,7 +690,7 @@ class BackupStrategy(MBSObject):
                 cbs.resume_io()
                 msg = ("MaxIOSuspendMonitor: %s IO has been suspended for "
                        "more than max allowed time (%s seconds)!!"
-                       " Resuming ..." % (connector.display_str,
+                       " Resuming ..." % (connector,
                                           self._max_lock_time))
                 logger.error(msg)
                 update_backup(bkp,
@@ -693,8 +701,7 @@ class BackupStrategy(MBSObject):
             except Exception, e:
                 logger.info("MaxIOSuspendMonitor: It appears that server "
                             "'%s' IO was resumed within max threshold." %
-                            connector.display_str)
-
+                            connector)
 
         logger.info("Starting MaxIOSuspendMonitor...")
         Thread(target=max_suspend_monitor,
@@ -704,19 +711,25 @@ class BackupStrategy(MBSObject):
     def _resume_io(self, backup, mongo_connector, cloud_block_storage,
                    ensure_local=True):
 
-        if isinstance(mongo_connector, MongoServer):
-            if ensure_local and not mongo_connector.is_local():
-                err = ("Cannot resume io for '%s' because is not local to "
-                       "this box" % mongo_connector.display_str)
-                raise ConfigurationError(err)
-
-            msg = "Running resume io for '%s'" % mongo_connector.display_str
-            update_backup(backup, event_name="RESUME_IO", message=msg)
-            cloud_block_storage.resume_io()
-        else:
+        if not isinstance(mongo_connector, MongoServer):
             raise ConfigurationError(
                 "Invalid resume io attempt. '%s' has to be a MongoServer" %
-                mongo_connector.display_str)
+                mongo_connector)
+
+        if ensure_local and not mongo_connector.is_local():
+            err = ("Cannot resume io for '%s' because is not local to "
+                   "this box" % mongo_connector)
+            raise ConfigurationError(err)
+
+        try:
+            msg = "Running resume io for '%s'" % mongo_connector
+            update_backup(backup, event_name="RESUME_IO", message=msg)
+            cloud_block_storage.resume_io()
+        except Exception, ex:
+            msg = ("Resume IO Error for '%s'" % mongo_connector)
+            logger.exception(msg)
+            raise ResumeIOError(msg, cause=ex)
+
 
 
     ###########################################################################

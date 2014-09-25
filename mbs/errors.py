@@ -371,9 +371,32 @@ class BlockStorageSnapshotError(MBSError):
 ###############################################################################
 # MongoLockError
 ###############################################################################
-class MongoLockError(MBSError):
+class MongoLockError(MBSError, RetriableError):
     """
         Raised when there is an fsynclock/fsyncunlock error
+    """
+
+###############################################################################
+# CbsIOError
+###############################################################################
+class CbsIOError(MBSError, RetriableError):
+    """
+    """
+
+###############################################################################
+# SuspendIOError
+###############################################################################
+class SuspendIOError(CbsIOError):
+    """
+        Raised when there is a suspend error
+    """
+
+###############################################################################
+# ResumeIOError
+###############################################################################
+class ResumeIOError(CbsIOError):
+    """
+        Raised when there is a resume error
     """
 
 ###############################################################################
