@@ -31,7 +31,7 @@ def update_backup(backup, properties=None, event_name=None,
                    event_type=event_type, message=message, details=details,
                    # !!!! Set WriteConcern to Journal to ensure that updates
                    # go are persisted in order
-                   w=0)
+                   j=True)
 
 ###############################################################################
 def update_restore(restore, properties=None, event_name=None,
@@ -41,4 +41,4 @@ def update_restore(restore, properties=None, event_name=None,
         event_type=event_type, message=message, details=details,
         # !!!! Set WriteConcern to Journal to ensure that updates
         # go are persisted in order
-        w=0)
+        j=True)
