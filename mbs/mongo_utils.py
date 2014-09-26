@@ -140,6 +140,16 @@ class MongoConnector(object):
         return self._uri_wrapper.addresses[0]
 
     ###########################################################################
+    @property
+    def port(self):
+        return self.address.split(":")[1]
+
+    ###########################################################################
+    @property
+    def local_address(self):
+        return "localhost:%s" % self.port
+
+    ###########################################################################
     def is_local(self):
         """
             Returns true if the connector is running locally.
@@ -470,7 +480,10 @@ class MongoServer(MongoConnector):
 ###############################################################################
 
     ###########################################################################
-    def __init__(self, uri, display_name=None, conn_timeout=None):
+    def __init__(self, uri,
+                 display_name=None,
+                 conn_timeout=None,
+                 allow_local_connections=False):
         MongoConnector.__init__(self, uri, display_name=display_name,
                                 conn_timeout=conn_timeout)
         self._connection = None
@@ -482,9 +495,17 @@ class MongoServer(MongoConnector):
         self._rs_status = None
         self._member_config = None
         self._lag_in_seconds = 0
+        self._allow_local_connections = allow_local_connections
 
+    ###########################################################################
+    @property
+    def connection_address(self):
+        if self._allow_local_connections and self.is_local():
+            return self.local_address
+        else:
+            return self.address
 
-###########################################################################
+    ###########################################################################
     @property
     def admin_db(self):
         if self._admin_db:
@@ -494,7 +515,7 @@ class MongoServer(MongoConnector):
             conn_timeout_mills = self.conn_timeout * 1000
 
             connection = pymongo.Connection(
-                self._uri_wrapper.address,
+                self.connection_address,
                 socketTimeoutMS=conn_timeout_mills,
                 connectTimeoutMS=conn_timeout_mills)
 
