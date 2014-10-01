@@ -1643,6 +1643,8 @@ class CloudBlockStorageStrategy(BackupStrategy):
         :return:
         """
 
+        self._delete_existing_snapshot(backup, cbs)
+
         use_fysnclock = (self.backup_mode == BackupMode.ONLINE and
                          mongo_connector.is_online() and
                          self.is_use_fsynclock())
@@ -1762,11 +1764,7 @@ class CloudBlockStorageStrategy(BackupStrategy):
                                  "balancer Error: %s" % ex)
 
     ###########################################################################
-    def _create_snapshot(self, backup, cbs):
-
-        logger.info("Initiating block storage snapshot for backup '%s'" %
-                    backup.id)
-
+    def _delete_existing_snapshot(self, backup, cbs):
         # if this is a rescheduled backup with an existing snapshot then
         # delete existing one since we are creating a new one
         if backup.target_reference:
@@ -1774,6 +1772,13 @@ class CloudBlockStorageStrategy(BackupStrategy):
                         "Deleting it before creating new one" %
                         backup.id)
             cbs.delete_snapshot(backup.target_reference)
+
+    ###########################################################################
+    def _create_snapshot(self, backup, cbs):
+
+        logger.info("Initiating block storage snapshot for backup '%s'" %
+                    backup.id)
+
         # Refresh backup name/description
         self._set_backup_name_and_desc(backup, update=True)
         if isinstance(cbs, CompositeBlockStorage):
