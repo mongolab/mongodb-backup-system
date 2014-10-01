@@ -593,6 +593,8 @@ class BlobVolumeStorage(CloudBlockStorage):
             container_name, blob_name = \
                 self._get_container_and_blob_names_from_media_link(media_link)
             snapshot_time = urllib.unquote(snapshot.split('=')[1])
+            logger.info("About to delete snapshot '%s' for '%s/%s'" %
+                        (snapshot_time, container_name, blob_name))
             self.blob_service_connection.delete_blob(
                 container_name, blob_name, snapshot=snapshot_time)
 
