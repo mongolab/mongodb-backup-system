@@ -479,13 +479,7 @@ class TaskQueueProcessor(Thread):
             if not worker.is_alive():
                 # detect worker crashes
                 if worker.exitcode != 0:
-                    msg = ("Worker crash detected! Worker (id %s, pid %s, task"
-                           " id '%s') finished with a non-zero exit code '%s'"
-                           % (worker.id, worker.pid, worker.task_id,
-                              worker.exitcode))
-                    self.error(msg)
-                    self._cleanup_worker_resources(worker)
-                    self.worker_fail(worker, EngineWorkerCrashedError(msg))
+                    self.worker_crashed(worker)
                 else:
                     self.info("Detected worker '%s' (pid %s, task id '%s') "
                               "finished successfully. Cleaning up resources..."
@@ -571,6 +565,24 @@ class TaskQueueProcessor(Thread):
         # send a notification only if the task is not reschedulable
         if not task.reschedulable and nh:
             nh.notify_on_task_failure(task, exception, trace)
+
+    ###########################################################################
+    def worker_crashed(self, worker):
+        # page immediately
+        subject = "Backup Worker crashed!"
+        message = ("Backup worker crashed on engine '%s'" % self._engine.id)
+
+        errmsg = ("Worker crash detected! Worker (id %s, pid %s, task"
+                  " id '%s') finished with a non-zero exit code '%s'"
+                  % (worker.id, worker.pid, worker.task_id,
+                  worker.exitcode))
+
+        exception = EngineWorkerCrashedError(errmsg)
+        get_mbs().send_error_notification(subject, message, exception)
+
+        self.error(errmsg)
+        self._cleanup_worker_resources(worker)
+        self.worker_fail(worker, exception)
 
     ###########################################################################
     def worker_success(self, worker):
