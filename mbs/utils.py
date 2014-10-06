@@ -320,6 +320,9 @@ def get_host_ips(host):
         for alias in aliases:
             if alias != host:
                 try:
+                    alias_info = socket.gethostbyname_ex(alias)
+                    if alias_info == host_info:
+                        continue
                     ips.extend(get_host_ips(alias))
                 except Exception, ex:
                     pass
