@@ -749,8 +749,8 @@ class BackupStrategy(MBSObject):
                 count += 1
 
             if sharded_connector.is_balancer_active():
-                raise BalancerActiveError("Balancer did not stop in 30 "
-                                          "seconds")
+                raise BalancerActiveError("Balancer did not stop in %s "
+                                          "seconds" % MAX_BALANCER_STOP_WAIT)
             else:
                 logger.info("Balancer stopped!")
         else:
