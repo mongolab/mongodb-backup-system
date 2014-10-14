@@ -17,6 +17,7 @@ from verlib import NormalizedVersion, suggest_normalized_version
 from bson.objectid import ObjectId
 import logging
 from robustify.robustify import robustify
+from date_utils import date_now
 
 ###############################################################################
 # LOGGER
@@ -977,12 +978,12 @@ class ShardedClusterConnector(MongoConnector):
 
     ###########################################################################
     def stop_balancer_activity_monitor(self):
-        logger.info("Stopping balancer activity monitor...")
+        logger.info("Stopping balancer activity monitor for '%s'..." % self)
         self._stop_balancer_monitor_request = True
         self._balancer_activity_monitor.join()
-        logger.info("Balancer activity monitor stopped. Monitor detected "
+        logger.info("Balancer activity monitor stopped for '%s'. Monitor detected "
                     "balancer active during: %s" %
-                    self.balancer_active_during_monitor())
+                    (self, self.balancer_active_during_monitor()))
 
     ###########################################################################
     def balancer_active_during_monitor(self):
@@ -996,6 +997,9 @@ class ShardedClusterConnector(MongoConnector):
         while not (self._stop_balancer_monitor_request or
                        self._balancer_active_during_monitor):
             self._balancer_active_during_monitor = self.is_balancer_active()
+            if self._balancer_active_during_monitor:
+                logger.info("Balancer activity monitor for '%s' detected balancer was active at '%s'" %
+                            (self, date_now()))
             time.sleep(1)
 
     ###########################################################################
