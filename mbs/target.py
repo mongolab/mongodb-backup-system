@@ -1259,11 +1259,13 @@ class EbsSnapshotReference(CloudBlockStorageSnapshotReference):
         ebs_snap.share(user_ids=user_ids, groups=groups)
         if user_ids:
             self.share_users = self.share_users or list()
-            self.share_users.extend(user_ids)
+            if not set(user_ids).issubset(set(self.share_users)):
+                self.share_users.extend(user_ids)
 
         if groups:
             self.share_groups = self.share_groups or list()
-            self.share_groups.extend(groups)
+            if not set(groups).issubset(set(self.share_groups)):
+                self.share_groups.extend(groups)
 
     ###########################################################################
     def get_ebs_snapshot(self):
