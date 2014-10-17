@@ -553,7 +553,7 @@ class S3BucketTarget(BackupTarget):
     ###########################################################################
     def is_file_restored(self, file_ref):
         key = self._get_file_ref_key(file_ref)
-        return key and key.storage_class == "Standard"
+        return key and key.storage_class == "STANDARD"
 
     ###########################################################################
     def get_file_info(self, file_ref):
