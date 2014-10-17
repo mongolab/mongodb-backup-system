@@ -472,6 +472,12 @@ class S3BucketTarget(BackupTarget):
                                               cause=re)
             else:
                 raise
+    ###########################################################################
+    def _get_file_ref_key(self, file_reference):
+        file_path = file_reference.file_path
+
+        bucket = self._get_bucket()
+        return bucket.get_key(file_path)
 
     ###########################################################################
     @property
@@ -533,6 +539,49 @@ class S3BucketTarget(BackupTarget):
         bucket = self._get_bucket()
         key = bucket.get_key(file_reference.file_path)
         return key.generate_url(expires_in_secs)
+
+    ###########################################################################
+    def is_file_in_glacier(self, file_ref):
+        key = self._get_file_ref_key(file_ref)
+        return key and key.storage_class == "GLACIER"
+
+    ###########################################################################
+    def is_glacier_restore_ongoing(self, file_ref):
+        key = self._get_file_ref_key(file_ref)
+        return key and key.ongoing_restore
+
+    ###########################################################################
+    def is_file_restored(self, file_ref):
+        key = self._get_file_ref_key(file_ref)
+        return key and key.storage_class == "Standard"
+
+    ###########################################################################
+    def get_file_info(self, file_ref):
+        """
+            Override by s3 specifics
+
+        """
+        key = self._get_file_ref_key(file_ref)
+
+        if key:
+            return {
+                "name": key.name,
+                "storageClass": key.storage_class,
+                "ongoingRestore": key.ongoing_restore,
+                "expiryDate": key.expiry_date
+            }
+
+    ###########################################################################
+    def restore_file_from_glacier(self, file_ref, days=5):
+        if self.is_glacier_restore_ongoing(file_ref):
+            raise TargetError("Restore already ongoing for file '%s'" %
+                              file_ref.file_path)
+        elif not self.is_file_in_glacier(file_ref):
+            raise TargetError("Restore already ongoing for file '%s'" %
+                              file_ref.file_path)
+
+        key = self._get_file_ref_key(file_ref)
+        key.restore(days=days)
 
     ###########################################################################
     def to_document(self, display_only=False):
