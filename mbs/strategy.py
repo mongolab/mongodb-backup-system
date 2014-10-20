@@ -573,7 +573,7 @@ class BackupStrategy(MBSObject):
     def _compute_restore_destination_stats(self, restore):
         logger.info("Computing destination stats for restore '%s'" %
                     restore.id)
-        dest_connector = build_mongo_connector(restore.destination.uri)
+        dest_connector = restore.destination.get_connector()
         restore.destination_stats = dest_connector.get_stats()
         update_restore(restore, properties=["destinationStats"])
 
