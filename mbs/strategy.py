@@ -36,6 +36,8 @@ from robustify.robustify import robustify
 from naming_scheme import *
 from threading import Thread
 
+from bson.son import SON
+
 ###############################################################################
 # CONSTANTS
 ###############################################################################
@@ -1381,6 +1383,9 @@ class DumpStrategy(BackupStrategy):
              dest_mongo_version >= VERSION_2_6):
             self._delete_old_users_files(restore_source_path)
 
+        if dest_mongo_version >= VERSION_2_6:
+            _grant_restore_role(mongo_connector)
+
         # append database name for destination uri if destination is a server
         # or a cluster
         # TODO this needs to be refactored where uri always include database
@@ -2258,5 +2263,40 @@ def backup_format_bindings(backup):
 ###############################################################################
 def backup_warning_keys(backup):
     return set(map(lambda log_event: log_event.name, backup.get_warnings()))
+
+
+###############################################################################
+def _grant_restore_role(connector):
+    logger.info("Check if we granting restore role is needed for %s" %
+                connector)
+    if isinstance(connector, MongoServer):
+        admin_db = connector.get_auth_admin_db()
+        user = connector._uri_wrapper.username
+    elif isinstance(connector, MongoCluster):
+        admin_db = connector.primary_member.get_auth_admin_db()
+        user = connector.primary_member._uri_wrapper.username
+    else:
+        logger.info("restore role is NOT needed for %s. Skipping..." %
+                    connector)
+        return
+
+    logger.info("Granting restore role for %s (user %s)..." %
+                (connector, user))
+
+    # construct grant role command
+    roles = [
+        {
+            "role": "restore", "db": "admin"
+        }
+    ]
+
+    role_cmd = SON([("grantRolesToUser", user), ("roles", roles)])
+
+    logger.info("Executing db command '%s'" % role_cmd)
+
+    admin_db.command(role_cmd)
+
+    logger.info("restore role granted successfully!")
+
 
 
