@@ -1369,7 +1369,7 @@ class DumpStrategy(BackupStrategy):
         dest_uri = restore.destination.uri
 
         # connect to the destination
-        mongo_connector = build_mongo_connector(dest_uri)
+        mongo_connector = restore.destination.get_connector()
 
         dest_uri_wrapper = mongo_uri_tools.parse_mongo_uri(dest_uri)
 
