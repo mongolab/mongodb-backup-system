@@ -55,7 +55,7 @@ EVENT_START_UPLOAD = "START_UPLOAD"
 EVENT_END_UPLOAD = "END_UPLOAD"
 
 # max time to wait for balancer to stop (10 minutes)
-MAX_BALANCER_STOP_WAIT = 10 * 60
+MAX_BALANCER_STOP_WAIT = 30 * 60
 
 ###############################################################################
 VERSION_2_6 = MongoNormalizedVersion("2.6.0")
@@ -747,7 +747,7 @@ class BackupStrategy(MBSObject):
             while (sharded_connector.is_balancer_active() and
                            count < MAX_BALANCER_STOP_WAIT):
                 logger.info("Waiting for balancer to stop..")
-                time.sleep(1)
+                time.sleep(5)
                 count += 1
 
             if sharded_connector.is_balancer_active():
