@@ -212,7 +212,7 @@ class BackupSystem(Thread):
         # run those things every 100 ticks
         if self._tick_count % 100 == 0:
             self._notify_on_past_due_scheduled_backups()
-            self._cancel_past_cycle_scheduled_backups()
+            self._cancel_past_cycle_backups()
             self._reschedule_in_cycle_failed_backups()
 
         # run those things every 200 ticks
@@ -316,15 +316,17 @@ class BackupSystem(Thread):
         return get_mbs().backup_collection.find_one(q) is not None
 
     ###########################################################################
-    def _cancel_past_cycle_scheduled_backups(self):
+    def _cancel_past_cycle_backups(self):
         """
-        Cancels scheduled backups whose plan's next occurrence in in the past
+        Cancels scheduled backups (or backups failed to be scheduled,
+         i.e. engine guid is none) whose plan's next occurrence in in the past
         """
         now = date_now()
 
         q = {
-            "state": {"$in": [State.SCHEDULED]},
-            "plan.nextOccurrence": {"$lte": now}
+            "state": {"$in": [State.SCHEDULED, State.FAILED]},
+            "plan.nextOccurrence": {"$lte": now},
+            "engineGuid": None
         }
 
         bc = get_mbs().backup_collection
