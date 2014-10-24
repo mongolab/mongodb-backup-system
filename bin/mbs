@@ -414,6 +414,12 @@ def cancel_restore(parsed_args):
         print document_pretty_string(result)
 
 ###############################################################################
+def reschedule_restore(parsed_args):
+    from_scratch = parsed_args.fromScratch
+    restore = _get_restore(parsed_args.restoreId)
+    _get_backup_system().reschedule_restore(restore, from_scratch=from_scratch)
+
+###############################################################################
 # Helpers
 ###############################################################################
 def _get_engine(engine_id=None):
@@ -892,7 +898,35 @@ PARSER_DEF = {
                     "help": "Restore ID"
                 }],
             "function": cancel_restore
-        }
+        },
+
+
+        {
+            "prog": "reschedule-restore",
+            "shortDescription": "Reschedules specified restore",
+            "description": "Reschedules specified restore. Only applicable "
+                           "to failed restores",
+            "args": [
+                {
+                    "name": "restoreId",
+                    "type": "positional",
+                    "nargs": 1,
+                    "displayName": "RESTORE_ID",
+                    "help": "Restore id"
+                },
+                {
+                    "name": "fromScratch",
+                    "type": "optional",
+                    "cmd_arg":  ["--from-scratch"],
+                    "nargs": 0,
+                    "help": "clears restore log",
+                    "action": "store_true",
+                    "default": False
+                }
+
+            ],
+            "function": reschedule_restore
+        },
     ]
 }
 

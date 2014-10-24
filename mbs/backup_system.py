@@ -413,7 +413,33 @@ class BackupSystem(Thread):
                        message="Rescheduling")
 
 
+    ###########################################################################
+    def reschedule_restore(self, restore, from_scratch=False):
+        """
+            Reschedules the restore IF state is FAILED
+        """
+        if restore.state != State.FAILED:
+            msg = ("Cannot reschedule restore ('%s', '%s'). Rescheduling is "
+                   "only allowed for restores whose state is '%s'." %
+                   (restore.id, restore.state, State.FAILED))
+            raise BackupSystemError(msg)
 
+        self.info("Rescheduling restore %s" % restore.id)
+        props = ["state", "tags"]
+        restore.state = State.SCHEDULED
+
+        rc = get_mbs().restore_collection
+        # if from_scratch is set then clear restore log
+        if from_scratch:
+            restore.logs = []
+            restore.try_count = 0
+            restore.engine_guid = None
+            props.extend(["logs", "tryCount", "engineGuid"])
+
+
+        rc.update_task(restore, properties=props,
+                       event_name=EVENT_STATE_CHANGE,
+                       message="Rescheduling")
     ###########################################################################
     def schedule_plan_backup(self, plan, one_time=False):
         self.info("Scheduling plan '%s'" % plan.id)
