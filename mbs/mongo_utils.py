@@ -6,6 +6,7 @@ import time
 
 import pymongo
 import pymongo.errors
+from pymongo.mongo_client import MongoClient
 from threading import Thread
 
 from mongo_uri_tools import parse_mongo_uri
@@ -34,24 +35,26 @@ CONN_TIMEOUT = 160
 @robustify(max_attempts=3, retry_interval=3,
            do_on_exception=raise_if_not_retriable,
            do_on_failure=raise_exception)
-def mongo_connect(uri, conn_timeout=None):
-
-    # default connection timeout and convert to mills
+def mongo_connect(uri, conn_timeout=None, **kwargs):
     conn_timeout_mills = (conn_timeout or CONN_TIMEOUT) * 1000
+    kwargs = kwargs or {}
+    kwargs["socketTimeoutMS"] = conn_timeout_mills
+    kwargs["connectTimeoutMS"] = conn_timeout_mills
+    # default connection timeout and convert to mills
+
     uri_wrapper = parse_mongo_uri(uri)
 
     try:
         dbname = uri_wrapper.database
         if not dbname:
-            dbname = "admin"
             if uri.endswith("/"):
                 uri += "admin"
             else:
                 uri += "/admin"
 
-        conn = pymongo.Connection(uri, socketTimeoutMS=conn_timeout_mills,
-                                  connectTimeoutMS=conn_timeout_mills)
-        return conn[dbname]
+        mongo_client = MongoClient(uri, **kwargs)
+        return mongo_client.get_default_database()
+
     except Exception, e:
         if is_connection_exception(e):
             raise ConnectionError(uri_wrapper.masked_uri, cause=e)

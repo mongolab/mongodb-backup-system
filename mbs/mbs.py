@@ -100,7 +100,8 @@ class MBS(object):
     @property
     def database(self):
         if not self._database:
-            self._database = mongo_connect(self._get_database_uri())
+            # use w=1
+            self._database = mongo_connect(self._get_database_uri(), w=1)
             # ensure indexes
             self._ensure_indexes(self._database)
 
