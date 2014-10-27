@@ -145,9 +145,10 @@ class BackupTarget(MBSObject):
             metadata=metadata)
 
     ###########################################################################
-    @robustify(max_attempts=3, retry_interval=5,
+    @robustify(max_attempts=10, retry_interval=5,
+               backoff=2,
                do_on_exception=raise_if_not_retriable,
-               do_on_failure=raise_exception)
+               do_on_failure=raise_exception,)
     def _do_robustifiled_put_file(self, attempt_counter,
                                   file_path, destination_path,
                                   metadata=None):
@@ -164,7 +165,8 @@ class BackupTarget(MBSObject):
         # connection reset etc)
         if attempt_counter["count"] > 1:
             file_size = os.path.getsize(file_path)
-            if self.file_exists(destination_path, expected_file_size=file_size):
+            if self.file_exists(destination_path,
+                                expected_file_size=file_size):
                 logger.debug("File uploaded through a previous attempt! "
                              "nothing to do!")
                 return FileReference(file_path=destination_path,
