@@ -110,7 +110,6 @@ class BackupTarget(MBSObject):
             target_ref = self._robustifiled_put_file(
                 file_path,
                 destination_path=destination_path,
-                overwrite_existing=overwrite_existing,
                 metadata=metadata)
             # set the preserve field
             target_ref.preserve = self.preserve
@@ -136,14 +135,13 @@ class BackupTarget(MBSObject):
 
     ###########################################################################
     def _robustifiled_put_file(self, file_path, destination_path,
-                               overwrite_existing=True,
                                metadata=None):
         attempt_counter = {
             "count": 0
         }
         return self._do_robustifiled_put_file(
             attempt_counter, file_path,
-            destination_path, overwrite_existing=overwrite_existing,
+            destination_path,
             metadata=metadata)
 
     ###########################################################################
@@ -151,9 +149,8 @@ class BackupTarget(MBSObject):
                do_on_exception=raise_if_not_retriable,
                do_on_failure=raise_exception)
     def _do_robustifiled_put_file(self, attempt_counter,
-                               file_path, destination_path,
-                               overwrite_existing=True,
-                               metadata=None):
+                                  file_path, destination_path,
+                                  metadata=None):
         """
            a robustified put file
         """
