@@ -20,14 +20,13 @@ from date_utils import timedelta_total_seconds, date_now
 from subprocess import CalledProcessError
 from errors import *
 from utils import (which, ensure_dir, execute_command, execute_command_wrapper,
-                   listify, list_dir_files, list_dir_subdirs)
+                   listify, list_dir_subdirs)
 
 from source import CompositeBlockStorage
 
 from target import (
     SnapshotStatus, multi_target_upload_file,
-    CloudBlockStorageSnapshotReference, EbsSnapshotReference,
-    LVMSnapshotReference, CompositeBlockStorageSnapshotReference
+    EbsSnapshotReference, LVMSnapshotReference
 )
 
 
@@ -112,6 +111,8 @@ class BackupStrategy(MBSObject):
 
         self._max_lock_time = MAX_LOCK_TIME
 
+        self._max_lag_seconds = None
+
     ###########################################################################
     def _init_strategy(self, backup):
 
@@ -148,6 +149,15 @@ class BackupStrategy(MBSObject):
     @max_data_size.setter
     def max_data_size(self, val):
         self._max_data_size = val
+
+    ###########################################################################
+    @property
+    def max_lag_seconds(self):
+        return self._max_lag_seconds
+
+    @max_lag_seconds.setter
+    def max_lag_seconds(self, val):
+        self._max_lag_seconds = val
 
     ###########################################################################
     @property
@@ -311,12 +321,10 @@ class BackupStrategy(MBSObject):
     ###########################################################################
     def _select_backup_sharded_cluster_members(self, backup, sharded_cluster):
         # compute max lag
-        if backup.plan:
+        max_lag_seconds = self.max_lag_seconds or 0
+        if backup.plan and not max_lag_seconds:
             max_lag_seconds = backup.plan.schedule.max_acceptable_lag(
                 backup.plan_occurrence)
-        else:
-            # One Off backup : no max lag!
-            max_lag_seconds = 0
 
         # select best secondaries within shards
         sharded_cluster.select_shard_best_secondaries(max_lag_seconds=
@@ -357,14 +365,11 @@ class BackupStrategy(MBSObject):
     def _select_new_cluster_member(self, backup, mongo_cluster):
 
         source = backup.source
-
+        max_lag_seconds = self.max_lag_seconds or 0
         # compute max lag
-        if backup.plan:
+        if not max_lag_seconds and backup.plan:
             max_lag_seconds = backup.plan.schedule.max_acceptable_lag(
-                                    backup.plan_occurrence)
-        else:
-            # One Off backup : no max lag!
-            max_lag_seconds = 0
+                backup.plan_occurrence)
 
         # find a server to dump from
 
@@ -830,6 +835,9 @@ class BackupStrategy(MBSObject):
 
         if self.max_data_size:
             doc["maxDataSize"] = self.max_data_size
+
+        if self.max_lag_seconds:
+            doc["maxLagSeconds"] = self.max_lag_seconds
 
         if self.backup_name_scheme:
             doc["backupNameScheme"] = \
@@ -2006,6 +2014,7 @@ class HybridStrategy(BackupStrategy):
         strategy.max_data_size = self.max_data_size
         strategy.use_suspend_io = self.use_suspend_io
         strategy.allow_offline_backups = self.allow_offline_backups
+        strategy.max_lag_seconds = self.max_lag_seconds
 
         if self.use_fsynclock is not None:
             strategy.use_fsynclock = self.use_fsynclock
