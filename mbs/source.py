@@ -742,6 +742,8 @@ class BlobVolumeStorage(CloudBlockStorage):
 ###############################################################################
 class GcpDiskVolumeStorage(CloudBlockStorage):
 
+    _gce_service_connection = None
+
     ###########################################################################
     def __init__(self):
         CloudBlockStorage.__init__(self)
@@ -751,7 +753,7 @@ class GcpDiskVolumeStorage(CloudBlockStorage):
         self._zone = None
         self._volume_id = None
         self._volume_name = None
-        self._gce_service_connection = None
+        #self._gce_service_connection = None
 
     ###########################################################################
     def do_create_snapshot(self, name, description):
@@ -1028,8 +1030,9 @@ class GcpDiskVolumeStorage(CloudBlockStorage):
 
     ###########################################################################
     @property
+    @robustify(max_attempts=3)
     def gce_service_connection(self):
-        if not self._gce_service_connection:
+        if not GcpDiskVolumeStorage._gce_service_connection:
             logger.info("Creating connection to GCE service for "
                         "volume '%s'" % self.volume_id)
 
@@ -1043,10 +1046,11 @@ class GcpDiskVolumeStorage(CloudBlockStorage):
             http = httplib2.Http()
             http = credentials.authorize(http)
 
-            self._gce_service_connection = build(
+            # possible for this to error out... wrapping function in robustify
+            GcpDiskVolumeStorage._gce_service_connection = build(
                 'compute', 'v1', http=http, requestBuilder=RobustHttpRequest)
 
-        return self._gce_service_connection
+        return GcpDiskVolumeStorage._gce_service_connection
 
     ###########################################################################
     def suspend_io(self):
