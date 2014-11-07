@@ -868,6 +868,7 @@ class DumpStrategy(BackupStrategy):
         BackupStrategy.__init__(self)
         self._force_table_scan = None
         self._dump_users = None
+        self._no_index_restore = None
 
     ###########################################################################
     @property
@@ -877,6 +878,15 @@ class DumpStrategy(BackupStrategy):
     @force_table_scan.setter
     def force_table_scan(self, val):
         self._force_table_scan = val
+
+    ###########################################################################
+    @property
+    def no_index_restore(self):
+        return self._no_index_restore
+
+    @no_index_restore.setter
+    def no_index_restore(self, val):
+        self._no_index_restore = val
 
     ###########################################################################
     @property
@@ -899,6 +909,10 @@ class DumpStrategy(BackupStrategy):
 
         if self.dump_users is not None:
             doc["dumpUsers"] = self.dump_users
+
+        if self.no_index_restore is not None:
+            doc["noIndexRestore"] = self.no_index_restore
+
         return doc
 
     ###########################################################################
@@ -1455,6 +1469,9 @@ class DumpStrategy(BackupStrategy):
         restore_cmd_display[restore_cmd_display.index("restore") + 1] =\
             dest_uri_wrapper.masked_uri
 
+        # additional restore options
+        if self.no_index_restore:
+            restore_cmd.append("--noIndexRestore")
 
         logger.info("Running mongoctl restore command: %s" %
                     " ".join(restore_cmd_display))
