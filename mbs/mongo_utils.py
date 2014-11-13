@@ -353,7 +353,7 @@ class MongoCluster(MongoConnector):
         self._primary_member = primary_member
 
     ###########################################################################
-    def get_best_secondary(self, max_lag_seconds=0):
+    def get_best_secondary(self, max_lag_seconds=None):
         """
             Returns the best source member to get the pull from.
             This only applicable for cluster connections.
@@ -419,13 +419,13 @@ class MongoCluster(MongoConnector):
 
         if merged_list:
             for secondary in merged_list:
-                if not max_lag_seconds:
+                if max_lag_seconds is None:
                     return secondary
-                elif secondary.lag_in_seconds < max_lag_seconds:
+                elif secondary.lag_in_seconds <= max_lag_seconds:
                     return secondary
 
     ###########################################################################
-    def _validate_backup_node(self, backup_node, max_lag_seconds=0):
+    def _validate_backup_node(self, backup_node, max_lag_seconds=None):
         master_status = self.primary_member.rs_status
         if not backup_node.is_online():
             raise NoEligibleMembersFound(self.uri,
@@ -437,7 +437,7 @@ class MongoCluster(MongoConnector):
                                          "mongolabBackupNode '%s' not "
                                          "secondary" % backup_node)
 
-        if max_lag_seconds:
+        if max_lag_seconds is not None:
             backup_node.compute_lag(master_status)
             if backup_node.lag_in_seconds > max_lag_seconds:
                 msg = ("mongolabBackupNode '%s' is lagging %s which is more"
@@ -917,7 +917,7 @@ class ShardedClusterConnector(MongoConnector):
         return stats
 
     ###########################################################################
-    def select_shard_best_secondaries(self, max_lag_seconds=0):
+    def select_shard_best_secondaries(self, max_lag_seconds=None):
         best_secondaries = []
 
         for shard in self.shards:
