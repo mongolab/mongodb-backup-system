@@ -646,9 +646,16 @@ class RackspaceCloudFilesTarget(BackupTarget):
 
     ###########################################################################
     def _single_part_put(self, file_path, destination_path, metadata=None):
-        container = self._get_container()
-        container_obj = container.create_object(destination_path)
-        container_obj.load_from_filename(file_path)
+        try:
+
+            container = self._get_container()
+            container_obj = container.create_object(destination_path)
+            container_obj.load_from_filename(file_path)
+        except Exception, ex:
+            if "Unauthorized" in str(ex):
+                raise TargetConnectionError(self.container_name, ex)
+            else:
+                raise
 
     ###########################################################################
     def _multi_part_put(self, file_path, destination_path, file_size,
