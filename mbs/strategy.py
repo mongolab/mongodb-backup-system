@@ -1399,6 +1399,12 @@ class DumpStrategy(BackupStrategy):
              dest_mongo_version >= VERSION_2_6):
             self._delete_old_users_files(restore_source_path)
 
+        # Delete all old system.user collection files if restoring from 2.4 =>
+        #  2.6
+        if source_mongo_version < VERSION_2_6 <= dest_mongo_version:
+            self._delete_old_users_files(restore_source_path,
+                                         include_admin=True)
+
         if dest_mongo_version >= VERSION_2_6:
             _grant_restore_role(mongo_connector)
 
@@ -1488,10 +1494,10 @@ class DumpStrategy(BackupStrategy):
 
 
     ###########################################################################
-    def _delete_old_users_files(self, restore_source_path):
+    def _delete_old_users_files(self, restore_source_path, include_admin=False):
         db_dirs = list_dir_subdirs(restore_source_path)
         for db_dir in db_dirs:
-            if db_dir == "admin":
+            if db_dir == "admin" and not include_admin:
                 continue
             db_dir_path = os.path.join(restore_source_path, db_dir)
             bson_file = os.path.join(db_dir_path, "system.users.bson")
