@@ -652,7 +652,7 @@ class RackspaceCloudFilesTarget(BackupTarget):
             container_obj = container.create_object(destination_path)
             container_obj.load_from_filename(file_path)
         except Exception, ex:
-            if "Unauthorized" in str(ex):
+            if "unauthorized" in str(ex).lower():
                 raise TargetConnectionError(self.container_name, ex)
             else:
                 raise
