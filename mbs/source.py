@@ -1304,4 +1304,5 @@ class RobustHttpRequest(HttpRequest):
         return retry_till_done(
             lambda: super(RobustHttpRequest, self).execute(http=http, num_retries=num_retries),
             max_attempts=3,
-            do_on_exception=do_on_exception)
+            do_on_exception=do_on_exception,
+            do_on_failure=raise_exception)
