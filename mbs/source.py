@@ -787,13 +787,12 @@ class GcpDiskVolumeStorage(CloudBlockStorage):
                                             "backup source :\n%s\n%s" %
                                             (self, snapshot_op))
 
-        logger.info("Snapshot successfully created for volume '%s' (%s). "
-                    "Snapshot id '%s'." % (self.volume_id, self.volume_name,
-                                           snapshot_op['selfLink']))
-
         snapshot = self.get_disk_snapshot_by_name(m_name)
 
         if snapshot:
+            logger.info("Snapshot successfully created for volume '%s' (%s). "
+                        "Snapshot id '%s'." % (self.volume_id, self.volume_name,
+                                               snapshot['selfLink']))
             return self._new_disk_snapshot_reference(snapshot, snapshot_op)
         else:
             raise BlockStorageSnapshotError("Could not locate the newly "
@@ -833,37 +832,48 @@ class GcpDiskVolumeStorage(CloudBlockStorage):
         snapshot_id = snapshot_ref.snapshot_id
         try:
             logger.info("Deleting snapshot '%s' " % snapshot_id)
-            delete_op = self.gce_service_connection.snapshots().delete(
-                project=self.credentials.get_credential('projectId'),
-                snapshot=snapshot_id
-            ).execute(num_retries=3)
 
-            def log_stuff():
-                logger.info("Waiting for async GCP snapshot delete op to "
-                            "finish...")
+            # let's check if it exists first
+            if self.snapshot_exists(snapshot_id):
 
-            request = self.gce_service_connection.globalOperations().get(
-                project=self.credentials.get_credential('projectId'),
-                operation=delete_op['name'])
+                delete_op = self.gce_service_connection.snapshots().delete(
+                    project=self.credentials.get_credential('projectId'),
+                    snapshot=snapshot_id
+                ).execute(num_retries=3)
 
-            op_result = retry_till_done(
-                lambda: request.execute(num_retries=3),
-                is_good=lambda result: result['status'] == 'DONE',
-                max_wait_in_secs=300,
-                do_between_attempts=log_stuff,
-                do_on_failure=lambda: die_with_err(
-                    'Timed out after waiting %s seconds for operation to '
-                    'finish {operation_id : %s}' % (300, delete_op['name'])),
-                retry_interval=5
-            )
+                def log_stuff():
+                    logger.info("Waiting for async GCP snapshot delete op to "
+                                "finish...")
 
-            if 'error' not in op_result:
-                logger.info("Snapshot '%s' deleted successfully!" % snapshot_id)
-                return True
+                request = self.gce_service_connection.globalOperations().get(
+                    project=self.credentials.get_credential('projectId'),
+                    operation=delete_op['name'])
+
+                op_result = retry_till_done(
+                    lambda: request.execute(num_retries=3),
+                    is_good=lambda result: result['status'] == 'DONE',
+                    max_wait_in_secs=300,
+                    do_between_attempts=log_stuff,
+                    do_on_failure=lambda: die_with_err(
+                        'Timed out after waiting %s seconds for operation to '
+                        'finish {operation_id : %s}' % (300, delete_op['name'])),
+                    retry_interval=5
+                )
+
+                if 'error' not in op_result:
+                    logger.info("Snapshot '%s' deleted successfully!" %
+                                snapshot_id)
+                    return True
+                else:
+                    msg = "Snapshot '%s' was not deleted! Error: %s" \
+                          % (snapshot_id, op_result['error'])
+                    raise RetriableError(msg)
             else:
-                msg = "Snapshot '%s' was not deleted! Error: %s" \
-                      % (snapshot_id, op_result['error'])
-                raise RetriableError(msg)
+                logger.warning("Not deleting snapshot '%s' because it doesn't "
+                               "exist!" % snapshot_id)
+                # return True because nothing to delete
+                return True
+
         except Exception, e:
             msg = "Error while deleting snapshot '%s'" % snapshot_id
             logger.exception(msg)
@@ -936,6 +946,12 @@ class GcpDiskVolumeStorage(CloudBlockStorage):
             raise Exception('GCP disk snapshot in unhandled state: %s'
                             % disk_snapshot['status'])
 
+        # progress is an optional field on the snapshot_op, don't rely on it
+        if 'progress' in snapshot_op:
+            progress = snapshot_op['progress']
+        else:
+            progress = None
+
         return GcpDiskSnapshotReference(snapshot_id=disk_snapshot['name'],
                                      cloud_block_storage=self,
                                      status=status,
@@ -943,7 +959,7 @@ class GcpDiskVolumeStorage(CloudBlockStorage):
                                          "%Y-%m-%dT%H:%M:%S.000Z"),
                                      volume_size=float(
                                          disk_snapshot['diskSizeGb']),
-                                     progress=snapshot_op['progress'],
+                                     progress=progress,
                                      op=snapshot_op)
 
     ###########################################################################
