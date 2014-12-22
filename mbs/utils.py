@@ -408,6 +408,9 @@ def validate_fsfreeze():
 def get_fsfreeze_exe():
     logger.info("locating fsfreeze exe...")
     exe = which("fsfreeze")
+
+    if not exe:
+        exe = "/sbin/fsfreeze"
     if exe:
         logger.info("Found fsfreeze at '%s'" % exe)
         return exe
@@ -518,7 +521,18 @@ def validate_dmsetup():
 
 ###############################################################################
 def get_dmsetup_exe():
-    return which("dmsetup")
+
+    logger.info("locating dmsetup exe...")
+    exe = which("dmsetup")
+
+    if not exe:
+        exe = "/sbin/dmsetup"
+    if exe:
+        logger.info("Found dmsetup at '%s'" % exe)
+        return exe
+    else:
+        raise Exception("No dmsetup exe found in your path. $PATH is '%s'" %
+                        os.environ.get("PATH"))
 
 ###############################################################################
 def os_supports_dmsetup():
