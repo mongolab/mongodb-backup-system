@@ -687,11 +687,12 @@ class BlobVolumeStorage(CloudBlockStorage):
         if not self._blob_service_connection:
             self.validate()
             logger.info("Creating connection to blob service for "
-                        "volume '%s'" % self.volume_id)
+                        "volume '%s' w/ %s/%s" %
+                        (self.volume_id, self.storage_account, self.access_key))
             conn = BlobService(account_name=self.storage_account,
                                account_key=self.access_key)
 
-            logger.info("SUCCESS!!! Connection created successfully to blob "
+            logger.info("Connection created successfully to blob "
                         "service for volume '%s'" % self.volume_id)
             self._blob_service_connection = conn
 
