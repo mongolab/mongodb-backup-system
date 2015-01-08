@@ -19,6 +19,7 @@ import rfc3339
 
 from boto.ec2 import connect_to_region
 from azure.storage import BlobService
+from azure import WindowsAzureMissingResourceError
 from apiclient.discovery import build
 from oauth2client.client import SignedJwtAssertionCredentials
 from apiclient.http import HttpRequest, HttpError
@@ -599,6 +600,10 @@ class BlobVolumeStorage(CloudBlockStorage):
                 container_name, blob_name, snapshot=snapshot_time)
 
             return True
+        except WindowsAzureMissingResourceError:
+            logger.warning("Snapshot '%s' does not exist" % snapshot_id)
+            return False
+
         except Exception, e:
             msg = "Error while deleting snapshot '%s'" % snapshot_id
             logger.exception(msg)
