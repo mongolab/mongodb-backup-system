@@ -3,7 +3,9 @@ __author__ = 'abdul'
 from datetime import datetime
 
 from base import MBSObject
-from robustify.robustify import retry_till_done, die_with_err, robustify
+from robustify.robustify import (
+    retry_till_done, die_with_err, robustify, wait_for
+)
 
 from target import (
     EbsSnapshotReference, LVMSnapshotReference, BlobSnapshotReference,
@@ -754,7 +756,6 @@ class GcpDiskVolumeStorage(CloudBlockStorage):
         CloudBlockStorage.__init__(self)
         self._encrypted_service_account_name = None
         self._encrypted_private_key = None
-        # self._project = None
         self._zone = None
         self._volume_id = None
         self._volume_name = None
@@ -773,15 +774,7 @@ class GcpDiskVolumeStorage(CloudBlockStorage):
                     "'%s' (%s)" %
                     (m_name, description, self.volume_id, self.volume_name))
 
-        snapshot_op = self.gce_service_connection.disks().createSnapshot(
-            project=self.credentials.get_credential('projectId'),
-            zone=self.zone,
-            disk=self.volume_id,
-            body={
-                "description": description,
-                "name": m_name
-            }
-        ).execute(num_retries=3)
+        snapshot_op = self._initiate_snapshot_op(m_name, description)
 
         if not snapshot_op or \
                 ('warnings' in snapshot_op and
@@ -792,17 +785,56 @@ class GcpDiskVolumeStorage(CloudBlockStorage):
                                             "backup source :\n%s\n%s" %
                                             (self, snapshot_op))
 
-        snapshot = self.get_disk_snapshot_by_name(m_name)
+        def snapshot_exists():
+            return self.snapshot_exists(m_name)
 
-        if snapshot:
-            logger.info("Snapshot successfully created for volume '%s' (%s). "
-                        "Snapshot id '%s'." % (self.volume_id, self.volume_name,
-                                               snapshot['selfLink']))
-            return self._new_disk_snapshot_reference(snapshot, snapshot_op)
-        else:
-            raise BlockStorageSnapshotError("Could not locate the newly "
-                                            "created snapshot w/ name: %s"
-                                            % m_name)
+        def on_wait_for_snapshot():
+            logger.info("Waiting for snapshot '%s' to exist..." % m_name)
+
+        timeout = 120
+        wait_for(snapshot_exists, timeout=timeout, on_wait=on_wait_for_snapshot)
+
+        if not snapshot_exists():
+            raise BlockStorageSnapshotError("Timed out waiting for snapshot "
+                                            "'%s' to exist!" % m_name)
+
+        snapshot = self.get_disk_snapshot_by_name(m_name)
+        snapshot_op = self.get_snapshot_op(snapshot_op)
+        return self._new_disk_snapshot_reference(snapshot, snapshot_op)
+
+    ###########################################################################
+    def _initiate_snapshot_op(self, snapshot_name, description):
+
+        snapshot_op = self.gce_service_connection.disks().createSnapshot(
+            project=self.credentials.get_credential('projectId'),
+            zone=self.zone,
+            disk=self.volume_id,
+            body={
+                "description": description,
+                "name": snapshot_name
+            }
+        ).execute(num_retries=3)
+
+        # wait for the op to be in either "RUNNING" or "DONE" state
+        def snapshot_op_in_progress():
+            op = self.get_snapshot_op(snapshot_op)
+            return 'status' in op and op['status'] in ['RUNNING', 'DONE']
+
+        def on_wait_for_snapshot_op():
+            logger.info("Waiting for snapshot op '%s' to enter 'RUNNING' or "
+                        "'DONE' state..." % snapshot_op['id'])
+
+        timeout = 600
+        wait_for(snapshot_op_in_progress, timeout=timeout,
+                 on_wait=on_wait_for_snapshot_op)
+
+        if not snapshot_op_in_progress():
+            # still?!
+            raise BlockStorageSnapshotError("Timed out waiting %s seconds for "
+                                            "snapshot '%s' to begin!" %
+                                            (timeout, snapshot_name))
+
+        return self.get_snapshot_op(snapshot_op)
 
     ###########################################################################
     def snapshot_exists(self, name):
