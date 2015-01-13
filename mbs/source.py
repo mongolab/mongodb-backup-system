@@ -1,6 +1,6 @@
 __author__ = 'abdul'
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from base import MBSObject
 from robustify.robustify import (
@@ -749,7 +749,9 @@ class BlobVolumeStorage(CloudBlockStorage):
 ###############################################################################
 class GcpDiskVolumeStorage(CloudBlockStorage):
 
-    _gce_service_connection = None
+    _gce_svc_cached_conn = None
+    _gce_svc_conn_expires_at = None
+    _gce_svc_conn_life_secs = 300
 
     ###########################################################################
     def __init__(self):
@@ -759,7 +761,6 @@ class GcpDiskVolumeStorage(CloudBlockStorage):
         self._zone = None
         self._volume_id = None
         self._volume_name = None
-        #self._gce_service_connection = None
 
     ###########################################################################
     def do_create_snapshot(self, name, description):
@@ -1085,9 +1086,9 @@ class GcpDiskVolumeStorage(CloudBlockStorage):
     @property
     @robustify(max_attempts=3)
     def gce_service_connection(self):
-        if not GcpDiskVolumeStorage._gce_service_connection:
-            logger.info("Creating connection to GCE service for "
-                        "volume '%s'" % self.volume_id)
+        if not GcpDiskVolumeStorage._gce_svc_cached_conn or \
+                self._gce_connection_is_expired():
+            logger.info("Creating connection to GCE service...")
 
             key = self.credentials.get_credential("privateKey")
             service_account_name = \
@@ -1100,10 +1101,20 @@ class GcpDiskVolumeStorage(CloudBlockStorage):
             http = credentials.authorize(http)
 
             # possible for this to error out... wrapping function in robustify
-            GcpDiskVolumeStorage._gce_service_connection = build(
+            GcpDiskVolumeStorage._gce_svc_cached_conn = build(
                 'compute', 'v1', http=http, requestBuilder=RobustHttpRequest)
 
-        return GcpDiskVolumeStorage._gce_service_connection
+            GcpDiskVolumeStorage._gce_svc_conn_expires_at = \
+                datetime.utcnow() + \
+                timedelta(seconds=GcpDiskVolumeStorage._gce_svc_conn_life_secs)
+
+        return GcpDiskVolumeStorage._gce_svc_cached_conn
+
+    ###########################################################################
+    @staticmethod
+    def _gce_connection_is_expired():
+        delta = GcpDiskVolumeStorage._gce_svc_conn_expires_at - datetime.utcnow()
+        return delta.total_seconds() <= 0
 
     ###########################################################################
     def suspend_io(self):
