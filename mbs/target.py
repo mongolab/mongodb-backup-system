@@ -584,17 +584,19 @@ class S3BucketTarget(BackupTarget):
 
     ###########################################################################
     def to_document(self, display_only=False):
-        ak = "xxxxx" if display_only else self.encrypted_access_key
-        sk = "xxxxx" if display_only else self.encrypted_secret_key
 
         doc = BackupTarget.to_document(self, display_only=display_only)
         doc.update({
             "_type": "S3BucketTarget",
-            "bucketName": self.bucket_name,
-            "encryptedAccessKey": ak,
-            "encryptedSecretKey": sk
+            "bucketName": self.bucket_name
         })
-
+        if not self.credentials:
+            ak = "xxxxx" if display_only else self.encrypted_access_key
+            sk = "xxxxx" if display_only else self.encrypted_secret_key
+            doc.update({
+                "encryptedAccessKey": ak,
+                "encryptedSecretKey": sk
+            })
         return doc
 
     ###########################################################################
@@ -846,14 +848,18 @@ class RackspaceCloudFilesTarget(BackupTarget):
 
         doc = BackupTarget.to_document(self, display_only=display_only)
 
-        eu = "xxxxx" if display_only else self.encrypted_username
-        eak = "xxxxx" if display_only else self.encrypted_api_key
         doc.update({
             "_type": "RackspaceCloudFilesTarget",
-            "containerName": self.container_name,
-            "encryptedUsername": eu,
-            "encryptedApiKey": eak
+            "containerName": self.container_name
         })
+
+        if not self.credentials:
+            eu = "xxxxx" if display_only else self.encrypted_username
+            eak = "xxxxx" if display_only else self.encrypted_api_key
+            doc.update({
+                "encryptedUsername": eu,
+                "encryptedApiKey": eak
+            })
 
         return doc
 
