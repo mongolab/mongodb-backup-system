@@ -749,8 +749,6 @@ class BlobVolumeStorage(CloudBlockStorage):
 ###############################################################################
 class GcpDiskVolumeStorage(CloudBlockStorage):
 
-    _gce_svc_cached_conn = None
-    _gce_svc_conn_expires_at = None
     _gce_svc_conn_life_secs = 300
 
     ###########################################################################
@@ -761,6 +759,9 @@ class GcpDiskVolumeStorage(CloudBlockStorage):
         self._zone = None
         self._volume_id = None
         self._volume_name = None
+
+        self._gce_svc_cached_conn = None
+        self._gce_svc_conn_expires_at = None
 
     ###########################################################################
     def do_create_snapshot(self, name, description):
@@ -1084,9 +1085,9 @@ class GcpDiskVolumeStorage(CloudBlockStorage):
 
     ###########################################################################
     @property
-    @robustify(max_attempts=3)
+    @robustify(max_attempts=3, backoff=2)
     def gce_service_connection(self):
-        if not GcpDiskVolumeStorage._gce_svc_cached_conn or \
+        if not self._gce_svc_cached_conn or \
                 self._gce_connection_is_expired():
             logger.info("Creating connection to GCE service...")
 
@@ -1101,19 +1102,17 @@ class GcpDiskVolumeStorage(CloudBlockStorage):
             http = credentials.authorize(http)
 
             # possible for this to error out... wrapping function in robustify
-            GcpDiskVolumeStorage._gce_svc_cached_conn = build(
+            self._gce_svc_cached_conn = build(
                 'compute', 'v1', http=http, requestBuilder=RobustHttpRequest)
 
-            GcpDiskVolumeStorage._gce_svc_conn_expires_at = \
-                datetime.utcnow() + \
+            self._gce_svc_conn_expires_at = datetime.utcnow() + \
                 timedelta(seconds=GcpDiskVolumeStorage._gce_svc_conn_life_secs)
 
-        return GcpDiskVolumeStorage._gce_svc_cached_conn
+        return self._gce_svc_cached_conn
 
     ###########################################################################
-    @staticmethod
-    def _gce_connection_is_expired():
-        delta = GcpDiskVolumeStorage._gce_svc_conn_expires_at - datetime.utcnow()
+    def _gce_connection_is_expired(self):
+        delta = self._gce_svc_conn_expires_at - datetime.utcnow()
         return delta.total_seconds() <= 0
 
     ###########################################################################
