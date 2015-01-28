@@ -358,7 +358,8 @@ class BackupSystem(Thread):
             self.reschedule_backup(backup)
 
     ###########################################################################
-    def reschedule_all_failed_backups(self, from_scratch=False):
+    def reschedule_all_failed_backups(self, from_scratch=False,
+                                      reset_try_count=False):
         self.info("Rescheduling all failed backups")
 
         q = {
@@ -367,12 +368,14 @@ class BackupSystem(Thread):
 
         for backup in get_mbs().backup_collection.find(q):
             try:
-                self.reschedule_backup(backup, from_scratch=from_scratch)
+                self.reschedule_backup(backup, from_scratch=from_scratch,
+                                       reset_try_count=reset_try_count)
             except Exception, e:
                 logger.error(e)
 
     ###########################################################################
-    def reschedule_backup(self, backup, from_scratch=False):
+    def reschedule_backup(self, backup, from_scratch=False,
+                          reset_try_count=False):
         """
             Reschedules the backup IF backup state is FAILED and
                         backup is still within it's plan current cycle
@@ -399,6 +402,9 @@ class BackupSystem(Thread):
             backup.engine_guid = None
             props.extend(["logs", "tryCount", "engineGuid"])
 
+        if reset_try_count or from_scratch:
+            backup.try_count = 0
+            props.append("tryCount")
         # regenerate backup tags if backup belongs to a plan
         if backup.plan and backup.plan.tags:
             backup.tags = backup.plan.tags.copy()

@@ -338,8 +338,8 @@ def delete_backup(parsed_args):
 def reschedule_backup(parsed_args):
     from_scratch = parsed_args.fromScratch
     backup = _get_backup(parsed_args.backupId)
-    _get_backup_system().reschedule_backup(backup, from_scratch=
-                                                     from_scratch)
+    _get_backup_system().reschedule_backup(backup, from_scratch=from_scratch,
+                                           reset_try_count=True)
 
 ###############################################################################
 def show_backup(parsed_args):
@@ -353,8 +353,8 @@ def show_backup(parsed_args):
 ###############################################################################
 def reschedule_all_backups(parsed_args):
     from_scratch = parsed_args.fromScratch
-    get_mbs().backup_system.reschedule_all_failed_backups(from_scratch=
-                                                           from_scratch)
+    get_mbs().backup_system.reschedule_all_failed_backups(from_scratch=from_scratch,
+                                                          reset_try_count=True)
 
 ###############################################################################
 def schedule_plan_backup(parsed_args):
