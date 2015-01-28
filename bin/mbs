@@ -420,6 +420,14 @@ def reschedule_restore(parsed_args):
     _get_backup_system().reschedule_restore(restore, from_scratch=from_scratch)
 
 ###############################################################################
+def encrypt(parsed_args):
+    print "'%s'" % get_mbs().encryptor.encrypt_string(parsed_args.str)
+
+###############################################################################
+def decrypt(parsed_args):
+    print "'%s'" % get_mbs().encryptor.decrypt_string(parsed_args.str)
+
+###############################################################################
 # Helpers
 ###############################################################################
 def _get_engine(engine_id=None):
@@ -926,6 +934,41 @@ PARSER_DEF = {
 
             ],
             "function": reschedule_restore
+        },
+
+
+        {
+            "prog": "encrypt",
+            "shortDescription": "Encrypts a string using mbs configured encryptor",
+            "description": "Encrypts a string using mbs configured encryptor",
+            "args": [
+                {
+                    "name": "str",
+                    "type": "positional",
+                    "nargs": 1,
+                    "displayName": "STR",
+                    "help": "String to encrypt"
+                }
+
+            ],
+            "function": encrypt
+        },
+
+        {
+            "prog": "decrypt",
+            "shortDescription": "Decrypts a string using mbs configured encryptor",
+            "description": "Decrypts a string using mbs configured encryptor",
+            "args": [
+                {
+                    "name": "str",
+                    "type": "positional",
+                    "nargs": 1,
+                    "displayName": "STR",
+                    "help": "String to decrypt"
+                }
+
+            ],
+            "function": decrypt
         },
     ]
 }
