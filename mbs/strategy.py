@@ -77,6 +77,12 @@ class MemberPreference(object):
 class BackupMode(object):
     ONLINE = "ONLINE"
     OFFLINE = "OFFLINE"
+###############################################################################
+class BackupEventNames(object):
+    FSYNCLOCK = "FSYNCLOCK"
+    FSYNCUNLOCK = "FSYNCUNLOCK"
+    SUSPEND_IO = "SUSPEND_IO"
+    RESUME_IO = "RESUME_IO"
 
 ###############################################################################
 # LOGGER
@@ -599,7 +605,7 @@ class BackupStrategy(MBSObject):
                    (mongo_connector,
                     mongo_connector.connection_id))
             logger.info(msg)
-            update_backup(backup, event_name="FSYNCLOCK", message=msg)
+            update_backup(backup, event_name=BackupEventNames.FSYNCLOCK, message=msg)
             mongo_connector.fsynclock()
             self._start_max_fsynclock_monitor(backup, mongo_connector)
         else:
@@ -613,7 +619,7 @@ class BackupStrategy(MBSObject):
                    (mongo_connector,
                     mongo_connector.connection_id))
             logger.info(msg)
-            update_backup(backup, event_name="FSYNCUNLOCK", message=msg)
+            update_backup(backup, event_name=BackupEventNames.FSYNCUNLOCK, message=msg)
             mongo_connector.fsyncunlock()
         else:
             raise ConfigurationError("Invalid fsyncunlock attempt. '%s' has to"
@@ -663,7 +669,7 @@ class BackupStrategy(MBSObject):
 
             msg = "Running suspend IO for '%s'..." % mongo_connector
             logger.info(msg)
-            update_backup(backup, event_name="SUSPEND_IO", message=msg)
+            update_backup(backup, event_name=BackupEventNames.SUSPEND_IO, message=msg)
             cloud_block_storage.suspend_io()
 
 
@@ -724,7 +730,7 @@ class BackupStrategy(MBSObject):
 
         try:
             msg = "Running resume io for '%s'" % mongo_connector
-            update_backup(backup, event_name="RESUME_IO", message=msg)
+            update_backup(backup, event_name=BackupEventNames.RESUME_IO, message=msg)
             cloud_block_storage.resume_io()
         except Exception, ex:
             msg = ("Resume IO Error for '%s'" % mongo_connector)
@@ -1672,7 +1678,10 @@ class CloudBlockStorageStrategy(BackupStrategy):
         :param cbs:
         :return:
         """
+        # ensure that the instance has is unlocked and resumed if it was a rescheduled one
+        self._ensure_unlocked_and_resumed(backup, mongo_connector, cbs)
 
+        # if there is an existing snapshot then delete it before creating the new one
         self._delete_existing_snapshot(backup, cbs)
 
         use_fysnclock = (self.backup_mode == BackupMode.ONLINE and
@@ -1802,6 +1811,24 @@ class CloudBlockStorageStrategy(BackupStrategy):
                         "Deleting it before creating new one" %
                         backup.id)
             cbs.delete_snapshot(backup.target_reference)
+
+
+    ###########################################################################
+    def _ensure_unlocked_and_resumed(self, backup, cbs, mongo_connector):
+
+        last_suspend = backup.get_last_event_entry(BackupEventNames.SUSPEND_IO)
+        last_resume = backup.get_last_event_entry(BackupEventNames.RESUME_IO)
+
+        if last_suspend and (not last_resume or last_suspend.date > last_resume.date):
+            logger.info("Detected io suspending for backup '%s'. Issuing an resume" % backup.id)
+            self._resume_io(backup, mongo_connector, cbs)
+
+        last_lock = backup.get_last_event_entry(BackupEventNames.FSYNCLOCK)
+        last_unlock = backup.get_last_event_entry(BackupEventNames.FSYNCUNLOCK)
+
+        if last_lock and (not last_unlock or last_lock.date >= last_unlock.date):
+            logger.info("Detected fsynclock for backup '%s'. Issuing an unlock" % backup.id)
+            self._fsyncunlock(backup, mongo_connector)
 
     ###########################################################################
     def _create_snapshot(self, backup, cbs):

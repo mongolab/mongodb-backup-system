@@ -251,6 +251,10 @@ class MBSTask(MBSObject):
         return filter(lambda entry: entry.event_type == event_type, self.logs)
 
     ###########################################################################
+    def _get_logs_by_event_name(self, event_name):
+        return filter(lambda entry: entry.name == event_name, self.logs)
+
+    ###########################################################################
     def is_event_logged(self, event_name):
         """
             Accepts an event name
@@ -264,6 +268,13 @@ class MBSTask(MBSObject):
     def event_logged_count(self, event_name):
         logs = filter(lambda entry: entry.name == event_name, self.logs)
         return len(logs)
+
+    ###########################################################################
+    def get_last_event_entry(self, event_name):
+        if self.logs:
+            event_logs = self._get_logs_by_event_name(event_name)
+            if event_logs:
+                return event_logs[-1]
 
     ###########################################################################
     def _get_state_set_date(self, state):
