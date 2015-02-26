@@ -494,9 +494,9 @@ class TaskQueueProcessor(Thread):
     def cancel_task(self, task):
         worker = self._get_task_worker(task)
         if worker:
+            self._cleanup_worker_resources(worker)
             # terminate the worker and all its children
             force_kill_process_and_children(worker.pid)
-
         self._clean_task(task)
 
     ###########################################################################
