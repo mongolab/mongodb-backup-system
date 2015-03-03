@@ -282,19 +282,24 @@ class CloudBlockStorage(MBSObject):
 
 
 ###############################################################################
-# EbsVolumeStorage
+# VolumeStorage
 ###############################################################################
-class EbsVolumeStorage(CloudBlockStorage):
-
+class VolumeStorage(CloudBlockStorage):
     ###########################################################################
     def __init__(self):
         CloudBlockStorage.__init__(self)
-        self._encrypted_access_key = None
-        self._encrypted_secret_key = None
+        self._cloud_id = None
         self._volume_id = None
         self._volume_name = None
-        self._region = None
-        self._ec2_connection = None
+
+    ###########################################################################
+    @property
+    def cloud_id(self):
+        return self._cloud_id
+
+    @cloud_id.setter
+    def cloud_id(self, val):
+        self._cloud_id = val
 
     ###########################################################################
     @property
@@ -313,6 +318,32 @@ class EbsVolumeStorage(CloudBlockStorage):
     @volume_name.setter
     def volume_name(self, val):
         self._volume_name = str(val)
+
+    ###########################################################################
+    def to_document(self, display_only=False):
+        doc = super(VolumeStorage, self).to_document(display_only=display_only)
+
+        doc.update({
+            "volumeId": self.volume_id,
+            "volumeName": self.volume_name,
+            "cloudId": self.cloud_id
+        })
+
+        return doc
+
+
+###############################################################################
+# EbsVolumeStorage
+###############################################################################
+class EbsVolumeStorage(VolumeStorage):
+
+    ###########################################################################
+    def __init__(self):
+        VolumeStorage.__init__(self)
+        self._encrypted_access_key = None
+        self._encrypted_secret_key = None
+        self._region = None
+        self._ec2_connection = None
 
     ###########################################################################
     def do_create_snapshot(self, name, description):
@@ -388,15 +419,6 @@ class EbsVolumeStorage(CloudBlockStorage):
                                     start_time=ebs_snapshot.start_time,
                                     volume_size=ebs_snapshot.volume_size,
                                     progress=ebs_snapshot.progress)
-
-    ###########################################################################
-    @property
-    def volume_id(self):
-        return self._volume_id
-
-    @volume_id.setter
-    def volume_id(self, volume_id):
-        self._volume_id = str(volume_id)
 
     ###########################################################################
     @property
@@ -526,8 +548,6 @@ class EbsVolumeStorage(CloudBlockStorage):
         sk = "xxxxx" if display_only else self.encrypted_secret_key
         doc.update({
             "_type": "EbsVolumeStorage",
-            "volumeId": self.volume_id,
-            "volumeName": self.volume_name,
             "region": self.region,
             "encryptedAccessKey": ak,
             "encryptedSecretKey": sk
@@ -539,15 +559,13 @@ class EbsVolumeStorage(CloudBlockStorage):
 ###############################################################################
 # BlobStorage
 ###############################################################################
-class BlobVolumeStorage(CloudBlockStorage):
+class BlobVolumeStorage(VolumeStorage):
 
     ###########################################################################
     def __init__(self):
-        CloudBlockStorage.__init__(self)
+        VolumeStorage.__init__(self)
         self._encrypted_access_key = None
         self._storage_account = None
-        self._volume_id = None
-        self._volume_name = None
         self._blob_service_connection = None
 
     ###########################################################################
@@ -636,24 +654,6 @@ class BlobVolumeStorage(CloudBlockStorage):
 
     ###########################################################################
     @property
-    def volume_id(self):
-        return self._volume_id
-
-    @volume_id.setter
-    def volume_id(self, volume_id):
-        self._volume_id = str(volume_id)
-
-    ###########################################################################
-    @property
-    def volume_name(self):
-        return self._volume_name
-
-    @volume_name.setter
-    def volume_name(self, val):
-        self._volume_name = str(val)
-
-    ###########################################################################
-    @property
     def storage_account(self):
         return self._storage_account
 
@@ -735,8 +735,6 @@ class BlobVolumeStorage(CloudBlockStorage):
 
         doc.update({
             "_type": "BlobVolumeStorage",
-            "volumeId": self.volume_id,
-            "volumeName": self.volume_name,
             "storageAccount": self.storage_account,
             "encryptedAccessKey": ak
         })
@@ -747,7 +745,7 @@ class BlobVolumeStorage(CloudBlockStorage):
 ###############################################################################
 # GcpDiskVolumeStorage
 ###############################################################################
-class GcpDiskVolumeStorage(CloudBlockStorage):
+class GcpDiskVolumeStorage(VolumeStorage):
 
     _gce_svc_conn_life_secs = 300
 
@@ -757,8 +755,6 @@ class GcpDiskVolumeStorage(CloudBlockStorage):
         self._encrypted_service_account_name = None
         self._encrypted_private_key = None
         self._zone = None
-        self._volume_id = None
-        self._volume_name = None
 
         self._gce_svc_cached_conn = None
         self._gce_svc_conn_expires_at = None
@@ -1012,24 +1008,6 @@ class GcpDiskVolumeStorage(CloudBlockStorage):
 
     ###########################################################################
     @property
-    def volume_id(self):
-        return self._volume_id
-
-    @volume_id.setter
-    def volume_id(self, volume_id):
-        self._volume_id = str(volume_id)
-
-    ###########################################################################
-    @property
-    def volume_name(self):
-        return self._volume_name
-
-    @volume_name.setter
-    def volume_name(self, val):
-        self._volume_name = str(val)
-
-    ###########################################################################
-    @property
     def private_key(self):
         if self.credentials:
             return self.credentials.get_credential("privateKey")
@@ -1140,8 +1118,6 @@ class GcpDiskVolumeStorage(CloudBlockStorage):
             self.encrypted_service_account_name
         doc.update({
             "_type": "GcpDiskVolumeStorage",
-            "volumeId": self.volume_id,
-            "volumeName": self.volume_name,
             # "projectId": self.project,
             "zone": self.zone,
             "serviceAccountName": serviceAccountName,
