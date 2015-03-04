@@ -751,7 +751,7 @@ class GcpDiskVolumeStorage(VolumeStorage):
 
     ###########################################################################
     def __init__(self):
-        CloudBlockStorage.__init__(self)
+        VolumeStorage.__init__(self)
         self._encrypted_service_account_name = None
         self._encrypted_private_key = None
         self._zone = None
