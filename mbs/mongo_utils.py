@@ -67,8 +67,9 @@ def mongo_connect(uri, conn_timeout=None, **kwargs):
 class MongoConnector(object):
 
     ###########################################################################
-    def __init__(self, uri, display_name=None, conn_timeout=None):
+    def __init__(self, uri, connector_id=None,display_name=None, conn_timeout=None):
         self._uri_wrapper = parse_mongo_uri(uri)
+        self._connector_id = connector_id
         self._conn_timeout = conn_timeout or CONN_TIMEOUT
         self._connection_id = None
         self._display_name = display_name
@@ -77,6 +78,11 @@ class MongoConnector(object):
     @property
     def uri(self):
         return self._uri_wrapper.raw_uri
+
+    ###########################################################################
+    @property
+    def connector_id(self):
+        return self._connector_id
 
     ###########################################################################
     @property
@@ -244,8 +250,9 @@ class MongoConnector(object):
 class MongoDatabase(MongoConnector):
 
     ###########################################################################
-    def __init__(self, uri, display_name=None, conn_timeout=None):
-        MongoConnector.__init__(self, uri, display_name=display_name,
+    def __init__(self, uri, connector_id=None, display_name=None, conn_timeout=None):
+        MongoConnector.__init__(self, uri, connector_id=connector_id,
+                                display_name=display_name,
                                 conn_timeout=conn_timeout)
         # validate that uri has a database
         if not self._uri_wrapper.database:
@@ -292,7 +299,7 @@ class MongoDatabase(MongoConnector):
 ###############################################################################
 class MongoCluster(MongoConnector):
     ###########################################################################
-    def __init__(self, uri, display_name=None, members=None,
+    def __init__(self, uri, connector_id=None, display_name=None, members=None,
                  conn_timeout=None):
         """
 
@@ -303,7 +310,8 @@ class MongoCluster(MongoConnector):
         :param conn_timeout:
         :return:
         """
-        MongoConnector.__init__(self, uri, display_name=display_name,
+        MongoConnector.__init__(self, uri, connector_id=connector_id,
+                                display_name=display_name,
                                 conn_timeout=conn_timeout)
         self._members = members
         self._primary_member = None
@@ -485,10 +493,12 @@ class MongoServer(MongoConnector):
 
     ###########################################################################
     def __init__(self, uri,
+                 connector_id=None,
                  display_name=None,
                  conn_timeout=None,
                  allow_local_connections=False):
-        MongoConnector.__init__(self, uri, display_name=display_name,
+        MongoConnector.__init__(self, uri, connector_id=connector_id,
+                                display_name=display_name,
                                 conn_timeout=conn_timeout)
         self._connection = None
         self._admin_db = None
@@ -836,8 +846,8 @@ class MongoServer(MongoConnector):
 class ShardedClusterConnector(MongoConnector):
     ###########################################################################
     def __init__(self, uri, routers, shards, config_servers,
-                 display_name=None):
-        super(ShardedClusterConnector, self).__init__(uri,
+                 connector_id=None, display_name=None):
+        super(ShardedClusterConnector, self).__init__(uri, connector_id=connector_id,
                                                       display_name=display_name)
 
         self._routers = routers

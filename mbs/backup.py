@@ -11,6 +11,7 @@ class Backup(MBSTask):
         MBSTask.__init__(self)
         self._name = None
         self._source = None
+        self._selected_sources = None
         self._source_stats = None
         self._target = None
         self._secondary_targets = None
@@ -54,6 +55,15 @@ class Backup(MBSTask):
     @source.setter
     def source(self, source):
         self._source = source
+
+    ###########################################################################
+    @property
+    def selected_sources(self):
+        return self._selected_sources
+
+    @selected_sources.setter
+    def selected_sources(self, val):
+        self._selected_sources = val
 
     ###########################################################################
     @property
@@ -212,6 +222,10 @@ class Backup(MBSTask):
             doc["secondaryTargetReferences"] = \
                 map(lambda tr: tr.to_document(display_only=display_only),
                     self.secondary_target_references)
+
+        if self._selected_sources:
+            doc["selectedSources"] = \
+                map(lambda s: s.to_document(display_only=display_only), self.selected_sources)
 
         if self.source_stats:
             doc["sourceStats"] = self.source_stats

@@ -145,6 +145,20 @@ class BackupSource(MBSObject):
         """
         return None
 
+    ###########################################################################
+    def get_connector(self):
+        """
+            must be implemented
+        """
+        raise Exception("get_connector() must be implemented")
+
+    ###########################################################################
+    def get_selected_sources(self, selected_connector):
+        """
+            must be implemented
+        """
+        raise Exception("get_selected_sources() must be implemented")
+
 ###############################################################################
 # MongoSource
 ###############################################################################
@@ -167,6 +181,13 @@ class MongoSource(BackupSource):
     ###########################################################################
     def get_connector(self):
         return build_mongo_connector(self.uri)
+
+    ###########################################################################
+    def get_selected_sources(self, selected_connector):
+        """
+            returns a single array of self!!!
+        """
+        return [self]
 
     ###########################################################################
     def to_document(self, display_only=False):

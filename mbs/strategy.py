@@ -261,6 +261,12 @@ class BackupStrategy(MBSObject):
 
         logger.info("Selected connector %s for backup '%s'" %
                     (connector.info(), backup.id))
+
+        # set the selected source
+        selected_sources = backup.source.get_selected_sources(connector)
+        backup.selected_sources = selected_sources
+        update_backup(backup, properties="selectedSources", event_name="SELECT_SOURCES",
+                      message="Selected backup sources" )
         return connector
 
     ###########################################################################
