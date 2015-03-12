@@ -291,6 +291,7 @@ class VolumeStorage(CloudBlockStorage):
         self._cloud_id = None
         self._volume_id = None
         self._volume_name = None
+        self._fs_type = None
 
     ###########################################################################
     @property
@@ -319,6 +320,16 @@ class VolumeStorage(CloudBlockStorage):
     def volume_name(self, val):
         self._volume_name = str(val)
 
+
+    ###########################################################################
+    @property
+    def fs_type(self):
+        return self._fs_type
+
+    @fs_type.setter
+    def fs_type(self, val):
+        self._fs_type = val
+
     ###########################################################################
     def to_document(self, display_only=False):
         doc = super(VolumeStorage, self).to_document(display_only=display_only)
@@ -326,7 +337,8 @@ class VolumeStorage(CloudBlockStorage):
         doc.update({
             "volumeId": self.volume_id,
             "volumeName": self.volume_name,
-            "cloudId": self.cloud_id
+            "cloudId": self.cloud_id,
+            "fsType": self.fs_type
         })
 
         return doc
