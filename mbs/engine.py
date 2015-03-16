@@ -171,6 +171,7 @@ class BackupEngine(Thread):
         self.info("Starting up... ")
         self.info("PID is %s" % os.getpid())
         self.info("TEMP DIR is '%s'" % self.temp_dir)
+        self.info("PATH is '%s'" % os.environ['PATH'])
         if self.get_resolved_tags():
             self.info("Tags are: %s" %
                       document_pretty_string(self.get_resolved_tags()))
