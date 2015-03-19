@@ -318,6 +318,7 @@ class S3BucketTarget(BackupTarget):
         self._bucket_name = None
         self._encrypted_access_key = None
         self._encrypted_secret_key = None
+        self._bucket = None
 
     ###########################################################################
     def do_put_file(self, file_path, destination_path, metadata=None):
@@ -462,15 +463,18 @@ class S3BucketTarget(BackupTarget):
 
     ###########################################################################
     def _get_bucket(self):
-        try:
-            conn = S3Connection(self.access_key, self.secret_key)
-            return conn.get_bucket(self.bucket_name)
-        except S3ResponseError, re:
-            if "404" in str(re) or "403" in str(re):
-                raise TargetInaccessibleError(self.bucket_name,
-                                              cause=re)
-            else:
-                raise
+        if not self._bucket:
+            try:
+                conn = S3Connection(self.access_key, self.secret_key)
+                self._bucket = conn.get_bucket(self.bucket_name)
+            except S3ResponseError, re:
+                if "404" in str(re) or "403" in str(re):
+                    raise TargetInaccessibleError(self.bucket_name,
+                                                  cause=re)
+                else:
+                    raise
+        return self._bucket
+
     ###########################################################################
     def _get_file_ref_key(self, file_reference):
         file_path = file_reference.file_path
