@@ -444,6 +444,9 @@ class EbsVolumeStorage(VolumeStorage):
             if new_ebs_ref != ebs_ref:
                 return new_ebs_ref
 
+        else:
+            raise BlockStorageSnapshotError("Snapshot %s does not exist!" % ebs_ref.snapshot_id)
+
     ###########################################################################
     def _new_ebs_snapshot_reference(self, ebs_snapshot):
         return EbsSnapshotReference(snapshot_id=ebs_snapshot.id,
