@@ -531,7 +531,8 @@ class MongoServer(MongoConnector):
             connection = pymongo.Connection(
                 self.connection_address,
                 socketTimeoutMS=conn_timeout_mills,
-                connectTimeoutMS=conn_timeout_mills)
+                connectTimeoutMS=conn_timeout_mills,
+                slaveOk=True)
 
             self._admin_db = connection["admin"]
             return self._admin_db
