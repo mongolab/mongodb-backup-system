@@ -26,7 +26,7 @@ from source import CompositeBlockStorage
 
 from target import (
     SnapshotStatus, multi_target_upload_file,
-    EbsSnapshotReference, LVMSnapshotReference
+    EbsSnapshotReference, CompositeBlockStorageSnapshotReference
 )
 
 
@@ -2292,7 +2292,7 @@ def share_snapshot_backup(backup, user_ids=None, groups=None):
     logger.info(msg)
 
     target_ref = backup.target_reference
-    if isinstance(target_ref, LVMSnapshotReference):
+    if isinstance(target_ref, CompositeBlockStorageSnapshotReference):
         logger.info("Sharing All constituent snapshots for LVM backup"
                     " '%s'..." % backup.id)
         for cs in target_ref.constituent_snapshots:
