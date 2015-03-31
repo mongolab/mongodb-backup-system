@@ -347,6 +347,9 @@ class BackupStrategy(MBSObject):
 
     ###########################################################################
     def get_mongo_connector_used_by(self, backup):
+        if backup.selected_sources and len(backup.selected_sources) == 1:
+            return backup.selected_sources[0].get_connector()
+
         uri_wrapper = mongo_uri_tools.parse_mongo_uri(backup.source.uri)
         if backup.source_stats:
             if backup.source_stats.get("repl"):
