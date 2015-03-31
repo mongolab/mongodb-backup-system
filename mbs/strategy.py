@@ -1738,9 +1738,7 @@ class CloudBlockStorageStrategy(BackupStrategy):
             self._create_snapshot(backup, cbs)
 
             # wait until snapshot is pending or completed or error
-            wait_status = [SnapshotStatus.PENDING, SnapshotStatus.COMPLETED,
-                           SnapshotStatus.ERROR]
-            self._wait_for_snapshot_status(backup, cbs, wait_status)
+            self._wait_for_pending_status(backup, cbs)
 
             # resume io/unlock
 
@@ -1887,6 +1885,13 @@ class CloudBlockStorageStrategy(BackupStrategy):
         update_backup(backup, properties="targetReference",
                       event_name="END_CREATE_SNAPSHOT",
                       message=msg)
+    ###########################################################################
+    def _wait_for_pending_status(self, backup, cbs):
+
+        # wait until snapshot is pending or completed or error
+        wait_status = [SnapshotStatus.PENDING, SnapshotStatus.COMPLETED,
+                       SnapshotStatus.ERROR]
+        self._wait_for_snapshot_status(backup, cbs, wait_status)
 
     ###########################################################################
     def _wait_for_snapshot_status(self, backup, cbs, wait_status,
@@ -2235,28 +2240,25 @@ class EbsVolumeStorageStrategy(CloudBlockStorageStrategy):
         self._share_groups = None
 
     ###########################################################################
-    def _snapshot_backup(self, backup, mongo_connector):
+    def _kickoff_snapshot(self, backup, mongo_connector, cbs):
         """
             Override!
         """
         # call super method
         suber = super(EbsVolumeStorageStrategy, self)
-        suber._snapshot_backup(backup, mongo_connector)
-
-        self._apply_snapshot_shares(backup)
-
-    ###########################################################################
-    def _apply_snapshot_shares(self, backup):
-        logger.info("Checking if snapshot backup '%s' is configured to be "
-                    "shared" % backup.id)
-        is_sharing = self.share_users or self.share_groups
-
-        if is_sharing:
-            share_snapshot_backup(backup, user_ids=self.share_users,
-                                  groups=self.share_groups)
-        else:
-            logger.info("Snapshot backup '%s' not configured to be "
+        suber._kickoff_snapshot(backup, mongo_connector, cbs)
+        snapshot_ref = backup.target_reference
+        if snapshot_ref.status in [SnapshotStatus.PENDING, SnapshotStatus.COMPLETED]:
+            logger.info("Checking if snapshot backup '%s' is configured to be "
                         "shared" % backup.id)
+            is_sharing = self.share_users or self.share_groups
+
+            if is_sharing:
+                share_snapshot_backup(backup, user_ids=self.share_users,
+                                      groups=self.share_groups)
+            else:
+                logger.info("Snapshot backup '%s' not configured to be "
+                            "shared" % backup.id)
 
     ###########################################################################
     @property
@@ -2296,7 +2298,7 @@ def share_snapshot_backup(backup, user_ids=None, groups=None):
 
     target_ref = backup.target_reference
     if isinstance(target_ref, CompositeBlockStorageSnapshotReference):
-        logger.info("Sharing All constituent snapshots for LVM backup"
+        logger.info("Sharing All constituent snapshots for composite backup"
                     " '%s'..." % backup.id)
         for cs in target_ref.constituent_snapshots:
             cs.share_snapshot(user_ids=user_ids, groups=groups)
@@ -2304,7 +2306,7 @@ def share_snapshot_backup(backup, user_ids=None, groups=None):
         target_ref.share_snapshot(user_ids=user_ids,
                                   groups=groups)
     else:
-        raise ValueError("Cannot share a non EBS/LVM Backup '%s'" % backup.id)
+        raise ValueError("Cannot share a non EBS/Composite Backup '%s'" % backup.id)
 
     update_backup(backup, properties="targetReference",
                   event_name="SHARE_SNAPSHOT",
