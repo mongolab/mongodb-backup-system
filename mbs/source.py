@@ -1238,7 +1238,7 @@ class CompositeBlockStorage(CloudBlockStorage):
     ###########################################################################
     def do_create_snapshot(self, name_template, description_template):
         """
-            Creates a LVMSnapshotReference composed of all
+            Creates a CompositeBlockStorageSnapshotReference composed of all
             constituent snapshots
         """
         logger.info("Creating Composite Snapshot name='%s', description='%s' "
