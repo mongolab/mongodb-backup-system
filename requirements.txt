@@ -13,9 +13,9 @@ python-dateutil==1.5
 verlib==0.1
 httplib2>=0.9
 psutil==1.2.1
-mongoctl>=0.7.6
+mongoctl>=0.7.8
 robustify>=0.1.0
-makerpy>=0.1.7
+makerpy>=0.1.8
 google-api-python-client==1.2
 sendgrid==0.1.3
 mbs_client>=0.2.4
