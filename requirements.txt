@@ -15,16 +15,16 @@ httplib2>=0.9
 psutil==1.2.1
 mongoctl>=0.7.8
 robustify>=0.1.0
-makerpy>=0.1.8
+makerpy>=0.1.9
 google-api-python-client==1.2
 sendgrid==0.1.3
 mbs_client>=0.2.4
 
 https://github.com/objectlabs/robustify/archive/0.1.0.zip#egg=robustify-0.1.0
-https://github.com/objectlabs/maker-py/archive/0.1.8.zip#egg=makerpy-0.1.8
+https://github.com/objectlabs/maker-py/archive/0.1.8.zip#egg=makerpy-0.1.9
 https://github.com/mongolab/mongoctl/archive/0.7.8.zip#egg=mongoctl-0.7.8
 https://github.com/abdulito/splitfile/archive/master.zip#egg=splitfile-0.1.1
-https://github.com/mongolab/mongodb-backup-system-client/archive/0.2.5.zip#egg=mbs_client-0.2.5
+https://github.com/mongolab/mongodb-backup-system-client/archive/0.2.6.zip#egg=mbs_client-0.2.6
 https://github.com/mongolab/azure-sdk-for-python/archive/0.8.4.1.zip#egg=azure-0.8.4.1
 
 https://github.com/rmiyashiro/waitress/archive/master.zip#egg=rmiyashirowaitress-0.8.8
