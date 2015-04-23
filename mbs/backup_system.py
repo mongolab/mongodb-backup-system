@@ -36,6 +36,7 @@ from target import BackupTarget
 from source import BackupSource
 from datetime import datetime
 
+from generator import PlanGenerationRunner
 import persistence
 
 
@@ -90,6 +91,7 @@ class BackupSystem(Thread):
         self._global_auditor = None
         self._audit_schedule = None
         self._audit_next_occurrence = None
+        self._plan_generation_runner = PlanGenerationRunner(self)
 
     ###########################################################################
     @property
@@ -188,6 +190,9 @@ class BackupSystem(Thread):
         # Start expiration managers
         self._start_expiration_managers()
 
+        # Start plan generation runner
+        self._plan_generation_runner.start()
+
         while not self._stop_requested:
             try:
                 self._tick()
@@ -199,6 +204,7 @@ class BackupSystem(Thread):
                 time.sleep(self._sleep_time)
 
         self._stop_expiration_managers()
+        self._plan_generation_runner.stop()
         self._stopped = True
 
     ###########################################################################
@@ -214,10 +220,6 @@ class BackupSystem(Thread):
             self._notify_on_past_due_scheduled_backups()
             self._cancel_past_cycle_backups()
             self._reschedule_in_cycle_failed_backups()
-
-        # run those things every 200 ticks
-        if self._tick_count % 200 == 0:
-            self._run_plan_generators()
 
     ###########################################################################
     def _process_plans_considered_now(self, process_max_count=None):
@@ -742,25 +744,6 @@ class BackupSystem(Thread):
     def _audit_date_for_today(self):
         if self._audit_schedule:
             return time_str_to_datetime_today(self._audit_schedule)
-
-    ###########################################################################
-    # plan generators methods
-    ###########################################################################
-    def _run_plan_generators(self):
-        self.info("Running ALL plan generators")
-        for generator in self.plan_generators:
-                self._run_generator(generator)
-
-    ###########################################################################
-    def _run_generator(self, generator):
-        self.info("Running plan generator '%s' " % generator.name)
-        # remove expired plans
-        for plan in generator.get_plans_to_remove():
-            self.remove_plan(plan.id)
-
-        # save new plans
-        for plan in generator.get_plans_to_save():
-            self.save_plan(plan)
 
     ###########################################################################
     def _notify_on_past_due_scheduled_backups(self):
