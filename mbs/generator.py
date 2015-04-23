@@ -45,20 +45,29 @@ class PlanGenerationRunner(ScheduleRunner):
 
     ####################################################################################################################
     def tick(self):
-        self._run_plan_generators()
-
-    def _run_plan_generators(self):
-        logger.info("Running ALL plan generators")
-        for generator in self._backup_system.plan_generators:
-            self._run_generator(generator)
+        self.run_plan_generators()
 
     ####################################################################################################################
-    def _run_generator(self, generator):
+    def run_plan_generators(self, dry_run=False):
+        logger.info("Running ALL plan generators")
+        if dry_run:
+            logger.info("----- DRY RUN ------")
+        for generator in self._backup_system.plan_generators:
+            self._run_generator(generator, dry_run=dry_run)
+
+    ####################################################################################################################
+    def _run_generator(self, generator, dry_run=False):
         logger.info("Running plan generator '%s' " % generator.name)
         # remove expired plans
         for plan in generator.get_plans_to_remove():
-            self._backup_system.remove_plan(plan.id)
+            if not dry_run:
+                self._backup_system.remove_plan(plan.id)
+            else:
+                logger.info("DRY RUN: remove plan '%s' " % plan.id)
 
         # save new plans
         for plan in generator.get_plans_to_save():
-            self._backup_system.save_plan(plan)
+            if not dry_run:
+                self._backup_system.save_plan(plan)
+            else:
+                logger.info("DRY RUN: save plan: %s" % plan)

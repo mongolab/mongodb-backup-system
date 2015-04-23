@@ -283,7 +283,7 @@ def status_backup_system(parsed_args):
 
 ###############################################################################
 def run_plan_generators(parsed_args):
-    _get_backup_system()._plan_generation_runner._run_plan_generators()
+    _get_backup_system()._plan_generation_runner.run_plan_generators(dry_run=parsed_args.dryRun)
 
 
 ###############################################################################
@@ -690,9 +690,19 @@ PARSER_DEF = {
         #### run-plan-generators ####
             {
             "prog": "run-plan-generators",
-            "shortDescription" : "Runs plans generators",
-            "description" : "Runs plans generators",
-            "function": run_plan_generators
+            "shortDescription": "Runs plans generators",
+            "description": "Runs plans generators",
+            "function": run_plan_generators,
+            "args": [
+                {
+                    "name": "dryRun",
+                    "type": "optional",
+                    "cmd_arg":  ["-n", "--dry-run"],
+                    "nargs": 0,
+                    "help": "dry run",
+                    "default": False
+                }
+            ]
         },
             {
             "prog": "generate-audit-reports",
