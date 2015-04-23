@@ -279,7 +279,7 @@ def status_backup_system(parsed_args):
 
 ###############################################################################
 def run_plan_generators(parsed_args):
-    _get_backup_system()._run_plan_generators()
+    _get_backup_system()._plan_generation_runner._run_plan_generators()
 
 
 ###############################################################################
