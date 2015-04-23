@@ -285,6 +285,7 @@ class BackupStrategy(MBSObject):
                 logger.info("allowOfflineBackups is set to true so its all "
                             "good")
                 self._set_backup_mode(backup, BackupMode.OFFLINE)
+                return
             elif self.backup_mode == BackupMode.ONLINE:
                 msg = "Selected connector '%s' is offline" % connector
                 raise NoEligibleMembersFound(backup.source.uri, msg=msg)
