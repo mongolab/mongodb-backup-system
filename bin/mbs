@@ -36,15 +36,19 @@ def main(args):
 
     # Parse the arguments and call the function of the selected cmd
     parsed_args = parser.parse_args(args)
-
+    command_function = parsed_args.func
     mbs_config.MBS_CONF_DIR = resolve_path(parsed_args.config_root)
 
-    log_to_stdout = getattr(parsed_args, "foreground", True)
+    if command_function in [start_engine, start_backup_system]:
+        log_to_stdout = getattr(parsed_args, "foreground", True)
+    else:
+        log_to_stdout = True
+
     setup_logging(log_to_stdout=log_to_stdout,
                   log_file_name=_get_log_file_name(parsed_args))
 
     # get the function to call from the parser framework
-    command_function = parsed_args.func
+
 
     return command_function(parsed_args)
 
