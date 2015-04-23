@@ -93,3 +93,19 @@ def time_str_to_datetime_today(str):
     time =  datetime.strptime(str, "%H:%M")
     today = today_date()
     return today.replace(hour=time.hour, minute=time.minute)
+
+def time_string(time_seconds):
+    days, remainder = divmod(time_seconds, 3600 * 24)
+    hours, remainder = divmod(remainder, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    result = []
+    if days:
+        result.append("%d day(s)" % days)
+    if days or hours:
+        result.append("%d hour(s)" % hours)
+    if days or hours or minutes:
+        result.append("%d minute(s)" % minutes)
+
+    result.append("%d second(s)" % seconds)
+
+    return " ".join(result)
