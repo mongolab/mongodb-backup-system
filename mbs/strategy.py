@@ -119,6 +119,8 @@ class BackupStrategy(MBSObject):
 
         self._max_lag_seconds = None
 
+        self._backup_assistant = None
+
     ###########################################################################
     def _init_strategy(self, backup):
 
@@ -227,13 +229,24 @@ class BackupStrategy(MBSObject):
         self._backup_mode = val
 
     ###########################################################################
+    @property
+    def backup_assistant(self):
+        if not self._backup_assistant:
+            self._backup_assistant = get_mbs().default_backup_assistant
+        return self._backup_assistant
+
+    @backup_assistant.setter
+    def backup_assistant(self, val):
+        self._backup_assistant = val
+
+    ###########################################################################
     def is_use_suspend_io(self):
         return False
 
     ###########################################################################
     def run_backup(self, backup):
         self._init_strategy(backup)
-
+        self.backup_assistant.create_task_workspace(backup)
         try:
             self._do_run_backup(backup)
         except Exception, e:
@@ -539,15 +552,7 @@ class BackupStrategy(MBSObject):
         logger.info("Cleanup: deleting workspace dir %s" % workspace)
         update_backup(backup, event_name="CLEANUP", message="Running cleanup")
 
-        try:
-
-            if os.path.exists(workspace):
-                shutil.rmtree(workspace)
-            else:
-                logger.error("workspace dir %s does not exist!" % workspace)
-        except Exception, e:
-            logger.exception("Cleanup error for task '%s': %s" % (backup.id,
-                                                                  e))
+        self.backup_assistant.delete_task_workspace(backup)
 
     ###########################################################################
     def run_restore(self, restore):
@@ -575,14 +580,7 @@ class BackupStrategy(MBSObject):
         update_restore(restore, event_name="CLEANUP",
                        message="Running cleanup")
 
-        try:
-
-            if os.path.exists(workspace):
-                shutil.rmtree(workspace)
-            else:
-                logger.error("workspace dir %s does not exist!" % workspace)
-        except Exception, e:
-            logger.error("Cleanup error for task '%s': %s" % (restore.id, e))
+        self.backup_assistant.delete_task_workspace(restore)
 
     ###########################################################################
     def _compute_restore_destination_stats(self, restore):
@@ -1020,22 +1018,16 @@ class DumpStrategy(BackupStrategy):
         }
 
         # Upload to all targets simultaneously
-        target_uploaders = multi_target_upload_file(all_targets,
-                                                    tar_file_path,
-                                                    destination_path=
-                                                    upload_dest_path,
-                                                    overwrite_existing=True,
-                                                    metadata=metadata)
+        target_references = self.backup_assistant.multi_upload_file(all_targets,
+                                                                    tar_file_path,
+                                                                    destination_path=upload_dest_path,
+                                                                    overwrite_existing=True,
+                                                                    metadata=metadata)
 
-        # check for errors
-        errored_uploaders = filter(lambda uploader: uploader.error is not None,
-                                 target_uploaders)
 
-        if errored_uploaders:
-            raise errored_uploaders[0].error
 
         # set the target reference
-        target_reference = target_uploaders[0].target_reference
+        target_reference = target_references[0]
 
         # keep old target reference if it exists to delete it because it would
         # be the failed file reference
@@ -1044,11 +1036,7 @@ class DumpStrategy(BackupStrategy):
 
         # set the secondary target references
         if backup.secondary_targets:
-            secondary_target_references = \
-                map(lambda uploader: uploader.target_reference,
-                    target_uploaders[1:])
-
-            backup.secondary_target_references = secondary_target_references
+            backup.secondary_target_references = target_references[1:]
 
         update_backup(backup, properties=["targetReference",
                                           "secondaryTargetReferences"],
@@ -1071,10 +1059,9 @@ class DumpStrategy(BackupStrategy):
         update_backup(backup, event_name="START_UPLOAD_LOG_FILE",
                       message="Upload log file to target")
         log_dest_path = _upload_log_file_dest(backup)
-        log_target_reference = backup.target.put_file(log_file_path,
-                                                      destination_path=
-                                                        log_dest_path,
-                                                      overwrite_existing=True)
+        log_target_reference = self.backup_assistant.upload_file(log_file_path, backup.target,
+                                                                 destination_path=log_dest_path,
+                                                                 overwrite_existing=True)
 
         backup.log_target_reference = log_target_reference
 
@@ -1189,26 +1176,15 @@ class DumpStrategy(BackupStrategy):
             uri_wrapper.masked_uri
         logger.info("Running dump command: %s" % " ".join(dump_cmd_display))
 
-        ensure_dir(dest)
+        self.backup_assistant.ensure_dir(dest)
         dump_log_path = self._get_dump_log_path(backup)
-        def on_dump_output(line):
-            if "ERROR:" in line:
-                msg = "Caught a dump error: %s" % line
-                update_backup(backup, event_type=EventType.WARNING,
-                    event_name="DUMP_ERROR", message=msg)
-
 
         # execute dump command
-        log_filter_func = get_mbs().dump_line_filter_function
-        returncode = execute_command_wrapper(dump_cmd,
-                                             output_path=dump_log_path,
-                                             on_output=on_dump_output,
-                                             output_line_filter=log_filter_func
-                                            )
+        returncode = self.backup_assistant.dump_command(dump_cmd, dump_log_path)
 
         # read the last dump log line
-        last_line_tail_cmd = [which('tail'), '-1', dump_log_path]
-        last_dump_line = execute_command(last_line_tail_cmd)
+
+        last_dump_line = self.backup_assistant.tail_command(dump_log_path, 1)
 
         # raise an error if return code is not 0
         if returncode:
@@ -1252,24 +1228,7 @@ class DumpStrategy(BackupStrategy):
     ###########################################################################
     def _execute_tar_command(self, path, filename):
 
-        tar_exe = which("tar")
-        working_dir = os.path.dirname(path)
-        target_dirname = os.path.basename(path)
-
-        tar_cmd = [tar_exe, "-cvzf", filename, target_dirname]
-        cmd_display = " ".join(tar_cmd)
-
-        try:
-            logger.info("Running tar command: %s" % cmd_display)
-            execute_command(tar_cmd, cwd=working_dir)
-
-        except CalledProcessError, e:
-            if "No space left on device" in e.output:
-                error_type = NoSpaceLeftError
-            else:
-                error_type = ArchiveError
-
-            raise error_type(cmd_display, e.returncode, e.output, e)
+        self.backup_assistant.tar_gzip_command(path, filename)
 
     ###########################################################################
     def _needs_new_member_selection(self, backup):
