@@ -1073,8 +1073,18 @@ def _calculate_database_stats(db):
            do_on_exception=raise_if_not_retriable,
            do_on_failure=raise_exception)
 def _calculate_connection_databases_stats(connection):
+    """
+
+    :param connection:
+    :return: dict with following structure
+        { [sum of all database stats except for local],
+          "databaseStats": {dbname : stats} , except local
+          localDatabaseStats: stats for local db
+        }
+    """
 
     all_db_stats = {}
+    local_db_stats = None
 
     total_stats = {
         "collections": 0,
@@ -1090,16 +1100,18 @@ def _calculate_connection_databases_stats(connection):
     database_names = connection.database_names()
 
     for dbname in database_names:
-        if dbname == "local":
-            continue
-
         db = connection[dbname]
         db_stats = _calculate_database_stats(db)
-        all_db_stats[dbname] = db_stats
-        for key in total_stats.keys():
-            total_stats[key] += db_stats.get(key) or 0
+        # capture local database stats
+        if dbname == "local":
+            local_db_stats = db_stats
+        else:
+            all_db_stats[dbname] = db_stats
+            for key in total_stats.keys():
+                total_stats[key] += db_stats.get(key) or 0
 
     total_stats["databaseStats"] = all_db_stats
+    total_stats["localDatabaseStats"] = local_db_stats
     return total_stats
 
 
