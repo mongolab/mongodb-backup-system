@@ -1012,9 +1012,11 @@ class TargetReference(MBSObject):
     """
     ###########################################################################
     def __init__(self, preserve=None):
-        self._file_size = None
+        super(TargetReference, self).__init__()
+        
         self._preserve = preserve
         self._deleted_date = None
+        self._source_was_locked = None
 
     ###########################################################################
     @property
@@ -1039,14 +1041,18 @@ class TargetReference(MBSObject):
     def deleted(self):
         return self.deleted_date is not None
 
+
     ###########################################################################
     @property
-    def file_size(self):
-        return self._file_size
+    def source_was_locked(self):
+        """
+            Set to true if the backup source was locked during backup
+        """
+        return self._source_was_locked
 
-    @file_size.setter
-    def file_size(self, file_size):
-        self._file_size = file_size
+    @source_was_locked.setter
+    def source_was_locked(self, val):
+        self._source_was_locked = val
 
     ###########################################################################
     def to_document(self, display_only=False):
@@ -1059,6 +1065,9 @@ class TargetReference(MBSObject):
 
         if self.deleted_date:
             doc["deletedDate"] = self.deleted_date
+
+        if self.source_was_locked is not None:
+            doc["sourceWasLocked"] = self.source_was_locked
 
         return doc
 
@@ -1074,8 +1083,8 @@ class FileReference(TargetReference):
     ###########################################################################
     def __init__(self, file_path=None, file_size=None, preserve=None):
         TargetReference.__init__(self, preserve=preserve)
-        self.file_path = file_path
-        self.file_size = file_size
+        self._file_path = file_path
+        self._file_size = file_size
 
     ###########################################################################
     @property
@@ -1085,6 +1094,15 @@ class FileReference(TargetReference):
     @file_path.setter
     def file_path(self, file_path):
         self._file_path = file_path
+
+    ###########################################################################
+    @property
+    def file_size(self):
+        return self._file_size
+
+    @file_size.setter
+    def file_size(self, file_size):
+        self._file_size = file_size
 
     ###########################################################################
     @property
@@ -1140,11 +1158,13 @@ class CloudBlockStorageSnapshotReference(TargetReference):
 
     ###########################################################################
     def to_document(self, display_only=False):
-        return {
-            "cloudBlockStorage":
-                self.cloud_block_storage.to_document(display_only=display_only),
+        doc = super(CloudBlockStorageSnapshotReference, self).to_document(display_only=display_only)
+        doc.update({
+            "cloudBlockStorage": self.cloud_block_storage.to_document(display_only=display_only),
             "status": self.status
-        }
+        })
+
+        return doc
 
 
 ###############################################################################

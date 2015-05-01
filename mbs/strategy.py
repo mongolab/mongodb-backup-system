@@ -20,7 +20,7 @@ from date_utils import timedelta_total_seconds, date_now
 from subprocess import CalledProcessError
 from errors import *
 from utils import (which, ensure_dir, execute_command, execute_command_wrapper,
-                   listify, list_dir_subdirs)
+                   listify, list_dir_subdirs, document_pretty_string)
 
 from source import CompositeBlockStorage
 
@@ -80,7 +80,9 @@ class BackupMode(object):
 ###############################################################################
 class BackupEventNames(object):
     FSYNCLOCK = "FSYNCLOCK"
+    FSYNCLOCK_END = "FSYNCLOCK_END"
     FSYNCUNLOCK = "FSYNCUNLOCK"
+    FSYNCUNLOCK_END = "FSYNCUNLOCK_END"
     SUSPEND_IO = "SUSPEND_IO"
     RESUME_IO = "RESUME_IO"
 
@@ -617,6 +619,7 @@ class BackupStrategy(MBSObject):
             logger.info(msg)
             update_backup(backup, event_name=BackupEventNames.FSYNCLOCK, message=msg)
             mongo_connector.fsynclock()
+            update_backup(backup, event_name=BackupEventNames.FSYNCLOCK_END, message="fsynclock done!")
             self._start_max_fsynclock_monitor(backup, mongo_connector)
         else:
             raise ConfigurationError("Invalid fsynclock attempt. '%s' has to"
@@ -631,6 +634,7 @@ class BackupStrategy(MBSObject):
             logger.info(msg)
             update_backup(backup, event_name=BackupEventNames.FSYNCUNLOCK, message=msg)
             mongo_connector.fsyncunlock()
+            update_backup(backup, event_name=BackupEventNames.FSYNCUNLOCK_END, message="fsyncunlock done!")
         else:
             raise ConfigurationError("Invalid fsyncunlock attempt. '%s' has to"
                                      " be a MongoServer" % mongo_connector)
@@ -1857,6 +1861,10 @@ class CloudBlockStorageStrategy(BackupStrategy):
                       message="Creating snapshot")
 
         snapshot_ref = cbs.create_snapshot(backup.name, backup.description)
+
+        # set sourceWasLocked field
+        snapshot_ref.source_was_locked = backup.is_event_logged(BackupEventNames.FSYNCLOCK_END)
+
         backup.target_reference = snapshot_ref
 
         update_backup(backup, properties="targetReference",
@@ -1876,7 +1884,13 @@ class CloudBlockStorageStrategy(BackupStrategy):
         desc_template = (self.constituent_description_scheme or
                          backup.description)
         snapshot_ref = cbs.create_snapshot(name_template, desc_template)
+
+        # set sourceWasLocked field
+        snapshot_ref.source_was_locked = backup.is_event_logged(BackupEventNames.FSYNCLOCK_END)
+
         backup.target_reference = snapshot_ref
+
+
 
         msg = ("Composite snapshot created successfully "
                "(composed of %s snapshots)" % count)
@@ -1912,8 +1926,8 @@ class CloudBlockStorageStrategy(BackupStrategy):
             if new_snapshot_ref:
                 logger.info("Detected updates for backup '%s' snapshot " %
                             backup.id)
-                logger.info("Old: \n%s\nNew:\n%s" % (snapshot_ref,
-                                                     new_snapshot_ref))
+                diff = snapshot_ref.diff(new_snapshot_ref)
+                logger.info("Diff: \n%s" % document_pretty_string(diff))
                 snapshot_ref = new_snapshot_ref
                 backup.target_reference = snapshot_ref
                 update_backup(backup, properties="targetReference")

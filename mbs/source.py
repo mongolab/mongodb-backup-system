@@ -440,7 +440,7 @@ class EbsVolumeStorage(VolumeStorage):
         # NOTE check if the above call returns a snapshot object because boto
         # returns None although the snapshot exists (AWS api freakiness ?)
         if ebs_snapshot:
-            new_ebs_ref = self._new_ebs_snapshot_reference(ebs_snapshot)
+            new_ebs_ref = self.new_ebs_snapshot_reference_from_existing(ebs_ref, ebs_snapshot)
             if new_ebs_ref != ebs_ref:
                 return new_ebs_ref
 
@@ -455,6 +455,15 @@ class EbsVolumeStorage(VolumeStorage):
                                     start_time=ebs_snapshot.start_time,
                                     volume_size=ebs_snapshot.volume_size,
                                     progress=ebs_snapshot.progress)
+
+    ###########################################################################
+    def new_ebs_snapshot_reference_from_existing(self, ebs_ref, ebs_snapshot):
+        new_ebs_ref = ebs_ref.clone()
+        new_ebs_ref.status = ebs_snapshot.status
+        new_ebs_ref.start_time = ebs_snapshot.start_time
+        new_ebs_ref.volume_size = ebs_snapshot.volume_size
+        new_ebs_ref.progress = ebs_snapshot.progress
+        return new_ebs_ref
 
     ###########################################################################
     @property
@@ -968,8 +977,7 @@ class GcpDiskVolumeStorage(VolumeStorage):
                                             (self, snapshot_op))
 
         if disk_snapshot and snapshot_op:
-            new_snapshot_ref = self._new_disk_snapshot_reference(disk_snapshot,
-                                                             snapshot_op)
+            new_snapshot_ref = self.new_disk_snapshot_reference_from_existing(snapshot_ref, disk_snapshot, snapshot_op)
             if new_snapshot_ref != snapshot_ref:
                 return new_snapshot_ref
 
@@ -1024,14 +1032,24 @@ class GcpDiskVolumeStorage(VolumeStorage):
             progress = None
 
         return GcpDiskSnapshotReference(snapshot_id=disk_snapshot['name'],
-                                     cloud_block_storage=self,
-                                     status=status,
-                                     start_time=start_time.strftime(
-                                         "%Y-%m-%dT%H:%M:%S.000Z"),
-                                     volume_size=float(
-                                         disk_snapshot['diskSizeGb']),
-                                     progress=progress,
-                                     op=snapshot_op)
+                                        cloud_block_storage=self,
+                                        status=status,
+                                        start_time=start_time.strftime("%Y-%m-%dT%H:%M:%S.000Z"),
+                                        volume_size=float(disk_snapshot['diskSizeGb']),
+                                        progress=progress,
+                                        op=snapshot_op)
+
+    ###########################################################################
+    def new_disk_snapshot_reference_from_existing(self, snapshot_ref, disk_snapshot, snapshot_op):
+        new_snapshot_ref = snapshot_ref.clone()
+        updated_snapshot_ref = self._new_disk_snapshot_reference(disk_snapshot, snapshot_op)
+        new_snapshot_ref.snapshot_op = updated_snapshot_ref.snapshot_op
+        new_snapshot_ref.status = updated_snapshot_ref.status
+        new_snapshot_ref.start_time = updated_snapshot_ref.start_time
+        new_snapshot_ref.volume_size = updated_snapshot_ref.volume_size
+        new_snapshot_ref.progress = updated_snapshot_ref.progress
+
+        return new_snapshot_ref
 
     ###########################################################################
     @property
@@ -1231,8 +1249,9 @@ class CompositeBlockStorage(CloudBlockStorage):
             new_constituent_snapshots.append(new_constituent_snapshot)
 
         if has_changes:
-            return CompositeBlockStorageSnapshotReference(
-                self, constituent_snapshots=new_constituent_snapshots)
+            new_ref = self.clone()
+            new_ref.constituent_snapshots = new_constituent_snapshots
+            return new_ref
 
 
     ###########################################################################
@@ -1315,16 +1334,6 @@ class LVMStorage(CompositeBlockStorage):
                     str(lvm_snapshot))
 
         return lvm_snapshot
-
-    ###########################################################################
-    def check_snapshot_updates(self, snapshot_ref):
-        composite_ref = super(LVMStorage, self).check_snapshot_updates(
-            snapshot_ref)
-
-        if composite_ref:
-            return LVMSnapshotReference(
-                self,
-                constituent_snapshots=composite_ref.constituent_snapshots)
 
     ###########################################################################
     def suspend_io(self):

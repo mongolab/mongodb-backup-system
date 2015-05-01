@@ -727,5 +727,21 @@ def random_string(n=10):
     return ''.join(random.choice(string.ascii_uppercase + string.digits)
                    for _ in range(n))
 
+###############################################################################
+def dict_diff(dict_a, dict_b):
+    """
+
+    :param dict_a:
+    :param dict_b:
+    :return: diff between two dicts
+    """
+    return dict([
+        (key, dict_b.get(key, dict_a.get(key)))
+        for key in set(dict_a.keys()+dict_b.keys())
+        if (
+            (key in dict_a and (not key in dict_b or dict_a[key] != dict_b[key])) or
+            (key in dict_b and (not key in dict_a or dict_a[key] != dict_b[key]))
+        )
+    ])
 
 

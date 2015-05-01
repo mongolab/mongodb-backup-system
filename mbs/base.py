@@ -1,6 +1,9 @@
 __author__ = 'abdul'
 
-from utils import document_pretty_string
+from utils import document_pretty_string, dict_diff
+
+import copy
+
 ###############################################################################
 # MBS Object Base
 ###############################################################################
@@ -41,3 +44,15 @@ class MBSObject(object):
     def __ne__(self, other):
         return not self.__eq__(other)
 
+    ###########################################################################
+    def diff(self, other, display_only=False):
+        if not isinstance(other, MBSObject):
+            raise Exception("Cannot diff against a non mbs object")
+
+        my_dict = self.to_document(display_only=display_only)
+        other_dict = other.to_document(display_only=display_only)
+        return dict_diff(my_dict, other_dict)
+
+    ###########################################################################
+    def clone(self):
+        return copy.deepcopy(self)
