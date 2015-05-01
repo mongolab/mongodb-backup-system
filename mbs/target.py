@@ -1013,7 +1013,7 @@ class TargetReference(MBSObject):
     ###########################################################################
     def __init__(self, preserve=None):
         super(TargetReference, self).__init__()
-        
+
         self._preserve = preserve
         self._deleted_date = None
         self._source_was_locked = None
@@ -1359,8 +1359,7 @@ class EbsSnapshotReference(CloudBlockStorageSnapshotReference):
 
     ###########################################################################
     def to_document(self, display_only=False):
-        doc = CloudBlockStorageSnapshotReference.to_document(self,display_only=
-                                                                  display_only)
+        doc = CloudBlockStorageSnapshotReference.to_document(self, display_only=display_only)
         doc.update({
             "_type": "EbsSnapshotReference",
             "snapshotId": self.snapshot_id,
