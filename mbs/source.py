@@ -1249,7 +1249,7 @@ class CompositeBlockStorage(CloudBlockStorage):
             new_constituent_snapshots.append(new_constituent_snapshot)
 
         if has_changes:
-            new_ref = self.clone()
+            new_ref = snapshot_ref.clone()
             new_ref.constituent_snapshots = new_constituent_snapshots
             return new_ref
 
