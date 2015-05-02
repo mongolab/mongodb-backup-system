@@ -55,4 +55,4 @@ class MBSObject(object):
 
     ###########################################################################
     def clone(self):
-        return copy.deepcopy(self)
+        return copy.copy(self)
