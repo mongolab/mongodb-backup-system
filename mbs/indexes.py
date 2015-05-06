@@ -50,9 +50,6 @@ MBS_INDEXES = {
 
     "plans": [
         {
-            "index": [('source._type', ASCENDING)]
-        },
-        {
             "index": [('nextOccurrence', ASCENDING)]
         }
     ],
