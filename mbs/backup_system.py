@@ -184,6 +184,9 @@ class BackupSystem(Thread):
         self.info("PID is %s" % os.getpid())
         self._update_pid_file()
 
+        # ensure mbs indexes
+        get_mbs().ensure_mbs_indexes()
+
         # Start the api server
         self._start_api_server()
 

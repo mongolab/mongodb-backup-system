@@ -4,6 +4,7 @@ import os
 import version
 import mbs_config as config
 import mbs_logging
+import threading
 
 from collection import MBSObjectCollection, MBSTaskCollection
 from makerpy.maker import resolve_class, Maker
@@ -72,16 +73,21 @@ class MBS(object):
         return TYPE_BINDINGS
 
     ###########################################################################
-    def _ensure_indexes(self, database):
-        logger.debug("Ensuring mongodb-backup-system indexes")
-        for coll_name, coll_indexes in self._get_indexes().items():
-            coll = database[coll_name]
-            for c_index in coll_indexes:
-                logger.debug("Ensuring index %s on collection '%s'" %
-                             (c_index, coll_name))
-                kwargs = c_index.get("args") or {}
-                kwargs["background"] = True
-                coll.ensure_index(c_index["index"], **kwargs)
+    def ensure_mbs_indexes(self):
+        # Ensures indexes in the background thread
+        def do_ensure_indexes():
+            database = self.database
+            logger.debug("Ensuring mongodb-backup-system indexes")
+            for coll_name, coll_indexes in self._get_indexes().items():
+                coll = database[coll_name]
+                for c_index in coll_indexes:
+                    logger.debug("Ensuring index %s on collection '%s'" %
+                                 (c_index, coll_name))
+                    kwargs = c_index.get("args") or {}
+                    kwargs["background"] = True
+                    coll.ensure_index(c_index["index"], **kwargs)
+
+        threading.Thread(target=do_ensure_indexes).start()
 
     ###########################################################################
     def _get_indexes(self):
