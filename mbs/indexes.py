@@ -13,10 +13,7 @@ MBS_INDEXES = {
             "index": [('planOccurrence', ASCENDING), ('plan._id', ASCENDING)]
         },
         {
-            "index": [('state', ASCENDING), ('engineGuid', ASCENDING)]
-        },
-        {
-            "index": [('plan.description', ASCENDING)]
+            "index": [('state', ASCENDING), ('engineGuid', ASCENDING), ('plan.nextOccurrence', ASCENDING)]
         },
         {
             "index": [
@@ -31,7 +28,8 @@ MBS_INDEXES = {
                 ('state', ASCENDING),
                 ('dontExpire', ASCENDING),
                 ('plan._id', DESCENDING),
-                ('expiredDate', DESCENDING)
+                ('expiredDate', DESCENDING),
+                ('createdDate', DESCENDING)
             ]
         },
         {
@@ -53,6 +51,9 @@ MBS_INDEXES = {
     "plans": [
         {
             "index": [('source._type', ASCENDING)]
+        },
+        {
+            "index": [('nextOccurrence', ASCENDING)]
         }
     ],
 
