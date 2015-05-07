@@ -934,6 +934,9 @@ class ShardedClusterConnector(MongoConnector):
         for shard in self.shards:
             shard_best = shard.get_best_secondary(max_lag_seconds=
                                                   max_lag_seconds)
+            if not shard_best:
+                raise NoEligibleMembersFound(shard.uri, msg="No best secondary found within max lag "
+                                                            "for shard '%s'" % shard.connector_id)
             best_secondaries.append(shard_best)
 
         self._selected_shard_secondaries = best_secondaries
