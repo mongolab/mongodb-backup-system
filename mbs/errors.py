@@ -565,3 +565,36 @@ class MBSApiError(Exception):
             "ok": 0,
             "error": self.message
         }
+
+########################################################################################################################
+# Error Utility functions
+########################################################################################################################
+
+
+def raise_dump_error(dump_command, returncode, last_dump_line):
+    if returncode == 245:
+        error_type = BadCollectionNameError
+    elif "10334" in last_dump_line:
+        error_type = InvalidBSONObjSizeError
+    elif "13338" in last_dump_line:
+        error_type = CappedCursorOverrunError
+    elif "13280" in last_dump_line:
+        error_type = InvalidDBNameError
+    elif "10320" in last_dump_line:
+        error_type = BadTypeError
+    elif "Cannot connect" in last_dump_line:
+        error_type = MongoctlConnectionError
+    elif "cursor didn't exist on server" in last_dump_line:
+        error_type = CursorDoesNotExistError
+    elif "16465" in last_dump_line:
+        error_type = ExhaustReceiveError
+    elif ("SocketException" in last_dump_line or
+          "socket error" in last_dump_line or
+          "transport error" in last_dump_line):
+        error_type = DumpConnectivityError
+    elif "DBClientCursor" in last_dump_line and "failed" in last_dump_line:
+        error_type = DBClientCursorFailError
+    else:
+        error_type = DumpError
+
+    raise error_type(dump_command, returncode, last_dump_line)

@@ -939,14 +939,14 @@ class DumpStrategy(BackupStrategy):
                 self.dump_backup(backup, mongo_connector,
                                  database_name=source.database_name)
                 # upload dump log file
-                self._upload_dump_log_file(backup)
+                #self._upload_dump_log_file(backup)
             except DumpError, e:
                 # still tar and upload failed dumps
                 logger.error("Dumping backup '%s' failed. Will still tar"
                              "up and upload to keep dump logs" % backup.id)
 
                 # TODO maybe change the name of the uploaded failed dump log
-                self._upload_dump_log_file(backup)
+                #self._upload_dump_log_file(backup)
                 self._tar_and_upload_failed_dump(backup)
                 raise
 
@@ -955,7 +955,8 @@ class DumpStrategy(BackupStrategy):
         if not backup.is_event_logged(EVENT_END_ARCHIVE):
             self._archive_dump(backup)
             # delete dump dir to save space since its not needed any more
-            self._delete_dump_dir(backup)
+            # TODO delete dump dir
+            #self._delete_dump_dir(backup)
 
         # upload back file to the target
         if not backup.is_event_logged(EVENT_END_UPLOAD):
@@ -963,14 +964,14 @@ class DumpStrategy(BackupStrategy):
 
     ###########################################################################
     def _archive_dump(self, backup):
-        dump_dir = self._get_backup_dump_dir(backup)
+        dump_dir = _backup_dump_dir_name(backup)
         tar_filename = _tar_file_name(backup)
         logger.info("Taring dump %s to %s" % (dump_dir, tar_filename))
         update_backup(backup,
                       event_name=EVENT_START_ARCHIVE,
                       message="Taring dump")
 
-        self._execute_tar_command(dump_dir, tar_filename)
+        self.backup_assistant.tgz_backup(backup, dump_dir, tar_filename)
 
         update_backup(backup,
                       event_name=EVENT_END_ARCHIVE,
@@ -997,8 +998,8 @@ class DumpStrategy(BackupStrategy):
 
     ###########################################################################
     def _upload_dump(self, backup):
-        tar_file_path = self._get_tar_file_path(backup)
-        logger.info("Uploading %s to target" % tar_file_path)
+        tar_file_name = _tar_file_name(backup)
+        logger.info("Uploading %s to target" % tar_file_name)
 
         update_backup(backup,
                       event_name=EVENT_START_UPLOAD,
@@ -1010,21 +1011,10 @@ class DumpStrategy(BackupStrategy):
         if backup.secondary_targets:
             all_targets.extend(backup.secondary_targets)
 
-        # Set Content-Type to x-compressed to avoid it being set by the
-        # container especially that s3 sets .tgz to application/x-compressed
-        # which causes browsers to download files as .tar
-        metadata = {
-            "Content-Type": "application/x-compressed"
-        }
-
         # Upload to all targets simultaneously
-        target_references = self.backup_assistant.multi_upload_file(all_targets,
-                                                                    tar_file_path,
-                                                                    destination_path=upload_dest_path,
-                                                                    overwrite_existing=True,
-                                                                    metadata=metadata)
 
-
+        target_references = self.backup_assistant.upload_backup(backup, tar_file_name, all_targets,
+                                                                destination_path=upload_dest_path)
 
         # set the target reference
         target_reference = target_references[0]
@@ -1081,16 +1071,17 @@ class DumpStrategy(BackupStrategy):
 
         dump_dir = self._get_backup_dump_dir(backup)
         failed_tar_filename = _failed_tar_file_name(backup)
-        failed_tar_file_path = self._get_failed_tar_file_path(backup)
+
         failed_dest = _failed_upload_file_dest(backup)
         # tar up
-        self._execute_tar_command(dump_dir, failed_tar_filename)
+        self.backup_assistant.tgz_backup(backup, dump_dir, failed_tar_filename)
         update_backup(backup,
                       event_name="ERROR_HANDLING_END_TAR",
                       message="Finished taring failed dump")
 
         # delete bad dump dir to save space
-        self._delete_dump_dir(backup)
+        #TODO delete dump dir
+        #self._delete_dump_dir(backup)
         # upload
         logger.info("Uploading tar for failed backup '%s' ..." % backup.id)
         update_backup(backup,
@@ -1098,9 +1089,8 @@ class DumpStrategy(BackupStrategy):
                       message="Uploading failed dump tar")
 
         # upload failed tar file and allow overwriting existing
-        target_reference = backup.target.put_file(failed_tar_file_path,
-                                                  destination_path=failed_dest,
-                                                  overwrite_existing=True)
+        target_reference = self.backup_assistant.upload_backup(backup, failed_tar_filename, backup.target,
+                                                               destination_path=failed_dest)
         backup.target_reference = target_reference
 
         update_backup(backup, properties="targetReference",
@@ -1121,44 +1111,33 @@ class DumpStrategy(BackupStrategy):
                 uri += "/"
             uri += database_name
 
-        mongoctl_exe = which("mongoctl")
-        if not mongoctl_exe:
-            raise MBSError("mongoctl exe not found in PATH")
 
-        dump_cmd = [mongoctl_exe,
-                    "--noninteractive"] # always run with noninteractive
 
-        mongoctl_config_root = get_mbs().mongoctl_config_root
-        if mongoctl_config_root:
-            dump_cmd.extend([
-                "--config-root",
-                mongoctl_config_root]
-            )
 
         # DUMP command
-        dest = self._get_backup_dump_dir(backup)
-        dump_cmd.extend(["dump", uri, "-o", dest])
+        destination = _backup_dump_dir_name(backup)
 
+        dump_options = []
         # Add --journal for config server backup
         if (isinstance(mongo_connector, MongoServer) and
                 mongo_connector.is_config_server()):
-            dump_cmd.append("--journal")
+            dump_options.append("--journal")
 
         # if its a server level backup then add forceTableScan and oplog
         uri_wrapper = mongo_uri_tools.parse_mongo_uri(uri)
         if not uri_wrapper.database:
             # add forceTableScan if specified
             if self.force_table_scan:
-                dump_cmd.append("--forceTableScan")
+                dump_options.append("--forceTableScan")
             if mongo_connector.is_replica_member():
-                dump_cmd.append("--oplog")
+                dump_options.append("--oplog")
 
         # if mongo version is >= 2.4 and we are using admin creds then pass
         # --authenticationDatabase
         mongo_version = mongo_connector.get_mongo_version()
         if (mongo_version >= MongoNormalizedVersion("2.4.0") and
             isinstance(mongo_connector, (MongoServer, MongoCluster))):
-            dump_cmd.extend([
+            dump_options.extend([
                 "--authenticationDatabase",
                 "admin"
             ])
@@ -1168,67 +1147,16 @@ class DumpStrategy(BackupStrategy):
         if (mongo_version >= MongoNormalizedVersion("2.6.0") and
                     database_name != None and
                     self.dump_users is not False):
-            dump_cmd.append("--dumpDbUsersAndRoles")
+            dump_options.append("--dumpDbUsersAndRoles")
 
-        dump_cmd_display= dump_cmd[:]
-        # mask mongo uri
-        dump_cmd_display[dump_cmd_display.index("dump") + 1] = \
-            uri_wrapper.masked_uri
-        logger.info("Running dump command: %s" % " ".join(dump_cmd_display))
 
-        self.backup_assistant.ensure_dir(dest)
-        dump_log_path = self._get_dump_log_path(backup)
 
         # execute dump command
-        returncode = self.backup_assistant.dump_command(dump_cmd, dump_log_path)
-
-        # read the last dump log line
-
-        last_dump_line = self.backup_assistant.tail_command(dump_log_path, 1)
-
-        # raise an error if return code is not 0
-        if returncode:
-            self._raise_dump_error(dump_cmd_display, returncode,
-                                   last_dump_line)
-
-        else:
-            update_backup(backup, event_name=EVENT_END_EXTRACT,
-                          message="Dump completed")
+        self.backup_assistant.dump_backup(backup, uri, destination, options=dump_options)
 
 
-    ###########################################################################
-    def _raise_dump_error(self, dump_command, returncode, last_dump_line):
-        if returncode == 245:
-            error_type = BadCollectionNameError
-        elif "10334" in last_dump_line:
-            error_type = InvalidBSONObjSizeError
-        elif "13338" in last_dump_line:
-            error_type = CappedCursorOverrunError
-        elif "13280" in last_dump_line:
-            error_type = InvalidDBNameError
-        elif "10320" in last_dump_line:
-            error_type = BadTypeError
-        elif "Cannot connect" in last_dump_line:
-            error_type = MongoctlConnectionError
-        elif "cursor didn't exist on server" in last_dump_line:
-            error_type = CursorDoesNotExistError
-        elif "16465" in last_dump_line:
-            error_type = ExhaustReceiveError
-        elif ("SocketException" in last_dump_line or
-              "socket error" in last_dump_line or
-              "transport error" in last_dump_line):
-            error_type = DumpConnectivityError
-        elif "DBClientCursor" in last_dump_line and "failed" in last_dump_line:
-            error_type = DBClientCursorFailError
-        else:
-            error_type = DumpError
-
-        raise error_type(dump_command, returncode, last_dump_line)
-
-    ###########################################################################
-    def _execute_tar_command(self, path, filename):
-
-        self.backup_assistant.tar_gzip_command(path, filename)
+        update_backup(backup, event_name=EVENT_END_EXTRACT,
+                      message="Dump completed")
 
     ###########################################################################
     def _needs_new_member_selection(self, backup):

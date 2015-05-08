@@ -4,10 +4,12 @@ import os
 import shutil
 import logging
 
-from utils import ensure_dir, which, execute_command, execute_command_wrapper
+from utils import ensure_dir, which, execute_command, execute_command_wrapper, listify
 import errors
 from subprocess import CalledProcessError
 from target import multi_target_upload_file
+from errors import MBSError
+from mongo_uri_tools import mask_mongo_uri
 
 ###############################################################################
 logger = logging.getLogger(__name__)
@@ -32,36 +34,23 @@ class BackupAssistant(object):
         """
 
     ####################################################################################################################
-    def dump_command(self, backup, command):
+    def dump_backup(self, backup, uri, destination, options=None):
         pass
 
     ####################################################################################################################
-    def tar_gzip_command(self, backup, command):
+    def tgz_backup(self, backup, dump_dir, file_name):
         pass
 
     ####################################################################################################################
-    def upload_dump(self, backup):
+    def upload_backup(self, backup, file_name, target, destination_path=None):
         pass
 
-    ####################################################################################################################
-    def upload_file(self, file_path, target, destination_path=None, overwrite_existing=True):
-        pass
-
-    ####################################################################################################################
-    def multi_upload_file(self, all_targets, tar_file_path, destination_path=None,
-                          overwrite_existing=True, metadata=None):
-        pass
-
-    ####################################################################################################################
-    def ensure_dir(self, dir_path):
-        pass
-
-
-
-
-
+#########################################################################################################################
+# LocalBackupAssistant
+#########################################################################################################################
 class LocalBackupAssistant(object):
     """
+    Basic impl locally
     """
     ####################################################################################################################
     def __init__(self):
@@ -95,44 +84,40 @@ class LocalBackupAssistant(object):
                                                                   e))
 
     ####################################################################################################################
-    def dump_command(self, dump_cmd, log_path):
-        dump_cmd[0] = which("mongoctl")
+    def dump_backup(self, backup, uri, destination, options=None):
+        mongoctl_exe = which("mongoctl")
+        if not mongoctl_exe:
+            raise MBSError("mongoctl exe not found in PATH")
+
+        dump_cmd = [mongoctl_exe, "--noninteractive", "dump", uri, "-o", destination]
+
+        if options:
+            dump_cmd.extend(options)
+
+        dump_cmd_display= dump_cmd[:]
+        # mask mongo uri
+        dump_cmd_display[3] = mask_mongo_uri(uri)
+
+        logger.info("Running dump command: %s" % " ".join(dump_cmd_display))
+
         # execute dump command
-        return execute_command_wrapper(dump_cmd, output_path=log_path)
+        returncode = execute_command_wrapper(dump_cmd, cwd=backup.workspace)
+        # TODO grab last dump line
+        last_dump_line = ""
+        # raise an error if return code is not 0
+        if returncode:
+            errors.raise_dump_error(returncode, last_dump_line)
 
     ####################################################################################################################
-    def upload_file(self, file_path, target, destination_path=None, overwrite_existing=True):
-        return target.put_file(file_path, destination_path=destination_path, overwrite_existing=overwrite_existing)
-
-    ####################################################################################################################
-    def multi_upload_file(self, all_targets, tar_file_path, destination_path=None,
-                          overwrite_existing=True, metadata=None):
-        uploaders = multi_target_upload_file(all_targets,
-                                             tar_file_path,
-                                             destination_path=destination_path,
-                                             overwrite_existing=overwrite_existing,
-                                             metadata=metadata)
-
-        errored_uploaders = filter(lambda uploader: uploader.error is not None,
-                                   uploaders)
-
-        if errored_uploaders:
-            raise errored_uploaders[0].error
-
-        return map(lambda uploader: uploader.target_reference, uploaders)
-
-    ####################################################################################################################
-    def tar_gzip_command(self, path, filename):
+    def tgz_backup(self, backup, dump_dir, file_name):
         tar_exe = which("tar")
-        working_dir = os.path.dirname(path)
-        target_dirname = os.path.basename(path)
 
-        tar_cmd = [tar_exe, "-cvzf", filename, target_dirname]
+        tar_cmd = [tar_exe, "-cvzf", file_name, dump_dir]
         cmd_display = " ".join(tar_cmd)
 
         try:
             logger.info("Running tar command: %s" % cmd_display)
-            execute_command(tar_cmd, cwd=working_dir)
+            execute_command(tar_cmd, cwd=backup.workspace)
 
         except CalledProcessError, e:
             if "No space left on device" in e.output:
@@ -143,15 +128,21 @@ class LocalBackupAssistant(object):
             raise error_type(cmd_display, e.returncode, e.output, e)
 
     ####################################################################################################################
-    def upload_dump(self, backup):
-        pass
+    def upload_backup(self, backup, file_name, target, destination_path=None):
+        targets = listify(target)
+        file_path = os.path.join(backup.workspace, file_name)
 
-    ####################################################################################################################
-    def tail_command(self, path, lines=1):
-        # read the last dump log line
-        last_line_tail_cmd = [which('tail'), "-%s" % lines, path]
-        return execute_command(last_line_tail_cmd)
+        uploaders = multi_target_upload_file(targets, file_path, destination_path=destination_path, metadata=metadata)
 
-    ####################################################################################################################
-    def ensure_dir(self, dir_path):
-        ensure_dir(dir_path)
+        errored_uploaders = filter(lambda uploader: uploader.error is not None,
+                                   uploaders)
+
+        if errored_uploaders:
+            raise errored_uploaders[0].error
+
+        target_references = map(lambda uploader: uploader.target_reference, uploaders)
+
+        if isinstance(target, list):
+            return target_references
+        else:
+            return target_references[0]
