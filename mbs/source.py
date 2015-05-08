@@ -242,6 +242,9 @@ class CloudBlockStorage(MBSObject):
 
         name = safe_format(name, cbs=self)
         description = safe_format(description, cbs=self)
+        # encode description to ascii
+        description = description and description.encode('ascii', 'ignore')
+
         return self.do_create_snapshot(name, description)
 
     ###########################################################################
