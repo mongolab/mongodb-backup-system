@@ -118,7 +118,7 @@ class LocalBackupAssistant(object):
         try:
             logger.info("Running tar command: %s" % cmd_display)
             execute_command(tar_cmd, cwd=backup.workspace)
-
+            self._delete_dump_dir(backup, dump_dir)
         except CalledProcessError, e:
             if "No space left on device" in e.output:
                 error_type = errors.NoSpaceLeftError
@@ -148,3 +148,18 @@ class LocalBackupAssistant(object):
             return target_references
         else:
             return target_references[0]
+    ####################################################################################################################
+    def _delete_dump_dir(self, backup, dump_dir):
+        dump_dir_path = os.path.join(backup.workspace, dump_dir)
+        # delete the temp dir
+        logger.info("Deleting dump dir %s" % dump_dir_path)
+
+        try:
+
+            if os.path.exists(dump_dir_path):
+                shutil.rmtree(dump_dir_path)
+            else:
+                logger.error("dump dir %s does not exist!" % dump_dir_path)
+        except Exception, e:
+            logger.error("Error while deleting dump dir for backup '%s': %s" %
+                         (backup.id, e))

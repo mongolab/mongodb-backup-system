@@ -950,13 +950,9 @@ class DumpStrategy(BackupStrategy):
                 self._tar_and_upload_failed_dump(backup)
                 raise
 
-
         # tar the dump
         if not backup.is_event_logged(EVENT_END_ARCHIVE):
             self._archive_dump(backup)
-            # delete dump dir to save space since its not needed any more
-            # TODO delete dump dir
-            #self._delete_dump_dir(backup)
 
         # upload back file to the target
         if not backup.is_event_logged(EVENT_END_UPLOAD):
@@ -976,25 +972,6 @@ class DumpStrategy(BackupStrategy):
         update_backup(backup,
                       event_name=EVENT_END_ARCHIVE,
                       message="Taring completed")
-
-    ###########################################################################
-    def _delete_dump_dir(self, backup):
-
-        # delete the temp dir
-        dump_dir = self._get_backup_dump_dir(backup)
-        logger.info("Deleting dump dir %s" % dump_dir)
-        update_backup(backup, event_name="DELETE_DUMP_DIR",
-                      message="Deleting dump dir")
-
-        try:
-
-            if os.path.exists(dump_dir):
-                shutil.rmtree(dump_dir)
-            else:
-                logger.error("dump dir %s does not exist!" % dump_dir)
-        except Exception, e:
-            logger.error("Error while deleting dump dir for backup '%s': %s" %
-                         (backup.id, e))
 
     ###########################################################################
     def _upload_dump(self, backup):
@@ -1079,9 +1056,6 @@ class DumpStrategy(BackupStrategy):
                       event_name="ERROR_HANDLING_END_TAR",
                       message="Finished taring failed dump")
 
-        # delete bad dump dir to save space
-        #TODO delete dump dir
-        #self._delete_dump_dir(backup)
         # upload
         logger.info("Uploading tar for failed backup '%s' ..." % backup.id)
         update_backup(backup,
