@@ -38,12 +38,17 @@ class BackupAssistant(object):
         pass
 
     ####################################################################################################################
+    def upload_backup_log_file(self, backup, file_name, dump_dir, target, destination_path=None):
+        pass
+
+    ####################################################################################################################
     def tgz_backup(self, backup, dump_dir, file_name):
         pass
 
     ####################################################################################################################
     def upload_backup(self, backup, file_name, target, destination_path=None):
         pass
+
 
 #########################################################################################################################
 # LocalBackupAssistant
@@ -84,7 +89,7 @@ class LocalBackupAssistant(object):
                                                                   e))
 
     ####################################################################################################################
-    def dump_backup(self, backup, uri, destination, options=None):
+    def dump_backup(self, backup, uri, destination, log_file_name, options=None):
         mongoctl_exe = which("mongoctl")
         if not mongoctl_exe:
             raise MBSError("mongoctl exe not found in PATH")
@@ -94,19 +99,25 @@ class LocalBackupAssistant(object):
         if options:
             dump_cmd.extend(options)
 
-        dump_cmd_display= dump_cmd[:]
+        dump_cmd_display = dump_cmd[:]
         # mask mongo uri
         dump_cmd_display[3] = mask_mongo_uri(uri)
 
         logger.info("Running dump command: %s" % " ".join(dump_cmd_display))
 
+        log_path = os.path.join(backup.workspace, destination, log_file_name)
         # execute dump command
-        returncode = execute_command_wrapper(dump_cmd, cwd=backup.workspace)
+        returncode = execute_command_wrapper(dump_cmd, cwd=backup.workspace, output_path=log_path)
         # TODO grab last dump line
         last_dump_line = ""
         # raise an error if return code is not 0
         if returncode:
             errors.raise_dump_error(returncode, last_dump_line)
+
+    ####################################################################################################################
+    def upload_backup_log_file(self, backup, file_name, dump_dir, target, destination_path=None):
+        file_path = os.path.join(backup.workspace, dump_dir, file_name)
+        return target.put_file(file_path, destination_path=destination_path)
 
     ####################################################################################################################
     def tgz_backup(self, backup, dump_dir, file_name):
@@ -148,6 +159,8 @@ class LocalBackupAssistant(object):
             return target_references
         else:
             return target_references[0]
+
+
     ####################################################################################################################
     def _delete_dump_dir(self, backup, dump_dir):
         dump_dir_path = os.path.join(backup.workspace, dump_dir)

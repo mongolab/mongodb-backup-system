@@ -939,14 +939,14 @@ class DumpStrategy(BackupStrategy):
                 self.dump_backup(backup, mongo_connector,
                                  database_name=source.database_name)
                 # upload dump log file
-                #self._upload_dump_log_file(backup)
+                self._upload_dump_log_file(backup)
             except DumpError, e:
                 # still tar and upload failed dumps
                 logger.error("Dumping backup '%s' failed. Will still tar"
                              "up and upload to keep dump logs" % backup.id)
 
                 # TODO maybe change the name of the uploaded failed dump log
-                #self._upload_dump_log_file(backup)
+                self._upload_dump_log_file(backup)
                 self._tar_and_upload_failed_dump(backup)
                 raise
 
@@ -1020,15 +1020,16 @@ class DumpStrategy(BackupStrategy):
 
     ###########################################################################
     def _upload_dump_log_file(self, backup):
-        log_file_path = self._get_dump_log_path(backup)
+        log_file_name = _log_file_name(backup)
+        dump_dir = _backup_dump_dir_name(backup)
         logger.info("Uploading log file for %s to target" % backup.id)
 
         update_backup(backup, event_name="START_UPLOAD_LOG_FILE",
                       message="Upload log file to target")
         log_dest_path = _upload_log_file_dest(backup)
-        log_target_reference = self.backup_assistant.upload_file(log_file_path, backup.target,
-                                                                 destination_path=log_dest_path,
-                                                                 overwrite_existing=True)
+        log_target_reference = self.backup_assistant.upload_backup_log_file(backup, log_file_name, dump_dir,
+                                                                            backup.target,
+                                                                            destination_path=log_dest_path)
 
         backup.log_target_reference = log_target_reference
 
@@ -1085,9 +1086,6 @@ class DumpStrategy(BackupStrategy):
                 uri += "/"
             uri += database_name
 
-
-
-
         # DUMP command
         destination = _backup_dump_dir_name(backup)
 
@@ -1123,10 +1121,9 @@ class DumpStrategy(BackupStrategy):
                     self.dump_users is not False):
             dump_options.append("--dumpDbUsersAndRoles")
 
-
-
+        log_file_name = _log_file_name(backup)
         # execute dump command
-        self.backup_assistant.dump_backup(backup, uri, destination, options=dump_options)
+        self.backup_assistant.dump_backup(backup, uri, destination, log_file_name, options=dump_options)
 
 
         update_backup(backup, event_name=EVENT_END_EXTRACT,

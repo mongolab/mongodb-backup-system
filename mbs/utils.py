@@ -102,6 +102,7 @@ def execute_command_wrapper(command, on_output=None, output_path=None,
 
     output_file = None
     if output_path:
+        ensure_dir(os.path.dirname(output_path))
         output_file = open(output_path, 'w')
 
     while True:
