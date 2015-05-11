@@ -131,7 +131,9 @@ class LocalBackupAssistant(object):
     def upload_backup(self, backup, file_name, target, destination_path=None):
         targets = listify(target)
         file_path = os.path.join(backup.workspace, file_name)
-
+        metadata = {
+            "Content-Type": "application/x-compressed"
+        }
         uploaders = multi_target_upload_file(targets, file_path, destination_path=destination_path, metadata=metadata)
 
         errored_uploaders = filter(lambda uploader: uploader.error is not None,
