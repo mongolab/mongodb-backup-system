@@ -864,6 +864,9 @@ class BackupStrategy(MBSObject):
         if self.allow_offline_backups is not None:
             doc["allowOfflineBackups"] = self.allow_offline_backups
 
+        if self.backup_assistant is not None:
+            doc["backupAssistant"] = self.backup_assistant.to_document()
+
         return doc
 
 ###############################################################################
@@ -1943,6 +1946,8 @@ class HybridStrategy(BackupStrategy):
         strategy.backup_description_scheme = \
             (strategy.backup_description_scheme or
              self.backup_description_scheme)
+
+        strategy.backup_assistant = self.backup_assistant
 
     ###########################################################################
     def _do_run_restore(self, restore):

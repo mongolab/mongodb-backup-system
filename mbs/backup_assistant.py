@@ -10,12 +10,12 @@ from subprocess import CalledProcessError
 from target import multi_target_upload_file
 from errors import MBSError
 from mongo_uri_tools import mask_mongo_uri
-
+from base import MBSObject
 ###############################################################################
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
-class BackupAssistant(object):
+class BackupAssistant(MBSObject):
     """
     Object responsible for assisting backups with running certain commands on the box
     """
@@ -34,7 +34,7 @@ class BackupAssistant(object):
         """
 
     ####################################################################################################################
-    def dump_backup(self, backup, uri, destination, options=None):
+    def dump_backup(self, backup, uri, destination, log_file_name, options=None):
         pass
 
     ####################################################################################################################
@@ -49,11 +49,16 @@ class BackupAssistant(object):
     def upload_backup(self, backup, file_name, target, destination_path=None):
         pass
 
+    def to_document(self, display_only=False):
+        return {
+            "_type": self.full_type_name
+        }
+
 
 #########################################################################################################################
 # LocalBackupAssistant
 #########################################################################################################################
-class LocalBackupAssistant(object):
+class LocalBackupAssistant(BackupAssistant):
     """
     Basic impl locally
     """
