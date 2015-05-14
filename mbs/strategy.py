@@ -702,7 +702,7 @@ class BackupStrategy(MBSObject):
             # so we always blindly resume. If resume succeeds then we log an
             # error :)
             try:
-                cbs.resume_io()
+                self.backup_assistant.resume_io(bkp, connector, cbs)
                 msg = ("MaxIOSuspendMonitor: %s IO has been suspended for "
                        "more than max allowed time (%s seconds)!!"
                        " Resuming ..." % (connector,
