@@ -678,7 +678,7 @@ class BackupStrategy(MBSObject):
             msg = "Running suspend IO for '%s'..." % mongo_connector
             logger.info(msg)
             update_backup(backup, event_name=BackupEventNames.SUSPEND_IO, message=msg)
-            cloud_block_storage.suspend_io()
+            self.backup_assistant.suspend_io(backup, mongo_connector, cloud_block_storage)
 
 
         except Exception, ex:
@@ -739,7 +739,7 @@ class BackupStrategy(MBSObject):
         try:
             msg = "Running resume io for '%s'" % mongo_connector
             update_backup(backup, event_name=BackupEventNames.RESUME_IO, message=msg)
-            cloud_block_storage.resume_io()
+            self.backup_assistant.resume_io(backup, mongo_connector, cloud_block_storage)
         except Exception, ex:
             msg = ("Resume IO Error for '%s'" % mongo_connector)
             logger.exception(msg)

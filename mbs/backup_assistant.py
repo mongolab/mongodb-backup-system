@@ -49,6 +49,16 @@ class BackupAssistant(MBSObject):
     def upload_backup(self, backup, file_name, target, destination_path=None):
         pass
 
+    ####################################################################################################################
+    def suspend_io(self, backup, mongo_connector, cloud_block_storage):
+        pass
+
+    ####################################################################################################################
+    def resume_io(self, backup, mongo_connector, cloud_block_storage):
+        pass
+
+    ####################################################################################################################
+
     def to_document(self, display_only=False):
         return {
             "_type": self.full_type_name
@@ -165,6 +175,13 @@ class LocalBackupAssistant(BackupAssistant):
         else:
             return target_references[0]
 
+    ####################################################################################################################
+    def suspend_io(self, backup, mongo_connector, cloud_block_storage):
+        cloud_block_storage.suspend_io()
+
+    ####################################################################################################################
+    def resume_io(self, backup, mongo_connector, cloud_block_storage):
+        cloud_block_storage.resume_io()
 
     ####################################################################################################################
     def _delete_dump_dir(self, backup, dump_dir):
