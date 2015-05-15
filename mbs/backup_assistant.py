@@ -19,9 +19,6 @@ class BackupAssistant(MBSObject):
     """
     Object responsible for assisting backups with running certain commands on the box
     """
-    ####################################################################################################################
-    def __init__(self):
-        pass
 
     ####################################################################################################################
     def create_task_workspace(self, task):
