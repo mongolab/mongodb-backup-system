@@ -32,6 +32,11 @@ class MBSObject(object):
         return self.__class__.__name__
 
     ###########################################################################
+    @property
+    def full_type_name(self):
+        return self.__class__.__module__ + "." + self.type_name
+
+    ###########################################################################
     def __str__(self):
         return document_pretty_string(self.to_document(display_only=True))
 
