@@ -315,6 +315,7 @@ class VolumeStorage(CloudBlockStorage):
         self._cloud_id = None
         self._volume_id = None
         self._volume_name = None
+        self._volume_size = None
         self._fs_type = None
 
     ###########################################################################
@@ -344,6 +345,14 @@ class VolumeStorage(CloudBlockStorage):
     def volume_name(self, val):
         self._volume_name = str(val)
 
+    ###########################################################################
+    @property
+    def volume_size(self):
+        return self._volume_size
+
+    @volume_size.setter
+    def volume_size(self, volume_size):
+        self._volume_size = volume_size
 
     ###########################################################################
     @property
@@ -361,6 +370,7 @@ class VolumeStorage(CloudBlockStorage):
         doc.update({
             "volumeId": self.volume_id,
             "volumeName": self.volume_name,
+            "volumeSize": self.volume_size,
             "cloudId": self.cloud_id,
             "fsType": self.fs_type
         })
@@ -1314,6 +1324,17 @@ class LVMStorage(CompositeBlockStorage):
     ###########################################################################
     def __init__(self):
         CompositeBlockStorage.__init__(self)
+        self._volume_size = None
+
+
+    ###########################################################################
+    @property
+    def volume_size(self):
+        return self._volume_size
+
+    @volume_size.setter
+    def volume_size(self, volume_size):
+        self._volume_size = volume_size
 
     ###########################################################################
     def do_create_snapshot(self, name_template, description_template):
@@ -1359,6 +1380,7 @@ class LVMStorage(CompositeBlockStorage):
 
         doc.update({
             "_type": "LVMStorage",
+            "volumeSize": self.volume_size
         })
 
         return doc
