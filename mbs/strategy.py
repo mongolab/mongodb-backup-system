@@ -1191,9 +1191,9 @@ class DumpStrategy(BackupStrategy):
             if not restore.is_event_logged("END_RESTORE_DUMP"):
                 # restore dump
                 self._restore_dump(restore)
-                self._upload_restore_log_file(restore)
+                #self._upload_restore_log_file(restore)
         except RestoreError, e:
-            self._upload_restore_log_file(restore)
+            #self._upload_restore_log_file(restore)
             raise
 
 
