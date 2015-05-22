@@ -11,6 +11,9 @@ from target import multi_target_upload_file
 from errors import MBSError
 from mongo_uri_tools import mask_mongo_uri
 from base import MBSObject
+
+###############################################################################
+# Logger
 ###############################################################################
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
@@ -55,6 +58,8 @@ class BackupAssistant(MBSObject):
         pass
 
     ####################################################################################################################
+    def download_restore_source_backup(self, restore):
+        pass
 
     def to_document(self, display_only=False):
         return {
@@ -195,3 +200,12 @@ class LocalBackupAssistant(BackupAssistant):
         except Exception, e:
             logger.error("Error while deleting dump dir for backup '%s': %s" %
                          (backup.id, e))
+
+    ####################################################################################################################
+    def download_restore_source_backup(self, restore):
+        backup = restore.source_backup
+        file_reference = backup.target_reference
+        logger.info("Downloading restore '%s' dump tar file '%s'" %
+                    (restore.id, file_reference.file_name))
+
+        backup.target.get_file(file_reference, restore.workspace)

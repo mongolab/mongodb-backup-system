@@ -1199,16 +1199,10 @@ class DumpStrategy(BackupStrategy):
 
     ###########################################################################
     def _download_source_backup(self, restore):
-        backup = restore.source_backup
-        file_reference = backup.target_reference
-
-        logger.info("Downloading restore '%s' dump tar file '%s'" %
-                    (restore.id, file_reference.file_name))
-
         update_restore(restore, event_name="START_DOWNLOAD_BACKUP",
                        message="Download source backup file...")
 
-        backup.target.get_file(file_reference, restore.workspace)
+        self.backup_assistant.download_restore_source_backup(restore)
 
         update_restore(restore, event_name="END_DOWNLOAD_BACKUP",
                        message="Source backup file download complete!")
