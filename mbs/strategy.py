@@ -1229,7 +1229,7 @@ class DumpStrategy(BackupStrategy):
 
         # run mongoctl restore
         logger.info("Restoring using mongoctl restore")
-        restore_source_dir = file_reference.file_name[: -4]
+        dump_dir = file_reference.file_name[: -4]
 
         dest_uri = restore.destination.uri
 
@@ -1274,7 +1274,6 @@ class DumpStrategy(BackupStrategy):
 
         # map source/dest
         if source_database_name:
-            restore_source_dir = os.path.join(restore_source_dir, source_database_name)
             if not dest_uri_wrapper.database:
                 if not dest_uri.endswith("/"):
                     dest_uri += "/"
@@ -1307,9 +1306,9 @@ class DumpStrategy(BackupStrategy):
         if self.no_index_restore:
             restore_options.append("--noIndexRestore")
 
-
         # execute dump command
-        self.backup_assistant.run_mongo_restore(restore, dest_uri, restore_source_dir, _restore_log_file_name(restore),
+        self.backup_assistant.run_mongo_restore(restore, dest_uri, dump_dir, source_database_name,
+                                                _restore_log_file_name(restore),
                                                 delete_old_admin_users_file=delete_old_admin_users_file,
                                                 delete_old_users_file=delete_old_users_file,
                                                 options=restore_options)

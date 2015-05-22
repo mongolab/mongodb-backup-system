@@ -66,7 +66,8 @@ class BackupAssistant(MBSObject):
         pass
 
     ####################################################################################################################
-    def run_mongo_restore(self, restore, destination_uri, source_dir, log_file_name, delete_old_users_file=None,
+    def run_mongo_restore(self, restore, destination_uri, dump_dir, source_database_name,
+                          log_file_name, delete_old_users_file=None,
                           delete_old_admin_users_file=None,
                           options=None):
         pass
@@ -241,14 +242,20 @@ class LocalBackupAssistant(BackupAssistant):
             raise ExtractError(tarx_cmd, cpe.returncode, cpe.output, cause=cpe)
 
     ####################################################################################################################
-    def run_mongo_restore(self, restore, destination_uri, source_dir, log_file_name, delete_old_users_file=None,
+    def run_mongo_restore(self, restore, destination_uri, dump_dir, source_database_name,
+                          log_file_name, delete_old_users_file=None,
                           delete_old_admin_users_file=None,
                           options=None):
+
+        if source_database_name:
+            source_dir = os.path.join(dump_dir, source_database_name)
+        else:
+            source_dir = dump_dir
 
         # IMPORTANT delete dump log file so the restore command would not break
         if restore.source_backup.log_target_reference:
             log_file = restore.source_backup.log_target_reference.file_name
-            dump_log_path = os.path.join(restore.workspace, source_dir, log_file)
+            dump_log_path = os.path.join(restore.workspace, dump_dir, log_file)
             if os.path.exists(dump_log_path):
                 os.remove(dump_log_path)
 
@@ -267,6 +274,13 @@ class LocalBackupAssistant(BackupAssistant):
 
         if options:
             restore_cmd.extend(options)
+
+        restore_cmd_display = restore_cmd[:]
+
+        restore_cmd_display[restore_cmd_display.index("restore") + 1] = mask_mongo_uri(destination_uri)
+
+        logger.info("Running mongoctl restore command: %s" %
+                    " ".join(restore_cmd_display))
 
         returncode = execute_command_wrapper(restore_cmd,
                                              output_path=log_path,
