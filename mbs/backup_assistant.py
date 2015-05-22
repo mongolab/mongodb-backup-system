@@ -4,11 +4,11 @@ import os
 import shutil
 import logging
 
-from utils import ensure_dir, which, execute_command, execute_command_wrapper, listify
+from utils import ensure_dir, which, execute_command, execute_command_wrapper, listify, list_dir_files, list_dir_subdirs
 import errors
 from subprocess import CalledProcessError
 from target import multi_target_upload_file
-from errors import MBSError, ExtractError
+from errors import MBSError, ExtractError, RestoreError
 from mongo_uri_tools import mask_mongo_uri
 from base import MBSObject
 
@@ -65,15 +65,22 @@ class BackupAssistant(MBSObject):
     def extract_restore_source_backup(self, restore):
         pass
 
+    ####################################################################################################################
+    def run_mongo_restore(self, restore, destination_uri, source_dir, log_file_name, delete_old_users_file=None,
+                          delete_old_admin_users_file=None,
+                          options=None):
+        pass
+
+    ####################################################################################################################
     def to_document(self, display_only=False):
         return {
             "_type": self.full_type_name
         }
 
 
-#########################################################################################################################
+########################################################################################################################
 # LocalBackupAssistant
-#########################################################################################################################
+########################################################################################################################
 class LocalBackupAssistant(BackupAssistant):
     """
     Basic impl locally
@@ -232,3 +239,62 @@ class LocalBackupAssistant(BackupAssistant):
         except CalledProcessError, cpe:
             logger.error("Failed to execute extract command: %s" % tarx_cmd)
             raise ExtractError(tarx_cmd, cpe.returncode, cpe.output, cause=cpe)
+
+    ####################################################################################################################
+    def run_mongo_restore(self, restore, destination_uri, source_dir, log_file_name, delete_old_users_file=None,
+                          delete_old_admin_users_file=None,
+                          options=None):
+
+        # IMPORTANT delete dump log file so the restore command would not break
+        if restore.source_backup.log_target_reference:
+            log_file = restore.source_backup.log_target_reference.file_name
+            dump_log_path = os.path.join(restore.workspace, source_dir, log_file)
+            if os.path.exists(dump_log_path):
+                os.remove(dump_log_path)
+
+        if delete_old_users_file or delete_old_admin_users_file:
+            self._delete_restore_old_users_files(restore, source_dir, include_admin=delete_old_admin_users_file)
+
+        working_dir = restore.workspace
+        log_path = os.path.join(restore.workspace, log_file_name)
+
+        restore_cmd = [
+            which("mongoctl"),
+            "restore",
+            destination_uri,
+            source_dir
+        ]
+
+        if options:
+            restore_cmd.extend(options)
+
+        returncode = execute_command_wrapper(restore_cmd,
+                                             output_path=log_path,
+                                             cwd=working_dir)
+
+        # read the last dump log line
+        last_line_tail_cmd = [which('tail'), '-1', log_path]
+        last_log_line = execute_command(last_line_tail_cmd)
+
+        if returncode:
+            raise RestoreError(returncode, last_log_line)
+
+    ####################################################################################################################
+    def _delete_restore_old_users_files(self, restore, restore_source_dir, include_admin=False):
+        restore_source_path = os.path.join(restore.workspace, restore_source_dir)
+
+        db_dirs = list_dir_subdirs(restore_source_path)
+        for db_dir in db_dirs:
+            if db_dir == "admin" and not include_admin:
+                continue
+            db_dir_path = os.path.join(restore_source_path, db_dir)
+            bson_file = os.path.join(db_dir_path, "system.users.bson")
+            json_md_file = os.path.join(db_dir_path, "system.users.metadata.json")
+            if os.path.exists(bson_file):
+                logger.info("2.6 Restore workaround: Deleting old "
+                            "system.users bson file '%s'" % bson_file)
+                os.remove(bson_file)
+            if os.path.exists(json_md_file):
+                logger.info("2.6 Restore workaround: Deleting old system."
+                            "users.metadata.json file '%s'" % json_md_file)
+                os.remove(json_md_file)

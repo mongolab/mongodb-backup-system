@@ -488,11 +488,11 @@ class RestoreError(MBSError):
         omitted to avoid logging credentials
     """
     ###########################################################################
-    def __init__(self, restore_cmd, return_code, last_log_line):
+    def __init__(self, return_code, last_log_line):
         msg = ("Failed to mongorestore")
-        details = ("Failed to restore. restore command '%s' returned a non-zero "
+        details = ("Failed to restore. restore command returned a non-zero "
                    "exit status %s.Check restore logs. Last restore log line: "
-                   "%s" % (restore_cmd, return_code, last_log_line))
+                   "%s" % (return_code, last_log_line))
         super(RestoreError, self).__init__(msg=msg, details=details)
 
 ###############################################################################

@@ -1220,7 +1220,7 @@ class DumpStrategy(BackupStrategy):
 
     ###########################################################################
     def _restore_dump(self, restore):
-        working_dir = restore.workspace
+
         file_reference = restore.source_backup.target_reference
 
         update_restore(restore, event_name="START_RESTORE_DUMP",
@@ -1228,14 +1228,7 @@ class DumpStrategy(BackupStrategy):
 
         # run mongoctl restore
         logger.info("Restoring using mongoctl restore")
-        restore_source_path = file_reference.file_name[: -4]
-        restore_source_path = os.path.join(working_dir, restore_source_path)
-        # IMPORTANT delete dump log file so the restore command would not break
-        if restore.source_backup.log_target_reference:
-            log_file = restore.source_backup.log_target_reference.file_name
-            dump_log_path = os.path.join(restore_source_path, log_file)
-            if os.path.exists(dump_log_path):
-                os.remove(dump_log_path)
+        restore_source_dir = file_reference.file_name[: -4]
 
         dest_uri = restore.destination.uri
 
@@ -1249,16 +1242,13 @@ class DumpStrategy(BackupStrategy):
                                MongoNormalizedVersion(source_stats["version"])
         dest_mongo_version = mongo_connector.get_mongo_version()
 
-        # Delete old system.user collection files if restoring from 2.6 => 2.6
-        if (source_mongo_version >= VERSION_2_6 and
-             dest_mongo_version >= VERSION_2_6):
-            self._delete_old_users_files(restore_source_path)
-
         # Delete all old system.user collection files if restoring from 2.4 =>
         #  2.6
-        if source_mongo_version < VERSION_2_6 <= dest_mongo_version:
-            self._delete_old_users_files(restore_source_path,
-                                         include_admin=True)
+        delete_old_admin_users_file = source_mongo_version < VERSION_2_6 <= dest_mongo_version
+
+        # Delete old system.user collection files if restoring from 2.6 => 2.6
+        delete_old_users_file = (delete_old_admin_users_file or
+                                 (source_mongo_version >= VERSION_2_6 and dest_mongo_version >= VERSION_2_6))
 
         if dest_mongo_version >= VERSION_2_6:
             _grant_restore_role(mongo_connector)
@@ -1283,88 +1273,48 @@ class DumpStrategy(BackupStrategy):
 
         # map source/dest
         if source_database_name:
-            restore_source_path = os.path.join(restore_source_path,
-                                               source_database_name)
+            restore_source_dir = os.path.join(restore_source_dir, source_database_name)
             if not dest_uri_wrapper.database:
                 if not dest_uri.endswith("/"):
                     dest_uri += "/"
                 dest_uri += source_database_name
 
-        restore_cmd = [
-            which("mongoctl"),
-            "restore",
-            dest_uri,
-            restore_source_path
-        ]
+        restore_options = []
 
         # append  --oplogReplay for cluster backups/restore
         if (not source_database_name and
             "repl" in restore.source_backup.source_stats):
-            restore_cmd.append("--oplogReplay")
+            restore_options.append("--oplogReplay")
 
         # if mongo version is >= 2.4 and we are using admin creds then pass
         # --authenticationDatabase
 
-
         if (dest_mongo_version >= MongoNormalizedVersion("2.4.0") and
                 isinstance(mongo_connector, (MongoServer, MongoCluster))) :
-            restore_cmd.extend([
+            restore_options.extend([
                 "--authenticationDatabase",
                 "admin"
             ])
 
         # include users in restore if its a database restore and
         # mongo version is >= 2.6.0
-        if (dest_mongo_version >= VERSION_2_6 and
-                    source_database_name is not None):
-            restore_cmd.append("--restoreDbUsersAndRoles")
+        if dest_mongo_version >= VERSION_2_6 and source_database_name is not None:
+            restore_options.append("--restoreDbUsersAndRoles")
 
-        restore_cmd_display = restore_cmd[:]
-
-        restore_cmd_display[restore_cmd_display.index("restore") + 1] =\
-            dest_uri_wrapper.masked_uri
 
         # additional restore options
         if self.no_index_restore:
-            restore_cmd.append("--noIndexRestore")
+            restore_options.append("--noIndexRestore")
 
-        logger.info("Running mongoctl restore command: %s" %
-                    " ".join(restore_cmd_display))
+
         # execute dump command
-        restore_log_path = self._get_restore_log_path(restore)
-        returncode = execute_command_wrapper(restore_cmd,
-            output_path=restore_log_path,
-            cwd=working_dir
-        )
-
-        # read the last dump log line
-        last_line_tail_cmd = [which('tail'), '-1', restore_log_path]
-        last_log_line = execute_command(last_line_tail_cmd)
-
-        if returncode:
-            raise RestoreError(restore_cmd_display, returncode, last_log_line)
+        self.backup_assistant.run_mongo_restore(restore, dest_uri, restore_source_dir, _restore_log_file_name(restore),
+                                                delete_old_admin_users_file=delete_old_admin_users_file,
+                                                delete_old_users_file=delete_old_users_file,
+                                                options=restore_options)
 
         update_restore(restore, event_name="END_RESTORE_DUMP",
                        message="Restoring dump completed!")
-
-
-    ###########################################################################
-    def _delete_old_users_files(self, restore_source_path, include_admin=False):
-        db_dirs = list_dir_subdirs(restore_source_path)
-        for db_dir in db_dirs:
-            if db_dir == "admin" and not include_admin:
-                continue
-            db_dir_path = os.path.join(restore_source_path, db_dir)
-            bson_file = os.path.join(db_dir_path, "system.users.bson")
-            json_md_file = os.path.join(db_dir_path, "system.users.metadata.json")
-            if os.path.exists(bson_file):
-                logger.info("2.6 Restore workaround: Deleting old "
-                            "system.users bson file '%s'" % bson_file)
-                os.remove(bson_file)
-            if os.path.exists(json_md_file):
-                logger.info("2.6 Restore workaround: Deleting old system."
-                            "users.metadata.json file '%s'" % json_md_file)
-                os.remove(json_md_file)
 
 
     ###########################################################################
