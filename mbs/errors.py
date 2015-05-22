@@ -367,6 +367,14 @@ class BlockStorageSnapshotError(MBSError):
         Base classes for all volume snapshot errors
     """
 
+###############################################################################
+#Ec2SnapshotDoesNotExitError
+###############################################################################
+class Ec2SnapshotDoesNotExitError(MBSError, RetriableError):
+    """
+        thrown when a snapshot does not exist anymore during ec2 snapshot check
+        updates
+    """
 
 ###############################################################################
 # MongoLockError

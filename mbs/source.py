@@ -445,6 +445,9 @@ class EbsVolumeStorage(VolumeStorage):
                 raise BlockStorageSnapshotError(msg, cause=e)
 
     ###########################################################################
+    @robustify(max_attempts=3, retry_interval=5,
+               do_on_exception=raise_if_not_ec2_retriable,
+               do_on_failure=raise_exception)
     def check_snapshot_updates(self, ebs_ref):
         """
             Detects changes in snapshot
@@ -458,7 +461,7 @@ class EbsVolumeStorage(VolumeStorage):
                 return new_ebs_ref
 
         else:
-            raise BlockStorageSnapshotError("Snapshot %s does not exist!" % ebs_ref.snapshot_id)
+            raise Ec2SnapshotDoesNotExitError("Snapshot %s does not exist!" % ebs_ref.snapshot_id)
 
     ###########################################################################
     def _new_ebs_snapshot_reference(self, ebs_snapshot):
