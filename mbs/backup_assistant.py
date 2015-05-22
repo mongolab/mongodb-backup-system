@@ -8,7 +8,7 @@ from utils import ensure_dir, which, execute_command, execute_command_wrapper, l
 import errors
 from subprocess import CalledProcessError
 from target import multi_target_upload_file
-from errors import MBSError
+from errors import MBSError, ExtractError
 from mongo_uri_tools import mask_mongo_uri
 from base import MBSObject
 
@@ -59,6 +59,10 @@ class BackupAssistant(MBSObject):
 
     ####################################################################################################################
     def download_restore_source_backup(self, restore):
+        pass
+
+    ####################################################################################################################
+    def extract_restore_source_backup(self, restore):
         pass
 
     def to_document(self, display_only=False):
@@ -209,3 +213,22 @@ class LocalBackupAssistant(BackupAssistant):
                     (restore.id, file_reference.file_name))
 
         backup.target.get_file(file_reference, restore.workspace)
+
+    ####################################################################################################################
+    def extract_restore_source_backup(self, restore):
+        working_dir = restore.workspace
+        file_reference = restore.source_backup.target_reference
+        logger.info("Extracting tar file '%s'" % file_reference.file_name)
+
+        tarx_cmd = [
+            which("tar"),
+            "-xf",
+            file_reference.file_name
+        ]
+
+        logger.info("Running tar extract command: %s" % tarx_cmd)
+        try:
+            execute_command(tarx_cmd, cwd=working_dir)
+        except CalledProcessError, cpe:
+            logger.error("Failed to execute extract command: %s" % tarx_cmd)
+            raise ExtractError(tarx_cmd, cpe.returncode, cpe.output, cause=cpe)

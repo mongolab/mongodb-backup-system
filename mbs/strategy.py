@@ -1210,26 +1210,10 @@ class DumpStrategy(BackupStrategy):
 
     ###########################################################################
     def _extract_source_backup(self, restore):
-        working_dir = restore.workspace
-        file_reference = restore.source_backup.target_reference
-        logger.info("Extracting tar file '%s'" % file_reference.file_name)
-
         update_restore(restore, event_name="START_EXTRACT_BACKUP",
                        message="Extract backup file...")
 
-        tarx_cmd = [
-            which("tar"),
-            "-xf",
-            file_reference.file_name
-        ]
-
-        logger.info("Running tar extract command: %s" % tarx_cmd)
-        try:
-            execute_command(tarx_cmd, cwd=working_dir)
-        except CalledProcessError, cpe:
-            logger.error("Failed to execute extract command: %s" % tarx_cmd)
-            raise ExtractError(tarx_cmd, cpe.returncode, cpe.output, cause=cpe)
-
+        self.backup_assistant.extract_restore_source_backup(restore)
 
         update_restore(restore, event_name="END_EXTRACT_BACKUP",
                        message="Extract backup file completed!")
