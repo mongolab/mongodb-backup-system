@@ -557,6 +557,7 @@ class BackupStrategy(MBSObject):
     ###########################################################################
     def run_restore(self, restore):
         try:
+            self.backup_assistant.create_task_workspace(restore)
             self._do_run_restore(restore)
             self._compute_restore_destination_stats(restore)
         except Exception, e:
