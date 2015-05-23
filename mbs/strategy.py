@@ -971,7 +971,7 @@ class DumpStrategy(BackupStrategy):
                       event_name=EVENT_START_ARCHIVE,
                       message="Taring dump")
 
-        self.backup_assistant.tgz_backup(backup, dump_dir, tar_filename)
+        self.backup_assistant.tar_backup(backup, dump_dir, tar_filename)
 
         update_backup(backup,
                       event_name=EVENT_END_ARCHIVE,

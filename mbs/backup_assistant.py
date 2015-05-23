@@ -42,7 +42,7 @@ class BackupAssistant(MBSObject):
         pass
 
     ####################################################################################################################
-    def tgz_backup(self, backup, dump_dir, file_name):
+    def tar_backup(self, backup, dump_dir, file_name):
         pass
 
     ####################################################################################################################
@@ -149,7 +149,7 @@ class LocalBackupAssistant(BackupAssistant):
         return target.put_file(file_path, destination_path=destination_path)
 
     ####################################################################################################################
-    def tgz_backup(self, backup, dump_dir, file_name):
+    def tar_backup(self, backup, dump_dir, file_name):
         tar_exe = which("tar")
 
         tar_cmd = [tar_exe, "-cvzf", file_name, dump_dir]
