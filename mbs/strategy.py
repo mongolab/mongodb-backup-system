@@ -1309,6 +1309,7 @@ class DumpStrategy(BackupStrategy):
         # execute dump command
         self.backup_assistant.run_mongo_restore(restore, dest_uri, dump_dir, source_database_name,
                                                 _restore_log_file_name(restore),
+                                                _log_file_name(restore.source_backup),
                                                 delete_old_admin_users_file=delete_old_admin_users_file,
                                                 delete_old_users_file=delete_old_users_file,
                                                 options=restore_options)

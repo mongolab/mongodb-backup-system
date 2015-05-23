@@ -67,7 +67,7 @@ class BackupAssistant(MBSObject):
 
     ####################################################################################################################
     def run_mongo_restore(self, restore, destination_uri, dump_dir, source_database_name,
-                          log_file_name, delete_old_users_file=None,
+                          log_file_name, dump_log_file_name, delete_old_users_file=None,
                           delete_old_admin_users_file=None,
                           options=None):
         pass
@@ -243,7 +243,8 @@ class LocalBackupAssistant(BackupAssistant):
 
     ####################################################################################################################
     def run_mongo_restore(self, restore, destination_uri, dump_dir, source_database_name,
-                          log_file_name, delete_old_users_file=None,
+                          log_file_name, dump_log_file_name,
+                          delete_old_users_file=None,
                           delete_old_admin_users_file=None,
                           options=None):
 
@@ -253,11 +254,9 @@ class LocalBackupAssistant(BackupAssistant):
             source_dir = dump_dir
 
         # IMPORTANT delete dump log file so the restore command would not break
-        if restore.source_backup.log_target_reference:
-            log_file = restore.source_backup.log_target_reference.file_name
-            dump_log_path = os.path.join(restore.workspace, dump_dir, log_file)
-            if os.path.exists(dump_log_path):
-                os.remove(dump_log_path)
+        dump_log_path = os.path.join(restore.workspace, dump_dir, dump_log_file_name)
+        if os.path.exists(dump_log_path):
+            os.remove(dump_log_path)
 
         if delete_old_users_file or delete_old_admin_users_file:
             self._delete_restore_old_users_files(restore, source_dir, include_admin=delete_old_admin_users_file)
