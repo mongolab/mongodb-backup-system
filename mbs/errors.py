@@ -245,11 +245,9 @@ class ArchiveError(MBSError):
     """
         Base error for archive errors
     """
-    def __init__(self, return_code, cmd_output, cause):
+    def __init__(self, cause=None):
         msg = "Failed to zip and compress your backup"
-        details = ("Failed to tar. Tar command returned a non-zero "
-                   "exit status %s. Command output:\n%s" %
-                   (return_code, cmd_output))
+        details = "Failed to tar. Tar command returned a non-zero exit status"
         super(ArchiveError, self).__init__(msg=msg, details=details,
                                            cause=cause)
 
@@ -500,11 +498,10 @@ class ExtractError(MBSError):
     """
         Base error for archive errors
     """
-    def __init__(self, tar_cmd, return_code, cmd_output, cause):
+    def __init__(self, cause=None):
         msg = "Failed to extract source backup"
-        details = ("Failed to tar. Tar command '%s' returned a non-zero "
-                   "exit status %s. Command output:\n%s" %
-                   (tar_cmd, return_code, cmd_output))
+        details = ("Failed to tar. Tar command returned a non-zero "
+                   "exit status")
         super(ExtractError, self).__init__(msg=msg, details=details,
                                            cause=cause)
 

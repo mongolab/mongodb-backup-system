@@ -165,7 +165,7 @@ class LocalBackupAssistant(BackupAssistant):
             else:
                 error_type = errors.ArchiveError
 
-            raise error_type(cmd_display, e.returncode, e.output, e)
+            raise error_type(e)
 
     ####################################################################################################################
     def upload_backup(self, backup, file_name, target, destination_path=None):
@@ -239,7 +239,7 @@ class LocalBackupAssistant(BackupAssistant):
             execute_command(tarx_cmd, cwd=working_dir)
         except CalledProcessError, cpe:
             logger.error("Failed to execute extract command: %s" % tarx_cmd)
-            raise ExtractError(tarx_cmd, cpe.returncode, cpe.output, cause=cpe)
+            raise ExtractError(cause=cpe)
 
     ####################################################################################################################
     def run_mongo_restore(self, restore, destination_uri, dump_dir, source_database_name,
