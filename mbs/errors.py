@@ -379,9 +379,17 @@ class Ec2SnapshotDoesNotExitError(MBSError, RetriableError):
 ###############################################################################
 # MongoLockError
 ###############################################################################
-class MongoLockError(MBSError, RetriableError):
+class MongoLockError(MBSError):
     """
         Raised when there is an fsynclock/fsyncunlock error
+    """
+
+###############################################################################
+# MongoLockError
+###############################################################################
+class ServerAlreadyLockedError(MongoLockError, RetriableError):
+    """
+        Raised when attempting to lock an already locked server
     """
 
 ###############################################################################

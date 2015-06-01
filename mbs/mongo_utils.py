@@ -767,8 +767,8 @@ class MongoServer(MongoConnector):
             logger.info("Attempting to run fsynclock on %s" % self)
 
             if self.is_server_locked():
-                raise MongoLockError("Cannot run fsynclock on server '%s' "
-                                     "because its already locked!" % self)
+                raise ServerAlreadyLockedError("Cannot run fsynclock on server '%s' "
+                                               "because its already locked!" % self)
             admin_db = self.get_auth_admin_db()
             result = admin_db.command(SON([("fsync", 1),("lock", True)]))
 
@@ -781,11 +781,8 @@ class MongoServer(MongoConnector):
                 raise MongoLockError(msg)
         except Exception, e:
             msg = "Error while executing fsynclock on '%s'. %s" % (self, e)
-            logger.error(msg)
-            if not isinstance(e, MongoLockError):
-                raise MongoLockError(msg=msg, cause=e)
-            else:
-                raise
+            logger.error(msg)(msg=msg, cause=e)
+            raise
 
     ###########################################################################
     def is_server_locked(self):
@@ -821,11 +818,7 @@ class MongoServer(MongoConnector):
         except Exception, e:
             msg = "Error while executing fsyncunlock on '%s'. %s" % (self, e)
             logger.error(msg)
-            if not isinstance(e, MongoLockError):
-                msg = "Error while executing fsyncunlock on '%s'." % self
-                raise MongoLockError(msg=msg, cause=e)
-            else:
-                raise
+            raise
 
     ###########################################################################
     def get_db_path(self):
