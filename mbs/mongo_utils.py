@@ -781,7 +781,7 @@ class MongoServer(MongoConnector):
                 raise MongoLockError(msg)
         except Exception, e:
             msg = "Error while executing fsynclock on '%s'. %s" % (self, e)
-            logger.error(msg)(msg=msg, cause=e)
+            logger.error(msg)
             raise
 
     ###########################################################################
