@@ -84,7 +84,9 @@ class BackupEventNames(object):
     FSYNCUNLOCK = "FSYNCUNLOCK"
     FSYNCUNLOCK_END = "FSYNCUNLOCK_END"
     SUSPEND_IO = "SUSPEND_IO"
+    SUSPEND_IO_END = "SUSPEND_IO_END"
     RESUME_IO = "RESUME_IO"
+    RESUME_IO_END = "RESUME_IO_END"
 
 ###############################################################################
 # LOGGER
@@ -684,7 +686,10 @@ class BackupStrategy(MBSObject):
             msg = "Running suspend IO for '%s'..." % mongo_connector
             logger.info(msg)
             update_backup(backup, event_name=BackupEventNames.SUSPEND_IO, message=msg)
+
             cloud_block_storage.suspend_io()
+
+            update_backup(backup, event_name=BackupEventNames.SUSPEND_IO_END, message="Suspend IO done!")
 
 
         except Exception, ex:
@@ -745,7 +750,10 @@ class BackupStrategy(MBSObject):
         try:
             msg = "Running resume io for '%s'" % mongo_connector
             update_backup(backup, event_name=BackupEventNames.RESUME_IO, message=msg)
+
             cloud_block_storage.resume_io()
+
+            update_backup(backup, event_name=BackupEventNames.RESUME_IO_END, message="Resume IO done!")
         except Exception, ex:
             msg = ("Resume IO Error for '%s'" % mongo_connector)
             logger.exception(msg)
