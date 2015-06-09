@@ -2084,6 +2084,9 @@ class EbsVolumeStorageStrategy(CloudBlockStorageStrategy):
         return doc
 
 ###############################################################################
+@robustify(max_attempts=5, retry_interval=5,
+           do_on_exception=raise_if_not_retriable,
+           do_on_failure=raise_exception)
 def share_snapshot_backup(backup, user_ids=None, groups=None):
     msg = ("Sharing snapshot backup '%s' with users:%s, groups:%s " %
            (backup.id, user_ids, groups))
