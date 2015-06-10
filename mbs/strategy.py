@@ -1681,6 +1681,9 @@ class CloudBlockStorageStrategy(BackupStrategy):
         if not backup.is_event_logged("END_KICKOFF_SNAPSHOT"):
             self._kickoff_snapshot(backup, mongo_connector, cbs)
 
+        # hook for doing things after a snapshot was already kicked off
+        self._post_snapshot_kickoff(backup, mongo_connector, cbs)
+
         # wait until snapshot is completed or error (sleep time is 1 minute)
         wait_status = [SnapshotStatus.COMPLETED, SnapshotStatus.ERROR]
         self._wait_for_snapshot_status(backup, cbs, wait_status,
@@ -1826,6 +1829,10 @@ class CloudBlockStorageStrategy(BackupStrategy):
             except Exception, ex:
                 logger.exception("Snapshot kickoff cleanup error: resume "
                                  "balancer Error: %s" % ex)
+
+    ###########################################################################
+    def _post_snapshot_kickoff(self, backup, mongo_connector, cbs):
+        pass
 
     ###########################################################################
     def _delete_existing_snapshot(self, backup, cbs):
@@ -2268,13 +2275,13 @@ class EbsVolumeStorageStrategy(CloudBlockStorageStrategy):
         self._share_groups = None
 
     ###########################################################################
-    def _kickoff_snapshot(self, backup, mongo_connector, cbs):
+    def _post_snapshot_kickoff(self, backup, mongo_connector, cbs):
         """
             Override!
         """
         # call super method
         suber = super(EbsVolumeStorageStrategy, self)
-        suber._kickoff_snapshot(backup, mongo_connector, cbs)
+        suber._post_snapshot_kickoff(backup, mongo_connector, cbs)
         snapshot_ref = backup.target_reference
         if snapshot_ref.status in [SnapshotStatus.PENDING, SnapshotStatus.COMPLETED]:
             logger.info("Checking if snapshot backup '%s' is configured to be "
