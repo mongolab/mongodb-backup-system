@@ -4,6 +4,7 @@ import os
 import version
 import mbs_config as config
 import mbs_logging
+import backup_assistant
 import threading
 
 from collection import MBSObjectCollection, MBSTaskCollection
@@ -67,6 +68,8 @@ class MBS(object):
 
         #
         self._backup_source_builder = None
+
+        self._default_backup_assistant = None
 
     ###########################################################################
     def _get_type_bindings(self):
@@ -205,6 +208,18 @@ class MBS(object):
     def get_notification_handler(self):
         handler_conf = self._get_config_value("notificationHandler")
         return self._maker.make(handler_conf)
+
+    ###########################################################################
+    @property
+    def default_backup_assistant(self):
+        assistant_conf = self._get_config_value("defaultBackupAssistant")
+        if not self._default_backup_assistant:
+            if assistant_conf:
+                self._default_backup_assistant = self._maker.make(assistant_conf)
+            else:
+                self._default_backup_assistant = backup_assistant.LocalBackupAssistant()
+
+        return self._default_backup_assistant
 
     ###########################################################################
     def send_notification(self, subject, message):

@@ -175,11 +175,11 @@ class DumpError(MBSError):
         omitted to avoid logging credentials
     """
     ###########################################################################
-    def __init__(self, dump_cmd, return_code, last_dump_line):
+    def __init__(self, return_code, last_dump_line):
         msg = ("Failed to mongodump")
-        details = ("Failed to dump. Dump command '%s' returned a non-zero "
+        details = ("Failed to dump. Dump command returned a non-zero "
                    "exit status %s.Check dump logs. Last dump log line: "
-                   "%s" % (dump_cmd, return_code, last_dump_line))
+                   "%s" % (return_code, last_dump_line))
         super(DumpError, self).__init__(msg=msg, details=details)
 
 
@@ -190,9 +190,8 @@ class BadCollectionNameError(DumpError):
         containing "/"
     """
     ###########################################################################
-    def __init__(self, dump_cmd, return_code, last_dump_line):
-        super(BadCollectionNameError, self).__init__(dump_cmd, return_code,
-                                                     last_dump_line)
+    def __init__(self, return_code, last_dump_line):
+        super(BadCollectionNameError, self).__init__(return_code, last_dump_line)
         self._message = ("Failed to mongodump... possibly because you "
                          "have collection name(s) with invalid "
                          "characters (e.g. '/'). If so, please rename or "
@@ -210,9 +209,8 @@ class CappedCursorOverrunError(DumpError, RetriableError):
 class InvalidDBNameError(DumpError):
 
     ###########################################################################
-    def __init__(self, dump_cmd, return_code, last_dump_line):
-        super(InvalidDBNameError, self).__init__(dump_cmd, return_code,
-                                                 last_dump_line)
+    def __init__(self, return_code, last_dump_line):
+        super(InvalidDBNameError, self).__init__(return_code, last_dump_line)
         self._message = ("Failed to mongodump because the name of your "
                          "database is invalid")
 
@@ -247,11 +245,9 @@ class ArchiveError(MBSError):
     """
         Base error for archive errors
     """
-    def __init__(self, tar_cmd, return_code, cmd_output, cause):
+    def __init__(self, cause=None):
         msg = "Failed to zip and compress your backup"
-        details = ("Failed to tar. Tar command '%s' returned a non-zero "
-                   "exit status %s. Command output:\n%s" %
-                   (tar_cmd, return_code, cmd_output))
+        details = "Failed to tar. Tar command returned a non-zero exit status"
         super(ArchiveError, self).__init__(msg=msg, details=details,
                                            cause=cause)
 
@@ -506,11 +502,11 @@ class RestoreError(MBSError):
         omitted to avoid logging credentials
     """
     ###########################################################################
-    def __init__(self, restore_cmd, return_code, last_log_line):
+    def __init__(self, return_code, last_log_line):
         msg = ("Failed to mongorestore")
-        details = ("Failed to restore. restore command '%s' returned a non-zero "
+        details = ("Failed to restore. restore command returned a non-zero "
                    "exit status %s.Check restore logs. Last restore log line: "
-                   "%s" % (restore_cmd, return_code, last_log_line))
+                   "%s" % (return_code, last_log_line))
         super(RestoreError, self).__init__(msg=msg, details=details)
 
 ###############################################################################
@@ -518,11 +514,10 @@ class ExtractError(MBSError):
     """
         Base error for archive errors
     """
-    def __init__(self, tar_cmd, return_code, cmd_output, cause):
+    def __init__(self, cause=None):
         msg = "Failed to extract source backup"
-        details = ("Failed to tar. Tar command '%s' returned a non-zero "
-                   "exit status %s. Command output:\n%s" %
-                   (tar_cmd, return_code, cmd_output))
+        details = ("Failed to tar. Tar command returned a non-zero "
+                   "exit status")
         super(ExtractError, self).__init__(msg=msg, details=details,
                                            cause=cause)
 
@@ -581,3 +576,36 @@ class MBSApiError(Exception):
             "ok": 0,
             "error": self.message
         }
+
+########################################################################################################################
+# Error Utility functions
+########################################################################################################################
+
+
+def raise_dump_error(returncode, last_dump_line):
+    if returncode == 245:
+        error_type = BadCollectionNameError
+    elif "10334" in last_dump_line:
+        error_type = InvalidBSONObjSizeError
+    elif "13338" in last_dump_line:
+        error_type = CappedCursorOverrunError
+    elif "13280" in last_dump_line:
+        error_type = InvalidDBNameError
+    elif "10320" in last_dump_line:
+        error_type = BadTypeError
+    elif "Cannot connect" in last_dump_line:
+        error_type = MongoctlConnectionError
+    elif "cursor didn't exist on server" in last_dump_line:
+        error_type = CursorDoesNotExistError
+    elif "16465" in last_dump_line:
+        error_type = ExhaustReceiveError
+    elif ("SocketException" in last_dump_line or
+          "socket error" in last_dump_line or
+          "transport error" in last_dump_line):
+        error_type = DumpConnectivityError
+    elif "DBClientCursor" in last_dump_line and "failed" in last_dump_line:
+        error_type = DBClientCursorFailError
+    else:
+        error_type = DumpError
+
+    raise error_type(returncode, last_dump_line)

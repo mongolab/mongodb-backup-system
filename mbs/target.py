@@ -9,7 +9,7 @@ import cloudfiles.errors
 
 import cloudfiles_utils
 
-from mbs import get_mbs
+import mbs
 from base import MBSObject
 from utils import which, execute_command, export_mbs_object_list
 from azure.storage import BlobService
@@ -488,7 +488,7 @@ class S3BucketTarget(BackupTarget):
         if self.credentials:
             return self.credentials.get_credential("accessKey")
         elif self.encrypted_access_key:
-            return get_mbs().encryptor.decrypt_string(
+            return mbs.get_mbs().encryptor.decrypt_string(
                 self.encrypted_access_key)
 
     @access_key.setter
@@ -496,7 +496,7 @@ class S3BucketTarget(BackupTarget):
         if self.credentials:
             self.credentials.set_credential("accessKey", access_key)
         elif access_key:
-            eak = get_mbs().encryptor.encrypt_string(str(access_key))
+            eak = mbs.get_mbs().encryptor.encrypt_string(str(access_key))
             self.encrypted_access_key = eak
 
     ###########################################################################
@@ -505,7 +505,7 @@ class S3BucketTarget(BackupTarget):
         if self.credentials:
             return self.credentials.get_credential("secretKey")
         elif self.encrypted_secret_key:
-            return get_mbs().encryptor.decrypt_string(
+            return mbs.get_mbs().encryptor.decrypt_string(
                 self.encrypted_secret_key)
 
     @secret_key.setter
@@ -513,7 +513,7 @@ class S3BucketTarget(BackupTarget):
         if self.credentials:
             self.credentials.set_credential("secretKey", secret_key)
         elif secret_key:
-            sak = get_mbs().encryptor.encrypt_string(str(secret_key))
+            sak = mbs.get_mbs().encryptor.encrypt_string(str(secret_key))
             self.encrypted_secret_key = sak
 
     ###########################################################################
@@ -801,14 +801,14 @@ class RackspaceCloudFilesTarget(BackupTarget):
             return self.credentials.get_credential("username")
 
         if self.encrypted_username:
-            return get_mbs().encryptor.decrypt_string(self.encrypted_username)
+            return mbs.get_mbs().encryptor.decrypt_string(self.encrypted_username)
 
     @username.setter
     def username(self, username):
         if self.credentials:
             self.credentials.set_credential("username", username)
         elif username:
-            eu = get_mbs().encryptor.encrypt_string(str(username))
+            eu = mbs.get_mbs().encryptor.encrypt_string(str(username))
             self.encrypted_username = eu
 
     ###########################################################################
@@ -817,14 +817,14 @@ class RackspaceCloudFilesTarget(BackupTarget):
         if self.credentials:
             return self.credentials.get_credential("apiKey")
         if self.encrypted_api_key:
-            return get_mbs().encryptor.decrypt_string(self.encrypted_api_key)
+            return mbs.get_mbs().encryptor.decrypt_string(self.encrypted_api_key)
 
     @api_key.setter
     def api_key(self, api_key):
         if self.credentials:
             self.credentials.set_credential("apiKey", api_key)
         elif api_key:
-            eak = get_mbs().encryptor.encrypt_string(str(api_key))
+            eak = mbs.get_mbs().encryptor.encrypt_string(str(api_key))
             self.encrypted_api_key = eak
 
     ###########################################################################

@@ -123,6 +123,8 @@ class BackupStrategy(MBSObject):
 
         self._max_lag_seconds = None
 
+        self._backup_assistant = None
+
     ###########################################################################
     def _init_strategy(self, backup):
 
@@ -231,13 +233,24 @@ class BackupStrategy(MBSObject):
         self._backup_mode = val
 
     ###########################################################################
+    @property
+    def backup_assistant(self):
+        if not self._backup_assistant:
+            self._backup_assistant = get_mbs().default_backup_assistant
+        return self._backup_assistant
+
+    @backup_assistant.setter
+    def backup_assistant(self, val):
+        self._backup_assistant = val
+
+    ###########################################################################
     def is_use_suspend_io(self):
         return False
 
     ###########################################################################
     def run_backup(self, backup):
         self._init_strategy(backup)
-
+        self.backup_assistant.create_task_workspace(backup)
         try:
             self._do_run_backup(backup)
         except Exception, e:
@@ -543,19 +556,12 @@ class BackupStrategy(MBSObject):
         logger.info("Cleanup: deleting workspace dir %s" % workspace)
         update_backup(backup, event_name="CLEANUP", message="Running cleanup")
 
-        try:
-
-            if os.path.exists(workspace):
-                shutil.rmtree(workspace)
-            else:
-                logger.error("workspace dir %s does not exist!" % workspace)
-        except Exception, e:
-            logger.exception("Cleanup error for task '%s': %s" % (backup.id,
-                                                                  e))
+        self.backup_assistant.delete_task_workspace(backup)
 
     ###########################################################################
     def run_restore(self, restore):
         try:
+            self.backup_assistant.create_task_workspace(restore)
             self._do_run_restore(restore)
             self._compute_restore_destination_stats(restore)
         except Exception, e:
@@ -579,14 +585,7 @@ class BackupStrategy(MBSObject):
         update_restore(restore, event_name="CLEANUP",
                        message="Running cleanup")
 
-        try:
-
-            if os.path.exists(workspace):
-                shutil.rmtree(workspace)
-            else:
-                logger.error("workspace dir %s does not exist!" % workspace)
-        except Exception, e:
-            logger.error("Cleanup error for task '%s': %s" % (restore.id, e))
+        self.backup_assistant.delete_task_workspace(restore)
 
     ###########################################################################
     def _compute_restore_destination_stats(self, restore):
@@ -691,8 +690,7 @@ class BackupStrategy(MBSObject):
             msg = "Running suspend IO for '%s'..." % mongo_connector
             logger.info(msg)
             update_backup(backup, event_name=BackupEventNames.SUSPEND_IO, message=msg)
-
-            cloud_block_storage.suspend_io()
+            self.backup_assistant.suspend_io(backup, mongo_connector, cloud_block_storage)
 
             update_backup(backup, event_name=BackupEventNames.SUSPEND_IO_END, message="Suspend IO done!")
 
@@ -718,7 +716,7 @@ class BackupStrategy(MBSObject):
             # so we always blindly resume. If resume succeeds then we log an
             # error :)
             try:
-                cbs.resume_io()
+                self.backup_assistant.resume_io(bkp, connector, cbs)
                 msg = ("MaxIOSuspendMonitor: %s IO has been suspended for "
                        "more than max allowed time (%s seconds)!!"
                        " Resuming ..." % (connector,
@@ -755,10 +753,7 @@ class BackupStrategy(MBSObject):
         try:
             msg = "Running resume io for '%s'" % mongo_connector
             update_backup(backup, event_name=BackupEventNames.RESUME_IO, message=msg)
-
-            cloud_block_storage.resume_io()
-
-            update_backup(backup, event_name=BackupEventNames.RESUME_IO_END, message="Resume IO done!")
+            self.backup_assistant.resume_io(backup, mongo_connector, cloud_block_storage)
         except Exception, ex:
             msg = ("Resume IO Error for '%s'" % mongo_connector)
             logger.exception(msg)
@@ -883,6 +878,9 @@ class BackupStrategy(MBSObject):
         if self.allow_offline_backups is not None:
             doc["allowOfflineBackups"] = self.allow_offline_backups
 
+        if self.backup_assistant is not None:
+            doc["backupAssistant"] = self.backup_assistant.to_document()
+
         return doc
 
 ###############################################################################
@@ -969,12 +967,9 @@ class DumpStrategy(BackupStrategy):
                 self._tar_and_upload_failed_dump(backup)
                 raise
 
-
         # tar the dump
         if not backup.is_event_logged(EVENT_END_ARCHIVE):
             self._archive_dump(backup)
-            # delete dump dir to save space since its not needed any more
-            self._delete_dump_dir(backup)
 
         # upload back file to the target
         if not backup.is_event_logged(EVENT_END_UPLOAD):
@@ -982,42 +977,23 @@ class DumpStrategy(BackupStrategy):
 
     ###########################################################################
     def _archive_dump(self, backup):
-        dump_dir = self._get_backup_dump_dir(backup)
+        dump_dir = _backup_dump_dir_name(backup)
         tar_filename = _tar_file_name(backup)
         logger.info("Taring dump %s to %s" % (dump_dir, tar_filename))
         update_backup(backup,
                       event_name=EVENT_START_ARCHIVE,
                       message="Taring dump")
 
-        self._execute_tar_command(dump_dir, tar_filename)
+        self.backup_assistant.tar_backup(backup, dump_dir, tar_filename)
 
         update_backup(backup,
                       event_name=EVENT_END_ARCHIVE,
                       message="Taring completed")
 
     ###########################################################################
-    def _delete_dump_dir(self, backup):
-
-        # delete the temp dir
-        dump_dir = self._get_backup_dump_dir(backup)
-        logger.info("Deleting dump dir %s" % dump_dir)
-        update_backup(backup, event_name="DELETE_DUMP_DIR",
-                      message="Deleting dump dir")
-
-        try:
-
-            if os.path.exists(dump_dir):
-                shutil.rmtree(dump_dir)
-            else:
-                logger.error("dump dir %s does not exist!" % dump_dir)
-        except Exception, e:
-            logger.error("Error while deleting dump dir for backup '%s': %s" %
-                         (backup.id, e))
-
-    ###########################################################################
     def _upload_dump(self, backup):
-        tar_file_path = self._get_tar_file_path(backup)
-        logger.info("Uploading %s to target" % tar_file_path)
+        tar_file_name = _tar_file_name(backup)
+        logger.info("Uploading %s to target" % tar_file_name)
 
         update_backup(backup,
                       event_name=EVENT_START_UPLOAD,
@@ -1029,30 +1005,13 @@ class DumpStrategy(BackupStrategy):
         if backup.secondary_targets:
             all_targets.extend(backup.secondary_targets)
 
-        # Set Content-Type to x-compressed to avoid it being set by the
-        # container especially that s3 sets .tgz to application/x-compressed
-        # which causes browsers to download files as .tar
-        metadata = {
-            "Content-Type": "application/x-compressed"
-        }
-
         # Upload to all targets simultaneously
-        target_uploaders = multi_target_upload_file(all_targets,
-                                                    tar_file_path,
-                                                    destination_path=
-                                                    upload_dest_path,
-                                                    overwrite_existing=True,
-                                                    metadata=metadata)
 
-        # check for errors
-        errored_uploaders = filter(lambda uploader: uploader.error is not None,
-                                 target_uploaders)
-
-        if errored_uploaders:
-            raise errored_uploaders[0].error
+        target_references = self.backup_assistant.upload_backup(backup, tar_file_name, all_targets,
+                                                                destination_path=upload_dest_path)
 
         # set the target reference
-        target_reference = target_uploaders[0].target_reference
+        target_reference = target_references[0]
 
         # keep old target reference if it exists to delete it because it would
         # be the failed file reference
@@ -1061,11 +1020,7 @@ class DumpStrategy(BackupStrategy):
 
         # set the secondary target references
         if backup.secondary_targets:
-            secondary_target_references = \
-                map(lambda uploader: uploader.target_reference,
-                    target_uploaders[1:])
-
-            backup.secondary_target_references = secondary_target_references
+            backup.secondary_target_references = target_references[1:]
 
         update_backup(backup, properties=["targetReference",
                                           "secondaryTargetReferences"],
@@ -1082,16 +1037,16 @@ class DumpStrategy(BackupStrategy):
 
     ###########################################################################
     def _upload_dump_log_file(self, backup):
-        log_file_path = self._get_dump_log_path(backup)
+        log_file_name = _log_file_name(backup)
+        dump_dir = _backup_dump_dir_name(backup)
         logger.info("Uploading log file for %s to target" % backup.id)
 
         update_backup(backup, event_name="START_UPLOAD_LOG_FILE",
                       message="Upload log file to target")
         log_dest_path = _upload_log_file_dest(backup)
-        log_target_reference = backup.target.put_file(log_file_path,
-                                                      destination_path=
-                                                        log_dest_path,
-                                                      overwrite_existing=True)
+        log_target_reference = self.backup_assistant.upload_backup_log_file(backup, log_file_name, dump_dir,
+                                                                            backup.target,
+                                                                            destination_path=log_dest_path)
 
         backup.log_target_reference = log_target_reference
 
@@ -1111,16 +1066,14 @@ class DumpStrategy(BackupStrategy):
 
         dump_dir = self._get_backup_dump_dir(backup)
         failed_tar_filename = _failed_tar_file_name(backup)
-        failed_tar_file_path = self._get_failed_tar_file_path(backup)
+
         failed_dest = _failed_upload_file_dest(backup)
         # tar up
-        self._execute_tar_command(dump_dir, failed_tar_filename)
+        self.backup_assistant.tgz_backup(backup, dump_dir, failed_tar_filename)
         update_backup(backup,
                       event_name="ERROR_HANDLING_END_TAR",
                       message="Finished taring failed dump")
 
-        # delete bad dump dir to save space
-        self._delete_dump_dir(backup)
         # upload
         logger.info("Uploading tar for failed backup '%s' ..." % backup.id)
         update_backup(backup,
@@ -1128,9 +1081,8 @@ class DumpStrategy(BackupStrategy):
                       message="Uploading failed dump tar")
 
         # upload failed tar file and allow overwriting existing
-        target_reference = backup.target.put_file(failed_tar_file_path,
-                                                  destination_path=failed_dest,
-                                                  overwrite_existing=True)
+        target_reference = self.backup_assistant.upload_backup(backup, failed_tar_filename, backup.target,
+                                                               destination_path=failed_dest)
         backup.target_reference = target_reference
 
         update_backup(backup, properties="targetReference",
@@ -1151,44 +1103,30 @@ class DumpStrategy(BackupStrategy):
                 uri += "/"
             uri += database_name
 
-        mongoctl_exe = which("mongoctl")
-        if not mongoctl_exe:
-            raise MBSError("mongoctl exe not found in PATH")
-
-        dump_cmd = [mongoctl_exe,
-                    "--noninteractive"] # always run with noninteractive
-
-        mongoctl_config_root = get_mbs().mongoctl_config_root
-        if mongoctl_config_root:
-            dump_cmd.extend([
-                "--config-root",
-                mongoctl_config_root]
-            )
-
         # DUMP command
-        dest = self._get_backup_dump_dir(backup)
-        dump_cmd.extend(["dump", uri, "-o", dest])
+        destination = _backup_dump_dir_name(backup)
 
+        dump_options = []
         # Add --journal for config server backup
         if (isinstance(mongo_connector, MongoServer) and
                 mongo_connector.is_config_server()):
-            dump_cmd.append("--journal")
+            dump_options.append("--journal")
 
         # if its a server level backup then add forceTableScan and oplog
         uri_wrapper = mongo_uri_tools.parse_mongo_uri(uri)
         if not uri_wrapper.database:
             # add forceTableScan if specified
             if self.force_table_scan:
-                dump_cmd.append("--forceTableScan")
+                dump_options.append("--forceTableScan")
             if mongo_connector.is_replica_member():
-                dump_cmd.append("--oplog")
+                dump_options.append("--oplog")
 
         # if mongo version is >= 2.4 and we are using admin creds then pass
         # --authenticationDatabase
         mongo_version = mongo_connector.get_mongo_version()
         if (mongo_version >= MongoNormalizedVersion("2.4.0") and
             isinstance(mongo_connector, (MongoServer, MongoCluster))):
-            dump_cmd.extend([
+            dump_options.extend([
                 "--authenticationDatabase",
                 "admin"
             ])
@@ -1198,95 +1136,15 @@ class DumpStrategy(BackupStrategy):
         if (mongo_version >= MongoNormalizedVersion("2.6.0") and
                     database_name != None and
                     self.dump_users is not False):
-            dump_cmd.append("--dumpDbUsersAndRoles")
+            dump_options.append("--dumpDbUsersAndRoles")
 
-        dump_cmd_display= dump_cmd[:]
-        # mask mongo uri
-        dump_cmd_display[dump_cmd_display.index("dump") + 1] = \
-            uri_wrapper.masked_uri
-        logger.info("Running dump command: %s" % " ".join(dump_cmd_display))
-
-        ensure_dir(dest)
-        dump_log_path = self._get_dump_log_path(backup)
-        def on_dump_output(line):
-            if "ERROR:" in line:
-                msg = "Caught a dump error: %s" % line
-                update_backup(backup, event_type=EventType.WARNING,
-                    event_name="DUMP_ERROR", message=msg)
-
-
+        log_file_name = _log_file_name(backup)
         # execute dump command
-        log_filter_func = get_mbs().dump_line_filter_function
-        returncode = execute_command_wrapper(dump_cmd,
-                                             output_path=dump_log_path,
-                                             on_output=on_dump_output,
-                                             output_line_filter=log_filter_func
-                                            )
-
-        # read the last dump log line
-        last_line_tail_cmd = [which('tail'), '-1', dump_log_path]
-        last_dump_line = execute_command(last_line_tail_cmd)
-
-        # raise an error if return code is not 0
-        if returncode:
-            self._raise_dump_error(dump_cmd_display, returncode,
-                                   last_dump_line)
-
-        else:
-            update_backup(backup, event_name=EVENT_END_EXTRACT,
-                          message="Dump completed")
+        self.backup_assistant.dump_backup(backup, uri, destination, log_file_name, options=dump_options)
 
 
-    ###########################################################################
-    def _raise_dump_error(self, dump_command, returncode, last_dump_line):
-        if returncode == 245:
-            error_type = BadCollectionNameError
-        elif "10334" in last_dump_line:
-            error_type = InvalidBSONObjSizeError
-        elif "13338" in last_dump_line:
-            error_type = CappedCursorOverrunError
-        elif "13280" in last_dump_line:
-            error_type = InvalidDBNameError
-        elif "10320" in last_dump_line:
-            error_type = BadTypeError
-        elif "Cannot connect" in last_dump_line:
-            error_type = MongoctlConnectionError
-        elif "cursor didn't exist on server" in last_dump_line:
-            error_type = CursorDoesNotExistError
-        elif "16465" in last_dump_line:
-            error_type = ExhaustReceiveError
-        elif ("SocketException" in last_dump_line or
-              "socket error" in last_dump_line or
-              "transport error" in last_dump_line):
-            error_type = DumpConnectivityError
-        elif "DBClientCursor" in last_dump_line and "failed" in last_dump_line:
-            error_type = DBClientCursorFailError
-        else:
-            error_type = DumpError
-
-        raise error_type(dump_command, returncode, last_dump_line)
-
-    ###########################################################################
-    def _execute_tar_command(self, path, filename):
-
-        tar_exe = which("tar")
-        working_dir = os.path.dirname(path)
-        target_dirname = os.path.basename(path)
-
-        tar_cmd = [tar_exe, "-cvzf", filename, target_dirname]
-        cmd_display = " ".join(tar_cmd)
-
-        try:
-            logger.info("Running tar command: %s" % cmd_display)
-            execute_command(tar_cmd, cwd=working_dir)
-
-        except CalledProcessError, e:
-            if "No space left on device" in e.output:
-                error_type = NoSpaceLeftError
-            else:
-                error_type = ArchiveError
-
-            raise error_type(cmd_display, e.returncode, e.output, e)
+        update_backup(backup, event_name=EVENT_END_EXTRACT,
+                      message="Dump completed")
 
     ###########################################################################
     def _needs_new_member_selection(self, backup):
@@ -1347,24 +1205,18 @@ class DumpStrategy(BackupStrategy):
             if not restore.is_event_logged("END_RESTORE_DUMP"):
                 # restore dump
                 self._restore_dump(restore)
-                self._upload_restore_log_file(restore)
+                #self._upload_restore_log_file(restore)
         except RestoreError, e:
-            self._upload_restore_log_file(restore)
+            #self._upload_restore_log_file(restore)
             raise
 
 
     ###########################################################################
     def _download_source_backup(self, restore):
-        backup = restore.source_backup
-        file_reference = backup.target_reference
-
-        logger.info("Downloading restore '%s' dump tar file '%s'" %
-                    (restore.id, file_reference.file_name))
-
         update_restore(restore, event_name="START_DOWNLOAD_BACKUP",
                        message="Download source backup file...")
 
-        backup.target.get_file(file_reference, restore.workspace)
+        self.backup_assistant.download_restore_source_backup(restore)
 
         update_restore(restore, event_name="END_DOWNLOAD_BACKUP",
                        message="Source backup file download complete!")
@@ -1372,33 +1224,17 @@ class DumpStrategy(BackupStrategy):
 
     ###########################################################################
     def _extract_source_backup(self, restore):
-        working_dir = restore.workspace
-        file_reference = restore.source_backup.target_reference
-        logger.info("Extracting tar file '%s'" % file_reference.file_name)
-
         update_restore(restore, event_name="START_EXTRACT_BACKUP",
                        message="Extract backup file...")
 
-        tarx_cmd = [
-            which("tar"),
-            "-xf",
-            file_reference.file_name
-        ]
-
-        logger.info("Running tar extract command: %s" % tarx_cmd)
-        try:
-            execute_command(tarx_cmd, cwd=working_dir)
-        except CalledProcessError, cpe:
-            logger.error("Failed to execute extract command: %s" % tarx_cmd)
-            raise ExtractError(tarx_cmd, cpe.returncode, cpe.output, cause=cpe)
-
+        self.backup_assistant.extract_restore_source_backup(restore)
 
         update_restore(restore, event_name="END_EXTRACT_BACKUP",
                        message="Extract backup file completed!")
 
     ###########################################################################
     def _restore_dump(self, restore):
-        working_dir = restore.workspace
+
         file_reference = restore.source_backup.target_reference
 
         update_restore(restore, event_name="START_RESTORE_DUMP",
@@ -1406,14 +1242,7 @@ class DumpStrategy(BackupStrategy):
 
         # run mongoctl restore
         logger.info("Restoring using mongoctl restore")
-        restore_source_path = file_reference.file_name[: -4]
-        restore_source_path = os.path.join(working_dir, restore_source_path)
-        # IMPORTANT delete dump log file so the restore command would not break
-        if restore.source_backup.log_target_reference:
-            log_file = restore.source_backup.log_target_reference.file_name
-            dump_log_path = os.path.join(restore_source_path, log_file)
-            if os.path.exists(dump_log_path):
-                os.remove(dump_log_path)
+        dump_dir = file_reference.file_name[: -4]
 
         dest_uri = restore.destination.uri
 
@@ -1427,16 +1256,13 @@ class DumpStrategy(BackupStrategy):
                                MongoNormalizedVersion(source_stats["version"])
         dest_mongo_version = mongo_connector.get_mongo_version()
 
-        # Delete old system.user collection files if restoring from 2.6 => 2.6
-        if (source_mongo_version >= VERSION_2_6 and
-             dest_mongo_version >= VERSION_2_6):
-            self._delete_old_users_files(restore_source_path)
-
         # Delete all old system.user collection files if restoring from 2.4 =>
         #  2.6
-        if source_mongo_version < VERSION_2_6 <= dest_mongo_version:
-            self._delete_old_users_files(restore_source_path,
-                                         include_admin=True)
+        delete_old_admin_users_file = source_mongo_version < VERSION_2_6 <= dest_mongo_version
+
+        # Delete old system.user collection files if restoring from 2.6 => 2.6
+        delete_old_users_file = (delete_old_admin_users_file or
+                                 (source_mongo_version >= VERSION_2_6 and dest_mongo_version >= VERSION_2_6))
 
         if dest_mongo_version >= VERSION_2_6:
             _grant_restore_role(mongo_connector)
@@ -1461,88 +1287,48 @@ class DumpStrategy(BackupStrategy):
 
         # map source/dest
         if source_database_name:
-            restore_source_path = os.path.join(restore_source_path,
-                                               source_database_name)
             if not dest_uri_wrapper.database:
                 if not dest_uri.endswith("/"):
                     dest_uri += "/"
                 dest_uri += source_database_name
 
-        restore_cmd = [
-            which("mongoctl"),
-            "restore",
-            dest_uri,
-            restore_source_path
-        ]
+        restore_options = []
 
         # append  --oplogReplay for cluster backups/restore
         if (not source_database_name and
             "repl" in restore.source_backup.source_stats):
-            restore_cmd.append("--oplogReplay")
+            restore_options.append("--oplogReplay")
 
         # if mongo version is >= 2.4 and we are using admin creds then pass
         # --authenticationDatabase
 
-
         if (dest_mongo_version >= MongoNormalizedVersion("2.4.0") and
                 isinstance(mongo_connector, (MongoServer, MongoCluster))) :
-            restore_cmd.extend([
+            restore_options.extend([
                 "--authenticationDatabase",
                 "admin"
             ])
 
         # include users in restore if its a database restore and
         # mongo version is >= 2.6.0
-        if (dest_mongo_version >= VERSION_2_6 and
-                    source_database_name is not None):
-            restore_cmd.append("--restoreDbUsersAndRoles")
+        if dest_mongo_version >= VERSION_2_6 and source_database_name is not None:
+            restore_options.append("--restoreDbUsersAndRoles")
 
-        restore_cmd_display = restore_cmd[:]
-
-        restore_cmd_display[restore_cmd_display.index("restore") + 1] =\
-            dest_uri_wrapper.masked_uri
 
         # additional restore options
         if self.no_index_restore:
-            restore_cmd.append("--noIndexRestore")
+            restore_options.append("--noIndexRestore")
 
-        logger.info("Running mongoctl restore command: %s" %
-                    " ".join(restore_cmd_display))
         # execute dump command
-        restore_log_path = self._get_restore_log_path(restore)
-        returncode = execute_command_wrapper(restore_cmd,
-            output_path=restore_log_path,
-            cwd=working_dir
-        )
-
-        # read the last dump log line
-        last_line_tail_cmd = [which('tail'), '-1', restore_log_path]
-        last_log_line = execute_command(last_line_tail_cmd)
-
-        if returncode:
-            raise RestoreError(restore_cmd_display, returncode, last_log_line)
+        self.backup_assistant.run_mongo_restore(restore, dest_uri, dump_dir, source_database_name,
+                                                _restore_log_file_name(restore),
+                                                _log_file_name(restore.source_backup),
+                                                delete_old_admin_users_file=delete_old_admin_users_file,
+                                                delete_old_users_file=delete_old_users_file,
+                                                options=restore_options)
 
         update_restore(restore, event_name="END_RESTORE_DUMP",
                        message="Restoring dump completed!")
-
-
-    ###########################################################################
-    def _delete_old_users_files(self, restore_source_path, include_admin=False):
-        db_dirs = list_dir_subdirs(restore_source_path)
-        for db_dir in db_dirs:
-            if db_dir == "admin" and not include_admin:
-                continue
-            db_dir_path = os.path.join(restore_source_path, db_dir)
-            bson_file = os.path.join(db_dir_path, "system.users.bson")
-            json_md_file = os.path.join(db_dir_path, "system.users.metadata.json")
-            if os.path.exists(bson_file):
-                logger.info("2.6 Restore workaround: Deleting old "
-                            "system.users bson file '%s'" % bson_file)
-                os.remove(bson_file)
-            if os.path.exists(json_md_file):
-                logger.info("2.6 Restore workaround: Deleting old system."
-                            "users.metadata.json file '%s'" % json_md_file)
-                os.remove(json_md_file)
 
 
     ###########################################################################
@@ -2119,6 +1905,8 @@ class HybridStrategy(BackupStrategy):
         strategy.backup_description_scheme = \
             (strategy.backup_description_scheme or
              self.backup_description_scheme)
+
+        strategy.backup_assistant = self.backup_assistant
 
     ###########################################################################
     def _do_run_restore(self, restore):
