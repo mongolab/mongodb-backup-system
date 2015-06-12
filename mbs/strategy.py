@@ -37,6 +37,8 @@ from threading import Thread
 
 from bson.son import SON
 
+import backup_assistant
+
 ###############################################################################
 # CONSTANTS
 ###############################################################################
@@ -878,7 +880,8 @@ class BackupStrategy(MBSObject):
         if self.allow_offline_backups is not None:
             doc["allowOfflineBackups"] = self.allow_offline_backups
 
-        if self.backup_assistant is not None:
+        if (self.backup_assistant is not None and
+            not isinstance(self.backup_assistant, backup_assistant.LocalBackupAssistant)):
             doc["backupAssistant"] = self.backup_assistant.to_document()
 
         return doc
