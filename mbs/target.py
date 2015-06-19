@@ -293,7 +293,7 @@ class BackupTarget(MBSObject):
         self._preserve = val
 
     ###########################################################################
-    def to_document(self, display_only=False):
+    def to_document(self, display_only=False, export_credentials=False):
         doc = {
 
         }
@@ -301,7 +301,7 @@ class BackupTarget(MBSObject):
         if self.preserve is not None:
             doc["preserve"] = self.preserve
 
-        if self.credentials is not None:
+        if not export_credentials and self.credentials is not None:
             doc["credentials"] = self.credentials.to_document(
                 display_only=display_only)
 
@@ -587,14 +587,14 @@ class S3BucketTarget(BackupTarget):
         key.restore(days=days)
 
     ###########################################################################
-    def to_document(self, display_only=False):
+    def to_document(self, display_only=False, export_credentials=False):
 
         doc = BackupTarget.to_document(self, display_only=display_only)
         doc.update({
             "_type": "S3BucketTarget",
             "bucketName": self.bucket_name
         })
-        if not self.credentials:
+        if export_credentials or not self.credentials:
             ak = "xxxxx" if display_only else self.encrypted_access_key
             sk = "xxxxx" if display_only else self.encrypted_secret_key
             doc.update({
@@ -848,7 +848,7 @@ class RackspaceCloudFilesTarget(BackupTarget):
             self._encrypted_api_key = value.encode('ascii', 'ignore')
 
     ###########################################################################
-    def to_document(self, display_only=False):
+    def to_document(self, display_only=False, export_credentials=False):
 
         doc = BackupTarget.to_document(self, display_only=display_only)
 
@@ -857,7 +857,7 @@ class RackspaceCloudFilesTarget(BackupTarget):
             "containerName": self.container_name
         })
 
-        if not self.credentials:
+        if export_credentials or not self.credentials:
             eu = "xxxxx" if display_only else self.encrypted_username
             eak = "xxxxx" if display_only else self.encrypted_api_key
             doc.update({
@@ -977,7 +977,7 @@ class AzureContainerTarget(BackupTarget):
         self._account_key = str(account_key)
 
     ###########################################################################
-    def to_document(self, display_only=False):
+    def to_document(self, display_only=False, export_credentials=False):
         doc = BackupTarget.to_document(self, display_only=display_only)
         doc.update({
             "_type": "AzureContainerTarget",
