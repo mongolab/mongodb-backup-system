@@ -597,7 +597,7 @@ class S3BucketTarget(BackupTarget):
     def export_credentials(self, display_only=False):
 
         ak = "xxxxx" if display_only else (self.encrypted_access_key or
-                                           mbs.get_mbs().encryptor.encrypt_string(str(self.secret_key)))
+                                           mbs.get_mbs().encryptor.encrypt_string(str(self.access_key)))
         sk = "xxxxx" if display_only else (self.encrypted_secret_key or
                                            mbs.get_mbs().encryptor.encrypt_string(str(self.secret_key)))
 
