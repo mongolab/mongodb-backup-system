@@ -447,21 +447,28 @@ class EbsVolumeStorage(VolumeStorage):
     ###########################################################################
     @robustify(max_attempts=3, retry_interval=5,
                do_on_exception=raise_if_not_ec2_retriable,
-               do_on_failure=raise_exception)
+               do_on_failure=raise_exception,
+               backoff=2)
     def check_snapshot_updates(self, ebs_ref):
         """
             Detects changes in snapshot
         """
-        ebs_snapshot = self.get_ebs_snapshot_by_id(ebs_ref.snapshot_id)
-        # NOTE check if the above call returns a snapshot object because boto
-        # returns None although the snapshot exists (AWS api freakiness ?)
-        if ebs_snapshot:
-            new_ebs_ref = self.new_ebs_snapshot_reference_from_existing(ebs_ref, ebs_snapshot)
-            if new_ebs_ref != ebs_ref:
-                return new_ebs_ref
+        try:
+            ebs_snapshot = self.get_ebs_snapshot_by_id(ebs_ref.snapshot_id)
 
-        else:
-            raise Ec2SnapshotDoesNotExistError("Snapshot %s does not exist!" % ebs_ref.snapshot_id)
+            # NOTE check if the above call returns a snapshot object because boto
+            # returns None although the snapshot exists (AWS api freakiness ?)
+            if ebs_snapshot:
+                new_ebs_ref = self.new_ebs_snapshot_reference_from_existing(ebs_ref, ebs_snapshot)
+                if new_ebs_ref != ebs_ref:
+                    return new_ebs_ref
+                else:
+                    raise Ec2SnapshotDoesNotExistError("Snapshot %s does not exist!" % ebs_ref.snapshot_id)
+        except Exception, e:
+            if not isinstance(e, Ec2SnapshotDoesNotExistError) and "InvalidSnapshot.NotFound" in str(e):
+                raise Ec2SnapshotDoesNotExistError("Snapshot %s does not exist!" % ebs_ref.snapshot_id)
+            else:
+                raise
 
     ###########################################################################
     def _new_ebs_snapshot_reference(self, ebs_snapshot):
