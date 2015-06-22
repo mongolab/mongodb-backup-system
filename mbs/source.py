@@ -462,8 +462,8 @@ class EbsVolumeStorage(VolumeStorage):
                 new_ebs_ref = self.new_ebs_snapshot_reference_from_existing(ebs_ref, ebs_snapshot)
                 if new_ebs_ref != ebs_ref:
                     return new_ebs_ref
-                else:
-                    raise Ec2SnapshotDoesNotExistError("Snapshot %s does not exist!" % ebs_ref.snapshot_id)
+            else:
+                raise Ec2SnapshotDoesNotExistError("Snapshot %s does not exist!" % ebs_ref.snapshot_id)
         except Exception, e:
             if not isinstance(e, Ec2SnapshotDoesNotExistError) and "InvalidSnapshot.NotFound" in str(e):
                 raise Ec2SnapshotDoesNotExistError("Snapshot %s does not exist!" % ebs_ref.snapshot_id)
