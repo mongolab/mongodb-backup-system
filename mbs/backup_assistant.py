@@ -73,6 +73,10 @@ class BackupAssistant(MBSObject):
         pass
 
     ####################################################################################################################
+    def is_connector_local_to_assistant(self, mongo_connector, backup):
+        pass
+
+    ####################################################################################################################
     def to_document(self, display_only=False):
         return {
             "_type": self.full_type_name
@@ -311,3 +315,7 @@ class LocalBackupAssistant(BackupAssistant):
                 logger.info("2.6 Restore workaround: Deleting old system."
                             "users.metadata.json file '%s'" % json_md_file)
                 os.remove(json_md_file)
+
+    ####################################################################################################################
+    def is_connector_local_to_assistant(self, mongo_connector, backup):
+        return mongo_connector.is_local()

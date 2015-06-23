@@ -461,7 +461,7 @@ class BackupStrategy(MBSObject):
     def backup_mongo_connector(self, backup, mongo_connector):
 
         # ensure local host if specified
-        if self.ensure_localhost and not mongo_connector.is_local():
+        if self.ensure_localhost and not self.backup_assistant.is_connector_local_to_assistant(mongo_connector):
             details = ("Source host for dump source '%s' is not running "
                        "locally and strategy.ensureLocalHost is set to true" %
                        mongo_connector)
