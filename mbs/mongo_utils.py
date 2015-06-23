@@ -151,6 +151,11 @@ class MongoConnector(object):
 
     ###########################################################################
     @property
+    def host(self):
+        return self.address.split(":")[0]
+
+    ###########################################################################
+    @property
     def port(self):
         return self.address.split(":")[1]
 
@@ -172,7 +177,7 @@ class MongoConnector(object):
                                      " it is a cluster" % self)
         try:
 
-            server_host = self.address.split(":")[0]
+            server_host = self.host
             return server_host is None or is_host_local(server_host)
         except Exception, e:
             logger.error("Unable to resolve address for server '%s'."
