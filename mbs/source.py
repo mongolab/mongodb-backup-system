@@ -15,7 +15,7 @@ from mbs import get_mbs
 from errors import *
 
 import mongo_uri_tools
-import mbs_logging
+import logging
 import httplib2
 import rfc3339
 
@@ -39,7 +39,8 @@ from mongo_utils import build_mongo_connector
 ###############################################################################
 # LOGGER
 ###############################################################################
-logger = mbs_logging.logger
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
 
 
 ###############################################################################

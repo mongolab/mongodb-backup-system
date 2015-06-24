@@ -4,7 +4,7 @@ __author__ = 'abdul'
 import os
 import time
 
-import shutil
+import logging
 
 
 from mbs import get_mbs
@@ -93,8 +93,8 @@ class BackupEventNames(object):
 ###############################################################################
 # LOGGER
 ###############################################################################
-
-logger = mbs_logging.logger
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
 
 ###############################################################################
 def _is_task_reschedulable( task, exception):

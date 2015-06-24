@@ -6,7 +6,7 @@ import os
 
 import time
 import mbs_config
-import mbs_logging
+import logging
 
 import urllib2
 
@@ -61,7 +61,8 @@ MAX_FAIL_DUE_TIME = 2 * 60 * 60
 ###############################################################################
 # LOGGER
 ###############################################################################
-logger = mbs_logging.logger
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
 
 ###############################################################################
 ########################                       ################################

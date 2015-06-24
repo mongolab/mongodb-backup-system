@@ -5,13 +5,14 @@ import traceback
 from mbs import get_mbs
 from audit import *
 from globals import State
-import mbs_logging
+import logging
 from date_utils import yesterday_date, datetime_to_string, date_plus_seconds
 
 ###############################################################################
 # LOGGER
 ###############################################################################
-logger = mbs_logging.logger
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
 
 ###############################################################################
 ##############################                 ################################

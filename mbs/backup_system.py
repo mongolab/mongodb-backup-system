@@ -1,7 +1,7 @@
 __author__ = 'abdul'
 
 import time
-import mbs_logging
+import logging
 import traceback
 import urllib
 import json
@@ -49,7 +49,8 @@ import persistence
 ###############################################################################
 # LOGGER
 ###############################################################################
-logger = mbs_logging.logger
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
 
 ###############################################################################
 # Constants

@@ -3,7 +3,7 @@ __author__ = 'abdul'
 import mongo_uri_tools
 from pymongo.errors import ConnectionFailure
 from boto.exception import BotoServerError
-import mbs_logging
+import logging
 
 ###############################################################################
 ########################                       ################################
@@ -17,7 +17,8 @@ import mbs_logging
 # LOGGER
 ###############################################################################
 
-logger = mbs_logging.logger
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
 
 ###############################################################################
 # MBSError

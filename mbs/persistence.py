@@ -3,11 +3,12 @@ __author__ = 'abdul'
 from globals import EventType
 from mbs import get_mbs
 from mongo_utils import objectiditify
-import  mbs_logging
+import  logging
 ###############################################################################
 # LOGGER
 ###############################################################################
-logger = mbs_logging.logger
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
 
 ###############################################################################
 # Contains helper functions for persisting mbs documents

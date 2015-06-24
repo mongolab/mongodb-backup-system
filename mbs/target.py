@@ -3,6 +3,7 @@ __author__ = 'abdul'
 
 import os
 import sys
+import logging
 
 import cloudfiles
 import cloudfiles.errors
@@ -26,7 +27,8 @@ from threading import Thread
 ###############################################################################
 # LOGGER
 ###############################################################################
-logger = mbs_logging.logger
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
 
 ###############################################################################
 # CONSTANTS

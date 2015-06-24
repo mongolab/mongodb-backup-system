@@ -1,7 +1,7 @@
 __author__ = 'abdul'
 
 import traceback
-import mbs_logging
+import logging
 from utils import listify
 from sendgrid import Sendgrid, Message
 
@@ -15,7 +15,8 @@ DEFAULT_NOTIFICATION_SUBJECT = "Backup System Notification"
 ###############################################################################
 # LOGGER
 ###############################################################################
-logger = mbs_logging.logger
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
 
 ###############################################################################
 ###############################                 ###############################

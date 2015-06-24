@@ -1,13 +1,14 @@
 __author__ = 'abdul'
 
-import mbs_logging
+import logging
 from schedule import Schedule
 from schedule_runner import ScheduleRunner
 
 ###############################################################################
 # LOGGER
 ###############################################################################
-logger = mbs_logging.logger
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
 
 ###############################################################################
 # PlanGenerator

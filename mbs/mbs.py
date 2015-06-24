@@ -3,7 +3,7 @@ __author__ = 'abdul'
 import os
 import version
 import mbs_config as config
-import mbs_logging
+import logging
 import backup_assistant
 import threading
 
@@ -29,7 +29,8 @@ from encryption import Encryptor
 ###############################################################################
 # LOGGER
 ###############################################################################
-logger = mbs_logging.logger
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
 
 ###############################################################################
 # MBS

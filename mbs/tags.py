@@ -4,13 +4,14 @@ __author__ = 'abdul'
 from base import MBSObject
 from mongo_uri_tools import parse_mongo_uri
 from utils import get_host_ips
-import mbs_logging
+import logging
 
 ###############################################################################
 # LOGGER
 ###############################################################################
 
-logger = mbs_logging.logger
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
 
 ###############################################################################
 # DynamicTag class
