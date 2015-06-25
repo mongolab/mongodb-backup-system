@@ -2044,7 +2044,7 @@ class DataSizePredicate(HybridStrategyPredicate):
     def _get_backup_source_data_size(self, backup, mongo_connector):
         database_name = backup.source.database_name
         logger.info("Computing dataSize for backup '%s', connector %s" %
-                    (backup, mongo_connector.info()))
+                    (backup.id, mongo_connector.info()))
         stats = mongo_connector.get_stats(only_for_db=database_name)
 
         return stats["dataSize"]
