@@ -2002,6 +2002,8 @@ class DataSizePredicate(HybridStrategyPredicate):
             backup
             Must be overridden by subclasses
         """
+        logger.info("Selecting best strategy for backup '%s " % backup.id)
+
         data_size = self._get_backup_source_data_size(backup, mongo_connector)
         logger.info("Selecting best strategy for backup '%s', dataSize=%s, "
                     "dump max data size=%s" %
@@ -2041,6 +2043,8 @@ class DataSizePredicate(HybridStrategyPredicate):
     ###########################################################################
     def _get_backup_source_data_size(self, backup, mongo_connector):
         database_name = backup.source.database_name
+        logger.info("Computing dataSize for backup '%s', connector %s" %
+                    (backup, mongo_connector.info()))
         stats = mongo_connector.get_stats(only_for_db=database_name)
 
         return stats["dataSize"]
