@@ -1073,7 +1073,7 @@ class DumpStrategy(BackupStrategy):
 
         failed_dest = _failed_upload_file_dest(backup)
         # tar up
-        self.backup_assistant.tgz_backup(backup, dump_dir, failed_tar_filename)
+        self.backup_assistant.tar_backup(backup, dump_dir, failed_tar_filename)
         update_backup(backup,
                       event_name="ERROR_HANDLING_END_TAR",
                       message="Finished taring failed dump")
