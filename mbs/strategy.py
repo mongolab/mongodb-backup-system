@@ -1068,7 +1068,7 @@ class DumpStrategy(BackupStrategy):
                       event_name="ERROR_HANDLING_START_TAR",
                       message="Taring failed dump")
 
-        dump_dir = self._get_backup_dump_dir(backup)
+        dump_dir = _backup_dump_dir_name(backup)
         failed_tar_filename = _failed_tar_file_name(backup)
 
         failed_dest = _failed_upload_file_dest(backup)
