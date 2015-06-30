@@ -50,7 +50,7 @@ MBS_INDEXES = {
 
     "plans": [
         {
-            "index": [('nextOccurrence', ASCENDING), ('priority', DESCENDING)]
+            "index": [('nextOccurrence', ASCENDING), ('priority', ASCENDING)]
         }
     ],
 

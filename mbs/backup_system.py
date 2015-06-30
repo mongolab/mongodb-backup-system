@@ -311,7 +311,7 @@ class BackupSystem(Thread):
         }
 
         # sort by priority
-        s = [("priority", -1)]
+        s = [("priority", 1)]
 
 
         return get_mbs().plan_collection.find_iter(q, sort=s)
