@@ -372,7 +372,7 @@ class BackupSystem(Thread):
             "state": State.FAILED
         }
 
-        for backup in get_mbs().backup_collection.find(q):
+        for backup in get_mbs().backup_collection.find_iter(q):
             try:
                 self.reschedule_backup(backup, from_scratch=from_scratch,
                                        reset_try_count=reset_try_count)
