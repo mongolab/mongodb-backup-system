@@ -310,8 +310,11 @@ class BackupSystem(Thread):
             ]
         }
 
+        # sort by priority
+        s = [("priority", -1)]
 
-        return get_mbs().plan_collection.find_iter(q)
+
+        return get_mbs().plan_collection.find_iter(q, sort=s)
 
     ###########################################################################
     def _plan_has_backup_in_progress(self, plan):
