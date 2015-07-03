@@ -94,6 +94,8 @@ class BackupSystem(Thread):
         self._audit_next_occurrence = None
         self._plan_generation_runner = PlanGenerationRunner(self)
 
+        self._api_node_only = False
+
     ###########################################################################
     @property
     def plan_generators(self):
@@ -178,6 +180,19 @@ class BackupSystem(Thread):
         self._backup_sweeper = val
 
     ###########################################################################
+    @property
+    def api_node_only(self):
+        return self._api_node_only
+
+    @api_node_only.setter
+    def api_node_only(self, val):
+        self._api_node_only = val
+
+    ###########################################################################
+    def is_main_instance(self):
+        return not self.api_node_only
+
+    ###########################################################################
     # Behaviors
     ###########################################################################
     def run(self):
@@ -185,12 +200,18 @@ class BackupSystem(Thread):
         self.info("PID is %s" % os.getpid())
         self._update_pid_file()
 
-        # ensure mbs indexes
-        get_mbs().ensure_mbs_indexes()
-
         # Start the api server
         self._start_api_server()
 
+        if self.is_main_instance():
+            self.main_instance_run()
+            self.main_instance_stopped()
+
+
+    ###########################################################################
+    def main_instance_run(self):
+        # ensure mbs indexes
+        get_mbs().ensure_mbs_indexes()
         # Start expiration managers
         self._start_expiration_managers()
 
@@ -207,6 +228,8 @@ class BackupSystem(Thread):
             finally:
                 time.sleep(self._sleep_time)
 
+    ###########################################################################
+    def main_instance_stopped(self):
         self._stop_expiration_managers()
         self._plan_generation_runner.stop()
         self._stopped = True
