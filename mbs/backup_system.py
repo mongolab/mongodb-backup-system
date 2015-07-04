@@ -94,7 +94,7 @@ class BackupSystem(Thread):
         self._audit_next_occurrence = None
         self._plan_generation_runner = PlanGenerationRunner(self)
 
-        self._api_node_only = False
+        self._master_instance = True
 
     ###########################################################################
     @property
@@ -181,16 +181,13 @@ class BackupSystem(Thread):
 
     ###########################################################################
     @property
-    def api_node_only(self):
-        return self._api_node_only
+    def master_instance(self):
+        return self._master_instance
 
-    @api_node_only.setter
-    def api_node_only(self, val):
-        self._api_node_only = val
+    @master_instance.setter
+    def master_instance(self, val):
+        self._master_instance = val
 
-    ###########################################################################
-    def is_main_instance(self):
-        return not self.api_node_only
 
     ###########################################################################
     # Behaviors
@@ -203,13 +200,13 @@ class BackupSystem(Thread):
         # Start the api server
         self._start_api_server()
 
-        if self.is_main_instance():
-            self.main_instance_run()
-            self.main_instance_stopped()
+        if self.master_instance:
+            self.master_instance_run()
+            self.master_instance_stopped()
 
 
     ###########################################################################
-    def main_instance_run(self):
+    def master_instance_run(self):
         # ensure mbs indexes
         get_mbs().ensure_mbs_indexes()
         # Start expiration managers
@@ -229,7 +226,7 @@ class BackupSystem(Thread):
                 time.sleep(self._sleep_time)
 
     ###########################################################################
-    def main_instance_stopped(self):
+    def master_instance_stopped(self):
         self._stop_expiration_managers()
         self._plan_generation_runner.stop()
         self._stopped = True

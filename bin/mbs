@@ -194,7 +194,7 @@ def start_backup_system(parsed_args):
                    "completely stopped then try starting again")
             return
 
-        _do_start_backup_system(fork=not parsed_args.foreground)
+        _do_start_backup_system(fork=not parsed_args.foreground, not_master=parsed_args.not_master)
 
         def backup_system_started():
             return client.get_status()["status"] == STATUS_RUNNING
@@ -209,7 +209,7 @@ def start_backup_system(parsed_args):
                  log_func=lambda: True)
 
 ###############################################################################
-def _do_start_backup_system(fork=False):
+def _do_start_backup_system(fork=False, not_master=False):
     if fork:
         child_pid = os.fork()
         if child_pid:
@@ -223,8 +223,10 @@ def _do_start_backup_system(fork=False):
             # redirect std out/err to logger
             redirect_std_to_logger()
 
+    backup_system = _get_backup_system()
+    backup_system.master_instance = not not_master
     # forked child process
-    _get_backup_system().start()
+    backup_system.start()
 
 ###############################################################################
 def stop_backup_system(parsed_args):
@@ -637,6 +639,16 @@ PARSER_DEF = {
                     "cmd_arg":  "--foreground",
                     "nargs": 0,
                     "help": "start system in foreground",
+                    "action": "store_true",
+                    "default": False
+                },
+
+                {
+                    "name": "not_master",
+                    "type": "optional",
+                    "cmd_arg":  "--not-master",
+                    "nargs": 0,
+                    "help": "starts a non-master backup-system",
                     "action": "store_true",
                     "default": False
                 }
