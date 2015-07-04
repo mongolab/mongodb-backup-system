@@ -201,8 +201,11 @@ class BackupSystem(Thread):
         self._start_api_server()
 
         if self.master_instance:
+            logger.info("Starting as Master instance")
             self.master_instance_run()
             self.master_instance_stopped()
+        else:
+            logger.info("Started as a NON-Master instance")
 
 
     ###########################################################################
