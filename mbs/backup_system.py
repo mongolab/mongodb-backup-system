@@ -94,7 +94,7 @@ class BackupSystem(Thread):
         self._audit_next_occurrence = None
         self._plan_generation_runner = PlanGenerationRunner(self)
 
-        self._master_instance = True
+        self._master_instance = False
 
     ###########################################################################
     @property
