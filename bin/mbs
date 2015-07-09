@@ -342,9 +342,9 @@ def delete_backup(parsed_args):
 
 ###############################################################################
 def reschedule_backup(parsed_args):
-    from_scratch = parsed_args.fromScratch
+    force = parsed_args.force
     backup = _get_backup(parsed_args.backupId)
-    _get_backup_system().reschedule_backup(backup, from_scratch=from_scratch,
+    _get_backup_system().reschedule_backup(backup, force=force,
                                            reset_try_count=True)
 
 ###############################################################################
@@ -358,8 +358,8 @@ def show_backup(parsed_args):
 
 ###############################################################################
 def reschedule_all_backups(parsed_args):
-    from_scratch = parsed_args.fromScratch
-    get_mbs().backup_system.reschedule_all_failed_backups(from_scratch=from_scratch,
+    force = parsed_args.force
+    get_mbs().backup_system.reschedule_all_failed_backups(force=force,
                                                           reset_try_count=True)
 
 ###############################################################################
@@ -421,9 +421,9 @@ def cancel_restore(parsed_args):
 
 ###############################################################################
 def reschedule_restore(parsed_args):
-    from_scratch = parsed_args.fromScratch
+    force = parsed_args.force
     restore = _get_restore(parsed_args.restoreId)
-    _get_backup_system().reschedule_restore(restore, from_scratch=from_scratch)
+    _get_backup_system().reschedule_restore(restore, force=force)
 
 ###############################################################################
 def encrypt(parsed_args):
@@ -855,9 +855,9 @@ PARSER_DEF = {
                     "help": "Backup id"
                 },
                     {
-                    "name": "fromScratch",
+                    "name": "force",
                     "type" : "optional",
-                    "cmd_arg":  ["--from-scratch"],
+                    "cmd_arg":  ["--force"],
                     "nargs": 0,
                     "help": "clears backup log",
                     "action": "store_true",
@@ -874,9 +874,9 @@ PARSER_DEF = {
             "description" : "Reschedules all failed backups",
             "args": [
                     {
-                    "name": "fromScratch",
+                    "name": "force",
                     "type" : "optional",
-                    "cmd_arg":  ["--from-scratch"],
+                    "cmd_arg":  ["--force", "-f"],
                     "nargs": 0,
                     "help": "clears backup log",
                     "action": "store_true",
@@ -949,9 +949,9 @@ PARSER_DEF = {
                     "help": "Restore id"
                 },
                 {
-                    "name": "fromScratch",
+                    "name": "force",
                     "type": "optional",
-                    "cmd_arg":  ["--from-scratch"],
+                    "cmd_arg":  ["--force", "-f"],
                     "nargs": 0,
                     "help": "clears restore log",
                     "action": "store_true",

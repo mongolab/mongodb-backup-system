@@ -390,7 +390,7 @@ class BackupSystem(Thread):
             self.reschedule_backup(backup)
 
     ###########################################################################
-    def reschedule_all_failed_backups(self, from_scratch=False,
+    def reschedule_all_failed_backups(self, force=False,
                                       reset_try_count=False):
         self.info("Rescheduling all failed backups")
 
@@ -400,13 +400,13 @@ class BackupSystem(Thread):
 
         for backup in get_mbs().backup_collection.find_iter(q):
             try:
-                self.reschedule_backup(backup, from_scratch=from_scratch,
+                self.reschedule_backup(backup, force=force,
                                        reset_try_count=reset_try_count)
             except Exception, e:
                 logger.error(e)
 
     ###########################################################################
-    def reschedule_backup(self, backup, from_scratch=False,
+    def reschedule_backup(self, backup, force=False,
                           reset_try_count=False):
         """
             Reschedules the backup IF backup state is FAILED and
@@ -427,14 +427,14 @@ class BackupSystem(Thread):
         backup.state = State.SCHEDULED
 
         bc = get_mbs().backup_collection
-        # if from_scratch is set then clear backup log
-        if from_scratch:
+        # if force is set then clear backup log
+        if force:
             backup.logs = []
             backup.try_count = 0
             backup.engine_guid = None
             props.extend(["logs", "tryCount", "engineGuid"])
 
-        if reset_try_count or from_scratch:
+        if reset_try_count or force:
             backup.try_count = 0
             props.append("tryCount")
         # regenerate backup tags if backup belongs to a plan
@@ -452,7 +452,7 @@ class BackupSystem(Thread):
 
 
     ###########################################################################
-    def reschedule_restore(self, restore, from_scratch=False):
+    def reschedule_restore(self, restore, force=False):
         """
             Reschedules the restore IF state is FAILED
         """
@@ -467,8 +467,8 @@ class BackupSystem(Thread):
         restore.state = State.SCHEDULED
 
         rc = get_mbs().restore_collection
-        # if from_scratch is set then clear restore log
-        if from_scratch:
+        # if force is set then clear restore log
+        if force:
             restore.logs = []
             restore.try_count = 0
             restore.engine_guid = None
