@@ -710,8 +710,7 @@ class RackspaceCloudFilesTarget(BackupTarget):
         ]
         logger.info("RackspaceCloudFilesTarget: Executing command: %s" %
                     " ".join(st_command))
-        working_dir = os.path.dirname(file_path)
-        execute_command(st_command, cwd=working_dir)
+        execute_command(st_command)
         logger.info("RackspaceCloudFilesTarget: Multi-part put for %s "
                     "completed successfully!" % file_path)
 
