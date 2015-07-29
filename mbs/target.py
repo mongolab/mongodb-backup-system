@@ -705,7 +705,7 @@ class RackspaceCloudFilesTarget(BackupTarget):
             "-K", self.api_key,
             "upload",
             "--segment-size", str(chunk_size),
-            self.container_name, destination_path
+            self.container_name, file_path
 
         ]
         logger.info("RackspaceCloudFilesTarget: Executing command: %s" %
