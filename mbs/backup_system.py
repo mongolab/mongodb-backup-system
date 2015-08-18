@@ -59,9 +59,8 @@ logger.addHandler(logging.NullHandler())
 MAX_BACKUP_WAIT_TIME = 5 * 60 * 60
 ONE_OFF_BACKUP_MAX_WAIT_TIME = 60
 
-# Minimum time before rescheduling a failed backup (5 minutes)
-RESCHEDULE_PERIOD = 5 * 60
-RESCHEDULE_PERIOD_MILLS = RESCHEDULE_PERIOD * 1000
+# Minimum time before rescheduling a failed backup (15 minutes)
+RESCHEDULE_PERIOD = 30 * 60
 
 BACKUP_SYSTEM_STATUS_RUNNING = "running"
 BACKUP_SYSTEM_STATUS_STOPPING = "stopping"
@@ -374,18 +373,15 @@ class BackupSystem(Thread):
         RESCHEDULE_PERIOD seconds ago
         """
 
-        # select backups whose last log date is at least RESCHEDULE_PERIOD ago
-
-        where = ("(this.logs[this.logs.length-1].date.getTime() + %s) < "
-                 "new Date().getTime()" % RESCHEDULE_PERIOD_MILLS)
         q = {
             "state": State.FAILED,
-            "reschedulable": True,
-            "$where": where
+            "reschedulable": True
         }
 
+        cuttoff_date = date_minus_seconds(date_now(), RESCHEDULE_PERIOD)
         for backup in get_mbs().backup_collection.find(q):
-            self.reschedule_backup(backup)
+            if backup.end_date <= cuttoff_date:
+                self.reschedule_backup(backup)
 
     ###########################################################################
     def reschedule_all_failed_backups(self, force=False,
