@@ -200,7 +200,10 @@ class Backup(MBSTask):
             "_type": "Backup",
             "source": self.source.to_document(display_only=display_only),
             "target": self.target.to_document(display_only=display_only),
-            "planOccurrence": self.plan_occurrence
+            "planOccurrence": self.plan_occurrence,
+            "expiredDate": self.expired_date,
+            "dontExpire": self.dont_expire,
+            "deletedDate": self.deleted_date
         })
 
         if self.name:
@@ -232,14 +235,5 @@ class Backup(MBSTask):
 
         if self.backup_rate_in_mbps:
             doc["backupRateInMBPS"] = self.backup_rate_in_mbps
-
-        if self.expired_date:
-            doc["expiredDate"] = self.expired_date
-
-        if self.dont_expire:
-            doc["dontExpire"] = self.dont_expire
-
-        if self.deleted_date:
-            doc["deletedDate"] = self.deleted_date
 
         return doc
