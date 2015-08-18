@@ -8,7 +8,9 @@ from globals import Priority
 # BackupPlan
 ###############################################################################
 class BackupPlan(MBSObject):
+
     def __init__(self):
+        MBSObject.__init__(self)
         self._id = None
         self._created_date = None
         self._description = None
@@ -168,7 +170,9 @@ class BackupPlan(MBSObject):
             "target": self.target.to_document(display_only=display_only),
             "schedule": self.schedule.to_document(display_only=display_only),
             "nextOccurrence": self.next_occurrence,
-            "strategy": self.strategy.to_document(display_only=display_only)
+            "strategy": self.strategy.to_document(display_only=display_only),
+            "priority": self.priority,
+            "generator": self.generator
         }
 
         if self.id:
@@ -178,14 +182,8 @@ class BackupPlan(MBSObject):
             doc["retentionPolicy"] = self.retention_policy.to_document(
                                                     display_only=display_only)
 
-        if self.generator:
-            doc["generator"] = self.generator
-
         if self.tags:
             doc["tags"] = self._export_tags()
-
-        if self.priority:
-            doc["priority"] = self.priority
 
         if self.secondary_targets:
             doc["secondaryTargets"] = \
