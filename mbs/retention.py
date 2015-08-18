@@ -666,9 +666,7 @@ class BackupSweeper(ScheduleRunner):
             "expiredDate": {
                 "$lt": self.max_expire_date_to_delete()
             },
-            "deletedDate": {
-                "$exists": False
-            }
+            "deletedDate": None
         }
 
         return q
@@ -781,7 +779,7 @@ class SweepWorker(Thread):
 def _check_to_expire_query():
     q = {
         "state": State.SUCCEEDED,
-        "expiredDate": {"$exists": False},
+        "expiredDate": None,
         "dontExpire": {"$ne": True}
     }
 
