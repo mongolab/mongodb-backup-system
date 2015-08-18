@@ -21,7 +21,7 @@ class Backup(MBSTask):
         self._plan_occurrence = None
         self._backup_rate_in_mbps = None
         self._expired_date = None
-        self._dont_expire = None
+        self._dont_expire = False
         self._deleted_date = None
 
     ###########################################################################

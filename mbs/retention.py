@@ -780,7 +780,7 @@ def _check_to_expire_query():
     q = {
         "state": State.SUCCEEDED,
         "expiredDate": None,
-        "dontExpire": {"$ne": True}
+        "dontExpire": False
     }
 
     return q
