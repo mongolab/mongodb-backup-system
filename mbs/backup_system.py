@@ -29,7 +29,7 @@ from restore import Restore
 from tags import DynamicTag
 
 from plan import BackupPlan
-from schedule import AbstractSchedule
+from schedule import AbstractSchedule, Schedule
 from retention import RetentionPolicy
 from strategy import BackupStrategy
 from target import BackupTarget
@@ -806,18 +806,27 @@ class BackupSystem(Thread):
             ]
         }
 
-        starving_backups = get_mbs().backup_collection.find(q)
+        for backup in get_mbs().backup_collection.find_iter(q):
+            if self.is_backup_past_due(backup):
+                msg = ("You have scheduled backups that has past the maximum "
+                       "waiting time" )
+                self.info(msg)
+                self.info("Sending a notification...")
+                sbj = "Past due scheduled backups"
+                get_mbs().send_notification(sbj, msg)
+                break
 
-        if starving_backups:
-            msg = ("You have %s scheduled backups that has past the maximum "
-                   "waiting time (%s seconds)." %
-                   (len(starving_backups), MAX_BACKUP_WAIT_TIME))
-            self.info(msg)
+    ###########################################################################
+    def is_backup_past_due(self, backup):
 
+        max_wait_time = MAX_BACKUP_WAIT_TIME
+        if backup.plan:
+            if isinstance(backup.plan.schedule, Schedule):
+                max_wait_time = min(MAX_BACKUP_WAIT_TIME, backup.plan.schedule.frequency_in_seconds / 2)
+        else:
+            max_wait_time = ONE_OFF_BACKUP_MAX_WAIT_TIME
 
-            self.info("Sending a notification...")
-            sbj = "Past due scheduled backups"
-            get_mbs().send_notification(sbj, msg)
+        return backup.state == State.SCHEDULED and date_minus_seconds(date_now(), max_wait_time) > backup.created_date
 
     ###########################################################################
     def _resolve_task_tags(self, task, task_collection):
