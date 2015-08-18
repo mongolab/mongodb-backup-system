@@ -251,7 +251,7 @@ class BackupSystem(Thread):
     ###########################################################################
     def _process_plans_considered_now(self, process_max_count=None):
         count = 0
-        for plan in self._get_plans_to_consider_now():
+        for plan in self._get_plans_to_consider_now(limit=process_max_count):
             try:
                 self._process_plan(plan)
             except Exception, e:
@@ -315,7 +315,7 @@ class BackupSystem(Thread):
 
 
     ###########################################################################
-    def _get_plans_to_consider_now(self):
+    def _get_plans_to_consider_now(self, limit=None):
         """
         Returns list of plans that the scheduler should process at this time.
         Those are:
@@ -327,7 +327,6 @@ class BackupSystem(Thread):
         """
         now = date_now()
         q = {"$or": [
-                {"nextOccurrence": {"$exists": False}},
                 {"nextOccurrence": None},
                 {"nextOccurrence": {"$lte": now}}
             ]
@@ -336,8 +335,7 @@ class BackupSystem(Thread):
         # sort by priority
         s = [("priority", 1)]
 
-
-        return get_mbs().plan_collection.find_iter(q, sort=s)
+        return get_mbs().plan_collection.find_iter(q, sort=s, limit=limit)
 
     ###########################################################################
     def _plan_has_backup_in_progress(self, plan):
