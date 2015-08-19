@@ -666,7 +666,7 @@ class TaskQueueProcessor(Thread):
         c = self.task_collection
 
         hint = self._engine._get_scheduled_tasks_query_hint(self)
-        print "Using hint %s" % hint
+
         task = c.find_and_modify(query=q, sort=s, update=u, new=True, hint=hint)
 
         return task
