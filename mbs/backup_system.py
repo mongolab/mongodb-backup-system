@@ -1033,7 +1033,7 @@ class BackupSystem(Thread):
 
 
     ###########################################################################
-    def _stop_plan_generation_runner(self):
+    def _stop_plan_generators(self):
         if self.plan_generators:
             for pg in self.plan_generators:
                 pg.stop()
