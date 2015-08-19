@@ -294,9 +294,11 @@ class BackupSystem(Thread):
 
         # CASE II: If there is a backup running (IN PROGRESS)
         # ===> no op
-        elif self._plan_has_backup_in_progress(plan):
-            self.info("Plan '%s' has a backup that is currently in"
-                      " progress. Nothing to do now." % plan._id)
+        ### TODO XXX : we don't this case any more
+
+        #elif self._plan_has_backup_in_progress(plan):
+            #self.info("Plan '%s' has a backup that is currently in"
+                      #" progress. Nothing to do now." % plan._id)
         # CASE III: if time now is past the next occurrence
         elif plan.next_occurrence <= now:
             self.info("Plan '%s' next occurrence '%s' is greater than"
@@ -339,7 +341,7 @@ class BackupSystem(Thread):
     ###########################################################################
     def _plan_has_backup_in_progress(self, plan):
         q = {
-            "plan.$id": plan._id,
+            "plan._id": plan._id,
             "state": State.IN_PROGRESS
         }
         return get_mbs().backup_collection.find_one(q) is not None
