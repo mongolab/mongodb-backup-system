@@ -768,7 +768,7 @@ class BackupStrategy(MBSObject):
     def _stop_balancer(self, backup, sharded_connector):
 
         if sharded_connector.is_balancer_active():
-            msg = "Stopping balancer for '%s'" % backup.source.resource_id
+            msg = "Stopping balancer for '%s'" % backup.source.id
             logger.info(msg)
             update_backup(backup, event_name="STOP_BALANCER", message=msg)
             sharded_connector.stop_balancer()
@@ -787,7 +787,7 @@ class BackupStrategy(MBSObject):
                 logger.info("Balancer stopped!")
         else:
             msg = ("Balancer already stopped for '%s'" %
-                   backup.source.resource_id)
+                   backup.source.id)
             logger.info(msg)
             update_backup(backup, event_name="BALANCER_ALREADY_STOPPED",
                           message=msg)
@@ -795,7 +795,7 @@ class BackupStrategy(MBSObject):
     ###########################################################################
     def _resume_balancer(self, backup, sharded_connector):
 
-        msg = "Resuming balancer for '%s'" % backup.source.resource_id
+        msg = "Resuming balancer for '%s'" % backup.source.id
         update_backup(backup, event_name="RESUME_BALANCER", message=msg)
         sharded_connector.resume_balancer()
 

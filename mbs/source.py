@@ -140,7 +140,7 @@ class BackupSource(MBSObject):
 
     ###########################################################################
     @property
-    def resource_id(self):
+    def id(self):
         """
             Must be overridden
         """
@@ -213,7 +213,7 @@ class MongoSource(BackupSource):
 
     ###########################################################################
     @property
-    def resource_id(self):
+    def id(self):
         return mongo_uri_tools.mask_mongo_uri(self.uri)
 
 ###############################################################################
