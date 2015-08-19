@@ -398,11 +398,6 @@ class BackupEngine(Thread):
         logger.error("<BackupEngine-%s>: %s" % (self.id, msg))
 
 
-    ###########################################################################
-    def _get_scheduled_tasks_query_hint(self, queue_processor):
-        return None
-
-
 ###############################################################################
 # TaskWorker
 ###############################################################################
@@ -665,9 +660,7 @@ class TaskQueueProcessor(Thread):
 
         c = self.task_collection
 
-        hint = self._engine._get_scheduled_tasks_query_hint(self)
-
-        task = c.find_and_modify(query=q, sort=s, update=u, new=True, hint=hint)
+        task = c.find_and_modify(query=q, sort=s, update=u, new=True)
 
         return task
 
