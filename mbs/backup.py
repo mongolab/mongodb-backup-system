@@ -198,8 +198,8 @@ class Backup(MBSTask):
         doc = MBSTask.to_document(self, display_only=display_only)
         doc.update({
             "_type": "Backup",
-            "source": self.source.to_document(display_only=display_only),
-            "target": self.target.to_document(display_only=display_only),
+            "source": self.source and self.source.to_document(display_only=display_only),
+            "target": self.target and self.target.to_document(display_only=display_only),
             "planOccurrence": self.plan_occurrence,
             "expiredDate": self.expired_date,
             "dontExpire": self.dont_expire,

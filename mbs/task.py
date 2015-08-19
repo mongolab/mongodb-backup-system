@@ -293,7 +293,7 @@ class MBSTask(MBSObject):
             "_type": "BackupEngineTask",
             "createdDate": self.created_date,
             "state": self.state,
-            "strategy": self.strategy.to_document(display_only=display_only),
+            "strategy": self.strategy and self.strategy.to_document(display_only=display_only),
             "startDate": self.start_date,
             "endDate": self.end_date,
             "engineGuid": self.engine_guid,
