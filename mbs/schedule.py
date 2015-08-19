@@ -314,3 +314,71 @@ class CronSchedule(AbstractSchedule, MBSObject):
             "expression": self.expression
         }
 
+
+########################################################################################################################
+# CompositeSchedule
+########################################################################################################################
+class CompositeSchedule(AbstractSchedule, MBSObject):
+
+    ####################################################################################################################
+    def __init__(self, schedules=None):
+        self._schedules = schedules
+
+    ####################################################################################################################
+    @property
+    def schedules(self):
+        return self._schedules
+
+    ####################################################################################################################
+    @schedules.setter
+    def schedules(self, schedules):
+        self._schedules = schedules
+
+    ####################################################################################################################
+    def max_acceptable_lag(self, dt=None):
+        """
+            :return max acceptable lag by all schedules
+        """
+        lags = map(lambda s: s.max_acceptable_lag(), self.schedules)
+        lags.sort()
+        return lags[-1]
+
+    ####################################################################################################################
+    def next_natural_occurrence(self, dt=None):
+        """
+            :return min next natural occurrence across all schedules
+        """
+        ocs = map(lambda s: s.next_natural_occurrence(), self.schedules)
+        ocs.sort()
+        return ocs[0]
+
+    ###########################################################################
+    def last_natural_occurrence(self, dt=None):
+        """
+            :return max last next occurrence across all schedules
+        """
+        ocs = map(lambda s: s.last_natural_occurrence(), self.schedules)
+        ocs.sort()
+        return ocs[-1]
+
+    ###########################################################################
+    def natural_occurrences_between(self, start_dt, end_dt=None):
+        """
+            :returns all occurrences across all schedules
+        """
+        all_ocs = []
+        for s in self.schedules:
+            all_ocs.extend(s.natural_occurrences_between(start_dt, end_dt=end_dt))
+
+        # eliminate duplicates
+        all_ocs = list(set(all_ocs))
+        all_ocs.sort()
+        return all_ocs
+
+    ###########################################################################
+    def validate(self):
+        errors = []
+        if not self.schedules:
+            errors.append("CompositeSchedule missing schedules")
+        return errors
+

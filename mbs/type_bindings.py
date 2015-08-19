@@ -12,6 +12,7 @@ TYPE_BINDINGS = {
     "Plan": "mbs.plan.BackupPlan",
     "Schedule": "mbs.schedule.Schedule",
     "CronSchedule": "mbs.schedule.CronSchedule",
+    "CompositeSchedule": "mbs.schedule.CompositeSchedule",
     "Strategy": "mbs.strategy.BackupStrategy",
     "DumpStrategy": "mbs.strategy.DumpStrategy",
     "CloudBlockStorageStrategy": "mbs.strategy.CloudBlockStorageStrategy",
