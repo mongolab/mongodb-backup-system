@@ -285,7 +285,9 @@ def status_backup_system(parsed_args):
 
 ###############################################################################
 def run_plan_generators(parsed_args):
-    _get_backup_system()._plan_generation_runner.run_plan_generators(dry_run=parsed_args.dryRun)
+    bs = _get_backup_system()
+    for pg in bs.plan_generators:
+        pg.run_generator(dry_run=parsed_args.dryRun)
 
 
 ###############################################################################

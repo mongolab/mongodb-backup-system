@@ -36,7 +36,6 @@ from target import BackupTarget
 from source import BackupSource
 from datetime import datetime
 
-from generator import PlanGenerationRunner
 import persistence
 
 
@@ -91,7 +90,6 @@ class BackupSystem(Thread):
         self._global_auditor = None
         self._audit_schedule = None
         self._audit_next_occurrence = None
-        self._plan_generation_runner = PlanGenerationRunner(self)
 
         self._master_instance = False
 
@@ -103,6 +101,10 @@ class BackupSystem(Thread):
     @plan_generators.setter
     def plan_generators(self, value):
         self._plan_generators = value
+        # set backup system to this
+        if self._plan_generators:
+            for pg in self._plan_generators:
+                pg.backup_system = self
 
     ###########################################################################
     @property
@@ -168,8 +170,7 @@ class BackupSystem(Thread):
     def backup_expiration_manager(self, val):
         self._backup_expiration_manager = val
 
-
-    ###########################################################################
+    ####################################################################################################################
     @property
     def backup_sweeper(self):
         return self._backup_sweeper
@@ -214,8 +215,8 @@ class BackupSystem(Thread):
         # Start expiration managers
         self._start_expiration_managers()
 
-        # Start plan generation runner
-        self._plan_generation_runner.start()
+        # Start plan generators
+        self._start_plan_generators()
 
         while not self._stop_requested:
             try:
@@ -230,7 +231,7 @@ class BackupSystem(Thread):
     ###########################################################################
     def master_instance_stopped(self):
         self._stop_expiration_managers()
-        self._plan_generation_runner.stop()
+        self._stop_plan_generators()
         self._stopped = True
 
     ###########################################################################
@@ -1023,6 +1024,19 @@ class BackupSystem(Thread):
             self.info("Stopping Backup Sweeper")
             self.backup_sweeper.stop()
             self.info("Backup Sweeper stopped!")
+
+    ###########################################################################
+    def _start_plan_generators(self):
+        if self.plan_generators:
+            for pg in self.plan_generators:
+                pg.start()
+
+
+    ###########################################################################
+    def _stop_plan_generation_runner(self):
+        if self.plan_generators:
+            for pg in self.plan_generators:
+                pg.stop()
 
     ###########################################################################
     # logging
