@@ -857,7 +857,7 @@ PARSER_DEF = {
                     {
                     "name": "force",
                     "type" : "optional",
-                    "cmd_arg":  ["--force"],
+                    "cmd_arg":  ["--force", "-f"],
                     "nargs": 0,
                     "help": "clears backup log",
                     "action": "store_true",
