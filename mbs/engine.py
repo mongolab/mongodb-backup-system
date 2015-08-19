@@ -410,7 +410,7 @@ class TaskQueueProcessor(Thread):
         self._name = name
         self._task_collection = task_collection
         self._engine = engine
-        self._sleep_time = 10
+        self._sleep_time = 25
         self._stopped = False
         self._max_workers = int(max_workers)
         self._tick_count = 0
