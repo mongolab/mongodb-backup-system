@@ -780,30 +780,8 @@ class BackupSystem(Thread):
         # query for backups whose scheduled date is before current date minus
         # than max starvation time
 
-
-        where = ("(Math.min(%s, (this.plan.schedule.frequencyInSeconds / 2) * 1000) + "
-                    "this.createdDate.getTime()) < new Date().getTime()" %
-                 (MAX_BACKUP_WAIT_TIME * 1000))
-        one_off_starve_date = date_minus_seconds(date_now(),
-                                                 ONE_OFF_BACKUP_MAX_WAIT_TIME)
         q = {
             "state": State.SCHEDULED,
-            "$or":[
-                # backups with plans starving query
-                {
-                    "$and":[
-                        {"plan": {"$exists": True}},
-                        {"$where": where}
-                    ]
-                },
-                # One off backups (no plan) starving query
-                {
-                    "$and":[
-                            {"plan": {"$exists": False}},
-                            {"createdDate": {"$lt": one_off_starve_date}}
-                    ]
-                 }
-            ]
         }
 
         for backup in get_mbs().backup_collection.find_iter(q):
