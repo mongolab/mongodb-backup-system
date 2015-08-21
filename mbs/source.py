@@ -572,12 +572,19 @@ class EbsVolumeStorage(VolumeStorage):
     @property
     def ec2_connection(self):
         if not self._ec2_connection:
+            start_date = date_utils.date_now()
+
             conn = connect_to_region(self.region,
                                      aws_access_key_id=self.access_key,
                                      aws_secret_access_key=self.secret_key)
             if not conn:
                 raise ConfigurationError("Invalid region in block storage %s" %
                                          self)
+
+            # log elapsed time for aws call
+            elapsed_time = date_utils.timedelta_total_seconds(date_utils.date_now() - start_date)
+            logger.info("EC2: Create connection to region '%s' returned in %s seconds" %  (self.region, elapsed_time))
+
             self._ec2_connection = conn
 
         return self._ec2_connection
