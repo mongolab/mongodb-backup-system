@@ -18,6 +18,7 @@ import mongo_uri_tools
 import logging
 import httplib2
 import rfc3339
+import date_utils
 
 from boto.ec2 import connect_to_region
 from azure.storage import BlobService
@@ -400,7 +401,15 @@ class EbsVolumeStorage(VolumeStorage):
                     "'%s' (%s)" %
                     (name, description, self.volume_id, self.volume_name))
 
+        start_date = date_utils.date_now()
+
         ebs_snapshot = ebs_volume.create_snapshot(description)
+
+        # log elapsed time for aws call
+        elapsed_time = date_utils.timedelta_total_seconds(date_utils.date_now() - start_date)
+        logger.info("EC2: create snapshot for snapshot '%s' volume '%s' returned in %s seconds" %
+                    (ebs_snapshot.id, self.volume_id , elapsed_time))
+
         if not ebs_snapshot:
             raise BlockStorageSnapshotError("Failed to create snapshot from "
                                             "backup source :\n%s" % self)
@@ -426,7 +435,14 @@ class EbsVolumeStorage(VolumeStorage):
                do_on_exception=raise_if_not_ec2_retriable,
                do_on_failure=raise_exception)
     def _set_ebs_snapshot_name(self, ebs_snapshot, name):
+
+        start_date = date_utils.date_now()
+
         ebs_snapshot.add_tag("Name", name)
+        # log elapsed time for aws call
+        elapsed_time = date_utils.timedelta_total_seconds(date_utils.date_now() - start_date)
+        logger.info("EC2: set snapshot name for snapshot '%s' volume '%s' returned in %s seconds" %
+                    (ebs_snapshot.id, self.volume_id , elapsed_time))
 
     ###########################################################################
     def delete_snapshot(self, snapshot_ref):
@@ -589,8 +605,14 @@ class EbsVolumeStorage(VolumeStorage):
             "volume-id": self.volume_id,
             "snapshot-id": snapshot_id
         }
-        snapshots= self.ec2_connection.get_all_snapshots(filters=filters)
 
+        start_date = date_utils.date_now()
+
+        snapshots = self.ec2_connection.get_all_snapshots(filters=filters)
+        # log elapsed time for aws call
+        elapsed_time = date_utils.timedelta_total_seconds(date_utils.date_now() - start_date)
+        logger.info("EC2: get snapshot '%s' for  volume '%s' returned in %s seconds" %
+                    (snapshot_id, self.volume_id , elapsed_time))
         if snapshots:
             return snapshots[0]
 
