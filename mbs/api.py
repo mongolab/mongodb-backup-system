@@ -11,12 +11,15 @@ from utils import document_pretty_string, parse_json
 from errors import MBSApiError
 from netutils import crossdomain
 from functools import update_wrapper
+from bson.objectid import ObjectId
 
 from waitress import serve
 from mbs import get_mbs
 
 import persistence
 from flask import jsonify
+
+import date_utils
 
 ###############################################################################
 # LOGGER
@@ -101,7 +104,6 @@ class BackupSystemApiServer(Thread):
 
     ###########################################################################
     def stop_backup_system(self):
-        logger.info("Backup System: Received a stop command")
         try:
             # stop the backup system
             self._backup_system.request_stop()
@@ -116,7 +118,6 @@ class BackupSystemApiServer(Thread):
 
     ###########################################################################
     def status(self):
-        logger.debug("Backup System: Received a status command")
         try:
             return document_pretty_string(self._backup_system._do_get_status())
         except Exception, e:
@@ -127,7 +128,6 @@ class BackupSystemApiServer(Thread):
 
     ###########################################################################
     def get_backup(self, backup_id):
-        logger.info("Backup System: Received a get-backup command")
         try:
             backup = persistence.get_backup(backup_id)
             return str(backup)
@@ -140,8 +140,6 @@ class BackupSystemApiServer(Thread):
 
     ###########################################################################
     def get_backup_database_names(self, backup_id):
-        logger.info("Backup System: Received a get-backup-database-names"
-                    " command")
         try:
             dbnames = self._backup_system.get_backup_database_names(backup_id)
             return document_pretty_string(dbnames)
@@ -155,7 +153,6 @@ class BackupSystemApiServer(Thread):
 
     ###########################################################################
     def expire_backup(self, backup_id):
-        logger.info("Backup System: Received a expire-backup command")
         try:
             exp_man = self._backup_system.backup_expiration_manager
             backup = persistence.get_backup(backup_id)
@@ -172,7 +169,6 @@ class BackupSystemApiServer(Thread):
 
     ###########################################################################
     def delete_backup_plan(self, plan_id):
-        logger.info("Backup System: Received a delete-backup-plan command")
         try:
             result = self._backup_system.remove_plan(plan_id)
             return document_pretty_string(result)
@@ -191,7 +187,6 @@ class BackupSystemApiServer(Thread):
         destination_uri = arg_json.get('destinationUri')
         tags = arg_json.get('tags')
         source_database_name = arg_json.get('sourceDatabaseName')
-        logger.info("Backup System: Received a restore-backup command")
         try:
             bs = self._backup_system
             r = bs.schedule_backup_restore(backup_id,
@@ -212,8 +207,6 @@ class BackupSystemApiServer(Thread):
     ###########################################################################
     def get_destination_restore_status(self):
         destination_uri = request.args.get('destinationUri')
-        logger.info("Backup System: Received a "
-                    "get-destination-restore-status command")
         try:
             status = self._backup_system.get_destination_restore_status(
                 destination_uri)
@@ -249,6 +242,7 @@ class BackupSystemApiServer(Thread):
         @flask_server.route('/status', methods=['GET'])
         @self.api_auth_service.auth("/status")
         @crossdomain(origin='*')
+        @mbs_endpoint
         def status_request():
             return self.status()
 
@@ -257,6 +251,7 @@ class BackupSystemApiServer(Thread):
                             methods=['GET'])
         @self.api_auth_service.auth("/get-backup-database-names")
         @crossdomain(origin='*')
+        @mbs_endpoint
         def get_backup_database_names_request():
             backup_id = request.args.get('backupId')
             return self.get_backup_database_names(backup_id)
@@ -265,6 +260,7 @@ class BackupSystemApiServer(Thread):
         @flask_server.route('/expire-backup', methods=['GET'])
         @self.api_auth_service.auth("/expire-backup")
         @crossdomain(origin='*')
+        @mbs_endpoint
         def expire_backup_request():
             backup_id = request.args.get('backupId')
             return self.expire_backup(backup_id)
@@ -273,6 +269,7 @@ class BackupSystemApiServer(Thread):
         @flask_server.route('/delete-backup-plan', methods=['GET'])
         @self.api_auth_service.auth("/delete-backup-plan")
         @crossdomain(origin='*')
+        @mbs_endpoint
         def delete_backup_plan_request():
             plan_id = request.args.get('backupPlanId')
             return self.delete_backup_plan(plan_id)
@@ -281,6 +278,7 @@ class BackupSystemApiServer(Thread):
         @flask_server.route('/restore-backup', methods=['POST'])
         @self.api_auth_service.auth("/restore-backup")
         @crossdomain(origin='*')
+        @mbs_endpoint
         def restore_backup_request():
             return self.restore_backup()
 
@@ -288,6 +286,7 @@ class BackupSystemApiServer(Thread):
         @flask_server.route('/get-destination-restore-status', methods=['GET'])
         @self.api_auth_service.auth("/get-destination-restore-status")
         @crossdomain(origin='*')
+        @mbs_endpoint
         def get_destination_restore_status_request():
             return self.get_destination_restore_status()
 
@@ -425,3 +424,38 @@ def raise_service_unvailable():
 ###########################################################################
 def raise_forbidden_error(msg):
     raise MBSApiError(msg, status_code=403)
+
+########################################################################################################################
+def mbs_endpoint(f):
+    def wrapped_function(*args, **kwargs):
+        request_id = new_request_id()
+        backup_id = get_requested_backup_id()
+        backup_id_str = "(backupId=%s)" % backup_id if backup_id else ""
+        start_date = date_utils.date_now()
+
+        logger.info("%s: NEW REQUEST (requestId=%s) %s" % (request.path, request_id, backup_id_str))
+
+        result = f(*args, **kwargs)
+        elapsed = date_utils.timedelta_total_seconds(date_utils.date_now() - start_date)
+
+        logger.info("%s: FINISHED (requestId=%s) %s in %s seconds" % (request.path, request_id, backup_id_str, elapsed))
+
+        return result
+
+    return update_wrapper(wrapped_function, f)
+
+
+########################################################################################################################
+def new_request_id():
+    return str(ObjectId())
+
+###############################################################################
+def get_requested_backup_id():
+    return get_request_value("backupId")
+
+###############################################################################
+def get_request_value(key):
+    if request.method == "POST":
+        return get_request_json().get(key)
+    else:
+        return request.args.get(key)
