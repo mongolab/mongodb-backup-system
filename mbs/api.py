@@ -324,8 +324,7 @@ class BackupSystemApiServer(Thread):
         self._waitress_server = waitress.server.create_server(
             application, map=map, _start=_start, _sock=_sock,
             _dispatcher=_dispatcher, **kw)
-        global SERVER
-        SERVER = self._waitress_server
+
         return self._waitress_server
 
         ########################################################################################################################
