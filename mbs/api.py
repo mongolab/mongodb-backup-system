@@ -242,7 +242,7 @@ class BackupSystemApiServer(Thread):
         @flask_server.route('/status', methods=['GET'])
         @self.api_auth_service.auth("/status")
         @crossdomain(origin='*')
-        @mbs_endpoint
+        @self.mbs_endpoint
         def status_request():
             return self.status()
 
@@ -251,7 +251,7 @@ class BackupSystemApiServer(Thread):
                             methods=['GET'])
         @self.api_auth_service.auth("/get-backup-database-names")
         @crossdomain(origin='*')
-        @mbs_endpoint
+        @self.mbs_endpoint
         def get_backup_database_names_request():
             backup_id = request.args.get('backupId')
             return self.get_backup_database_names(backup_id)
@@ -260,7 +260,7 @@ class BackupSystemApiServer(Thread):
         @flask_server.route('/expire-backup', methods=['GET'])
         @self.api_auth_service.auth("/expire-backup")
         @crossdomain(origin='*')
-        @mbs_endpoint
+        @self.mbs_endpoint
         def expire_backup_request():
             backup_id = request.args.get('backupId')
             return self.expire_backup(backup_id)
@@ -269,7 +269,7 @@ class BackupSystemApiServer(Thread):
         @flask_server.route('/delete-backup-plan', methods=['GET'])
         @self.api_auth_service.auth("/delete-backup-plan")
         @crossdomain(origin='*')
-        @mbs_endpoint
+        @self.mbs_endpoint
         def delete_backup_plan_request():
             plan_id = request.args.get('backupPlanId')
             return self.delete_backup_plan(plan_id)
@@ -278,7 +278,7 @@ class BackupSystemApiServer(Thread):
         @flask_server.route('/restore-backup', methods=['POST'])
         @self.api_auth_service.auth("/restore-backup")
         @crossdomain(origin='*')
-        @mbs_endpoint
+        @self.mbs_endpoint
         def restore_backup_request():
             return self.restore_backup()
 
@@ -286,7 +286,7 @@ class BackupSystemApiServer(Thread):
         @flask_server.route('/get-destination-restore-status', methods=['GET'])
         @self.api_auth_service.auth("/get-destination-restore-status")
         @crossdomain(origin='*')
-        @mbs_endpoint
+        @self.mbs_endpoint
         def get_destination_restore_status_request():
             return self.get_destination_restore_status()
 
@@ -309,6 +309,7 @@ class BackupSystemApiServer(Thread):
             asyncore.socket_map.clear()
         except Exception:
             traceback.print_exc()
+
     ###########################################################################
     # TODO Remove this once we have a better shutdown method
     def custom_waitress_create_server(
@@ -323,8 +324,30 @@ class BackupSystemApiServer(Thread):
         self._waitress_server = waitress.server.create_server(
             application, map=map, _start=_start, _sock=_sock,
             _dispatcher=_dispatcher, **kw)
-
+        global SERVER
+        SERVER = self._waitress_server
         return self._waitress_server
+
+        ########################################################################################################################
+    def mbs_endpoint(self, f):
+        def wrapped_function(*args, **kwargs):
+            request_id = new_request_id()
+            backup_id = get_requested_backup_id()
+            backup_id_str = "(backupId=%s)" % backup_id if backup_id else ""
+            start_date = date_utils.date_now()
+            queue_size = self._waitress_server.task_dispatcher.queue.qsize()
+            logger.info("%s: NEW REQUEST (requestId=%s) %s [%s total requests queued]" % (
+                request.path, request_id, backup_id_str, queue_size))
+
+            result = f(*args, **kwargs)
+            elapsed = date_utils.timedelta_total_seconds(date_utils.date_now() - start_date)
+
+            logger.info("%s: FINISHED (requestId=%s) %s in %s seconds" % (request.path,
+                                                                          request_id, backup_id_str, elapsed))
+
+            return result
+
+        return update_wrapper(wrapped_function, f)
 
 ###############################################################################
 # Api Auth Service
@@ -424,26 +447,6 @@ def raise_service_unvailable():
 ###########################################################################
 def raise_forbidden_error(msg):
     raise MBSApiError(msg, status_code=403)
-
-########################################################################################################################
-def mbs_endpoint(f):
-    def wrapped_function(*args, **kwargs):
-        request_id = new_request_id()
-        backup_id = get_requested_backup_id()
-        backup_id_str = "(backupId=%s)" % backup_id if backup_id else ""
-        start_date = date_utils.date_now()
-
-        logger.info("%s: NEW REQUEST (requestId=%s) %s" % (request.path, request_id, backup_id_str))
-
-        result = f(*args, **kwargs)
-        elapsed = date_utils.timedelta_total_seconds(date_utils.date_now() - start_date)
-
-        logger.info("%s: FINISHED (requestId=%s) %s in %s seconds" % (request.path, request_id, backup_id_str, elapsed))
-
-        return result
-
-    return update_wrapper(wrapped_function, f)
-
 
 ########################################################################################################################
 def new_request_id():
