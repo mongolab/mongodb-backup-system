@@ -985,7 +985,7 @@ class BackupSystem(Thread):
 
 
     ###########################################################################
-    def _do_get_status(self):
+    def do_get_status(self):
         """
             Gets the status of the backup system
         """
@@ -1114,7 +1114,7 @@ class BackupSystemCommandServer(Thread):
         def status():
             logger.info("Command Server: Received a status command")
             try:
-                return document_pretty_string(backup_system._do_get_status())
+                return document_pretty_string(backup_system.do_get_status())
             except Exception, e:
                 msg = "Error while trying to get backup system status: %s" % e
                 logger.error(msg)
