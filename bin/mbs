@@ -22,7 +22,6 @@ from mbs import mbs_config
 from mbs.mbs_logging import setup_logging, redirect_std_to_logger
 
 from mbs.persistence import get_backup, get_backup_plan, get_restore
-from mbs_client.client import backup_system_client
 
 from mbs.api import BackupSystemApiServer
 
@@ -183,7 +182,7 @@ def status_engine(parsed_args):
 ###############################################################################
 def start_backup_system(parsed_args):
     backup_system = _get_backup_system()
-    client = backup_system_client()
+    client = api_client()
 
     handlers = {signal.SIGINT:  partial(client.stop_command),
                 signal.SIGTERM: partial(backup_system.force_stop)}
@@ -287,7 +286,7 @@ def status_backup_system(parsed_args):
 # Api Server Commands
 ###############################################################################
 def start_api_server(parsed_args):
-    client = backup_system_client()
+    client = api_client()
 
     handlers = {signal.SIGINT:  partial(client.stop_command)}
     with SignalWatcher(handlers) as watcher:
@@ -332,7 +331,7 @@ def _do_start_api_server(fork=False):
 
 ###############################################################################
 def stop_api_server(parsed_args):
-    client = backup_system_client()
+    client = api_client()
 
     status = client.get_status()
     if status["status"] == STATUS_STOPPING:
@@ -362,7 +361,7 @@ def stop_api_server(parsed_args):
 ###############################################################################
 def status_api_server(parsed_args):
 
-    print document_pretty_string(backup_system_client().get_status())
+    print document_pretty_string(api_client().get_status())
 
 ###############################################################################
 def run_plan_generators(parsed_args):
@@ -420,7 +419,7 @@ def download_backup_log(parsed_args):
 
 ###############################################################################
 def delete_backup(parsed_args):
-    client = backup_system_client()
+    client = api_client()
     client.delete_backup(parsed_args.backupId)
 
 ###############################################################################
@@ -453,7 +452,7 @@ def schedule_plan_backup(parsed_args):
 
 ###############################################################################
 def restore_backup(parsed_args):
-    client = backup_system_client()
+    client = api_client()
     destination_uri = parsed_args.destinationUri
     backup_id = parsed_args.backupId
     src_db = parsed_args.sourceDatabase
@@ -573,6 +572,12 @@ def _get_log_file_name(parsed_args):
         return "api-server.log"
     else:
         return "mbs.log"
+
+###############################################################################
+def api_client():
+    if not get_mbs().api_client:
+        raise Exception("no apiClient configured in config %s" % mbs_config.MBS_CONF_PATH)
+    return get_mbs().api_client
 
 ###############################################################################
 # command parser

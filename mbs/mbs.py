@@ -62,6 +62,8 @@ class MBS(object):
         self._backup_system = None
         self._api_server = None
 
+        self._api_client = None
+
 
         self._engines = None
 
@@ -212,6 +214,18 @@ class MBS(object):
                 self._api_server = self._maker.make(api_server_conf)
 
         return self._api_server
+
+
+    ###########################################################################
+    @property
+    def api_client(self):
+
+        if not self._api_client:
+            api_client_conf = self._get_config_value("apiClient")
+            if api_client_conf:
+                self._api_client = self._maker.make(api_client_conf)
+
+        return self._api_client
 
     ###########################################################################
     @property
