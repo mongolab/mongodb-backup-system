@@ -287,7 +287,10 @@ def status_backup_system(parsed_args):
 def start_api_server(parsed_args):
     client = api_client()
 
-    handlers = {signal.SIGINT:  partial(client.stop_command)}
+    handlers = {
+        signal.SIGINT:  partial(client.stop_command),
+        signal.SIGTERM: partial(client.stop_command)
+    }
     with SignalWatcher(handlers) as watcher:
         status = client.get_status()
         if status["status"] == STATUS_RUNNING:
@@ -308,6 +311,9 @@ def start_api_server(parsed_args):
             print "Api Server started successfully!"
         else:
             print "Api Server did not start. Please check logs"
+
+    wait_for(lambda: watcher.signaled or client.get_status()["status"] != "running",
+             log_func=lambda: True)
 
 ###############################################################################
 def _do_start_api_server(fork=False):
