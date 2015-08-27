@@ -42,7 +42,7 @@ def main(args):
     mbs_config.MBS_CONF_PATH = resolve_path(parsed_args.config_path)
     mbs_config.MBS_LOG_PATH = resolve_path(parsed_args.log_path)
 
-    if command_function in [start_engine, start_backup_system]:
+    if command_function in [start_engine, start_backup_system, start_api_server]:
         log_to_stdout = getattr(parsed_args, "foreground", True)
     else:
         log_to_stdout = True
@@ -287,7 +287,6 @@ def status_backup_system(parsed_args):
 # Api Server Commands
 ###############################################################################
 def start_api_server(parsed_args):
-    api_server = get_mbs().api_server
     client = backup_system_client()
 
     handlers = {signal.SIGINT:  partial(client.stop_command)}
@@ -570,6 +569,8 @@ def _get_log_file_name(parsed_args):
         return "engine_%s.log" % engine.id
     elif "start-master" in parsed_args.raw_args:
         return "backup_system.log"
+    elif "start-api-server" in parsed_args.raw_args:
+        return "api-server.log"
     else:
         return "mbs.log"
 
