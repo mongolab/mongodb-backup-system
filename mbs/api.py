@@ -221,6 +221,7 @@ class BackupSystemApiServer(Thread):
         ########## build stop method
         @flask_server.route('/stop', methods=['GET'])
         @self.api_auth_service.auth("/stop")
+        @self.mbs_endpoint
         @crossdomain(origin='*')
         def stop_api_server_request():
             return document_pretty_string(self.stop_api_server())
@@ -295,7 +296,7 @@ class BackupSystemApiServer(Thread):
             "ok": 1
         }
 
-
+    ###########################################################################
     def _do_stop(self):
         try:
             # This is how we stop waitress unfortunately
