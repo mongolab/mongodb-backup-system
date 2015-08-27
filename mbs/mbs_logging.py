@@ -14,7 +14,7 @@ import logging
 ###############################################################################
 MBS_LOG_DIR = "logs"
 
-logger = logging.getLogger()
+root_logger = logging.getLogger()
 
 LOG_TO_STDOUT = False
 ###############################################################################
@@ -22,25 +22,25 @@ def setup_logging(log_to_stdout=False, log_file_name=None):
     global LOG_TO_STDOUT
     LOG_TO_STDOUT = log_to_stdout
 
-    log_file_name = log_file_name or "mbs.log"
-    log_dir = resolve_path(mbs_config.MBS_LOG_PATH)
-    ensure_dir(log_dir)
-
-    logger.setLevel(logging.INFO)
+    root_logger.setLevel(logging.INFO)
 
     formatter = logging.Formatter("%(levelname)8s | %(asctime)s | %(message)s")
-
-    logfile = os.path.join(log_dir, log_file_name)
-    fh = TimedRotatingFileHandler(logfile, backupCount=50, when="midnight")
-
-    fh.setFormatter(formatter)
-    # add the handler to the root logger
-    logging.getLogger().addHandler(fh)
-
     if LOG_TO_STDOUT:
         sh = logging.StreamHandler(sys.stdout)
         sh.setFormatter(formatter)
-        logging.getLogger().addHandler(sh)
+        root_logger.addHandler(sh)
+    else:
+        log_file_name = log_file_name or "mbs.log"
+        log_dir = resolve_path(mbs_config.MBS_LOG_PATH)
+        ensure_dir(log_dir)
+        logfile = os.path.join(log_dir, log_file_name)
+        fh = TimedRotatingFileHandler(logfile, backupCount=50, when="midnight")
+
+        fh.setFormatter(formatter)
+        # add the handler to the root logger
+        root_logger.addHandler(fh)
+
+
 
 ###############################################################################
 def simple_file_logger(name, log_file_name):
@@ -78,7 +78,7 @@ class StdRedirectToLogger(object):
         self.prefix = prefix
 
     def write(self, message):
-        logger.info("%s: %s" % (self.prefix, message))
+        root_logger.info("%s: %s" % (self.prefix, message))
 
     def flush(self):
         pass
