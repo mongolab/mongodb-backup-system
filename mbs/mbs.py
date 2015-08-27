@@ -205,11 +205,13 @@ class MBS(object):
     ###########################################################################
     @property
     def api_server(self):
-        return self._api_server
 
-    @api_server.setter
-    def api_server(self, api_server):
-        self._api_server = api_server
+        if not self._api_server:
+            api_server_conf = self._get_config_value("apiServer")
+            if api_server_conf:
+                self._api_server = self._maker.make(api_server_conf)
+
+        return self._api_server
 
     ###########################################################################
     @property

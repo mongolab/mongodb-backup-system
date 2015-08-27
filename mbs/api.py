@@ -3,7 +3,7 @@ __author__ = 'abdul'
 import logging
 import traceback
 
-from threading import Thread
+from threading import Thread, Timer
 
 from flask import Flask
 from flask.globals import request
@@ -223,7 +223,7 @@ class BackupSystemApiServer(Thread):
         @self.api_auth_service.auth("/stop")
         @crossdomain(origin='*')
         def stop_api_server_request():
-            return self.stop_api_server()
+            return document_pretty_string(self.stop_api_server())
 
         ########## build status method
         @flask_server.route('/status', methods=['GET'])
@@ -231,7 +231,7 @@ class BackupSystemApiServer(Thread):
         @crossdomain(origin='*')
         @self.mbs_endpoint
         def status_request():
-            return self.status()
+            return document_pretty_string(self.status())
 
         ########## build get backup database names
         @flask_server.route('/get-backup-database-names',
@@ -289,11 +289,20 @@ class BackupSystemApiServer(Thread):
 
     ###########################################################################
     def stop_api_server(self):
-        # This is how we stop waitress unfortunately
+
+        Timer(2, self._do_stop).start()
+        return {
+            "ok": 1
+        }
+
+
+    def _do_stop(self):
         try:
+            # This is how we stop waitress unfortunately
             self._waitress_server.task_dispatcher.shutdown(timeout=5)
             import asyncore
             asyncore.socket_map.clear()
+
         except Exception:
             traceback.print_exc()
 

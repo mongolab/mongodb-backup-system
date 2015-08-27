@@ -280,8 +280,89 @@ def restart_backup_system(parsed_args):
 
 ###############################################################################
 def status_backup_system(parsed_args):
-
     print document_pretty_string(_get_backup_system().get_status())
+
+###############################################################################
+# Api Server Commands
+###############################################################################
+def start_api_server(parsed_args):
+    api_server = get_mbs().api_server
+    client = backup_system_client()
+
+    handlers = {signal.SIGINT:  partial(client.stop_command)}
+    with SignalWatcher(handlers) as watcher:
+        status = client.get_status()
+        if status["status"] == STATUS_RUNNING:
+            print "Backup System already started"
+            return
+        elif status["status"] == STATUS_STOPPING:
+            print ("Backup System is stopping now. Please wait until it is "
+                   "completely stopped then try starting again")
+            return
+
+        _do_start_api_server(fork=not parsed_args.foreground)
+
+        def api_server_started():
+            return client.get_status()["status"] == STATUS_RUNNING
+        wait_for(api_server_started, timeout=5)
+
+        if api_server_started():
+            print "Api Server started successfully!"
+        else:
+            print "Api Server did not start. Please check logs"
+
+###############################################################################
+def _do_start_api_server(fork=False):
+    if fork:
+        child_pid = os.fork()
+        if child_pid:
+            # parent process. return
+            print "Forked api server process %s" % child_pid
+            return
+        else:
+            # need to disown yourself, Son
+            os.setsid()
+            os.umask(0)
+            # redirect std out/err to logger
+            redirect_std_to_logger()
+
+    api_server = get_mbs().api_server
+    # forked child process
+    api_server.start()
+
+###############################################################################
+def stop_api_server(parsed_args):
+    client = backup_system_client()
+
+    status = client.get_status()
+    if status["status"] == STATUS_STOPPING:
+        print "A stop request has already been made"
+        return
+    elif status["status"] == STATUS_STOPPED:
+        print "Api Server is not running"
+        return
+
+    print "Stopping api server..."
+
+    client.stop_command()
+
+    def stopped():
+        return client.get_status()["status"] == "stopped"
+    print "Waiting for api server to stop"
+    wait_for(stopped, timeout=100)
+
+    if stopped():
+        print "Api Server stopped successfully. Bye!"
+    else:
+        print "Unable to stop api server within 100 seconds"
+        exit(1)
+
+
+
+###############################################################################
+def status_api_server(parsed_args):
+
+    print document_pretty_string(backup_system_client().get_status())
 
 ###############################################################################
 def run_plan_generators(parsed_args):
@@ -486,7 +567,7 @@ def _get_log_file_name(parsed_args):
     if "start-engine" in parsed_args.raw_args:
         engine = _get_engine(parsed_args.engineId)
         return "engine_%s.log" % engine.id
-    elif "start-backup-system" in parsed_args.raw_args:
+    elif "start-master" in parsed_args.raw_args:
         return "backup_system.log"
     else:
         return "mbs.log"
@@ -621,7 +702,7 @@ PARSER_DEF = {
             ]
         },
             {
-            "prog": "start-backup-system",
+            "prog": "start-master",
             "shortDescription" : "starts the backup system",
             "description" : "starts the backup system",
             "function": start_backup_system,
@@ -647,9 +728,9 @@ PARSER_DEF = {
             ]
         },
 
-        #### stop-backup-system ####
+        #### stop-master ####
             {
-            "prog": "stop-backup-system",
+            "prog": "stop-master",
             "shortDescription" : "stops the backup system",
             "description" : "stops the backup system",
             "function": stop_backup_system,
@@ -665,17 +746,17 @@ PARSER_DEF = {
                 }
             ]
         },
-        #### status-backup-system ####
+        #### status-master ####
             {
-            "prog": "status-backup-system",
+            "prog": "status-master",
             "shortDescription" : "gets the status of the backup system",
             "description" : "gets the status of the backup system",
             "function": status_backup_system
         },
 
-        #### restart-backup-system ####
+        #### restart-master ####
             {
-            "prog": "restart-backup-system",
+            "prog": "restart-master",
             "shortDescription" : "restart backup system",
             "description" : "restart backup system",
             "function": restart_backup_system,
@@ -691,6 +772,59 @@ PARSER_DEF = {
                 }
             ]
         },
+
+            {
+                "prog": "start-api-server",
+                "shortDescription": "starts the api server",
+                "description": "starts the api server",
+                "function": start_api_server,
+                "args": [
+                    {
+                        "name": "fork",
+                        "type": "optional",
+                        "cmd_arg":  "--fork",
+                        "nargs": 0,
+                        "help": "fork the api server process",
+                        "action": "store_true",
+                        "default": True
+                    },
+                    {
+                        "name": "foreground",
+                        "type": "optional",
+                        "cmd_arg":  "--foreground",
+                        "nargs": 0,
+                        "help": "start server in foreground",
+                        "action": "store_true",
+                        "default": False
+                    }
+                ]
+            },
+
+            #### stop-api-server ####
+            {
+                "prog": "stop-api-server",
+                "shortDescription": "stops the backup system",
+                "description": "stops the backup system",
+                "function": stop_api_server,
+                "args": [
+                    {
+                        "name": "force",
+                        "type" : "optional",
+                        "cmd_arg":  ["--force", "-f"],
+                        "nargs": 0,
+                        "help": "force stop api server",
+                        "action": "store_true",
+                        "default": False
+                    }
+                ]
+            },
+            #### status-api-server ####
+            {
+                "prog": "status-api-server",
+                "shortDescription": "gets the status of the api server",
+                "description": "gets the status of the backup system",
+                "function": status_api_server
+            },
         #### run-plan-generators ####
             {
             "prog": "run-plan-generators",
