@@ -24,6 +24,8 @@ from mbs.mbs_logging import setup_logging, redirect_std_to_logger
 from mbs.persistence import get_backup, get_backup_plan, get_restore
 from mbs_client.client import backup_system_client
 
+from mbs.api import BackupSystemApiServer
+
 ###############################################################################
 # MAIN
 ###############################################################################
@@ -194,10 +196,10 @@ def start_backup_system(parsed_args):
                    "completely stopped then try starting again")
             return
 
-        _do_start_backup_system(fork=not parsed_args.foreground, master=parsed_args.master)
+        _do_start_backup_system(fork=not parsed_args.foreground)
 
         def backup_system_started():
-            return client.get_status()["status"] == STATUS_RUNNING
+            return backup_system.get_status()["status"] == STATUS_RUNNING
         wait_for(backup_system_started, timeout=5)
 
         if backup_system_started():
@@ -209,7 +211,7 @@ def start_backup_system(parsed_args):
                  log_func=lambda: True)
 
 ###############################################################################
-def _do_start_backup_system(fork=False, master=False):
+def _do_start_backup_system(fork=False):
     if fork:
         child_pid = os.fork()
         if child_pid:
@@ -224,7 +226,6 @@ def _do_start_backup_system(fork=False, master=False):
             redirect_std_to_logger()
 
     backup_system = _get_backup_system()
-    backup_system.master_instance = master
     # forked child process
     backup_system.start()
 
@@ -232,9 +233,8 @@ def _do_start_backup_system(fork=False, master=False):
 def stop_backup_system(parsed_args):
     force = parsed_args.force
     backup_system = _get_backup_system()
-    client = backup_system_client()
 
-    status = client.get_status()
+    status = backup_system.get_status()
     if status["status"] == STATUS_STOPPING:
         print "A stop request has already been made"
         return
@@ -246,10 +246,10 @@ def stop_backup_system(parsed_args):
     if force:
         backup_system.force_stop()
     else:
-        client.stop_command()
+        backup_system.stop_backup_system()
 
     def stopped():
-        return client.get_status()["status"] == BACKUP_SYSTEM_STATUS_STOPPED
+        return backup_system.get_status()["status"] == BACKUP_SYSTEM_STATUS_STOPPED
     print "Waiting for backup system to stop"
     wait_for(stopped, timeout=100)
     print "Done waiting for backup system to stop"
@@ -280,8 +280,8 @@ def restart_backup_system(parsed_args):
 
 ###############################################################################
 def status_backup_system(parsed_args):
-    client = backup_system_client()
-    print document_pretty_string(client.get_status())
+
+    print document_pretty_string(_get_backup_system().get_status())
 
 ###############################################################################
 def run_plan_generators(parsed_args):
@@ -641,16 +641,6 @@ PARSER_DEF = {
                     "cmd_arg":  "--foreground",
                     "nargs": 0,
                     "help": "start system in foreground",
-                    "action": "store_true",
-                    "default": False
-                },
-
-                {
-                    "name": "master",
-                    "type": "optional",
-                    "cmd_arg":  "--master",
-                    "nargs": 0,
-                    "help": "starts a master backup-system",
                     "action": "store_true",
                     "default": False
                 }

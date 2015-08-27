@@ -1,7 +1,7 @@
 __author__ = 'abdul'
 
 import time
-import logging
+import urllib2
 import traceback
 import urllib
 import json
@@ -10,7 +10,7 @@ import os
 from threading import Thread, Timer
 
 
-from utils import resolve_path, wait_for, get_validate_arg, dict_to_str
+from utils import resolve_path, wait_for, get_validate_arg, dict_to_str, document_pretty_string
 
 import mbs_config
 
@@ -22,7 +22,6 @@ from globals import State, EventType
 from task import EVENT_STATE_CHANGE
 
 from mbs import get_mbs
-from api import BackupSystemApiServer
 from backup import Backup
 from restore import Restore
 
@@ -37,6 +36,9 @@ from source import BackupSource
 from datetime import datetime
 
 import persistence
+
+from flask import Flask
+from flask.globals import request
 
 
 ###############################################################################
@@ -65,6 +67,7 @@ BACKUP_SYSTEM_STATUS_RUNNING = "running"
 BACKUP_SYSTEM_STATUS_STOPPING = "stopping"
 BACKUP_SYSTEM_STATUS_STOPPED = "stopped"
 
+DEFAULT_BACKUP_SYSTEM_PORT = 8899
 ###############################################################################
 # BackupSystem
 ###############################################################################
@@ -79,7 +82,6 @@ class BackupSystem(Thread):
         self._tick_count = 0
         self._stop_requested = False
         self._stopped = False
-        self._api_server = None
         self._backup_expiration_manager = None
         self._backup_sweeper = None
         # auditing stuff
@@ -91,7 +93,8 @@ class BackupSystem(Thread):
         self._audit_schedule = None
         self._audit_next_occurrence = None
 
-        self._master_instance = False
+        self._port = DEFAULT_BACKUP_SYSTEM_PORT
+        self._command_server = BackupSystemCommandServer(self)
 
     ###########################################################################
     @property
@@ -150,19 +153,6 @@ class BackupSystem(Thread):
 
     ###########################################################################
     @property
-    def api_server(self):
-        if not self._api_server:
-            self._api_server = BackupSystemApiServer()
-
-        return self._api_server
-
-    @api_server.setter
-    def api_server(self, api_server):
-        self._api_server = api_server
-        self._api_server._backup_system = self
-
-    ###########################################################################
-    @property
     def backup_expiration_manager(self):
         return self._backup_expiration_manager
 
@@ -179,15 +169,15 @@ class BackupSystem(Thread):
     def backup_sweeper(self, val):
         self._backup_sweeper = val
 
+
     ###########################################################################
     @property
-    def master_instance(self):
-        return self._master_instance
+    def port(self):
+        return self._port
 
-    @master_instance.setter
-    def master_instance(self, val):
-        self._master_instance = val
-
+    @port.setter
+    def port(self, port):
+        self._port = port
 
     ###########################################################################
     # Behaviors
@@ -197,15 +187,12 @@ class BackupSystem(Thread):
         self.info("PID is %s" % os.getpid())
         self._update_pid_file()
 
-        # Start the api server
-        self._start_api_server()
+        # Start the command server
+        self._start_command_server()
 
-        if self.master_instance:
-            logger.info("Starting as Master instance")
-            self.master_instance_run()
-            self.master_instance_stopped()
-        else:
-            logger.info("Started as a NON-Master instance")
+        logger.info("Starting as Master instance")
+        self.master_instance_run()
+        self.master_instance_stopped()
 
 
     ###########################################################################
@@ -230,8 +217,9 @@ class BackupSystem(Thread):
 
     ###########################################################################
     def master_instance_stopped(self):
-        self._stop_expiration_managers()
-        self._stop_plan_generators()
+        #self._stop_expiration_managers()
+        #self._stop_plan_generators()
+        #self._stop_command_server()
         self._stopped = True
 
     ###########################################################################
@@ -929,13 +917,36 @@ class BackupSystem(Thread):
             This should be used by other processes (copy of the backup system
             instance) but not the actual running backup system process
         """
-        url = "http://0.0.0.0:%s/status" % self.api_server.port
+        url = "http://0.0.0.0:%s/status" % self.port
         try:
             response = urllib.urlopen(url)
             if response.getcode() == 200:
                 return json.loads(response.read().strip())
             else:
                 msg = ("Error while trying to get status backup system URL %s"
+                       " (Response code %s)" % (url, response.getcode()))
+                raise BackupSystemError(msg)
+
+        except IOError, ioe:
+            return {
+                "status": BACKUP_SYSTEM_STATUS_STOPPED
+            }
+
+
+    ###########################################################################
+    def stop_backup_system(self):
+        """
+            Sends a status request to the backup system using the api port
+            This should be used by other processes (copy of the backup system
+            instance) but not the actual running backup system process
+        """
+        url = "http://0.0.0.0:%s/stop" % self.port
+        try:
+            response = urllib.urlopen(url)
+            if response.getcode() == 200:
+                return json.loads(response.read().strip())
+            else:
+                msg = ("Error while trying to stop backup system URL %s"
                        " (Response code %s)" % (url, response.getcode()))
                 raise BackupSystemError(msg)
 
@@ -959,8 +970,6 @@ class BackupSystem(Thread):
         self.info("Stopping backup system gracefully")
 
         self._stop_requested = True
-
-        self.api_server.stop_command_server()
         # wait until backup system stops
 
         def stopped():
@@ -991,16 +1000,6 @@ class BackupSystem(Thread):
             "status": status,
             "versionInfo": get_mbs().get_version_info()
         }
-
-    ###########################################################################
-    # api server
-    ###########################################################################
-
-    def _start_api_server(self):
-        self.info("Starting api server at port %s" % self.api_server.port)
-
-        self.api_server.start()
-        self.info("api server started successfully!")
 
     ###########################################################################
     # Backup expiration manager
@@ -1039,6 +1038,21 @@ class BackupSystem(Thread):
                 pg.stop()
 
     ###########################################################################
+    # Command Server
+    ###########################################################################
+
+    def _start_command_server(self):
+        self.info("Starting command server at port %s" % self.port)
+
+        self._command_server.start()
+        self.info("Command Server started successfully!")
+
+    ###########################################################################
+    def _stop_command_server(self):
+        self.info("Stopping command server")
+        self._command_server.stop()
+
+    ###########################################################################
     # logging
     ###########################################################################
     def info(self, msg):
@@ -1059,3 +1073,95 @@ def build_backup_source(uri):
         Builds a backup source of the specified URI
     """
     return get_mbs().backup_source_builder.build_backup_source(uri)
+
+
+
+
+###############################################################################
+# BackupSystemCommandServer
+###############################################################################
+class BackupSystemCommandServer(Thread):
+
+    ###########################################################################
+    def __init__(self, backup_system):
+        Thread.__init__(self)
+        self.daemon = True
+        self._backup_system = backup_system
+        self._flask_server = self._build_flask_server()
+
+    ###########################################################################
+    def _build_flask_server(self):
+        flask_server = Flask(__name__)
+        backup_system = self._backup_system
+        ## build stop method
+        @flask_server.route('/stop', methods=['GET'])
+        def stop_backup_system():
+            logger.info("Command Server: Received a stop command")
+            try:
+                # stop the backup system
+                backup_system.request_stop()
+                return document_pretty_string({
+                    "ok": True
+                })
+            except Exception, e:
+                msg = "Error while trying to stop backup system: %s" % e
+                logger.error(msg)
+                logger.error(traceback.format_exc())
+                return document_pretty_string({"error": "can't stop"})
+
+        ## build status method
+        @flask_server.route('/status', methods=['GET'])
+        def status():
+            logger.info("Command Server: Received a status command")
+            try:
+                return document_pretty_string(backup_system._do_get_status())
+            except Exception, e:
+                msg = "Error while trying to get backup system status: %s" % e
+                logger.error(msg)
+                logger.error(traceback.format_exc())
+                return {
+                    "status": "UNKNOWN",
+                    "error": msg
+                }
+
+        ## build stop-command-server method
+        @flask_server.route('/stop-command-server', methods=['GET'])
+        def stop_command_server():
+            logger.info("Stopping command server")
+            try:
+                shutdown = request.environ.get('werkzeug.server.shutdown')
+                if shutdown is None:
+                    raise RuntimeError('Not running with the Werkzeug Server')
+                shutdown()
+                return "success"
+            except Exception, e:
+                return "Error while trying to get engine status: %s" % e
+
+        return flask_server
+
+    ###########################################################################
+    def run(self):
+        logger.info("BackupSystemCommandServer: Running flask server ")
+        self._flask_server.run(host="0.0.0.0", port=self._backup_system.port,
+                               threaded=True)
+
+    ###########################################################################
+    def stop(self):
+
+        logger.info("BackupSystemCommandServer: Stopping flask server ")
+        port = self._backup_system.port
+        url = "http://0.0.0.0:%s/stop-command-server" % port
+        try:
+            response = urllib2.urlopen(url, timeout=30)
+            if response.getcode() == 200:
+                logger.info("BackupSystemCommandServer: Flask server stopped "
+                            "successfully")
+                return response.read().strip()
+            else:
+                msg = ("Error while trying to get backup system  URL %s "
+                       "(Response code %s)" % (url,response.getcode()))
+                raise BackupSystemError(msg)
+
+        except Exception, e:
+            raise BackupSystemError("Error while stopping flask server:"
+                                    " %s" % e)

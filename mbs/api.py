@@ -37,7 +37,6 @@ class BackupSystemApiServer(Thread):
     ###########################################################################
     def __init__(self, port=9003):
         Thread.__init__(self)
-        self._backup_system = None
         self._port = port
         self._api_auth_service = None
         self._flask_server = None
@@ -103,28 +102,16 @@ class BackupSystemApiServer(Thread):
         self._num_workers = val
 
     ###########################################################################
-    def stop_backup_system(self):
-        try:
-            # stop the backup system
-            self._backup_system.request_stop()
-            return document_pretty_string({
-                "ok": True
-            })
-        except Exception, e:
-            msg = "Error while trying to stop backup system: %s" % e
-            logger.error(msg)
-            logger.error(traceback.format_exc())
-            return document_pretty_string({"error": "can't stop"})
-
+    @property
+    def backup_system(self):
+        return get_mbs().backup_system
+    
     ###########################################################################
     def status(self):
-        try:
-            return document_pretty_string(self._backup_system._do_get_status())
-        except Exception, e:
-            msg = "Error while trying to get backup system status: %s" % e
-            logger.error(msg)
-            logger.error(traceback.format_exc())
-            return document_pretty_string({"status": "error"})
+        return {
+            "status": "running",
+            "versionInfo": get_mbs().get_version_info()
+        }
 
     ###########################################################################
     def get_backup(self, backup_id):
@@ -141,7 +128,7 @@ class BackupSystemApiServer(Thread):
     ###########################################################################
     def get_backup_database_names(self, backup_id):
         try:
-            dbnames = self._backup_system.get_backup_database_names(backup_id)
+            dbnames = self.backup_system.get_backup_database_names(backup_id)
             return document_pretty_string(dbnames)
         except Exception, e:
             msg = ("Error while trying to get backup database"
@@ -154,7 +141,7 @@ class BackupSystemApiServer(Thread):
     ###########################################################################
     def expire_backup(self, backup_id):
         try:
-            exp_man = self._backup_system.backup_expiration_manager
+            exp_man = self.backup_system.backup_expiration_manager
             backup = persistence.get_backup(backup_id)
             result = exp_man.expire_backup(backup, force=True)
             return document_pretty_string(result)
@@ -170,7 +157,7 @@ class BackupSystemApiServer(Thread):
     ###########################################################################
     def delete_backup_plan(self, plan_id):
         try:
-            result = self._backup_system.remove_plan(plan_id)
+            result = self.backup_system.remove_plan(plan_id)
             return document_pretty_string(result)
         except Exception, e:
             msg = ("Error while trying to delete backup plan %s: %s" %
@@ -188,7 +175,7 @@ class BackupSystemApiServer(Thread):
         tags = arg_json.get('tags')
         source_database_name = arg_json.get('sourceDatabaseName')
         try:
-            bs = self._backup_system
+            bs = self.backup_system
             r = bs.schedule_backup_restore(backup_id,
                                            destination_uri,
                                            source_database_name=
@@ -208,7 +195,7 @@ class BackupSystemApiServer(Thread):
     def get_destination_restore_status(self):
         destination_uri = request.args.get('destinationUri')
         try:
-            status = self._backup_system.get_destination_restore_status(
+            status = self.backup_system.get_destination_restore_status(
                 destination_uri)
             return document_pretty_string({
                 "status": status
@@ -235,8 +222,8 @@ class BackupSystemApiServer(Thread):
         @flask_server.route('/stop', methods=['GET'])
         @self.api_auth_service.auth("/stop")
         @crossdomain(origin='*')
-        def stop_backup_system_request():
-            return self.stop_backup_system()
+        def stop_api_server_request():
+            return self.stop_api_server()
 
         ########## build status method
         @flask_server.route('/status', methods=['GET'])
@@ -301,7 +288,7 @@ class BackupSystemApiServer(Thread):
               threads=self.num_workers, _server=self.custom_waitress_create_server)
 
     ###########################################################################
-    def stop_command_server(self):
+    def stop_api_server(self):
         # This is how we stop waitress unfortunately
         try:
             self._waitress_server.task_dispatcher.shutdown(timeout=5)
@@ -327,7 +314,7 @@ class BackupSystemApiServer(Thread):
 
         return self._waitress_server
 
-        ########################################################################################################################
+    ####################################################################################################################
     def mbs_endpoint(self, f):
         def wrapped_function(*args, **kwargs):
             request_id = new_request_id()

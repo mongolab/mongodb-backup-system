@@ -60,6 +60,7 @@ class MBS(object):
 
         # load backup system/engines lazily
         self._backup_system = None
+        self._api_server = None
 
 
         self._engines = None
@@ -199,6 +200,16 @@ class MBS(object):
             self._backup_system = self._maker.make(backup_system_conf)
 
         return self._backup_system
+
+
+    ###########################################################################
+    @property
+    def api_server(self):
+        return self._api_server
+
+    @api_server.setter
+    def api_server(self, api_server):
+        self._api_server = api_server
 
     ###########################################################################
     @property
