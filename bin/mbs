@@ -39,7 +39,8 @@ def main(args):
     # Parse the arguments and call the function of the selected cmd
     parsed_args = parser.parse_args(args)
     command_function = parsed_args.func
-    mbs_config.MBS_CONF_DIR = resolve_path(parsed_args.config_root)
+    mbs_config.MBS_CONF_PATH = resolve_path(parsed_args.config_path)
+    mbs_config.MBS_LOG_PATH = resolve_path(parsed_args.log_path)
 
     if command_function in [start_engine, start_backup_system]:
         log_to_stdout = getattr(parsed_args, "foreground", True)
@@ -581,12 +582,20 @@ PARSER_DEF = {
     "description" : "contains commands for the mongodb-backup-system",
     "args": [
             {
-            "name": "config_root",
+            "name": "config_path",
             "type": "optional",
-            "cmd_arg": "--config-root",
-            "displayName": "CONFIGROOT",
-            "help": "path to mbs config root; defaults to %(default)s",
-            "default": mbs_config.MBS_CONF_DIR
+            "cmd_arg": "--config-path",
+            "displayName": "CONFIG_PATH",
+            "help": "path to mbs config ; defaults to %(default)s",
+            "default": mbs_config.MBS_CONF_PATH
+        },
+            {
+            "name": "log_path",
+            "type": "optional",
+            "cmd_arg": "--log-path",
+            "displayName": "LOG_PATH",
+            "help": "path to mbs lohs ; defaults to %(default)s",
+            "default": mbs_config.MBS_LOG_PATH
         },
         {
             "name": "version",

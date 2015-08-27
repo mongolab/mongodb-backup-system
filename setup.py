@@ -54,9 +54,9 @@ def requirements():
 
 ###############################################################################
 def create_default_config():
-    from mbs.mbs_config import MBS_CONF_DIR, MBS_CONFIG
+    from mbs.mbs_config import MBS_CONF_PATH
 
-    mbs_conf = os.path.expanduser(os.path.join(MBS_CONF_DIR, MBS_CONFIG))
+    mbs_conf = os.path.expanduser(MBS_CONF_PATH)
 
     # do nothing if conf already exists
     print "Checking if configuration '%s' exists..." % mbs_conf

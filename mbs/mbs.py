@@ -303,9 +303,7 @@ mbs_singleton = None
 def get_mbs():
     global mbs_singleton
     if not mbs_singleton:
-        mbs_config = read_config_json("mbs",
-                                      os.path.join(config.MBS_CONF_DIR,
-                                                   config.MBS_CONFIG))
+        mbs_config = read_config_json("mbs", config.MBS_CONF_PATH)
         mbs_type = mbs_config.get("_type")
         mbs_class = MBS
         if mbs_type:

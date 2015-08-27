@@ -23,7 +23,7 @@ def setup_logging(log_to_stdout=False, log_file_name=None):
     LOG_TO_STDOUT = log_to_stdout
 
     log_file_name = log_file_name or "mbs.log"
-    log_dir = resolve_path(os.path.join(mbs_config.MBS_CONF_DIR, MBS_LOG_DIR))
+    log_dir = resolve_path(mbs_config.MBS_LOG_PATH)
     ensure_dir(log_dir)
 
     logger.setLevel(logging.INFO)
@@ -50,7 +50,7 @@ def simple_file_logger(name, log_file_name):
         return lgr
     lgr.propagate = False
 
-    log_dir = resolve_path(os.path.join(mbs_config.MBS_CONF_DIR, MBS_LOG_DIR))
+    log_dir = resolve_path(mbs_config.MBS_LOG_PATH)
     ensure_dir(log_dir)
 
     lgr.setLevel(logging.INFO)

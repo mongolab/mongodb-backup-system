@@ -894,7 +894,7 @@ class BackupSystem(Thread):
     ###########################################################################
     def _get_pid_file_path(self):
         pid_file_name = "backup_system_pid.txt"
-        return resolve_path(os.path.join(mbs_config.MBS_CONF_DIR,
+        return resolve_path(os.path.join(mbs_config.mbs_conf_dir(),
                                          pid_file_name))
 
     ###########################################################################
