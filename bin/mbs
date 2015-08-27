@@ -23,7 +23,7 @@ from mbs.mbs_logging import setup_logging, redirect_std_to_logger
 
 from mbs.persistence import get_backup, get_backup_plan, get_restore
 
-from mbs.api import BackupSystemApiServer
+from mbs_client.client import backup_system_client
 
 ###############################################################################
 # MAIN
@@ -182,12 +182,11 @@ def status_engine(parsed_args):
 ###############################################################################
 def start_backup_system(parsed_args):
     backup_system = _get_backup_system()
-    client = api_client()
 
-    handlers = {signal.SIGINT:  partial(client.stop_command),
+    handlers = {signal.SIGINT:  partial(backup_system.stop_backup_system),
                 signal.SIGTERM: partial(backup_system.force_stop)}
     with SignalWatcher(handlers) as watcher:
-        status = client.get_status()
+        status = backup_system.get_status()
         if status["status"] == STATUS_RUNNING:
             print "Backup System already started"
             return
@@ -575,9 +574,7 @@ def _get_log_file_name(parsed_args):
 
 ###############################################################################
 def api_client():
-    if not get_mbs().api_client:
-        raise Exception("no apiClient configured in config %s" % mbs_config.MBS_CONF_PATH)
-    return get_mbs().api_client
+    return get_mbs().api_client or backup_system_client()
 
 ###############################################################################
 # command parser
