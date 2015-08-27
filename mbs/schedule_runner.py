@@ -24,6 +24,7 @@ class ScheduleRunner(Thread):
     ###########################################################################
     def __init__(self, schedule=DEFAULT_SCHEDULE, sleep_time=DEFAULT_SLEEP):
         Thread.__init__(self)
+        self.daemon = True
         self._schedule = schedule
         self._stop_requested = False
         self._sleep_time = sleep_time
