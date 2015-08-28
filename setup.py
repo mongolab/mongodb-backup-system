@@ -78,10 +78,11 @@ def create_default_config():
     if not os.path.exists(conf_dir):
         print "Creating conf dir '%s'" % conf_dir
         os.makedirs(conf_dir)
-        print "chown conf dir '%s' to owner uid %s, gid %s" % (conf_dir, owner_uid, owner_gid)
-        os.chown(conf_dir, owner_uid, owner_gid)
-        print "Chmod conf dir '%s'  to 00755" % conf_dir
-        os.chmod(conf_dir, 00755)
+
+    print "chown conf dir '%s' to owner uid %s, gid %s" % (conf_dir, owner_uid, owner_gid)
+    os.chown(conf_dir, owner_uid, owner_gid)
+    print "Chmod conf dir '%s'  to 00755" % conf_dir
+    os.chmod(conf_dir, 00755)
 
     default_conf = {
         "databaseURI": "YOUR DATABASE URI",
