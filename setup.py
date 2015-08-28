@@ -76,8 +76,11 @@ def create_default_config():
     # This is needs so when pip install is run with sudo then the owner
     # should be logged in user instead of root
     if not os.path.exists(conf_dir):
+        print "Creating conf dir '%s'" % conf_dir
         os.makedirs(conf_dir)
+        print "chown conf dir '%s' to owner uid %s, gid %s" % (conf_dir, owner_uid, owner_gid)
         os.chown(conf_dir, owner_uid, owner_gid)
+        print "Chmod conf dir '%s'  to 00755" % conf_dir
         os.chmod(conf_dir, 00755)
 
     default_conf = {
@@ -99,7 +102,9 @@ def create_default_config():
     conf_file = open(mbs_conf, mode="w")
     conf_file.write(document_pretty_string(default_conf))
     # chown conf file
+    print "chown conf file '%s' to owner uid %s, gid %s" % (mbs_conf, owner_uid, owner_gid)
     os.chown(mbs_conf, owner_uid, owner_gid)
+    print "Chmod conf file '%s'  to 00644" % mbs_conf
     os.chmod(mbs_conf, 00644)
 
     print "Successfully created configuration '%s'!" % mbs_conf
