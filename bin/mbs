@@ -231,6 +231,8 @@ def _do_start_backup_system(fork=False):
 ###############################################################################
 def stop_backup_system(parsed_args):
     force = parsed_args.force
+    if force:
+        raise Exception("force option curretnly not supported")
     backup_system = _get_backup_system()
 
     status = backup_system.get_status()

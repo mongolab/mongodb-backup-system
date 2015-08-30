@@ -185,7 +185,7 @@ class BackupSystem(Thread):
     def run(self):
         self.info("Starting up... ")
         self.info("PID is %s" % os.getpid())
-        self._update_pid_file()
+        #self._update_pid_file()
 
         # Start the command server
         self._start_command_server()
