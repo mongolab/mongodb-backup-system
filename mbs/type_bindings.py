@@ -10,7 +10,6 @@ TYPE_BINDINGS = {
     "BackupLogEntry": "mbs.task.EventLogEntry",
     "EventLogEntry": "mbs.task.EventLogEntry",
     "Plan": "mbs.plan.BackupPlan",
-    "DeletedPlan": "mbs.deleted_plan.DeletedBackupPlan",
     "Schedule": "mbs.schedule.Schedule",
     "CronSchedule": "mbs.schedule.CronSchedule",
     "CompositeSchedule": "mbs.schedule.CompositeSchedule",

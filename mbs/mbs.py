@@ -21,7 +21,6 @@ from backup import Backup
 from restore import Restore
 
 from plan import BackupPlan
-from deleted_plan import DeletedBackupPlan
 from audit import AuditReport
 
 from encryption import Encryptor
@@ -158,7 +157,7 @@ class MBS(object):
     def deleted_plan_collection(self):
         if not self._deleted_plan_collection:
             dpc = MBSObjectCollection(self.database["deleted-plans"],
-                                      clazz=DeletedBackupPlan,
+                                      clazz=BackupPlan,
                                       type_bindings=self._type_bindings)
             self._deleted_plan_collection = dpc
 

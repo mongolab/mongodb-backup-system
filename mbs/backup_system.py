@@ -28,7 +28,6 @@ from restore import Restore
 from tags import DynamicTag
 
 from plan import BackupPlan
-from deleted_plan import DeletedBackupPlan
 from schedule import AbstractSchedule, Schedule
 from retention import RetentionPolicy
 from strategy import BackupStrategy
@@ -666,9 +665,9 @@ class BackupSystem(Thread):
     ###########################################################################
     def remove_plan(self, plan_id):
         plan = get_mbs().plan_collection.get_by_id(plan_id)
-        deleted_plan = DeletedBackupPlan.from_plan(plan)
+        plan.deleted_date = date_now()
         logger.info("Adding plan '%s' to deleted plans" % plan_id)
-        get_mbs().deleted_plan_collection.save_document(deleted_plan.to_document())
+        get_mbs().deleted_plan_collection.save_document(plan.to_document())
         logger.info("Removing plan '%s' from plans" % plan_id)
         get_mbs().plan_collection.remove_by_id(plan_id)
 
