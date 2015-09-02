@@ -13,6 +13,7 @@ class BackupPlan(MBSObject):
         MBSObject.__init__(self)
         self._id = None
         self._created_date = None
+        self._deleted_date = None
         self._description = None
         self._source = None
         self._target = None
@@ -42,6 +43,15 @@ class BackupPlan(MBSObject):
     @created_date.setter
     def created_date(self, created_date):
         self._created_date = created_date
+
+    ###########################################################################
+    @property
+    def deleted_date(self):
+        return self._deleted_date
+
+    @deleted_date.setter
+    def deleted_date(self, deleted_date):
+        self._deleted_date = deleted_date
 
     ###########################################################################
     @property
@@ -165,6 +175,7 @@ class BackupPlan(MBSObject):
         doc = {
             "_type": "Plan",
             "createdDate": self.created_date,
+            "deletedDate": self.deleted_date,
             "description": self.description,
             "source": self.source.to_document(display_only=display_only),
             "target": self.target.to_document(display_only=display_only),

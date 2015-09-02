@@ -653,9 +653,9 @@ class BackupSystem(Thread):
             plan.id = plan_doc["_id"]
 
             if is_new_plan:
-                self.info("Updating plan: \n%s" % plan)
-            else:
                 self.info("Saving new plan: \n%s" % plan)
+            else:
+                self.info("Updating plan: \n%s" % plan)
 
             self.info("Plan saved successfully")
         except Exception, e:
@@ -664,7 +664,11 @@ class BackupSystem(Thread):
 
     ###########################################################################
     def remove_plan(self, plan_id):
-        logger.info("Removing plan '%s' " % plan_id)
+        plan = get_mbs().plan_collection.get_by_id(plan_id)
+        plan.deleted_date = date_now()
+        logger.info("Adding plan '%s' to deleted plans" % plan_id)
+        get_mbs().deleted_plan_collection.save_document(plan.to_document())
+        logger.info("Removing plan '%s' from plans" % plan_id)
         get_mbs().plan_collection.remove_by_id(plan_id)
 
     ###########################################################################
