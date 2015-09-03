@@ -229,9 +229,34 @@ class BackupExpirationManager(ScheduleRunner):
     def _expire_backups_due(self):
         logger.info("BackupExpirationManager: START EXPIRATION CHECK CYCLE")
 
-        self._expire_due_recurring_backups()
-        self._expire_due_onetime_backups()
-        self._expire_due_canceled_backups()
+        # expire recurring backups
+        try:
+            self._expire_due_recurring_backups()
+        except Exception, ex:
+            logger.exception("BackupExpirationManager error during recurring backups expiration")
+            subject = "BackupExpirationManager Error"
+            message = ("BackupExpirationManager Error!.\n\nStack Trace:\n%s" %
+                       traceback.format_exc())
+            get_mbs().send_error_notification(subject, message, ex)
+
+
+        try:
+            self._expire_due_onetime_backups()
+        except Exception, ex:
+            logger.exception("BackupExpirationManager error during onetime backups expiration")
+            subject = "BackupExpirationManager Error"
+            message = ("BackupExpirationManager Error!.\n\nStack Trace:\n%s" %
+                       traceback.format_exc())
+            get_mbs().send_error_notification(subject, message, ex)
+
+        try:
+            self._expire_due_canceled_backups()
+        except Exception, ex:
+            logger.exception("BackupExpirationManager error during canceled backups expiration")
+            subject = "BackupExpirationManager Error"
+            message = ("BackupExpirationManager Error!.\n\nStack Trace:\n%s" %
+                       traceback.format_exc())
+            get_mbs().send_error_notification(subject, message, ex)
 
         logger.info("BackupExpirationManager: END EXPIRATION CHECK CYCLE")
 
