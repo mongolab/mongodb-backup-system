@@ -67,23 +67,24 @@ class ScheduleRunner(Thread):
         print "TICK"
 
     ###########################################################################
-    def stop(self):
+    def stop(self, blocking=False):
         """
         """
         name = self.__class__.__name__
         logger.info("%s: Stop requested" % name)
         self._stop_requested = True
 
-        def stopped():
-            return self._stopped
+        if blocking:
+            def stopped():
+                return self._stopped
 
-        logger.info("%s: Waiting to stop" % name)
-        wait_for(stopped, timeout=60)
+            logger.info("%s: Waiting to stop" % name)
+            wait_for(stopped, timeout=60)
 
-        if stopped():
-            logger.info("%s: stopped successfully." % name)
-        else:
-            raise Exception("%s did not stop in 60 seconds")
+            if stopped():
+                logger.info("%s: stopped successfully." % name)
+            else:
+                raise Exception("%s did not stop in 60 seconds")
 
 
 
