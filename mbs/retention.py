@@ -525,12 +525,12 @@ class BackupExpirationManager(ScheduleRunner):
                                   self.expire_canceled_delay_in_seconds)
 
     ###########################################################################
-    def stop(self):
+    def stop(self, blocking=False):
         """
             Override stop to stop queue worker
         """
-        super(BackupExpirationManager, self).stop()
-        self._retention_request_worker.stop()
+        super(BackupExpirationManager, self).stop(blocking=blocking)
+        self._retention_request_worker.stop(blocking=blocking)
 
 ###############################################################################
 RETENTION_WORKER_SCHEDULE = Schedule(frequency_in_seconds=30)
