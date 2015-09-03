@@ -401,9 +401,10 @@ class S3BucketTarget(BackupTarget):
 
     ###########################################################################
     def get_file(self, file_reference, destination):
-        try:
 
-            file_path = file_reference.file_path
+        file_path = file_reference.file_path
+
+        try:
             file_name = file_reference.file_name
 
             print("Downloading '%s' from s3 bucket '%s'" %
@@ -433,9 +434,9 @@ class S3BucketTarget(BackupTarget):
 
     ###########################################################################
     def do_delete_file(self, file_reference):
-        try:
+        file_path = file_reference.file_path
 
-            file_path = file_reference.file_path
+        try:
             logger.info("S3BucketTarget: Deleting '%s' from s3 bucket '%s'" %
                         (file_path, self.bucket_name))
 
@@ -448,9 +449,14 @@ class S3BucketTarget(BackupTarget):
             logger.info("S3BucketTarget: Successfully deleted '%s' from s3"
                         " bucket '%s'" % (file_path, self.bucket_name))
             return True
+        except S3ResponseError, re:
+            if 403 == re.error_code:
+                raise TargetInaccessibleError(self.bucket_name,
+                                              cause=re)
         except Exception, e:
             if isinstance(e, TargetError):
                 raise
+
             msg = ("S3BucketTarget: Error while trying to delete '%s'"
                    " from s3 bucket %s. Cause: %s" %
                    (file_path, self.bucket_name, e))
@@ -730,9 +736,9 @@ class RackspaceCloudFilesTarget(BackupTarget):
 
     ###########################################################################
     def get_file(self, file_reference, destination):
-        try:
+        file_path = file_reference.file_path
 
-            file_path = file_reference.file_path
+        try:
             print("Downloading '%s' from container '%s'" %
                   (file_path, self.container_name))
 
@@ -742,7 +748,6 @@ class RackspaceCloudFilesTarget(BackupTarget):
             if not container_obj:
                 raise Exception("No such file '%s' in container '%s'" %
                                 (file_path, self.container_name))
-
 
             file_name = file_reference.file_name
             des_file = os.path.join(destination, file_name)
@@ -775,6 +780,8 @@ class RackspaceCloudFilesTarget(BackupTarget):
             err = str(e)
             if "404" in err:
                 return False
+            if "403" in err:
+                raise TargetInaccessibleError(self.container_name, cause=e)
 
             msg = ("RackspaceCloudFilesTarget: Error while trying to delete "
                    "'%s' from container %s. Cause: %s" %
