@@ -236,6 +236,9 @@ class MBS(object):
             api_client_conf = self._get_config_value("apiClient")
             if api_client_conf:
                 self._api_client = self._maker.make(api_client_conf)
+            else:
+                import mbs_client.client
+                self._api_client = mbs_client.client.backup_system_client()
 
         return self._api_client
 

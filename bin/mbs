@@ -581,7 +581,7 @@ def _get_log_file_name(parsed_args):
 
 ###############################################################################
 def api_client():
-    return get_mbs().api_client or backup_system_client()
+    return get_mbs().api_client
 
 ###############################################################################
 # command parser
