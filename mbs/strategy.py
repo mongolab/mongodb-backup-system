@@ -1472,6 +1472,7 @@ class CloudBlockStorageStrategy(BackupStrategy):
         if (not backup.is_event_logged("END_KICKOFF_SNAPSHOT") or
             (snapshot_ref and snapshot_ref.status == SnapshotStatus.ERROR)):
             self._kickoff_snapshot(backup, mongo_connector, cbs)
+            snapshot_ref = backup.target_reference
 
         # hook for doing things after a snapshot was already kicked off
         self._post_snapshot_kickoff(backup, mongo_connector, cbs)
