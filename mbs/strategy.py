@@ -455,7 +455,10 @@ class BackupStrategy(MBSObject):
             return selected_member
         else:
             # error out
-            raise NoEligibleMembersFound(source.uri)
+            msg = ("No eligible secondary found within max lag '%s'"
+                   " for cluster '%s'" % (max_lag_seconds,
+                                          mongo_cluster))
+            raise NoEligibleMembersFound(source.uri, msg=msg)
 
     ###########################################################################
     def backup_mongo_connector(self, backup, mongo_connector):
