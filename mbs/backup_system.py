@@ -371,7 +371,7 @@ class BackupSystem(Thread):
 
         cuttoff_date = date_minus_seconds(date_now(), RESCHEDULE_PERIOD)
         for backup in get_mbs().backup_collection.find(q):
-            if backup.end_date and backup.end_date <= cuttoff_date:
+            if not backup.end_date or backup.end_date <= cuttoff_date:
                 self.reschedule_backup(backup)
 
     ###########################################################################
