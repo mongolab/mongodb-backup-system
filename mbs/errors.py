@@ -365,6 +365,12 @@ class BlockStorageSnapshotError(MBSError):
     """
 
 ###############################################################################
+class SnapshotDidNotSucceedError(MBSError, RetriableError):
+    """
+        Thrown when snapshot status becomes 'error'
+    """
+
+###############################################################################
 #Ec2SnapshotDoesNotExistError
 ###############################################################################
 class Ec2SnapshotDoesNotExistError(MBSError, RetriableError):
