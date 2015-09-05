@@ -1364,8 +1364,7 @@ class EbsSnapshotReference(CloudBlockStorageSnapshotReference):
 
         ebs_snap = self.get_ebs_snapshot()
         if not ebs_snap:
-            raise Exception("EBS snapshot '%s' does not exist" %
-                            self.snapshot_id)
+            raise Ec2SnapshotDoesNotExistError("EBS snapshot '%s' does not exist" % self.snapshot_id)
 
         # remove dashes from user ids
         if user_ids:
