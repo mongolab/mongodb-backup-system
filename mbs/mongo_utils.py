@@ -415,7 +415,7 @@ class MongoCluster(MongoConnector):
                                  "lag for '%s'. Skipping " % member)
 
         if not all_secondaries:
-            logger.info("No secondaries found for cluster '%s'" % self)
+            raise NoEligibleMembersFound(self.uri, "No secondaries found for cluster '%s'" % self)
 
         # NOTE: we use member_host property to sort instead of address since
         # a member might have multiple addresses mapped to it but member_host
@@ -436,6 +436,9 @@ class MongoCluster(MongoConnector):
                     return secondary
                 elif secondary.lag_in_seconds <= max_lag_seconds:
                     return secondary
+
+        raise NoEligibleMembersFound(self.uri, "No secondaries found for cluster %s within max"
+                                               " allowed lag %s" % (self, max_lag_seconds))
 
     ###########################################################################
     def _validate_backup_node(self, backup_node, max_lag_seconds=None):
