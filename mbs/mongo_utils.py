@@ -71,7 +71,6 @@ class MongoConnector(object):
         self._uri_wrapper = parse_mongo_uri(uri)
         self._connector_id = connector_id
         self._conn_timeout = conn_timeout or CONN_TIMEOUT
-        self._connection_id = None
         self._display_name = display_name
 
     ###########################################################################
