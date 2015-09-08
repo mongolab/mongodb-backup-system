@@ -1492,7 +1492,8 @@ class CloudBlockStorageStrategy(BackupStrategy):
             update_backup(backup, event_name="END_BLOCK_STORAGE_SNAPSHOT",
                           message=msg)
         else:
-            raise SnapshotDidNotSucceedError("Snapshot did not complete successfully. Snapshot status became 'error'")
+            raise SnapshotDidNotSucceedError("Snapshot did not complete successfully. Snapshot status became '%s'" %
+                                             snapshot_ref.status)
 
     ###########################################################################
     def _kickoff_snapshot(self, backup, mongo_connector, cbs):
