@@ -391,7 +391,7 @@ class MongoCluster(MongoConnector):
                         "best secondary for '%s'" % (backup_node, self))
             return backup_node
 
-        master_status = self.primary_member.rs_status
+        master_status = self.primary_member.member_rs_status
 
         # find secondaries
         for member in members:
@@ -442,7 +442,7 @@ class MongoCluster(MongoConnector):
 
     ###########################################################################
     def _validate_backup_node(self, backup_node, max_lag_seconds=None):
-        master_status = self.primary_member.rs_status
+        master_status = self.primary_member.member_rs_status
         if not backup_node.is_online():
             raise NoEligibleMembersFound(self.uri,
                                          "mongolabBackupNode '%s' is offline" %
@@ -514,7 +514,7 @@ class MongoServer(MongoConnector):
         self._authed_to_admin = False
 
         self._rs_conf = None
-        self._rs_status = None
+        self._member_rs_status = None
         self._member_config = None
         self._lag_in_seconds = 0
         self._allow_local_connections = allow_local_connections
@@ -589,16 +589,16 @@ class MongoServer(MongoConnector):
     ###########################################################################
     @property
     def optime(self):
-        if self.rs_status:
-            return self.rs_status['optimeDate']
+        if self.member_rs_status:
+            return self.member_rs_status['optimeDate']
 
     ###########################################################################
     @property
-    def rs_status(self):
-        if not self._rs_status and self.is_replica_member():
-            self._rs_status = self._get_rs_status()
+    def member_rs_status(self):
+        if not self._member_rs_status and self.is_replica_member():
+            self._member_rs_status = self._get_rs_status()
 
-        return self._rs_status
+        return self._member_rs_status
 
     ###########################################################################
     @property
@@ -625,7 +625,7 @@ class MongoServer(MongoConnector):
         """Given two 'members' elements from rs.status(),
         return lag between their optimes (in secs).
         """
-        my_status = self.rs_status
+        my_status = self.member_rs_status
 
         if not my_status:
             details = ("Unable to determine replicaset status for member '%s'"
@@ -645,9 +645,9 @@ class MongoServer(MongoConnector):
         """
             Returns true if the member is too stale
         """
-        return (self.rs_status and
-                "errmsg" in self.rs_status and
-                "RS102" in self.rs_status["errmsg"])
+        return (self.member_rs_status and
+                "errmsg" in self.member_rs_status and
+                "RS102" in self.member_rs_status["errmsg"])
 
     ###########################################################################
     @robustify(max_attempts=3, retry_interval=3,
