@@ -596,7 +596,7 @@ class MongoServer(MongoConnector):
     @property
     def member_rs_status(self):
         if not self._member_rs_status and self.is_replica_member():
-            self._member_rs_status = self._get_rs_status()
+            self._member_rs_status = self._get_member_rs_status()
 
         return self._member_rs_status
 
@@ -690,13 +690,26 @@ class MongoServer(MongoConnector):
     @robustify(max_attempts=3, retry_interval=3,
                do_on_exception=raise_if_not_retriable,
                do_on_failure=swallow_exception)
-    def _get_rs_status(self):
+    def _get_member_rs_status(self):
         try:
             rs_status_cmd = SON([('replSetGetStatus', 1)])
             rs_status =  self.get_auth_admin_db().command(rs_status_cmd)
             for member in rs_status['members']:
                 if 'self' in member and member['self']:
                     return member
+        except Exception, e:
+            details = "Cannot get rs for member '%s'" % self
+            raise ReplicasetError(details=details, cause=e)
+
+
+    ###########################################################################
+    @robustify(max_attempts=3, retry_interval=3,
+               do_on_exception=raise_if_not_retriable,
+               do_on_failure=swallow_exception)
+    def get_rs_status(self):
+        try:
+            rs_status_cmd = SON([('replSetGetStatus', 1)])
+            return self.get_auth_admin_db().command(rs_status_cmd)
         except Exception, e:
             details = "Cannot get rs for member '%s'" % self
             raise ReplicasetError(details=details, cause=e)
