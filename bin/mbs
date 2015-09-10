@@ -492,7 +492,7 @@ def cancel_backup(parsed_args):
     if backup.state == State.CANCELED:
         print "Backup is already canceled"
         return
-    if prompt_confirm("Cancel backup '%s'?" % backup.id):
+    if parsed_args.force or prompt_confirm("Cancel backup '%s'?" % backup.id):
         result = engine.client.cancel_backup(backup.id)
         print document_pretty_string(result)
 
@@ -503,7 +503,7 @@ def cancel_restore(parsed_args):
     if restore.state == State.CANCELED:
         print "Restore is already canceled"
         return
-    if prompt_confirm("Cancel restore '%s'?" % restore.id):
+    if parsed_args.force or prompt_confirm("Cancel restore '%s'?" % restore.id):
         result = engine.client.cancel_restore(restore.id)
         print document_pretty_string(result)
 
@@ -1060,7 +1060,17 @@ PARSER_DEF = {
                     "nargs": 1,
                     "displayName": "BACKUP_ID",
                     "help": "Backup ID"
-                }],
+                },
+                {
+                    "name": "force",
+                    "type": "optional",
+                    "cmd_arg":  ["--force", "-f"],
+                    "nargs": 0,
+                    "help": "force cancel without prompting",
+                    "action": "store_true",
+                    "default": False
+                }
+            ],
             "function": cancel_backup
         },
 
@@ -1075,7 +1085,17 @@ PARSER_DEF = {
                     "nargs": 1,
                     "displayName": "RESTORE_ID",
                     "help": "Restore ID"
-                }],
+                },
+                {
+                    "name": "force",
+                    "type": "optional",
+                    "cmd_arg":  ["--force", "-f"],
+                    "nargs": 0,
+                    "help": "force cancel without prompting",
+                    "action": "store_true",
+                    "default": False
+                }
+            ],
             "function": cancel_restore
         },
 
