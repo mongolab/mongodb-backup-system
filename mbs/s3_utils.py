@@ -54,6 +54,7 @@ def get_connection_for_bucket(api_key_id, api_secret_key, bucket_name,
     :return: a connection, the bucket, and region identifier or None on error
     :rtype: S3Connection, str or None
     :raises: S3ResponseError
+    :raises: boto.s3.connection.HostRequiredError
     """
     con = S3Connection(api_key_id, api_secret_key, **kwargs)
     con.set_request_hook(_BotoConnectionRequestHook(con.request_hook))
@@ -95,13 +96,13 @@ def get_connection(api_key_id, api_secret_key, region=None, **kwargs):
     :return: a connection
     :rtype: S3Connection
     :raises: ValueError
-    :raises: S3ResponseError
+    :raises: boto.exception.S3ResponseError
     """
-    endpoint = None
-    try:
-        kwargs.update({'host': _S3_ENDPOINT_LOOKUP[region]})
-    except KeyError:
-        raise ValueError('unkonwn region: %s' % (region))
+    if region is not None:
+        try:
+            kwargs.update({'host': _S3_ENDPOINT_LOOKUP[region]})
+        except KeyError:
+            raise ValueError('unkonwn region: %s' % (region))
     return S3Connection(api_key_id, api_secret_key, **kwargs)
 
 

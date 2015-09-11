@@ -689,6 +689,11 @@ class S3BucketTarget(BackupTarget):
         if not self.bucket_name:
             errors.append("Bucket name is required")
 
+        if self.bucket_name.lower() != self.bucket_name or \
+           '_' in self.bucket_name:
+            errors.append("Bucket name can not contain uppercase letters or "
+                          "underscores")
+
         if not self.access_key:
             errors.append("Access key is required")
 
