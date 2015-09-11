@@ -12,7 +12,6 @@ import cloudfiles.errors
 import cloudfiles_utils
 import s3_utils
 
-import mbs
 from base import MBSObject
 from utils import which, execute_command, export_mbs_object_list
 from azure.storage import BlobService
@@ -688,9 +687,8 @@ class S3BucketTarget(BackupTarget):
 
         if not self.bucket_name:
             errors.append("Bucket name is required")
-
-        if self.bucket_name.lower() != self.bucket_name or \
-           '_' in self.bucket_name:
+        elif self.bucket_name.lower() != self.bucket_name or \
+             '_' in self.bucket_name:
             errors.append("Bucket name can not contain uppercase letters or "
                           "underscores")
 
@@ -1750,3 +1748,8 @@ class TargetUploader(Thread):
     ###########################################################################
     def completed(self):
         return self.target_reference is not None or self.error is not None
+
+
+# deal with circular import dependency mbs.target -> mbs ->
+# mbs.backup_assistant -> mbs.target -> ...
+import mbs
