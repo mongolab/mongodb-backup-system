@@ -412,10 +412,9 @@ class DefaultApiAuthService(ApiAuthService):
 ###############################################################################
 # HELPERS
 ###############################################################################
-def error_response(message):
-    return document_pretty_string({
-        "error": message
-    })
+def error_response(message, **kwargs):
+    kwargs.update({"error": message})
+    return document_pretty_string(kwargs)
 
 ###############################################################################
 def ok_response(ok=True):

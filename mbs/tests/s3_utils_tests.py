@@ -1,6 +1,5 @@
 import os
 
-from unittest import SkipTest
 from uuid import uuid4
 
 import boto
