@@ -13,7 +13,7 @@ import cloudfiles_utils
 import mbs
 from base import MBSObject
 from utils import which, execute_command, export_mbs_object_list
-from azure.storage import BlobService
+from azure.storage.blob import BlobService
 from boto.s3.connection import S3Connection
 from boto.s3.key import Key
 from boto.exception import S3ResponseError

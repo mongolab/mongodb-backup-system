@@ -21,8 +21,8 @@ import rfc3339
 import date_utils
 
 from boto.ec2 import connect_to_region
-from azure.storage import BlobService
-from azure import WindowsAzureMissingResourceError
+from azure.storage.blob import BlobService
+from azure.common import AzureMissingResourceHttpError
 from apiclient.discovery import build
 from oauth2client.client import SignedJwtAssertionCredentials
 from apiclient.http import HttpRequest, HttpError
@@ -719,7 +719,7 @@ class BlobVolumeStorage(VolumeStorage):
                 container_name, blob_name, snapshot=snapshot_time)
 
             return True
-        except WindowsAzureMissingResourceError:
+        except AzureMissingResourceHttpError:
             logger.warning("Snapshot '%s' does not exist" % snapshot_id)
             return False
 
