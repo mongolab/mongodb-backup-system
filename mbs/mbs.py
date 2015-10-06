@@ -4,7 +4,7 @@ import os
 import version
 import mbs_config as config
 import logging
-import backup_assistant
+
 import threading
 
 from collection import MBSObjectCollection, MBSTaskCollection
@@ -255,6 +255,7 @@ class MBS(object):
     ###########################################################################
     @property
     def default_backup_assistant(self):
+        import backup_assistant
         assistant_conf = self._get_config_value("defaultBackupAssistant")
         if not self._default_backup_assistant:
             if assistant_conf:
