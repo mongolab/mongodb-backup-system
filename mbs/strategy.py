@@ -404,14 +404,17 @@ class BackupStrategy(MBSObject):
 
         primary_member = mongo_cluster.primary_member
         selected_member = None
+        best_secondary = None
         # dump from best secondary if configured and found
         if ((self.member_preference == MemberPreference.BEST and
              backup.try_count < MAX_NO_RETRIES) or
             (self.member_preference == MemberPreference.SECONDARY_ONLY and
              backup.try_count <= MAX_NO_RETRIES)):
 
-            best_secondary = mongo_cluster.get_best_secondary(max_lag_seconds=
-                                                               max_lag_seconds)
+            try:
+                best_secondary = mongo_cluster.get_best_secondary(max_lag_seconds=max_lag_seconds)
+            except NoEligibleMembersFound, ne:
+                logger.error(str(ne))
 
             if best_secondary:
                 selected_member = best_secondary
