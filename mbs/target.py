@@ -10,11 +10,12 @@ import cloudfiles
 import cloudfiles.errors
 
 import cloudfiles_utils
+import mbs
 import s3_utils
 
 from base import MBSObject
 from utils import which, execute_command, export_mbs_object_list
-from azure.storage import BlobService
+from azure.storage.blob import BlobService
 from boto.s3.key import Key
 from boto.exception import S3ResponseError
 from cloudfiles.errors import NoSuchContainer, AuthenticationFailed

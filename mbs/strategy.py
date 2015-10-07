@@ -404,14 +404,17 @@ class BackupStrategy(MBSObject):
 
         primary_member = mongo_cluster.primary_member
         selected_member = None
+        best_secondary = None
         # dump from best secondary if configured and found
         if ((self.member_preference == MemberPreference.BEST and
              backup.try_count < MAX_NO_RETRIES) or
             (self.member_preference == MemberPreference.SECONDARY_ONLY and
              backup.try_count <= MAX_NO_RETRIES)):
 
-            best_secondary = mongo_cluster.get_best_secondary(max_lag_seconds=
-                                                               max_lag_seconds)
+            try:
+                best_secondary = mongo_cluster.get_best_secondary(max_lag_seconds=max_lag_seconds)
+            except NoEligibleMembersFound, ne:
+                logger.error(str(ne))
 
             if best_secondary:
                 selected_member = best_secondary
@@ -1470,12 +1473,10 @@ class CloudBlockStorageStrategy(BackupStrategy):
         update_backup(backup, event_name="START_BLOCK_STORAGE_SNAPSHOT",
                       message="Starting snapshot backup...")
 
-        snapshot_ref = backup.target_reference
         # kickoff the snapshot if it was not kicked off before or if the current snapshot is in error state
         if (not backup.is_event_logged("END_KICKOFF_SNAPSHOT") or
-            (snapshot_ref and snapshot_ref.status == SnapshotStatus.ERROR)):
+            (backup.target_reference and backup.target_reference.status == SnapshotStatus.ERROR)):
             self._kickoff_snapshot(backup, mongo_connector, cbs)
-            snapshot_ref = backup.target_reference
 
         # hook for doing things after a snapshot was already kicked off
         self._post_snapshot_kickoff(backup, mongo_connector, cbs)
@@ -1485,7 +1486,7 @@ class CloudBlockStorageStrategy(BackupStrategy):
         self._wait_for_snapshot_status(backup, cbs, wait_status,
                                        sleep_time=60)
 
-        if snapshot_ref.status == SnapshotStatus.COMPLETED:
+        if backup.target_reference.status == SnapshotStatus.COMPLETED:
             logger.info("Successfully completed backup '%s' snapshot" %
                         backup.id)
             msg = "Snapshot completed successfully"
@@ -1493,7 +1494,7 @@ class CloudBlockStorageStrategy(BackupStrategy):
                           message=msg)
         else:
             raise SnapshotDidNotSucceedError("Snapshot did not complete successfully. Snapshot status became '%s'" %
-                                             snapshot_ref.status)
+                                             backup.target_reference.status)
 
     ###########################################################################
     def _kickoff_snapshot(self, backup, mongo_connector, cbs):

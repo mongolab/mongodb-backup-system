@@ -21,8 +21,8 @@ import rfc3339
 import date_utils
 
 from boto.ec2 import connect_to_region
-from azure.storage import BlobService
-from azure import WindowsAzureMissingResourceError
+from azure.storage.blob import BlobService
+from azure.common import AzureMissingResourceHttpError
 from apiclient.discovery import build
 from oauth2client.client import SignedJwtAssertionCredentials
 from apiclient.http import HttpRequest, HttpError
@@ -697,7 +697,8 @@ class BlobVolumeStorage(VolumeStorage):
             container_name, prefix=blob_name, include="snapshots")
         for blob in blobs:
             if blob.snapshot == response['x-ms-snapshot']:
-                blob_ref = self._new_blob_snapshot_reference(blob)
+                url = self.blob_service_connection.make_blob_url(container_name, blob_name) + ("?snapshot=%s" % urllib.quote(blob.snapshot))
+                blob_ref = self._new_blob_snapshot_reference(blob, url)
                 break
 
         return blob_ref
@@ -718,7 +719,7 @@ class BlobVolumeStorage(VolumeStorage):
                 container_name, blob_name, snapshot=snapshot_time)
 
             return True
-        except WindowsAzureMissingResourceError:
+        except AzureMissingResourceHttpError:
             logger.warning("Snapshot '%s' does not exist" % snapshot_id)
             return False
 
@@ -728,14 +729,14 @@ class BlobVolumeStorage(VolumeStorage):
             raise BlockStorageSnapshotError(msg, cause=e)
 
     ###########################################################################
-    def _new_blob_snapshot_reference(self, blob_snapshot):
+    def _new_blob_snapshot_reference(self, blob_snapshot, url):
 
         start_time_str = blob_snapshot.properties.last_modified
         start_time = datetime.strptime(start_time_str,
                                        "%a, %d %b %Y %H:%M:%S %Z")
 
         return BlobSnapshotReference(
-            snapshot_id=blob_snapshot.url,
+            snapshot_id=url,
             cloud_block_storage=self,
             status="completed",
             start_time=start_time.strftime("%Y-%m-%dT%H:%M:%S.000Z"),
