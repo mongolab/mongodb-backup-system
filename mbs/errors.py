@@ -625,8 +625,8 @@ def raise_dump_error(returncode, last_dump_line):
           "error connecting to db server" in last_dump_line):
         error_type = DumpConnectivityError
     elif (("DBClientCursor" in last_dump_line and "failed" in last_dump_line) or
-           "invalid cursor" in last_dump_line or
-           "Closed explicitly" in last_dump_line):
+          "invalid cursor" in last_dump_line or
+          "Closed explicitly" in last_dump_line):
         error_type = DBClientCursorFailError
     else:
         error_type = DumpError
