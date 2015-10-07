@@ -184,6 +184,11 @@ class DumpError(MBSError):
         super(DumpError, self).__init__(msg=msg, details=details)
 
 
+
+###############################################################################
+class RetriableDumpError(DumpError, RetriableError):
+    pass
+
 ###############################################################################
 class BadCollectionNameError(DumpError):
     """
@@ -199,11 +204,15 @@ class BadCollectionNameError(DumpError):
                          "drop these collection(s)")
 
 ###############################################################################
-class InvalidBSONObjSizeError(DumpError, RetriableError):
+class InvalidBSONObjSizeError(RetriableDumpError):
     pass
 
 ###############################################################################
-class CappedCursorOverrunError(DumpError, RetriableError):
+class CorruptionError(DumpError):
+    pass
+
+###############################################################################
+class CappedCursorOverrunError(RetriableDumpError):
     pass
 
 ###############################################################################
@@ -216,29 +225,29 @@ class InvalidDBNameError(DumpError):
                          "database is invalid")
 
 ###############################################################################
-class BadTypeError(DumpError, RetriableError):
+class BadTypeError(RetriableDumpError):
     pass
 
 ###############################################################################
-class ExhaustReceiveError(DumpError, RetriableError):
+class ExhaustReceiveError(RetriableDumpError):
     pass
 
 ###############################################################################
-class MongoctlConnectionError(DumpError, RetriableError):
+class MongoctlConnectionError(RetriableDumpError):
     """
         Raised when mongoctl (used for dump) cannot connect to source
     """
 
 ###############################################################################
-class CursorDoesNotExistError(DumpError, RetriableError):
+class CursorDoesNotExistError(RetriableDumpError):
     pass
 
 ###############################################################################
-class DumpConnectivityError(DumpError, RetriableError):
+class DumpConnectivityError(RetriableDumpError):
     pass
 
 ###############################################################################
-class DBClientCursorFailError(DumpError, RetriableError):
+class DBClientCursorFailError(RetriableDumpError):
     pass
 
 ###############################################################################
@@ -593,7 +602,10 @@ def raise_dump_error(returncode, last_dump_line):
     if returncode == 245:
         error_type = BadCollectionNameError
     elif "10334" in last_dump_line:
-        error_type = InvalidBSONObjSizeError
+        if "BSONObj size: 0 (0x00000000)" in last_dump_line:
+            error_type =CorruptionError
+        else:
+            error_type = InvalidBSONObjSizeError
     elif "13338" in last_dump_line:
         error_type = CappedCursorOverrunError
     elif "13280" in last_dump_line:
