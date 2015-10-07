@@ -603,7 +603,7 @@ def raise_dump_error(returncode, last_dump_line):
         error_type = BadCollectionNameError
     elif "10334" in last_dump_line:
         if "BSONObj size: 0 (0x00000000)" in last_dump_line:
-            error_type =CorruptionError
+            error_type = CorruptionError
         else:
             error_type = InvalidBSONObjSizeError
     elif "13338" in last_dump_line:
@@ -620,9 +620,13 @@ def raise_dump_error(returncode, last_dump_line):
         error_type = ExhaustReceiveError
     elif ("SocketException" in last_dump_line or
           "socket error" in last_dump_line or
-          "transport error" in last_dump_line):
+          "transport error" in last_dump_line or
+          "no reachable servers" in last_dump_line or
+          "error connecting to db server" in last_dump_line):
         error_type = DumpConnectivityError
-    elif "DBClientCursor" in last_dump_line and "failed" in last_dump_line:
+    elif (("DBClientCursor" in last_dump_line and "failed" in last_dump_line) or
+           "invalid cursor" in last_dump_line or
+           "Closed explicitly" in last_dump_line):
         error_type = DBClientCursorFailError
     else:
         error_type = DumpError
