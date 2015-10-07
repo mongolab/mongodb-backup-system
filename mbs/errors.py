@@ -628,7 +628,23 @@ def raise_dump_error(returncode, last_dump_line):
           "invalid cursor" in last_dump_line or
           "Closed explicitly" in last_dump_line):
         error_type = DBClientCursorFailError
+
+    # Generic retriable errors
+    elif is_retriable_dump_error(returncode, last_dump_line):
+        error_type = RetriableDumpError
     else:
         error_type = DumpError
 
     raise error_type(returncode, last_dump_line)
+
+########################################################################################################################
+
+RETRIABLE_DUMP_ERROR_PARTIALS = [
+    "Err: EOF",
+    "Err: no collection"
+]
+
+########################################################################################################################
+def is_retriable_dump_error(returncode, last_dump_line):
+    matches = filter(lambda p: p in last_dump_line, RETRIABLE_DUMP_ERROR_PARTIALS)
+    return matches and len(matches) > 0
