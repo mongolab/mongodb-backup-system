@@ -467,7 +467,7 @@ def is_connection_exception(exception):
     if isinstance(exception, ConnectionFailure):
         return True
     else:
-        msg = str(exception)
+        msg = unicode(exception)
         return ("timed out" in msg or "refused" in msg or "reset" in msg or
                 "Broken pipe" in msg or "closed" in msg or "IncompleteRead" in msg)
 
