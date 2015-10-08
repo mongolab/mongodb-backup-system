@@ -1,6 +1,7 @@
 import hashlib
+import os
 
-from unittest import TestCase
+from unittest import SkipTest, TestCase
 
 from makerpy.maker import Maker
 
@@ -19,6 +20,13 @@ class BaseTest(TestCase):
     ###########################################################################
     def tearDown(self):
         pass
+
+    ###########################################################################
+    def _get_env_var_or_skip(self, env_var):
+        bucket_name = os.environ.get(env_var, None)
+        if bucket_name is None:
+            raise SkipTest('%s is not defined' % (env_var))
+        return bucket_name
 
     ###########################################################################
     @staticmethod

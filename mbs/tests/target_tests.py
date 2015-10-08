@@ -1,7 +1,9 @@
 import hashlib
 import math
+import os
 
 from tempfile import NamedTemporaryFile
+from uuid import uuid4
 
 from mock import patch, Mock
 
@@ -37,3 +39,57 @@ class TargetTest(BaseTest):
                              math.ceil(10000/1024))
             self.assertTrue(mp_upload_mock.complete_upload.called)
             self.assertEqual(hash_.hexdigest(), self.md5(dump.name))
+
+    def test_s3_validate(self):
+        target = self.maker.make({
+            '_type': 'S3BucketTarget',
+        })
+        self.assertEqual(len(target.validate()), 3)
+
+        target = self.maker.make({
+            '_type': 'S3BucketTarget',
+            'bucketName': 'foo_bar',
+            'accessKey': 'xxxx',
+            'secretKey': 'xxxx',
+        })
+        self.assertEqual(len(target.validate()), 1)
+
+        target = self.maker.make({
+            '_type': 'S3BucketTarget',
+            'bucketName': 'FOO',
+            'accessKey': 'xxxx',
+            'secretKey': 'xxxx',
+        })
+        self.assertEqual(len(target.validate()), 1)
+
+        target = self.maker.make({
+            '_type': 'S3BucketTarget',
+            'bucketName': 'foo',
+            'accessKey': 'xxxx',
+            'secretKey': 'xxxx',
+        })
+        self.assertEqual(len(target.validate()), 0)
+
+    def test_s3_has_sufficient_permissions(self):
+        target = self.maker.make({
+            '_type': 'S3BucketTarget',
+            'bucketName': self._get_env_var_or_skip(
+                                'S3_UTILS_TEST_US_WEST_2_BUCKET_NAME'),
+            'accessKey': self._get_env_var_or_skip(
+                                'S3_UTILS_TEST_KEY_ID'),
+            'secretKey': self._get_env_var_or_skip(
+                                'S3_UTILS_TEST_SECRET_KEY'),
+        })
+        target.has_sufficient_permissions()
+
+        target = self.maker.make({
+            '_type': 'S3BucketTarget',
+            'bucketName': self._get_env_var_or_skip(
+                                'S3_UTILS_TEST_US_WEST_2_BUCKET_NAME_NO_PERMS'),
+            'accessKey': self._get_env_var_or_skip(
+                                'S3_UTILS_TEST_KEY_ID'),
+            'secretKey': self._get_env_var_or_skip(
+                                'S3_UTILS_TEST_SECRET_KEY')
+        })
+        self.assertGreater(len(target.has_sufficient_permissions()), 0)
+

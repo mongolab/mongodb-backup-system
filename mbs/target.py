@@ -4,17 +4,18 @@ __author__ = 'abdul'
 import os
 import sys
 import logging
+import uuid
 
 import cloudfiles
 import cloudfiles.errors
 
 import cloudfiles_utils
-
 import mbs
+import s3_utils
+
 from base import MBSObject
 from utils import which, execute_command, export_mbs_object_list
 from azure.storage.blob import BlobService
-from boto.s3.connection import S3Connection
 from boto.s3.key import Key
 from boto.exception import S3ResponseError
 from cloudfiles.errors import NoSuchContainer, AuthenticationFailed
@@ -238,6 +239,14 @@ class BackupTarget(MBSObject):
             return True
 
     ###########################################################################
+    def has_sufficient_permissions(self):
+        """
+         Returns an array containing error messages (if any). Empty if user has
+         sufficient permissions
+        """
+        return []
+
+    ###########################################################################
     def validate(self):
         """
          Returns an array containing validation messages (if any). Empty if no
@@ -336,10 +345,10 @@ class S3BucketTarget(BackupTarget):
         file_size = os.path.getsize(file_path)
 
         if file_size >= MULTIPART_MIN_SIZE:
-            self._multi_part_put(file_path, destination_path, file_size, 
+            self._multi_part_put(file_path, destination_path, file_size,
                                  metadata=metadata)
         else:
-            self._single_part_put(file_path, destination_path, 
+            self._single_part_put(file_path, destination_path,
                                   metadata=metadata)
 
         return FileReference(file_path=destination_path,
@@ -480,8 +489,11 @@ class S3BucketTarget(BackupTarget):
     def _get_bucket(self):
         if not self._bucket:
             try:
-                conn = S3Connection(self.access_key, self.secret_key)
-                self._bucket = conn.get_bucket(self.bucket_name)
+                _, bucket, __ = \
+                    s3_utils.get_connection_for_bucket(self.access_key,
+                                                       self.secret_key,
+                                                       self.bucket_name)
+                self._bucket = bucket
             except S3ResponseError, re:
                 if "404" in str(re) or "403" in str(re):
                     raise TargetInaccessibleError(self.bucket_name,
@@ -627,17 +639,65 @@ class S3BucketTarget(BackupTarget):
         return doc
 
     ###########################################################################
+    def has_sufficient_permissions(self):
+        errors = []
+        try:
+            conn, bucket, region = \
+                s3_utils.get_connection_for_bucket(self.access_key,
+                                                   self.secret_key,
+                                                   self.bucket_name)
+
+            # test read/write
+
+            # determining current user permissions for a bucket via
+            # policies/acls looks to be a mess... try a simple
+            # create/write/read/list/delete for now
+
+            key = None
+            key_name = '%s-mbs-test-write' % (uuid.uuid4())
+            try:
+                key = bucket.new_key(key_name)
+                key.set_contents_from_string(key_name)
+                if not key.get_contents_as_string() == key_name:
+                    errors.append('could not read key contents of test file '
+                                  'in %s' % (self.bucket_name))
+                # set the prefix to the file name and don't risk listing the 
+                # whole bucket
+                contents = bucket.list(key_name)
+                # there should only be one element
+                if key_name not in [k.name for k in contents]:
+                    errors.append('could not list contents of %s' %
+                                  (self.bucket_name))
+            except Exception, e:
+                errors.append(str(e))
+            finally:
+                if key is not None:
+                    try:
+                        key.delete()
+                    except Exception as e:
+                        errors.append(str(e))
+        except Exception as e:
+            errors.append(str(e))
+
+        return errors
+
+
+    ###########################################################################
     def validate(self):
         errors = []
 
         if not self.bucket_name:
-            errors.append("Missing 'bucketName' property")
+            errors.append("Bucket name is required")
+        elif self.bucket_name.lower() != self.bucket_name or \
+             '_' in self.bucket_name:
+            errors.append("Bucket name can not contain uppercase letters or "
+                          "underscores")
 
         if not self.access_key:
-            errors.append("Missing 'encryptedAccessKey' property")
+            errors.append("Access key is required")
 
         if not self.secret_key:
-            errors.append("Missing 'encryptedSecretKey' property")
+            errors.append("Secret key is required")
 
         return errors
 
@@ -897,6 +957,11 @@ class RackspaceCloudFilesTarget(BackupTarget):
         return doc
 
     ###########################################################################
+    def has_sufficient_permissions(self):
+        return \
+            super(RackspaceCloudFilesTarget, self).has_sufficient_permissions()
+
+    ###########################################################################
     def validate(self):
         errors = []
 
@@ -1017,6 +1082,11 @@ class AzureContainerTarget(BackupTarget):
         })
 
         return doc
+    
+    ###########################################################################
+    def has_sufficient_permissions(self):
+        return \
+            super(AzureContainerTarget, self).has_sufficient_permissions()
 
     ###########################################################################
     def validate(self):
@@ -1032,6 +1102,7 @@ class AzureContainerTarget(BackupTarget):
             errors.append("Missing 'accountKey' property")
 
         return errors
+
 ###############################################################################
 # Target Reference Classes
 ###############################################################################
@@ -1678,3 +1749,8 @@ class TargetUploader(Thread):
     ###########################################################################
     def completed(self):
         return self.target_reference is not None or self.error is not None
+
+
+# deal with circular import dependency mbs.target -> mbs ->
+# mbs.backup_assistant -> mbs.target -> ...
+import mbs
