@@ -60,6 +60,7 @@ MAX_BALANCER_STOP_WAIT = 30 * 60
 
 ###############################################################################
 VERSION_2_6 = MongoNormalizedVersion("2.6.0")
+VERSION_3_0 = MongoNormalizedVersion("3.0.0")
 
 ###############################################################################
 # Member preference values
@@ -1324,6 +1325,9 @@ class DumpStrategy(BackupStrategy):
         if dest_mongo_version >= VERSION_2_6 and source_database_name is not None:
             restore_options.append("--restoreDbUsersAndRoles")
 
+        # stop on errors for 3.0 restores
+        if dest_mongo_version >= VERSION_3_0:
+            restore_options.append("--stopOnError")
 
         # additional restore options
         if self.no_index_restore:
