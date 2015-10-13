@@ -642,7 +642,8 @@ def raise_dump_error(returncode, last_dump_line):
 RETRIABLE_DUMP_ERROR_PARTIALS = [
     "Err: EOF",
     "Err: no collection",
-    "Err: no database"
+    "Err: no database",
+    "Operation was interrupted"
 ]
 
 ########################################################################################################################
