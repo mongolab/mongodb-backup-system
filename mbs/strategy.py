@@ -602,7 +602,8 @@ class BackupStrategy(MBSObject):
         logger.info("Computing destination stats for restore '%s'" %
                     restore.id)
         dest_connector = restore.destination.get_connector()
-        restore.destination_stats = dest_connector.get_stats()
+        dbname = restore.destination.database_name
+        restore.destination_stats = dest_connector.get_stats(only_for_db=dbname)
         update_restore(restore, properties=["destinationStats"])
 
     ###########################################################################
