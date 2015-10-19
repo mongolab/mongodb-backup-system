@@ -24,6 +24,7 @@ from errors import *
 from robustify.robustify import robustify
 from splitfile import SplitFile
 from threading import Thread
+import requests
 
 ###############################################################################
 # LOGGER
@@ -287,6 +288,11 @@ class BackupTarget(MBSObject):
             return file_exists and file_size == expected_file_size
         else:
             return file_exists
+
+    ###########################################################################
+    def stream_file(self, file_reference):
+        url = self.get_temp_download_url(file_reference)
+        return requests.get(url, stream=True).iter_lines()
 
     ###########################################################################
     def _fetch_file_info(self, destination_path):
