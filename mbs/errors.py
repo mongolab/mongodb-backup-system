@@ -204,7 +204,7 @@ class BadCollectionNameError(DumpError):
                          "drop these collection(s)")
 
 ###############################################################################
-class InvalidBSONObjSizeError(RetriableDumpError):
+class InvalidBSONObjSizeError(DumpError):
     pass
 
 ###############################################################################
