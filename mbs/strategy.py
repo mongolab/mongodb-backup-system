@@ -1349,13 +1349,21 @@ class DumpStrategy(BackupStrategy):
 
     ###########################################################################
     def _validate_restore(self, restore):
-        restore.dump_collection_counts = read_dump_collection_counts(restore.source_backup)
-        update_restore(restore, properties="dumpCollectionCounts", event_name="READ_DUMP_COLLECTION_COUNTS",
-                       message="Reading mongodump collection counts for validation")
+        try:
 
-        restore.restore_collection_counts = self.read_restore_collection_counts(restore)
-        update_restore(restore, properties="restoreCollectionCounts", event_name="READ_RESTORE_COLLECTION_COUNTS",
-                       message="Reading restore collection counts for validation")
+            restore.dump_collection_counts = read_dump_collection_counts(restore.source_backup)
+            update_restore(restore, properties="dumpCollectionCounts",
+                           event_name="READ_DUMP_COLLECTION_COUNTS",
+                           message="Reading mongodump collection counts for validation")
+
+            restore.restore_collection_counts = self.read_restore_collection_counts(restore)
+            update_restore(restore, properties="restoreCollectionCounts",
+                           event_name="READ_RESTORE_COLLECTION_COUNTS",
+                           message="Reading restore collection counts for validation")
+        except Exception, ex:
+            logger.exception("Error during validate restore '%s'" % restore.id)
+
+
 
     ###########################################################################
     def read_restore_collection_counts(self, restore):
