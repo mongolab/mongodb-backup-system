@@ -1338,16 +1338,19 @@ class DumpStrategy(BackupStrategy):
             restore_options.append("--noIndexRestore")
 
         # execute dump command
-        self.backup_assistant.run_mongo_restore(restore, dest_uri, dump_dir, source_database_name,
-                                                _restore_log_file_name(restore),
-                                                _log_file_name(restore.source_backup),
-                                                delete_old_admin_users_file=delete_old_admin_users_file,
-                                                delete_old_users_file=delete_old_users_file,
-                                                options=restore_options)
+        restore_info = self.backup_assistant.run_mongo_restore(
+            restore, dest_uri, dump_dir, source_database_name,
+            _restore_log_file_name(restore), _log_file_name(restore.source_backup),
+            delete_old_admin_users_file=delete_old_admin_users_file,
+            delete_old_users_file=delete_old_users_file,
+            options=restore_options)
 
-        update_restore(restore, event_name="END_RESTORE_DUMP",
+        if restore_info and "restoreCollectionCounts" in restore_info:
+            restore.restore_collection_counts = restore_info["restoreCollectionCounts"]
+
+        update_restore(restore, properties="restoreCollectionCounts",
+                       event_name="END_RESTORE_DUMP",
                        message="Restoring dump completed!")
-
 
     ###########################################################################
     def _validate_restore(self, restore):
@@ -1364,8 +1367,6 @@ class DumpStrategy(BackupStrategy):
                            message="Reading destination collection counts for validation")
         except Exception, ex:
             logger.exception("Error during validate restore '%s'" % restore.id)
-
-
 
     ###########################################################################
     def get_destination_collection_counts(self, restore):
