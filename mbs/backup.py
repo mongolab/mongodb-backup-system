@@ -23,6 +23,7 @@ class Backup(MBSTask):
         self._expired_date = None
         self._dont_expire = False
         self._deleted_date = None
+        self._dump_collection_counts = None
 
     ###########################################################################
     def execute(self):
@@ -193,6 +194,15 @@ class Backup(MBSTask):
         self._dont_expire = val
 
     ###########################################################################
+    @property
+    def dump_collection_counts(self):
+        return self._dump_collection_counts
+
+    @dump_collection_counts.setter
+    def dump_collection_counts(self, val):
+        self._dump_collection_counts = val
+
+    ###########################################################################
     def to_document(self, display_only=False):
 
         doc = MBSTask.to_document(self, display_only=display_only)
@@ -235,5 +245,8 @@ class Backup(MBSTask):
 
         if self.backup_rate_in_mbps:
             doc["backupRateInMBPS"] = self.backup_rate_in_mbps
+
+        if self.dump_collection_counts:
+            doc["dumpCollectionCounts"] = self.dump_collection_counts
 
         return doc

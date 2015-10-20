@@ -1152,10 +1152,12 @@ class DumpStrategy(BackupStrategy):
 
         log_file_name = _log_file_name(backup)
         # execute dump command
-        self.backup_assistant.dump_backup(backup, uri, destination, log_file_name, options=dump_options)
+        dump_info = self.backup_assistant.dump_backup(backup, uri, destination, log_file_name, options=dump_options)
+        if dump_info and "dumpCollectionCounts" in dump_info:
+            backup.dump_collection_counts = dump_info["dumpCollectionCounts"]
 
-
-        update_backup(backup, event_name=EVENT_END_EXTRACT,
+        update_backup(backup, properties="dumpCollectionCounts",
+                      event_name=EVENT_END_EXTRACT,
                       message="Dump completed")
 
     ###########################################################################
