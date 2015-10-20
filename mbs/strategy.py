@@ -1358,17 +1358,17 @@ class DumpStrategy(BackupStrategy):
                            event_name="READ_DUMP_COLLECTION_COUNTS",
                            message="Reading mongodump collection counts for validation")
 
-            restore.restore_collection_counts = self.read_restore_collection_counts(restore)
-            update_restore(restore, properties="restoreCollectionCounts",
-                           event_name="READ_RESTORE_COLLECTION_COUNTS",
-                           message="Reading restore collection counts for validation")
+            restore.destination_collection_counts = self.get_destination_collection_counts(restore)
+            update_restore(restore, properties="destinationCollectionCounts",
+                           event_name="GET_DEST_COLLECTION_COUNTS",
+                           message="Reading destination collection counts for validation")
         except Exception, ex:
             logger.exception("Error during validate restore '%s'" % restore.id)
 
 
 
     ###########################################################################
-    def read_restore_collection_counts(self, restore):
+    def get_destination_collection_counts(self, restore):
         # connect to the destination
         mongo_connector = restore.destination.get_connector()
         return mongo_connector.get_collection_counts(only_for_db=restore.destination.database_name)

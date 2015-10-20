@@ -16,6 +16,7 @@ class Restore(MBSTask):
         self._destination_stats = None
         self._dump_collection_counts = None
         self._restore_collection_counts = None
+        self._destination_collection_counts = None
         self._valid = None
 
     ###########################################################################
@@ -88,6 +89,15 @@ class Restore(MBSTask):
 
     ###########################################################################
     @property
+    def destination_collection_counts(self):
+        return self._destination_collection_counts
+
+    @destination_collection_counts.setter
+    def destination_collection_counts(self, val):
+        self._destination_collection_counts = val
+
+    ###########################################################################
+    @property
     def valid(self):
         return self._valid
 
@@ -105,6 +115,7 @@ class Restore(MBSTask):
             "destination": self.destination.to_document(display_only=display_only),
             "dumpCollectionCounts": self.dump_collection_counts,
             "restoreCollectionCounts": self.restore_collection_counts,
+            "destinationCollectionCounts": self.destination_collection_counts,
             "valid": self.valid
         })
 
