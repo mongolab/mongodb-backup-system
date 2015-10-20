@@ -5,7 +5,7 @@ import os
 import time
 
 import logging
-
+import re
 
 from mbs import get_mbs
 
@@ -1217,6 +1217,7 @@ class DumpStrategy(BackupStrategy):
             if not restore.is_event_logged("END_RESTORE_DUMP"):
                 # restore dump
                 self._restore_dump(restore)
+                self._validate_restore(restore)
                 #self._upload_restore_log_file(restore)
         except RestoreError, e:
             #self._upload_restore_log_file(restore)
@@ -1345,6 +1346,22 @@ class DumpStrategy(BackupStrategy):
         update_restore(restore, event_name="END_RESTORE_DUMP",
                        message="Restoring dump completed!")
 
+
+    ###########################################################################
+    def _validate_restore(self, restore):
+        restore.dump_collection_counts = read_dump_collection_counts(restore.source_backup)
+        update_restore(restore, properties="dumpCollectionCounts", event_name="READ_DUMP_COLLECTION_COUNTS",
+                       message="Reading mongodump collection counts for validation")
+
+        restore.restore_collection_counts = self.read_restore_collection_counts(restore)
+        update_restore(restore, properties="restoreCollectionCounts", event_name="READ_RESTORE_COLLECTION_COUNTS",
+                       message="Reading restore collection counts for validation")
+
+    ###########################################################################
+    def read_restore_collection_counts(self, restore):
+        # connect to the destination
+        mongo_connector = restore.destination.get_connector()
+        return mongo_connector.get_collection_counts(only_for_db=restore.destination.database_name)
 
     ###########################################################################
     def _upload_restore_log_file(self, restore):
@@ -2207,5 +2224,38 @@ def _grant_restore_role(connector):
 
     logger.info("restore role granted successfully!")
 
+###############################################################################
+def read_dump_collection_counts(backup):
+    """
+    reads the collection counts from the dump log
+    :param backup:
+    :return:
+    """
+    logger.info("Reading dump collection counts for backup from dump log'%s'" % backup.id)
+    collection_counts = {}
+    log_ref = backup.log_target_reference
+    for line in backup.target.stream_file(log_ref):
+        dbname, collection_name, count = process_dump_line_collection_counts(line)
+        if dbname:
+            if dbname not in collection_counts:
+                collection_counts[dbname] = []
+            collection_counts[dbname].append({
+                "name": collection_name,
+                "count": count
+            })
 
+    return collection_counts
+
+###############################################################################
+def process_dump_line_collection_counts(line):
+    """
+    :param line:
+    :return: dbname, collection_name, doc count if the line is a "done dumping" line, else None,None,None
+    """
+
+    m = re.search('done dumping ([^.]*)\.([^ ]*) \(([0-9]*) document', line)
+    if m:
+        return m.groups()[0], m.groups()[1], int(m.groups()[2])
+    else:
+        return None, None, None
 

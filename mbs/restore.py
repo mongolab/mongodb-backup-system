@@ -14,6 +14,9 @@ class Restore(MBSTask):
         self._source_database_name = None
         self._destination = None
         self._destination_stats = None
+        self._dump_collection_counts = None
+        self._restore_collection_counts = None
+        self._valid = None
 
     ###########################################################################
     def execute(self):
@@ -66,17 +69,43 @@ class Restore(MBSTask):
         self._destination_stats = destination_stats
 
     ###########################################################################
+    @property
+    def dump_collection_counts(self):
+        return self._dump_collection_counts
+
+    @dump_collection_counts.setter
+    def dump_collection_counts(self, val):
+        self._dump_collection_counts = val
+
+    ###########################################################################
+    @property
+    def restore_collection_counts(self):
+        return self._restore_collection_counts
+
+    @restore_collection_counts.setter
+    def restore_collection_counts(self, val):
+        self._restore_collection_counts = val
+
+    ###########################################################################
+    @property
+    def valid(self):
+        return self._valid
+
+    @valid.setter
+    def valid(self, valid):
+        self._valid = valid
+
+    ###########################################################################
     def to_document(self, display_only=False):
         doc = MBSTask.to_document(self, display_only=display_only)
         doc.update({
             "_type": "Restore",
             "sourceBackup": DBRef("backups", self.source_backup.id),
             "sourceDatabaseName": self.source_database_name,
-            "destination": self.destination.to_document(display_only=
-                                                         display_only),
-            "destinationStats": self.destination_stats
+            "destination": self.destination.to_document(display_only=display_only),
+            "dumpCollectionCounts": self.dump_collection_counts,
+            "restoreCollectionCounts": self.restore_collection_counts,
+            "valid": self.valid
         })
 
         return doc
-
-    ###########################################################################

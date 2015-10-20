@@ -141,6 +141,12 @@ class MongoConnector(object):
         """
 
     ###########################################################################
+    def get_collection_counts(self, only_for_db=None):
+        """
+            Must be overridden
+        """
+
+    ###########################################################################
     def whatsmyuri(self):
         pass
 
@@ -296,6 +302,23 @@ class MongoDatabase(MongoConnector):
             if is_connection_exception(e):
                 raise ConnectionError(self._uri_wrapper.masked_uri,
                                       details="Compute database stats",
+                                      cause=e)
+            else:
+                raise
+
+
+    ###########################################################################
+    def get_collection_counts(self, only_for_db=None):
+        try:
+
+            return {
+                self.database.name: _database_collection_counts(self.database)
+            }
+
+        except Exception, e:
+            if is_connection_exception(e):
+                raise ConnectionError(self._uri_wrapper.masked_uri,
+                                      details="get_collection_counts()",
                                       cause=e)
             else:
                 raise
@@ -492,6 +515,10 @@ class MongoCluster(MongoConnector):
         return self.primary_member.get_stats(only_for_db=only_for_db)
 
     ###########################################################################
+    def get_collection_counts(self, only_for_db=None):
+        return self.primary_member.get_collection_counts(only_for_db=only_for_db)
+
+    ###########################################################################
     def whatsmyuri(self):
         return self.primary_member.whatsmyuri()
 
@@ -680,6 +707,35 @@ class MongoServer(MongoConnector):
         except Exception, e:
             if is_connection_exception(e):
                 details = ("Error while trying to compute stats for server "
+                           "'%s'." % self)
+                raise ConnectionError(self._uri_wrapper.masked_uri,
+                                      details=details, cause=e)
+            else:
+                raise
+
+    ###########################################################################
+    @robustify(max_attempts=3, retry_interval=3,
+               do_on_exception=raise_if_not_retriable,
+               do_on_failure=raise_exception)
+    def get_collection_counts(self, only_for_db=None):
+
+        # ensure that we are authed to admin
+        self.get_auth_admin_db()
+
+        # compute database stats
+        try:
+            if only_for_db:
+                db = self.connection[only_for_db]
+                db_col_count = _database_collection_counts(db)
+                return {
+                    db.name: db_col_count
+                }
+            else:
+                conn = self.connection
+                return _connection_collection_counts(conn)
+        except Exception, e:
+            if is_connection_exception(e):
+                details = ("Error while trying to compute collection counts for server "
                            "'%s'." % self)
                 raise ConnectionError(self._uri_wrapper.masked_uri,
                                       details=details, cause=e)
@@ -1130,6 +1186,52 @@ def _calculate_connection_databases_stats(connection):
     total_stats["databaseStats"] = all_db_stats
     total_stats["localDatabaseStats"] = local_db_stats
     return total_stats
+
+
+###############################################################################
+@robustify(max_attempts=3, retry_interval=3,
+           do_on_exception=raise_if_not_retriable,
+           do_on_failure=raise_exception)
+def _database_collection_counts(db):
+    result = []
+    for cname in db.collection_names():
+        # skip system collections
+        if cname.startswith("system."):
+            continue
+
+        collstats = db.command("collstats", cname)
+        result.append({
+            "name": cname,
+            "count": collstats["count"]
+        })
+
+    return result
+
+
+
+###############################################################################
+@robustify(max_attempts=3, retry_interval=3,
+           do_on_exception=raise_if_not_retriable,
+           do_on_failure=raise_exception)
+def _connection_collection_counts(connection):
+    """
+
+    :param connection:
+    :return: dict with all dbs collection counts
+
+    """
+
+    collection_counts = {}
+
+
+    database_names = connection.database_names()
+
+    for dbname in database_names:
+        db = connection[dbname]
+        db_collection_counts = _database_collection_counts(db)
+        collection_counts[dbname] = db_collection_counts
+
+    return collection_counts
 
 
 ###############################################################################
