@@ -1365,8 +1365,54 @@ class DumpStrategy(BackupStrategy):
             update_restore(restore, properties="destinationCollectionCounts",
                            event_name="GET_DEST_COLLECTION_COUNTS",
                            message="Reading destination collection counts for validation")
+
+            restore.valid = self._compare_all_collection_counts(restore)
+            update_restore(restore, properties="valid",
+                           event_name="SET_VALID",
+                           message="setting valid to %s" % restore.valid)
         except Exception, ex:
             logger.exception("Error during validate restore '%s'" % restore.id)
+
+
+    ###########################################################################
+    def _compare_all_collection_counts(self, restore):
+        src_db = restore.source_database_name or restore.source_backup.source.database_name
+        dest_db = restore.destination.database_name
+
+        c1 = self._comparable_collection_count(restore.dump_collection_counts, src_db=src_db, dest_db=dest_db)
+        c2 = self._comparable_collection_count(restore.restore_collection_counts)
+        c3 = self._comparable_collection_count(restore.destination_collection_counts)
+        all_counts = [c1, c2, c3]
+
+        # add backup dump counts if present
+        if restore.source_backup.dump_collection_counts:
+            c4 = self._comparable_collection_count(restore.source_backup.dump_collection_counts,
+                                                   src_db=src_db, dest_db=dest_db)
+            all_counts.append(c4)
+
+        for cc in all_counts[1:]:
+            if cc != all_counts[0]:
+                return False
+
+        return True
+
+    ###########################################################################
+    def _comparable_collection_count(self, collection_count, src_db=None, dest_db=None):
+        comparable_count = {}
+        for dbname in collection_count.keys():
+            # skip admin
+            if dbname in ["admin", "local"] or not collection_count.get(dbname):
+                continue
+
+            sorted_db_count = sorted(collection_count[dbname], key=(lambda x : x["name"]))
+            if src_db and dest_db and dbname == src_db and dbname !=dest_db:
+                compare_db = dest_db
+            else:
+                compare_db = dbname
+
+            comparable_count[compare_db] = sorted_db_count
+
+        return comparable_count
 
     ###########################################################################
     def get_destination_collection_counts(self, restore):
