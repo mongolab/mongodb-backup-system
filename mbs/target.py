@@ -675,14 +675,17 @@ class S3BucketTarget(BackupTarget):
                     errors.append('could not list contents of %s' %
                                   (self.bucket_name))
             except Exception, e:
+                logger.exception("has_sufficient_permissions() error")
                 errors.append(str(e))
             finally:
                 if key is not None:
                     try:
                         key.delete()
                     except Exception as e:
+                        logger.exception("has_sufficient_permissions() error")
                         errors.append(str(e))
         except Exception as e:
+            logger.exception("has_sufficient_permissions() error")
             errors.append(str(e))
 
         return errors
