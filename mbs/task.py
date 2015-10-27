@@ -421,7 +421,7 @@ class EventLogEntry(MBSObject):
 
     ###########################################################################
     def to_document(self, display_only=False):
-        doc= {
+        doc = {
             "_type": "EventLogEntry",
             "eventType": self.event_type,
             "date": self.date,
