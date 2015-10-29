@@ -973,7 +973,9 @@ class DumpStrategy(BackupStrategy):
                 # still tar and upload failed dumps
                 logger.error("Dumping backup '%s' failed. Will still tar"
                              "up and upload to keep dump logs" % backup.id)
-
+                msg = "Dump failed. Will tar and upload the failed dump"
+                update_backup(backup, event_type=EventType.ERROR, message=msg,
+                              error_code=to_mbs_error_code(e))
                 # TODO maybe change the name of the uploaded failed dump log
                 self._upload_dump_log_file(backup)
                 self._tar_and_upload_failed_dump(backup)
