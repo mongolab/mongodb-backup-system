@@ -745,4 +745,11 @@ def dict_diff(dict_a, dict_b):
         )
     ])
 
+###############################################################################
+def object_full_type_name(obj):
+    return obj.__class__.__module__ + "." + object_type_name(obj)
+
+###############################################################################
+def object_type_name(obj):
+    return obj.__class__.__name__
 

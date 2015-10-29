@@ -5,6 +5,7 @@ from pymongo.errors import ConnectionFailure
 from boto.exception import BotoServerError
 from base import MBSObject
 import logging
+import utils
 
 ###############################################################################
 ########################                       ################################
@@ -84,10 +85,25 @@ class MBSError(Exception, MBSObject):
             "message": self.message
         }
 
-        if isinstance(self.cause, MBSError):
-            doc["cause"] = self.cause.to_document(display_only=display_only)
+        if self.cause:
+            if isinstance(self.cause, MBSError):
+                doc["cause"] = self.cause.to_document(display_only=display_only)
+            else:
+                doc["cause"] = {
+                    "causeType": utils.object_full_type_name(self.cause),
+                    "message": str(self.cause)
+                }
 
         return doc
+
+###############################################################################
+# MBSErrorWrapper
+###############################################################################
+class MBSErrorWrapper(MBSError):
+    """
+    Used for wrapping generic exceptions that are non-mbs exceptions
+    """
+
 
 ###############################################################################
 # BackupSystemError
@@ -676,3 +692,10 @@ RETRIABLE_DUMP_ERROR_PARTIALS = [
 def is_retriable_dump_error(returncode, last_dump_line):
     matches = filter(lambda p: p in last_dump_line, RETRIABLE_DUMP_ERROR_PARTIALS)
     return matches and len(matches) > 0
+
+########################################################################################################################
+def to_mbs_error_code(error):
+    if isinstance(error, MBSError):
+        return error
+    else:
+        return MBSErrorWrapper(msg=str(error), cause=error)

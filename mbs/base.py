@@ -1,6 +1,6 @@
 __author__ = 'abdul'
 
-from utils import document_pretty_string, dict_diff
+from utils import document_pretty_string, dict_diff, object_full_type_name, object_type_name
 
 import copy
 
@@ -29,12 +29,12 @@ class MBSObject(object):
     ###########################################################################
     @property
     def type_name(self):
-        return self.__class__.__name__
+        return object_type_name(self)
 
     ###########################################################################
     @property
     def full_type_name(self):
-        return self.__class__.__module__ + "." + self.type_name
+        return object_full_type_name(self)
 
     ###########################################################################
     def __str__(self):

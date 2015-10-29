@@ -20,7 +20,7 @@ from multiprocessing import Process
 
 from errors import (
     MBSError, BackupEngineError, EngineWorkerCrashedError,
-    WorkspaceCreationError
+    to_mbs_error_code
 )
 
 from utils import (ensure_dir, resolve_path, get_local_host_name,
@@ -559,7 +559,7 @@ class TaskQueueProcessor(Thread):
         task = worker.get_task()
         self.task_collection.update_task(
             task, event_type=EventType.ERROR,
-            message=log_msg, details=details, error_code=exception)
+            message=log_msg, details=details, error_code=to_mbs_error_code(exception))
 
         self.worker_finished(worker, task, State.FAILED)
 
