@@ -218,14 +218,41 @@ class DumpError(MBSError):
         omitted to avoid logging credentials
     """
     ###########################################################################
-    def __init__(self, return_code, last_dump_line):
-        msg = ("Failed to mongodump")
+    def __init__(self, return_code=None, dump_error_log=None):
+        msg = "Failed to mongodump"
         details = ("Failed to dump. Dump command returned a non-zero "
-                   "exit status %s.Check dump logs. Last dump log line: "
-                   "%s" % (return_code, last_dump_line))
+                   "exit status %s.Check dump logs. mongodump error log: "
+                   "%s" % (return_code, dump_error_log))
+        self._return_code = return_code
+        self._dump_error_log = dump_error_log
+
         super(DumpError, self).__init__(msg=msg, details=details)
 
+    ###########################################################################
+    @property
+    def return_code(self):
+        return self._return_code
 
+    @return_code.setter
+    def return_code(self, val):
+        self._return_code = val
+
+    ###########################################################################
+    @property
+    def dump_error_log(self):
+        return self._dump_error_log
+
+    @dump_error_log.setter
+    def dump_error_log(self, val):
+        self._dump_error_log = val
+
+    ###########################################################################
+    def to_document(self, display_only=False):
+        doc = super(DumpError, self).to_document(display_only=display_only)
+        doc["returnCode"] = self.return_code
+        doc["dumpErrorLog"] = self.dump_error_log
+
+        return doc
 
 ###############################################################################
 class RetriableDumpError(DumpError, RetriableError):
