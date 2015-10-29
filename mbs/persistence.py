@@ -26,16 +26,20 @@ def get_restore(restore_id):
 
 ###############################################################################
 def update_backup(backup, properties=None, event_name=None,
-                  event_type=EventType.INFO, message=None, details=None):
+                  event_type=EventType.INFO, message=None, details=None,
+                  error_code=None):
     bc = get_mbs().backup_collection
     bc.update_task(backup, properties=properties, event_name=event_name,
                    event_type=event_type, message=message, details=details,
+                   error_code=error_code,
                    w=1)
 
 ###############################################################################
 def update_restore(restore, properties=None, event_name=None,
-                   event_type=EventType.INFO, message=None, details=None):
+                   event_type=EventType.INFO, message=None, details=None,
+                   error_code=None):
     rc = get_mbs().restore_collection
     rc.update_task(restore, properties=properties, event_name=event_name,
                    event_type=event_type, message=message, details=details,
+                   error_code=error_code,
                    w=1)

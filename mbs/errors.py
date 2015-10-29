@@ -3,6 +3,7 @@ __author__ = 'abdul'
 import mongo_uri_tools
 from pymongo.errors import ConnectionFailure
 from boto.exception import BotoServerError
+from base import MBSObject
 import logging
 
 ###############################################################################
@@ -23,7 +24,7 @@ logger.addHandler(logging.NullHandler())
 ###############################################################################
 # MBSError
 ###############################################################################
-class MBSError(Exception):
+class MBSError(Exception, MBSObject):
     """
         Base class for all backup system error
     """
@@ -38,6 +39,19 @@ class MBSError(Exception):
     @property
     def message(self):
         return self._message
+
+    @message.setter
+    def message(self, m):
+        self._message = m
+
+    ###########################################################################
+    @property
+    def cause(self):
+        return self._cause
+
+    @cause.setter
+    def cause(self, c):
+        self._cause = c
 
     ###########################################################################
     @property
@@ -62,6 +76,18 @@ class MBSError(Exception):
     ###########################################################################
     def __str__(self):
         return self.detailed_message
+
+    ###########################################################################
+    def to_document(self, display_only=False):
+        doc = {
+            "_type": self.full_type_name,
+            "message": self.message
+        }
+
+        if isinstance(self.cause, MBSError):
+            doc["cause"] = self.cause.to_document(display_only=display_only)
+
+        return doc
 
 ###############################################################################
 # BackupSystemError

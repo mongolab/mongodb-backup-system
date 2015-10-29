@@ -42,6 +42,7 @@ class MBSTaskCollection(MBSObjectCollection):
     ###########################################################################
     def update_task(self, task, properties=None, event_name=None,
                     event_type=EventType.INFO, message=None, details=None,
+                    error_code=None,
                     **update_kwargs):
         """
             Updates the specified properties of the specified MBSTask object
@@ -55,8 +56,8 @@ class MBSTaskCollection(MBSObjectCollection):
 
         # log the event as needed
         if event_name or message:
-            log_entry = task.log_event(name=event_name, event_type=event_type,
-                                       message=message, details=details)
+            log_entry = task.log_event(name=event_name, event_type=event_type,message=message, details=details,
+                                       error_code=error_code)
             # push if "logs" property is not included
             if not (properties and "logs" in properties):
                 u["$push"] = {"logs": log_entry.to_document()}

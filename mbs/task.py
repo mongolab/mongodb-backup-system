@@ -206,7 +206,7 @@ class MBSTask(MBSObject):
 
     ###########################################################################
     def log_event(self, event_type=EventType.INFO, name=None, message=None,
-                  details=None):
+                  details=None, error_code=None):
         logs = self.logs
 
         log_entry = EventLogEntry()
@@ -216,6 +216,7 @@ class MBSTask(MBSObject):
         log_entry.state = self.state
         log_entry.message = message
         log_entry.details = details
+        log_entry.error_code = error_code
 
         logs.append(log_entry)
         self.logs = logs
@@ -364,6 +365,7 @@ class EventLogEntry(MBSObject):
         self._state = None
         self._message = None
         self._details = None
+        self._error_code = None
 
     ###########################################################################
     @property
@@ -420,6 +422,15 @@ class EventLogEntry(MBSObject):
         self._details = value
 
     ###########################################################################
+    @property
+    def error_code(self):
+        return self._error_code
+
+    @error_code.setter
+    def error_code(self, value):
+        self._error_code = value
+
+    ###########################################################################
     def to_document(self, display_only=False):
         doc = {
             "_type": "EventLogEntry",
@@ -435,6 +446,9 @@ class EventLogEntry(MBSObject):
 
         if self.details:
             doc["details"] = self.details
+
+        if self.error_code:
+            doc["errorCode"] = self.error_code.to_document(display_only=display_only)
 
         return doc
 
