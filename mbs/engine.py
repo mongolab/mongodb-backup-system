@@ -555,7 +555,7 @@ class TaskQueueProcessor(Thread):
         else:
             log_msg = "Unexpected error. Please contact admin"
 
-        details = "%s. Stack Trace: %s" % (exception, trace)
+        details = str(exception)
         task = worker.get_task()
         self.task_collection.update_task(
             task, event_type=EventType.ERROR,
