@@ -58,6 +58,9 @@ EVENT_END_UPLOAD = "END_UPLOAD"
 # max time to wait for balancer to stop (10 minutes)
 MAX_BALANCER_STOP_WAIT = 30 * 60
 
+# default max lag
+DEFAULT_MAX_LAG = 5 * 60
+
 ###############################################################################
 VERSION_2_6 = MongoNormalizedVersion("2.6.0")
 VERSION_3_0 = MongoNormalizedVersion("3.0.0")
@@ -395,7 +398,7 @@ class BackupStrategy(MBSObject):
     def _select_new_cluster_member(self, backup, mongo_cluster):
 
         source = backup.source
-        max_lag_seconds = self.max_lag_seconds or 0
+        max_lag_seconds = self.max_lag_seconds or DEFAULT_MAX_LAG
         # compute max lag
         if not max_lag_seconds and backup.plan:
             max_lag_seconds = backup.plan.schedule.max_acceptable_lag(
