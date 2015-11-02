@@ -324,15 +324,44 @@ class ArchiveError(MBSError):
     """
         Base error for archive errors
     """
-    def __init__(self, cause=None):
+    def __init__(self, return_code=None, last_log_line=None):
+        self._return_code = return_code
+        self._last_log_line = last_log_line
         msg = "Failed to zip and compress your backup"
-        details = "Failed to tar. Tar command returned a non-zero exit status"
-        super(ArchiveError, self).__init__(msg=msg, details=details,
-                                           cause=cause)
+        details = "Failed to tar. Tar command returned a non-zero exit status %s" % return_code
+        super(ArchiveError, self).__init__(msg=msg, details=details)
+
+    ###########################################################################
+    @property
+    def return_code(self):
+        return self._return_code
+
+    @return_code.setter
+    def return_code(self, val):
+        self._return_code = val
+
+    ###########################################################################
+    @property
+    def last_log_line(self):
+        return self._last_log_line
+
+    @last_log_line.setter
+    def last_log_line(self, val):
+        self._last_log_line = val
+
+    ###########################################################################
+    def to_document(self, display_only=False):
+        doc = super(ArchiveError, self).to_document(display_only=display_only)
+        doc["returnCode"] = self.return_code
+        doc["lastLogLine"] = self.last_log_line
+
+        return doc
 
 ###############################################################################
-class NoSpaceLeftError(ArchiveError):
-    pass
+class NoSpaceLeftError(MBSError):
+    """
+    raised when there is no disk space left
+    """
 
 
 ###############################################################################

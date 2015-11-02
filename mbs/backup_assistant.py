@@ -165,11 +165,10 @@ class LocalBackupAssistant(BackupAssistant):
             self._delete_dump_dir(backup, dump_dir)
         except CalledProcessError, e:
             if "No space left on device" in e.output:
-                error_type = errors.NoSpaceLeftError
+                raise errors.NoSpaceLeftError("No disk space left on device")
             else:
-                error_type = errors.ArchiveError
-
-            raise error_type(e)
+                last_log_line = e.output.split("\n")[-1]
+                raise errors.ArchiveError(return_code=e.returncode, last_log_line=last_log_line)
 
     ####################################################################################################################
     def upload_backup(self, backup, file_name, target, destination_path=None):
