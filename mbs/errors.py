@@ -218,13 +218,13 @@ class DumpError(MBSError):
         omitted to avoid logging credentials
     """
     ###########################################################################
-    def __init__(self, return_code=None, dump_error_log=None):
+    def __init__(self, return_code=None, error_log_line=None):
         msg = "Failed to mongodump"
         details = ("Failed to dump. Dump command returned a non-zero "
                    "exit status %s.Check dump logs. mongodump error log: "
-                   "%s" % (return_code, dump_error_log))
+                   "%s" % (return_code, error_log_line))
         self._return_code = return_code
-        self._dump_error_log = dump_error_log
+        self._error_log_line = error_log_line
 
         super(DumpError, self).__init__(msg=msg, details=details)
 
@@ -239,18 +239,18 @@ class DumpError(MBSError):
 
     ###########################################################################
     @property
-    def dump_error_log(self):
-        return self._dump_error_log
+    def error_log_line(self):
+        return self._error_log_line
 
-    @dump_error_log.setter
-    def dump_error_log(self, val):
-        self._dump_error_log = val
+    @error_log_line.setter
+    def error_log_line(self, val):
+        self._error_log_line = val
 
     ###########################################################################
     def to_document(self, display_only=False):
         doc = super(DumpError, self).to_document(display_only=display_only)
         doc["returnCode"] = self.return_code
-        doc["dumpErrorLog"] = self.dump_error_log
+        doc["errorLogLine"] = self.error_log_line
 
         return doc
 
@@ -265,8 +265,8 @@ class BadCollectionNameError(DumpError):
         containing "/"
     """
     ###########################################################################
-    def __init__(self, return_code, last_dump_line):
-        super(BadCollectionNameError, self).__init__(return_code, last_dump_line)
+    def __init__(self, return_code, error_log_line):
+        super(BadCollectionNameError, self).__init__(return_code, error_log_line)
         self._message = ("Failed to mongodump... possibly because you "
                          "have collection name(s) with invalid "
                          "characters (e.g. '/'). If so, please rename or "
@@ -288,8 +288,8 @@ class CappedCursorOverrunError(RetriableDumpError):
 class InvalidDBNameError(DumpError):
 
     ###########################################################################
-    def __init__(self, return_code, last_dump_line):
-        super(InvalidDBNameError, self).__init__(return_code, last_dump_line)
+    def __init__(self, return_code, error_log_line):
+        super(InvalidDBNameError, self).__init__(return_code, error_log_line)
         self._message = ("Failed to mongodump because the name of your "
                          "database is invalid")
 
@@ -667,44 +667,44 @@ class MBSApiError(Exception):
 ########################################################################################################################
 
 
-def raise_dump_error(returncode, last_dump_line):
+def raise_dump_error(returncode, error_log_line):
     if returncode == 245:
         error_type = BadCollectionNameError
-    elif "10334" in last_dump_line:
-        if "BSONObj size: 0 (0x00000000)" in last_dump_line:
+    elif "10334" in error_log_line:
+        if "BSONObj size: 0 (0x00000000)" in error_log_line:
             error_type = CorruptionError
         else:
             error_type = InvalidBSONObjSizeError
-    elif "13338" in last_dump_line:
+    elif "13338" in error_log_line:
         error_type = CappedCursorOverrunError
-    elif "13280" in last_dump_line:
+    elif "13280" in error_log_line:
         error_type = InvalidDBNameError
-    elif "10320" in last_dump_line:
+    elif "10320" in error_log_line:
         error_type = BadTypeError
-    elif "Cannot connect" in last_dump_line:
+    elif "Cannot connect" in error_log_line:
         error_type = MongoctlConnectionError
-    elif "cursor didn't exist on server" in last_dump_line:
+    elif "cursor didn't exist on server" in error_log_line:
         error_type = CursorDoesNotExistError
-    elif "16465" in last_dump_line:
+    elif "16465" in error_log_line:
         error_type = ExhaustReceiveError
-    elif ("SocketException" in last_dump_line or
-          "socket error" in last_dump_line or
-          "transport error" in last_dump_line or
-          "no reachable servers" in last_dump_line or
-          "error connecting to db server" in last_dump_line):
+    elif ("SocketException" in error_log_line or
+          "socket error" in error_log_line or
+          "transport error" in error_log_line or
+          "no reachable servers" in error_log_line or
+          "error connecting to db server" in error_log_line):
         error_type = DumpConnectivityError
-    elif (("DBClientCursor" in last_dump_line and "failed" in last_dump_line) or
-          "invalid cursor" in last_dump_line or
-          "Closed explicitly" in last_dump_line):
+    elif (("DBClientCursor" in error_log_line and "failed" in error_log_line) or
+          "invalid cursor" in error_log_line or
+          "Closed explicitly" in error_log_line):
         error_type = DBClientCursorFailError
 
     # Generic retriable errors
-    elif is_retriable_dump_error(returncode, last_dump_line):
+    elif is_retriable_dump_error(returncode, error_log_line):
         error_type = RetriableDumpError
     else:
         error_type = DumpError
 
-    raise error_type(returncode, last_dump_line)
+    raise error_type(returncode, error_log_line)
 
 ########################################################################################################################
 
@@ -716,8 +716,8 @@ RETRIABLE_DUMP_ERROR_PARTIALS = [
 ]
 
 ########################################################################################################################
-def is_retriable_dump_error(returncode, last_dump_line):
-    matches = filter(lambda p: p in last_dump_line, RETRIABLE_DUMP_ERROR_PARTIALS)
+def is_retriable_dump_error(returncode, error_log_line):
+    matches = filter(lambda p: p in error_log_line, RETRIABLE_DUMP_ERROR_PARTIALS)
     return matches and len(matches) > 0
 
 ########################################################################################################################
