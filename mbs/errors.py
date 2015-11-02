@@ -697,7 +697,9 @@ class MBSApiError(Exception):
 
 
 def raise_dump_error(returncode, error_log_line):
-    if returncode == 245:
+    if (returncode == 245 or
+            ("Failed: error creating bson file" in error_log_line and
+                "no such file or directory" in error_log_line)):
         error_type = BadCollectionNameError
     elif "10334" in error_log_line:
         if "BSONObj size: 0 (0x00000000)" in error_log_line:
