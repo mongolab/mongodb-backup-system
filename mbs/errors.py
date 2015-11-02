@@ -155,7 +155,7 @@ class ConnectionError(MBSError, RetriableError):
         Base error for connection errors
     """
     ###########################################################################
-    def __init__(self, uri, details=None, cause=None):
+    def __init__(self, uri=None, details=None, cause=None):
         msg = "Could not establish a database connection to '%s'" % uri
         super(ConnectionError, self).__init__(msg=msg, details=details, cause=cause)
 
@@ -163,7 +163,7 @@ class ConnectionError(MBSError, RetriableError):
 class AuthenticationFailedError(MBSError):
 
     ###########################################################################
-    def __init__(self, uri, cause=None):
+    def __init__(self, uri=None, cause=None):
         msg = "Failed to authenticate to '%s'" % uri
         super(AuthenticationFailedError, self).__init__(msg=msg, cause=cause)
 
@@ -188,7 +188,7 @@ class ReplicasetError(MBSError, RetriableError):
 class PrimaryNotFoundError(ReplicasetError):
 
     ###########################################################################
-    def __init__(self, uri):
+    def __init__(self, uri=None):
         details = "Unable to determine primary for cluster '%s'" % uri
         super(PrimaryNotFoundError, self).__init__(details=details)
 
@@ -196,7 +196,7 @@ class PrimaryNotFoundError(ReplicasetError):
 class NoEligibleMembersFound(ReplicasetError):
 
     ###########################################################################
-    def __init__(self, uri, msg=None):
+    def __init__(self, uri=None, msg=None):
         details = ("No eligible members in '%s' found to take backup from" %
                    mongo_uri_tools.mask_mongo_uri(uri))
         super(NoEligibleMembersFound, self).__init__(details=details, msg=msg)
@@ -265,8 +265,9 @@ class BadCollectionNameError(DumpError):
         containing "/"
     """
     ###########################################################################
-    def __init__(self, return_code, error_log_line):
-        super(BadCollectionNameError, self).__init__(return_code, error_log_line)
+    def __init__(self, return_code=None, error_log_line=None):
+        super(BadCollectionNameError, self).__init__(return_code=return_code,
+                                                     error_log_line=error_log_line)
         self._message = ("Failed to mongodump... possibly because you "
                          "have collection name(s) with invalid "
                          "characters (e.g. '/'). If so, please rename or "
@@ -288,8 +289,9 @@ class CappedCursorOverrunError(RetriableDumpError):
 class InvalidDBNameError(DumpError):
 
     ###########################################################################
-    def __init__(self, return_code, error_log_line):
-        super(InvalidDBNameError, self).__init__(return_code, error_log_line)
+    def __init__(self, return_code=None, error_log_line=None):
+        super(InvalidDBNameError, self).__init__(return_code=return_code,
+                                                 error_log_line=error_log_line)
         self._message = ("Failed to mongodump because the name of your "
                          "database is invalid")
 
@@ -369,7 +371,7 @@ class SourceDataSizeExceedsLimits(MBSError):
     """
         Raised when source data size exceeds the limit defined in the strategy
     """
-    def __init__(self, data_size, max_size, database_name=None):
+    def __init__(self, data_size=None, max_size=None, database_name=None):
         if database_name:
             db_str = "database '%s'" % database_name
         else:
@@ -387,29 +389,29 @@ class TargetError(MBSError):
 
 ###############################################################################
 class TargetInaccessibleError(TargetError):
-    def __init__(self, container_name, cause=None):
+    def __init__(self, container_name=None, cause=None):
         msg = ("Cloud storage container %s is inaccessible or "
                "unidentifiable, potentially due to out-of-date "
                "target configuration.\n%s" % (container_name,
                                               cause))
-        super(TargetInaccessibleError, self).__init__(msg,
+        super(TargetInaccessibleError, self).__init__(msg=msg,
                                                       cause=cause)
 
 ###############################################################################
 class TargetConnectionError(TargetError, RetriableError):
-    def __init__(self, container_name, cause=None):
+    def __init__(self, container_name=None, cause=None):
         msg = ("Could not connect to cloud storage "
                "container '%s'" % container_name)
-        super(TargetConnectionError, self).__init__(msg, cause=cause)
+        super(TargetConnectionError, self).__init__(msg=msg, cause=cause)
 
 ###############################################################################
 class TargetUploadError(TargetError):
 
     ###########################################################################
-    def __init__(self, destination_path, container_name, cause=None):
+    def __init__(self, destination_path=None, container_name=None, cause=None):
         msg = ("Failed to to upload your backup to cloud storage "
                "container '%s'" % (container_name))
-        super(TargetUploadError, self).__init__(msg, cause=cause)
+        super(TargetUploadError, self).__init__(msg=msg, cause=cause)
 
 
 ###############################################################################
@@ -423,8 +425,9 @@ class UploadedFileAlreadyExistError(TargetError):
 class UploadedFileDoesNotExistError(TargetUploadError, RetriableError):
 
     ###########################################################################
-    def __init__(self, destination_path, container_name):
-        TargetUploadError.__init__(self, destination_path, container_name)
+    def __init__(self, destination_path=None, container_name=None):
+        TargetUploadError.__init__(self, destination_path=destination_path,
+                                   container_name=container_name)
         self._details = ("Failure during upload verification: File '%s' does"
                          "not exist in container '%s'" %
                         (destination_path, container_name))
@@ -433,8 +436,8 @@ class UploadedFileDoesNotExistError(TargetUploadError, RetriableError):
 class UploadedFileSizeMatchError(TargetUploadError, RetriableError):
 
     ###########################################################################
-    def __init__(self, destination_path, container_name, dest_size, file_size):
-        TargetUploadError.__init__(self, destination_path, container_name)
+    def __init__(self, destination_path=None, container_name=None, dest_size=None, file_size=None):
+        TargetUploadError.__init__(self, destination_path=destination_path, container_name=container_name)
         self._details = ("Failure during upload verification: File '%s' size"
                          " in container '%s' (%s bytes) does not match size on"
                          " disk (%s bytes)" %
@@ -616,7 +619,7 @@ class RestoreError(MBSError):
         omitted to avoid logging credentials
     """
     ###########################################################################
-    def __init__(self, return_code, last_log_line):
+    def __init__(self, return_code=None, last_log_line=None):
         msg = ("Failed to mongorestore")
         details = ("Failed to restore. restore command returned a non-zero "
                    "exit status %s.Check restore logs. Last restore log line: "
