@@ -694,8 +694,6 @@ class MBSApiError(Exception):
 ########################################################################################################################
 # Error Utility functions
 ########################################################################################################################
-
-
 def raise_dump_error(returncode, error_log_line):
     if (returncode == 245 or
             ("Failed: error creating bson file" in error_log_line and
@@ -736,6 +734,13 @@ def raise_dump_error(returncode, error_log_line):
         error_type = DumpError
 
     raise error_type(returncode, error_log_line)
+
+########################################################################################################################
+def raise_archive_error(return_code, last_log_line):
+    if "No space left on device" in last_log_line:
+        raise NoSpaceLeftError("No disk space left on device")
+    else:
+        raise ArchiveError(return_code=return_code, last_log_line=last_log_line)
 
 ########################################################################################################################
 

@@ -164,11 +164,9 @@ class LocalBackupAssistant(BackupAssistant):
             execute_command(tar_cmd, cwd=backup.workspace)
             self._delete_dump_dir(backup, dump_dir)
         except CalledProcessError, e:
-            if "No space left on device" in e.output:
-                raise errors.NoSpaceLeftError("No disk space left on device")
-            else:
-                last_log_line = e.output.split("\n")[-1]
-                raise errors.ArchiveError(return_code=e.returncode, last_log_line=last_log_line)
+            last_log_line = e.output.split("\n")[-1]
+            errors.raise_archive_error(e.returncode, last_log_line)
+
 
     ####################################################################################################################
     def upload_backup(self, backup, file_name, target, destination_path=None):
