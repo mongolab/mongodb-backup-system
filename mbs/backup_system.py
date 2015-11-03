@@ -39,7 +39,7 @@ import persistence
 
 from flask import Flask
 from flask.globals import request
-
+from monitor import BackupMonitor
 
 ###############################################################################
 ########################                                #######################
@@ -60,8 +60,6 @@ logger.addHandler(logging.NullHandler())
 MAX_BACKUP_WAIT_TIME = 5 * 60 * 60
 ONE_OFF_BACKUP_MAX_WAIT_TIME = 60
 
-# Minimum time before rescheduling a failed backup (15 minutes)
-RESCHEDULE_PERIOD = 30 * 60
 
 BACKUP_SYSTEM_STATUS_RUNNING = "running"
 BACKUP_SYSTEM_STATUS_STOPPING = "stopping"
@@ -79,7 +77,7 @@ class BackupSystem(Thread):
         self._sleep_time = sleep_time
 
         self._plan_generators = []
-        self._tick_count = 0
+
         self._stop_requested = False
         self._stopped = False
         self._backup_expiration_manager = None
@@ -95,6 +93,7 @@ class BackupSystem(Thread):
 
         self._port = DEFAULT_BACKUP_SYSTEM_PORT
         self._command_server = BackupSystemCommandServer(self)
+        self._backup_monitor = BackupMonitor(self)
 
     ###########################################################################
     @property
@@ -205,6 +204,9 @@ class BackupSystem(Thread):
         # Start plan generators
         self._start_plan_generators()
 
+        # start backup monitor
+        self._backup_monitor.start()
+
         while not self._stop_requested:
             try:
                 self._tick()
@@ -224,17 +226,8 @@ class BackupSystem(Thread):
 
     ###########################################################################
     def _tick(self):
-
-        # increase _generators_tick_counter
-        self._tick_count += 1
         # process 100 plans per tick
         self._process_plans_considered_now(process_max_count=100)
-
-        # run those things every 100 ticks
-        if self._tick_count % 100 == 0:
-            self._notify_on_past_due_scheduled_backups()
-            self._cancel_past_cycle_backups()
-            self._reschedule_in_cycle_failed_backups()
 
     ###########################################################################
     def _process_plans_considered_now(self, process_max_count=None):
@@ -335,44 +328,6 @@ class BackupSystem(Thread):
         }
         return get_mbs().backup_collection.find_one(q) is not None
 
-    ###########################################################################
-    def _cancel_past_cycle_backups(self):
-        """
-        Cancels scheduled backups (or backups failed to be scheduled,
-         i.e. engine guid is none) whose plan's next occurrence in in the past
-        """
-        now = date_now()
-
-        q = {
-            "state": {"$in": [State.SCHEDULED, State.FAILED]},
-            "plan.nextOccurrence": {"$lte": now},
-            "engineGuid": None
-        }
-
-        bc = get_mbs().backup_collection
-        for backup in bc.find(q):
-            self.info("Cancelling backup %s" % backup._id)
-            backup.state = State.CANCELED
-            bc.update_task(backup, properties="state",
-                           event_name=EVENT_STATE_CHANGE,
-                           message="Backup is past due. Canceling...")
-
-    ###########################################################################
-    def _reschedule_in_cycle_failed_backups(self):
-        """
-        Reschedule failed reschedulable backups that failed at least
-        RESCHEDULE_PERIOD seconds ago
-        """
-
-        q = {
-            "state": State.FAILED,
-            "reschedulable": True
-        }
-
-        cuttoff_date = date_minus_seconds(date_now(), RESCHEDULE_PERIOD)
-        for backup in get_mbs().backup_collection.find(q):
-            if not backup.end_date or backup.end_date <= cuttoff_date:
-                self.reschedule_backup(backup)
 
     ###########################################################################
     def reschedule_all_failed_backups(self, force=False,
@@ -763,31 +718,6 @@ class BackupSystem(Thread):
     def _audit_date_for_today(self):
         if self._audit_schedule:
             return time_str_to_datetime_today(self._audit_schedule)
-
-    ###########################################################################
-    def _notify_on_past_due_scheduled_backups(self):
-        """
-            Send notifications for jobs that has been scheduled for a period
-            longer than min(half the frequency, 5 hours) of its plan.
-             If backup does not have a plan (i.e. one off)
-             then it will check after 60 seconds.
-        """
-        # query for backups whose scheduled date is before current date minus
-        # than max starvation time
-
-        q = {
-            "state": State.SCHEDULED,
-        }
-
-        for backup in get_mbs().backup_collection.find_iter(q):
-            if self.is_backup_past_due(backup):
-                msg = ("You have scheduled backups that has past the maximum "
-                       "waiting time" )
-                self.info(msg)
-                self.info("Sending a notification...")
-                sbj = "Past due scheduled backups"
-                get_mbs().send_notification(sbj, msg)
-                break
 
     ###########################################################################
     def is_backup_past_due(self, backup):
