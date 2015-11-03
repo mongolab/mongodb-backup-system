@@ -15,7 +15,7 @@ from mongo_utils import (
     MongoCluster, MongoServer, ShardedClusterConnector,
     MongoNormalizedVersion, build_mongo_connector)
 
-from date_utils import timedelta_total_seconds, date_now
+from date_utils import timedelta_total_seconds, date_now, mid_date_between, date_plus_seconds
 
 from subprocess import CalledProcessError
 from errors import *
@@ -38,6 +38,7 @@ from threading import Thread
 from bson.son import SON
 
 import backup_assistant
+from backup import Backup
 
 ###############################################################################
 # CONSTANTS
@@ -100,10 +101,7 @@ class BackupEventNames(object):
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
-###############################################################################
-def _is_task_reschedulable( task, exception):
-        return (task.try_count < MAX_NO_RETRIES and
-                is_exception_retriable(exception))
+
 
 ###############################################################################
 # BackupStrategy Classes
@@ -257,13 +255,7 @@ class BackupStrategy(MBSObject):
     def run_backup(self, backup):
         self._init_strategy(backup)
         self.backup_assistant.create_task_workspace(backup)
-        try:
-            self._do_run_backup(backup)
-        except Exception, e:
-            # set reschedulable
-            backup.reschedulable = _is_task_reschedulable(backup, e)
-            update_backup(backup, properties="reschedulable")
-            raise
+        self._do_run_backup(backup)
 
     ###########################################################################
     def _do_run_backup(self, backup):
@@ -572,15 +564,9 @@ class BackupStrategy(MBSObject):
 
     ###########################################################################
     def run_restore(self, restore):
-        try:
-            self.backup_assistant.create_task_workspace(restore)
-            self._do_run_restore(restore)
-            self._compute_restore_destination_stats(restore)
-        except Exception, e:
-            # set reschedulable
-            restore.reschedulable = _is_task_reschedulable(restore, e)
-            update_restore(restore, properties="reschedulable")
-            raise
+        self.backup_assistant.create_task_workspace(restore)
+        self._do_run_restore(restore)
+        self._compute_restore_destination_stats(restore)
 
     ###########################################################################
     def _do_run_restore(self, restore):
@@ -590,7 +576,6 @@ class BackupStrategy(MBSObject):
 
     ###########################################################################
     def cleanup_restore(self, restore):
-
 
         logger.info("Running Cleanup for restore %s" % restore.id)
         update_restore(restore, event_name="CLEANUP",
@@ -857,6 +842,50 @@ class BackupStrategy(MBSObject):
         return naming_scheme.generate_name(backup,
                                            **backup_format_bindings(backup))
 
+
+    ###########################################################################
+    def is_give_up_on_task(self, task, exception):
+        return (task.try_count < MAX_NO_RETRIES and
+                is_exception_retriable(exception))
+
+    ###########################################################################
+    def update_task_retry_info(self, task, exception):
+        """
+        Sets retry info of task gave_up and next_retry_date
+        :param task:
+        :param exception:
+        :return:
+        """
+        if isinstance(task, Backup):
+            self.update_backup_retry_info(task, exception)
+
+    ###########################################################################
+    def update_backup_retry_info(self, backup, exception):
+        """
+        Backup retry logic
+
+        :param backup:
+        :param exception:
+        :return:
+        """
+
+        if backup.plan_occurrence:
+            last_retry_date = mid_date_between(backup.plan_occurrence, backup.schedule.next_natural_occurrence())
+        else:
+            last_retry_date = date_plus_seconds(backup.created_date, 5 * 60 * 60)
+
+
+        next_retry_date = date_plus_seconds(date_now(), pow(2, backup.try_count - 1) * 60)
+        if next_retry_date <= last_retry_date and is_exception_retriable(exception):
+            backup.gave_up = False
+            backup.next_retry_date = next_retry_date
+        else:
+            backup.gave_up = True
+            backup.next_retry_date = None
+
+        logger.info("Updated backup retry info for backup %s: gave up: %s, next retry: %s, last retry: %s" %
+                    (backup.id, backup.gave_up, backup.next_retry_date, last_retry_date))
+        
     ###########################################################################
     def to_document(self, display_only=False):
         doc = {

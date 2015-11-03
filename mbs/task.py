@@ -27,10 +27,11 @@ class MBSTask(MBSObject):
         self._end_date = None
         self._tags = None
         self._try_count = 0
-        self._reschedulable = None
+        self._gave_up = False
         self._priority = Priority.LOW
         self._queue_latency_in_minutes = None
         self._log_target_reference = None
+        self._next_retry_date = None
 
     ###########################################################################
     def execute(self):
@@ -159,12 +160,21 @@ class MBSTask(MBSObject):
 
     ###########################################################################
     @property
-    def reschedulable(self):
-        return self._reschedulable
+    def next_retry_date(self):
+        return self._next_retry_date
 
-    @reschedulable.setter
-    def reschedulable(self, val):
-        self._reschedulable = val
+    @next_retry_date.setter
+    def next_retry_date(self, next_retry_date):
+        self._next_retry_date = next_retry_date
+
+    ###########################################################################
+    @property
+    def gave_up(self):
+        return self._gave_up
+
+    @gave_up.setter
+    def gave_up(self, val):
+        self._gave_up = val
 
     ###########################################################################
     @property
@@ -289,7 +299,9 @@ class MBSTask(MBSObject):
             "endDate": self.end_date,
             "engineGuid": self.engine_guid,
             "logs": self.export_logs(),
-            "tryCount": self.try_count
+            "tryCount": self.try_count,
+            "nextRetryDate": self.next_retry_date,
+            "gaveUp": self.gave_up
         }
 
         if self.id:
@@ -301,9 +313,6 @@ class MBSTask(MBSObject):
         if self.tags:
             doc["tags"] = self._export_tags()
 
-        if self.reschedulable is not None:
-            doc["reschedulable"] = self.reschedulable
-
         if self.priority is not None:
             doc["priority"] = self.priority
 
@@ -311,9 +320,8 @@ class MBSTask(MBSObject):
             doc["queueLatencyInMinutes"] = self.queue_latency_in_minutes
 
         if self.log_target_reference:
-            doc["logTargetReference"] =\
-                self.log_target_reference.to_document(display_only=
-                                                      display_only)
+            doc["logTargetReference"] = self.log_target_reference.to_document(display_only=display_only)
+
         return doc
 
     ###########################################################################

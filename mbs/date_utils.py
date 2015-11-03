@@ -30,6 +30,10 @@ def date_minus_seconds(date, seconds):
     return seconds_to_date(date_to_seconds(date) - seconds)
 
 ###############################################################################
+def mid_date_between(d1, d2):
+    return d1 + (d2 - d1)/2
+
+###############################################################################
 def yesterday_date():
     return today_date() - timedelta(days=1)
 

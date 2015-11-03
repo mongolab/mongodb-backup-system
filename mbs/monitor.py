@@ -35,7 +35,7 @@ class BackupMonitor(ScheduleRunner):
 
         self._notify_on_past_due_scheduled_backups()
         self._cancel_past_cycle_backups()
-        self._reschedule_in_cycle_failed_backups()
+        self._reschedule_failed_backups()
 
 
     ####################################################################################################################
@@ -86,18 +86,18 @@ class BackupMonitor(ScheduleRunner):
                            message="Backup is past due. Canceling...")
 
     ####################################################################################################################
-    def _reschedule_in_cycle_failed_backups(self):
+    def _reschedule_failed_backups(self):
         """
-        Reschedule failed reschedulable backups that failed at least
-        RESCHEDULE_PERIOD seconds ago
+        Reschedule failed backups that failed and are retriable
         """
 
         q = {
             "state": State.FAILED,
-            "reschedulable": True
+            "gaveUp": False,
+            "nextRetryDate": {
+                "lt": date_now()
+            }
         }
 
-        cuttoff_date = date_minus_seconds(date_now(), RESCHEDULE_PERIOD)
         for backup in get_mbs().backup_collection.find(q):
-            if not backup.end_date or backup.end_date <= cuttoff_date:
-                self._backup_system.reschedule_backup(backup)
+            self._backup_system.reschedule_backup(backup)
