@@ -14,7 +14,7 @@ from type_bindings import TYPE_BINDINGS
 from indexes import MBS_INDEXES
 from errors import MBSError
 
-from utils import read_config_json, resolve_function
+from utils import read_config_json, resolve_function, resolve_path
 from mongo_utils import mongo_connect
 
 from backup import Backup
@@ -31,6 +31,9 @@ from encryption import Encryptor
 ###############################################################################
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
+
+###############################################################################
+DEFAULT_BACKUP_TEMP_DIR_ROOT = "~/backup_temp"
 
 ###############################################################################
 # MBS
@@ -73,8 +76,17 @@ class MBS(object):
 
         #
         self._backup_source_builder = None
-
         self._default_backup_assistant = None
+        self._temp_dir = resolve_path(DEFAULT_BACKUP_TEMP_DIR_ROOT)
+
+    ###########################################################################
+    @property
+    def temp_dir(self):
+        return self._temp_dir
+
+    @temp_dir.setter
+    def temp_dir(self, temp_dir):
+        self._temp_dir = resolve_path(temp_dir)
 
     ###########################################################################
     def _get_type_bindings(self):
@@ -262,6 +274,10 @@ class MBS(object):
                 self._default_backup_assistant = self._maker.make(assistant_conf)
             else:
                 self._default_backup_assistant = backup_assistant.LocalBackupAssistant()
+
+            # set temp dir for local assistants
+            if isinstance(self._default_backup_assistant, backup_assistant.LocalBackupAssistant):
+                self._default_backup_assistant.temp_dir = self.temp_dir
 
         return self._default_backup_assistant
 

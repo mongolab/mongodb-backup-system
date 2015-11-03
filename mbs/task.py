@@ -28,7 +28,6 @@ class MBSTask(MBSObject):
         self._tags = None
         self._try_count = 0
         self._reschedulable = None
-        self._workspace = None
         self._priority = Priority.LOW
         self._queue_latency_in_minutes = None
         self._log_target_reference = None
@@ -169,15 +168,6 @@ class MBSTask(MBSObject):
 
     ###########################################################################
     @property
-    def workspace(self):
-        return self._workspace
-
-    @workspace.setter
-    def workspace(self, val):
-        self._workspace = val
-
-    ###########################################################################
-    @property
     def priority(self):
         return self._priority
 
@@ -299,7 +289,6 @@ class MBSTask(MBSObject):
             "endDate": self.end_date,
             "engineGuid": self.engine_guid,
             "logs": self.export_logs(),
-            "workspace": self.workspace,
             "tryCount": self.try_count
         }
 

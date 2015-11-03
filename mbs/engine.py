@@ -42,8 +42,6 @@ from mbs_client.client import BackupEngineClient
 # CONSTANTS
 ###############################################################################
 
-DEFAULT_BACKUP_TEMP_DIR_ROOT = "~/backup_temp"
-
 EVENT_START_EXTRACT = "START_EXTRACT"
 EVENT_END_EXTRACT = "END_EXTRACT"
 EVENT_START_ARCHIVE = "START_ARCHIVE"
@@ -77,13 +75,11 @@ class BackupEngine(Thread):
 
     ###########################################################################
     def __init__(self, id=None, max_workers=10,
-                       temp_dir=None,
                        command_port=8888):
         Thread.__init__(self)
         self._id = id
         self._engine_guid = None
         self._max_workers = int(max_workers)
-        self._temp_dir = resolve_path(temp_dir or DEFAULT_BACKUP_TEMP_DIR_ROOT)
         self._command_port = command_port
         self._command_server = EngineCommandServer(self)
         self._tags = None
@@ -127,15 +123,6 @@ class BackupEngine(Thread):
 
     ###########################################################################
     @property
-    def temp_dir(self):
-        return self._temp_dir
-
-    @temp_dir.setter
-    def temp_dir(self, temp_dir):
-        self._temp_dir = resolve_path(temp_dir)
-
-    ###########################################################################
-    @property
     def tags(self):
         return self._tags
 
@@ -171,7 +158,6 @@ class BackupEngine(Thread):
     def run(self):
         self.info("Starting up... ")
         self.info("PID is %s" % os.getpid())
-        self.info("TEMP DIR is '%s'" % self.temp_dir)
         self.info("PATH is '%s'" % os.environ['PATH'])
         if self.get_resolved_tags():
             self.info("Tags are: %s" %
@@ -777,15 +763,9 @@ class TaskWorker(Process):
             # clear end date
             task.end_date = None
 
-            # set the workspace its its not set
-            if not task.workspace:
-                workspace_dir = self._get_task_workspace_dir(task)
-                task.workspace = workspace_dir
-
             # UPDATE!
             self._processor.task_collection.update_task(
-                task, properties=["tryCount", "startDate", "endDate",
-                                  "workspace", "queueLatencyInMinutes"])
+                task, properties=["tryCount", "startDate", "endDate", "queueLatencyInMinutes"])
 
             # run the task
             task.execute()
@@ -803,11 +783,6 @@ class TaskWorker(Process):
             trace = traceback.format_exc()
             self.error("Task failed. Cause %s. \nTrace: %s" % (e, trace))
             self._processor.worker_fail(self, exception=e, trace=trace)
-
-
-    ###########################################################################
-    def _get_task_workspace_dir(self, task):
-        return os.path.join(self._processor._engine.temp_dir, str(task.id))
 
     ###########################################################################
     def _calculate_queue_latency(self, task):

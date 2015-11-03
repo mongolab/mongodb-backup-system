@@ -4,13 +4,15 @@ import os
 import shutil
 import logging
 
-from utils import ensure_dir, which, execute_command, execute_command_wrapper, listify, list_dir_files, list_dir_subdirs
+from utils import ensure_dir, which, execute_command, execute_command_wrapper, listify, list_dir_subdirs
 import errors
 from subprocess import CalledProcessError
 from target import multi_target_upload_file
 from errors import MBSError, ExtractError, RestoreError
 from mongo_uri_tools import mask_mongo_uri
 from base import MBSObject
+from backup import Backup
+from restore import Restore
 
 ###############################################################################
 # Logger
@@ -92,7 +94,17 @@ class LocalBackupAssistant(BackupAssistant):
     """
     ####################################################################################################################
     def __init__(self):
-        pass
+        super(LocalBackupAssistant, self).__init__()
+        self._temp_dir = None
+
+    ####################################################################################################################
+    @property
+    def temp_dir(self):
+        return self._temp_dir
+
+    @temp_dir.setter
+    def temp_dir(self, val):
+        self._temp_dir = val
 
     ####################################################################################################################
     def create_task_workspace(self, task):
@@ -101,7 +113,8 @@ class LocalBackupAssistant(BackupAssistant):
         """
         # ensure task workspace
         try:
-            ensure_dir(task.workspace)
+            workspace_dir = self.get_task_workspace_dir(task)
+            ensure_dir(workspace_dir)
         except Exception, e:
             raise errors.WorkspaceCreationError("Failed to create workspace: %s" % e)
 
@@ -109,7 +122,7 @@ class LocalBackupAssistant(BackupAssistant):
     def delete_task_workspace(self, task):
         """
         """
-        workspace = task.workspace
+        workspace = self.get_task_workspace_dir(task)
 
         try:
 
@@ -138,18 +151,25 @@ class LocalBackupAssistant(BackupAssistant):
 
         logger.info("Running dump command: %s" % " ".join(dump_cmd_display))
 
-        log_path = os.path.join(backup.workspace, destination, log_file_name)
+        workspace = self.get_task_workspace_dir(backup)
+        log_path = os.path.join(workspace, destination, log_file_name)
+        last_error_line = {"line": ""}
+
+        def capture_last_error(line):
+            if is_mongo_error_log_line(line):
+                last_error_line["line"] = line
         # execute dump command
-        returncode = execute_command_wrapper(dump_cmd, cwd=backup.workspace, output_path=log_path)
-        # TODO grab last dump line
-        last_dump_line = ""
+        return_code = execute_command_wrapper(dump_cmd, cwd=workspace, output_path=log_path,
+                                             on_output=capture_last_error)
+
         # raise an error if return code is not 0
-        if returncode:
-            errors.raise_dump_error(returncode, last_dump_line)
+        if return_code:
+            errors.raise_dump_error(return_code, last_error_line["line"])
 
     ####################################################################################################################
     def upload_backup_log_file(self, backup, file_name, dump_dir, target, destination_path=None):
-        file_path = os.path.join(backup.workspace, dump_dir, file_name)
+        workspace = self.get_task_workspace_dir(backup)
+        file_path = os.path.join(workspace, dump_dir, file_name)
         return target.put_file(file_path, destination_path=destination_path)
 
     ####################################################################################################################
@@ -158,10 +178,10 @@ class LocalBackupAssistant(BackupAssistant):
 
         tar_cmd = [tar_exe, "-cvzf", file_name, dump_dir]
         cmd_display = " ".join(tar_cmd)
-
+        workspace = self.get_task_workspace_dir(backup)
         try:
             logger.info("Running tar command: %s" % cmd_display)
-            execute_command(tar_cmd, cwd=backup.workspace)
+            execute_command(tar_cmd, cwd=workspace)
             self._delete_dump_dir(backup, dump_dir)
         except CalledProcessError, e:
             last_log_line = e.output.split("\n")[-1]
@@ -171,7 +191,8 @@ class LocalBackupAssistant(BackupAssistant):
     ####################################################################################################################
     def upload_backup(self, backup, file_name, target, destination_path=None):
         targets = listify(target)
-        file_path = os.path.join(backup.workspace, file_name)
+        workspace = self.get_task_workspace_dir(backup)
+        file_path = os.path.join(workspace, file_name)
         metadata = {
             "Content-Type": "application/x-compressed"
         }
@@ -200,7 +221,8 @@ class LocalBackupAssistant(BackupAssistant):
 
     ####################################################################################################################
     def _delete_dump_dir(self, backup, dump_dir):
-        dump_dir_path = os.path.join(backup.workspace, dump_dir)
+        workspace = self.get_task_workspace_dir(backup)
+        dump_dir_path = os.path.join(workspace, dump_dir)
         # delete the temp dir
         logger.info("Deleting dump dir %s" % dump_dir_path)
 
@@ -217,15 +239,16 @@ class LocalBackupAssistant(BackupAssistant):
     ####################################################################################################################
     def download_restore_source_backup(self, restore):
         backup = restore.source_backup
+        workspace = self.get_task_workspace_dir(restore)
         file_reference = backup.target_reference
         logger.info("Downloading restore '%s' dump tar file '%s'" %
                     (restore.id, file_reference.file_name))
 
-        backup.target.get_file(file_reference, restore.workspace)
+        backup.target.get_file(file_reference, workspace)
 
     ####################################################################################################################
     def extract_restore_source_backup(self, restore):
-        working_dir = restore.workspace
+        working_dir = self.get_task_workspace_dir(restore)
         file_reference = restore.source_backup.target_reference
         logger.info("Extracting tar file '%s'" % file_reference.file_name)
 
@@ -254,16 +277,17 @@ class LocalBackupAssistant(BackupAssistant):
         else:
             source_dir = dump_dir
 
+        workspace = self.get_task_workspace_dir(restore)
         # IMPORTANT delete dump log file so the restore command would not break
-        dump_log_path = os.path.join(restore.workspace, dump_dir, dump_log_file_name)
+        dump_log_path = os.path.join(workspace, dump_dir, dump_log_file_name)
         if os.path.exists(dump_log_path):
             os.remove(dump_log_path)
 
         if delete_old_users_file or delete_old_admin_users_file:
             self._delete_restore_old_users_files(restore, source_dir, include_admin=delete_old_admin_users_file)
 
-        working_dir = restore.workspace
-        log_path = os.path.join(restore.workspace, log_file_name)
+        working_dir = workspace
+        log_path = os.path.join(workspace, log_file_name)
 
         restore_cmd = [
             which("mongoctl"),
@@ -295,7 +319,8 @@ class LocalBackupAssistant(BackupAssistant):
 
     ####################################################################################################################
     def _delete_restore_old_users_files(self, restore, restore_source_dir, include_admin=False):
-        restore_source_path = os.path.join(restore.workspace, restore_source_dir)
+        workspace = self.get_task_workspace_dir(restore)
+        restore_source_path = os.path.join(workspace, restore_source_dir)
 
         db_dirs = list_dir_subdirs(restore_source_path)
         for db_dir in db_dirs:
@@ -316,3 +341,21 @@ class LocalBackupAssistant(BackupAssistant):
     ####################################################################################################################
     def is_connector_local_to_assistant(self, mongo_connector, backup):
         return mongo_connector.is_local()
+
+    ####################################################################################################################
+    def get_task_workspace_dir(self, task):
+        if isinstance(task, Backup):
+            subdir = "backups"
+        elif isinstance(task, Restore):
+            subdir = "restores"
+        else:
+            raise Exception("Unknown task type")
+
+        return os.path.join(self.temp_dir, subdir, str(task.id))
+
+
+####################################################################################################################
+def is_mongo_error_log_line(line):
+    if line:
+        line = line.lower()
+        return "assertion:" in line or "runtime error:" in line or "failed:" in line

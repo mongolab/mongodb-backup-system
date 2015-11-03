@@ -565,8 +565,7 @@ class BackupStrategy(MBSObject):
     def cleanup_backup(self, backup):
 
         # delete the temp dir
-        workspace = backup.workspace
-        logger.info("Cleanup: deleting workspace dir %s" % workspace)
+        logger.info("Running Cleanup for backup %s" % backup.id)
         update_backup(backup, event_name="CLEANUP", message="Running cleanup")
 
         self.backup_assistant.delete_task_workspace(backup)
@@ -592,9 +591,8 @@ class BackupStrategy(MBSObject):
     ###########################################################################
     def cleanup_restore(self, restore):
 
-        # delete the temp dir
-        workspace = restore.workspace
-        logger.info("Cleanup: deleting workspace dir %s" % workspace)
+
+        logger.info("Running Cleanup for restore %s" % restore.id)
         update_restore(restore, event_name="CLEANUP",
                        message="Running cleanup")
 
@@ -1184,27 +1182,6 @@ class DumpStrategy(BackupStrategy):
         return not backup.is_event_logged(EVENT_END_EXTRACT)
 
     ###########################################################################
-    def _get_backup_dump_dir(self, backup):
-        return os.path.join(backup.workspace, _backup_dump_dir_name(backup))
-
-    ###########################################################################
-    def _get_dump_log_path(self, backup):
-        dump_dir = self._get_backup_dump_dir(backup)
-        return os.path.join(backup.workspace, dump_dir, _log_file_name(backup))
-
-    ###########################################################################
-    def _get_tar_file_path(self, backup):
-        return os.path.join(backup.workspace, _tar_file_name(backup))
-
-    ###########################################################################
-    def _get_failed_tar_file_path(self, backup):
-        return os.path.join(backup.workspace, _failed_tar_file_name(backup))
-
-    ###########################################################################
-    def _get_restore_log_path(self, restore):
-        return os.path.join(restore.workspace, _restore_log_file_name(restore))
-
-    ###########################################################################
     # Restore implementation
     ###########################################################################
     def _do_run_restore(self, restore):
@@ -1404,18 +1381,20 @@ class DumpStrategy(BackupStrategy):
     ###########################################################################
     def _comparable_collection_count(self, collection_count, src_db=None, dest_db=None):
         comparable_count = {}
-        for dbname in collection_count.keys():
-            # skip admin
-            if dbname in ["admin", "local"] or not collection_count.get(dbname):
-                continue
 
-            sorted_db_count = sorted(collection_count[dbname], key=(lambda x : x["name"]))
-            if src_db and dest_db and dbname == src_db and dbname !=dest_db:
-                compare_db = dest_db
-            else:
-                compare_db = dbname
+        if collection_count:
+            for dbname in collection_count.keys():
+                # skip admin
+                if dbname in ["admin", "local"] or not collection_count.get(dbname):
+                    continue
 
-            comparable_count[compare_db] = sorted_db_count
+                sorted_db_count = sorted(collection_count[dbname], key=(lambda x : x["name"]))
+                if src_db and dest_db and dbname == src_db and dbname !=dest_db:
+                    compare_db = dest_db
+                else:
+                    compare_db = dbname
+
+                comparable_count[compare_db] = sorted_db_count
 
         return comparable_count
 
