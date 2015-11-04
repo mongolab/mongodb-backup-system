@@ -286,6 +286,10 @@ class CappedCursorOverrunError(RetriableDumpError):
     pass
 
 ###############################################################################
+class IndexOutOfRangeDumpError(RetriableDumpError):
+    pass
+
+###############################################################################
 class InvalidDBNameError(DumpError):
 
     ###########################################################################
@@ -729,6 +733,8 @@ def raise_dump_error(returncode, error_log_line):
           "invalid cursor" in error_log_line or
           "Closed explicitly" in error_log_line):
         error_type = DBClientCursorFailError
+    elif "index out of range" in error_log_line:
+        error_type = IndexOutOfRangeDumpError
 
     # Generic retriable errors
     elif is_retriable_dump_error(returncode, error_log_line):
