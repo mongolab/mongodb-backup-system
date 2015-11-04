@@ -27,11 +27,11 @@ class MBSTask(MBSObject):
         self._end_date = None
         self._tags = None
         self._try_count = 0
-        self._gave_up = False
         self._priority = Priority.LOW
         self._queue_latency_in_minutes = None
         self._log_target_reference = None
         self._next_retry_date = None
+        self._final_retry_date = None
 
     ###########################################################################
     def execute(self):
@@ -169,12 +169,12 @@ class MBSTask(MBSObject):
 
     ###########################################################################
     @property
-    def gave_up(self):
-        return self._gave_up
+    def final_retry_date(self):
+        return self._final_retry_date
 
-    @gave_up.setter
-    def gave_up(self, val):
-        self._gave_up = val
+    @final_retry_date.setter
+    def final_retry_date(self, val):
+        self._final_retry_date = val
 
     ###########################################################################
     @property
@@ -222,6 +222,12 @@ class MBSTask(MBSObject):
         self.logs = logs
         return log_entry
 
+
+    ###########################################################################
+    @property
+    def exceeded_max_tries(self):
+        return self.final_retry_date and date_now() > self.final_retry_date
+
     ###########################################################################
     def has_errors(self):
         return len(self.get_errors()) > 0
@@ -246,6 +252,12 @@ class MBSTask(MBSObject):
     def get_last_log_message(self):
         if self.logs:
             return self.logs[-1].message
+
+    ###########################################################################
+    def get_last_error_code(self):
+        errors = self.get_errors()
+        if(errors):
+            return errors[-1].error_code
 
     ###########################################################################
     def _get_logs_by_event_type(self, event_type):
@@ -301,7 +313,7 @@ class MBSTask(MBSObject):
             "logs": self.export_logs(),
             "tryCount": self.try_count,
             "nextRetryDate": self.next_retry_date,
-            "gaveUp": self.gave_up
+            "finalRetryDate": self.final_retry_date
         }
 
         if self.id:

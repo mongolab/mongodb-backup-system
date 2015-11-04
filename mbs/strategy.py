@@ -842,50 +842,6 @@ class BackupStrategy(MBSObject):
         return naming_scheme.generate_name(backup,
                                            **backup_format_bindings(backup))
 
-
-    ###########################################################################
-    def is_give_up_on_task(self, task, exception):
-        return (task.try_count < MAX_NO_RETRIES and
-                is_exception_retriable(exception))
-
-    ###########################################################################
-    def update_task_retry_info(self, task, exception):
-        """
-        Sets retry info of task gave_up and next_retry_date
-        :param task:
-        :param exception:
-        :return:
-        """
-        if isinstance(task, Backup):
-            self.update_backup_retry_info(task, exception)
-
-    ###########################################################################
-    def update_backup_retry_info(self, backup, exception):
-        """
-        Backup retry logic
-
-        :param backup:
-        :param exception:
-        :return:
-        """
-
-        if backup.plan_occurrence:
-            last_retry_date = mid_date_between(backup.plan_occurrence, backup.schedule.next_natural_occurrence())
-        else:
-            last_retry_date = date_plus_seconds(backup.created_date, 5 * 60 * 60)
-
-
-        next_retry_date = date_plus_seconds(date_now(), pow(2, backup.try_count - 1) * 60)
-        if next_retry_date <= last_retry_date and is_exception_retriable(exception):
-            backup.gave_up = False
-            backup.next_retry_date = next_retry_date
-        else:
-            backup.gave_up = True
-            backup.next_retry_date = None
-
-        logger.info("Updated backup retry info for backup %s: gave up: %s, next retry: %s, last retry: %s" %
-                    (backup.id, backup.gave_up, backup.next_retry_date, last_retry_date))
-        
     ###########################################################################
     def to_document(self, display_only=False):
         doc = {

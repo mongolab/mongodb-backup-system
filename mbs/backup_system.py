@@ -40,6 +40,7 @@ import persistence
 from flask import Flask
 from flask.globals import request
 from monitor import BackupMonitor
+from scheduler import BackupScheduler
 
 ###############################################################################
 ########################                                #######################
@@ -94,6 +95,7 @@ class BackupSystem(Thread):
         self._port = DEFAULT_BACKUP_SYSTEM_PORT
         self._command_server = BackupSystemCommandServer(self)
         self._backup_monitor = BackupMonitor(self)
+        self._scheduler = BackupScheduler(self)
 
     ###########################################################################
     @property
@@ -207,127 +209,12 @@ class BackupSystem(Thread):
         # start backup monitor
         self._backup_monitor.start()
 
-        while not self._stop_requested:
-            try:
-                self._tick()
-            except Exception, e:
-                self.error("Caught an error: '%s'.\nStack Trace:\n%s" %
-                           (e, traceback.format_exc()))
-                self._notify_error(e)
-            finally:
-                time.sleep(self._sleep_time)
+        # start the scheduler
+        self._scheduler.start()
 
-    ###########################################################################
+      ###########################################################################
     def master_instance_stopped(self):
-        #self._stop_expiration_managers()
-        #self._stop_plan_generators()
-        #self._stop_command_server()
         self._stopped = True
-
-    ###########################################################################
-    def _tick(self):
-        # process 100 plans per tick
-        self._process_plans_considered_now(process_max_count=100)
-
-    ###########################################################################
-    def _process_plans_considered_now(self, process_max_count=None):
-        count = 0
-        for plan in self._get_plans_to_consider_now(limit=process_max_count):
-            try:
-                self._process_plan(plan)
-            except Exception, e:
-                logger.exception("Error while processing plan '%s'. "
-                                 "Cause: %s" % (plan.id, e))
-
-                self._notify_error(e)
-            if process_max_count:
-                count += 1
-                if count >= process_max_count:
-                    break
-
-    ###########################################################################
-    def _process_plan(self, plan):
-        """
-        Schedule the plan if the following conditions apply
-        """
-        self.info("Processing plan '%s'" % plan._id)
-        # validate plan first
-        self.debug("Validating plan '%s'" % plan._id)
-
-        errors = plan.validate()
-        if errors:
-            err_msg = ("Plan '%s' is invalid.Please correct the following"
-                       " errors.\n%s" % (plan.id, errors))
-            raise InvalidPlanError(err_msg)
-            # TODO disable plan ???
-
-        now = date_now()
-        next_natural_occurrence = plan.schedule.next_natural_occurrence()
-
-
-        # CASE I: First time <==> No previous backups
-        # Only set the next occurrence here
-        if not plan.next_occurrence:
-            self.info("Plan '%s' has no previous backup. Setting next"
-                      " occurrence to '%s'" %
-                      (plan._id, next_natural_occurrence))
-
-            self._set_update_plan_next_occurrence(plan)
-
-        # CASE II: If there is a backup running (IN PROGRESS)
-        # ===> no op
-        ### TODO XXX : we don't this case any more
-
-        #elif self._plan_has_backup_in_progress(plan):
-            #self.info("Plan '%s' has a backup that is currently in"
-                      #" progress. Nothing to do now." % plan._id)
-        # CASE III: if time now is past the next occurrence
-        elif plan.next_occurrence <= now:
-            self.info("Plan '%s' next occurrence '%s' is greater than"
-                      " now. Scheduling a backup!!!" %
-                      (plan._id, plan.next_occurrence))
-
-            self.schedule_plan_backup(plan)
-
-
-        else:
-            self.info("Wooow. How did you get here!!!! Plan '%s' does"
-                      " not to be scheduled yet. next natural "
-                      "occurrence %s " % (plan._id,
-                                          next_natural_occurrence))
-
-
-    ###########################################################################
-    def _get_plans_to_consider_now(self, limit=None):
-        """
-        Returns list of plans that the scheduler should process at this time.
-        Those are:
-            1- Plans with no backups scheduled yet (next occurrence has not
-            been calculated yet)
-
-            2- Plans whose next occurrence is now or in the past
-
-        """
-        now = date_now()
-        q = {"$or": [
-                {"nextOccurrence": None},
-                {"nextOccurrence": {"$lte": now}}
-            ]
-        }
-
-        # sort by priority
-        s = [("priority", 1)]
-
-        return get_mbs().plan_collection.find_iter(q, sort=s, limit=limit)
-
-    ###########################################################################
-    def _plan_has_backup_in_progress(self, plan):
-        q = {
-            "plan._id": plan._id,
-            "state": State.IN_PROGRESS
-        }
-        return get_mbs().backup_collection.find_one(q) is not None
-
 
     ###########################################################################
     def reschedule_all_failed_backups(self, force=False,
@@ -363,8 +250,10 @@ class BackupSystem(Thread):
             raise BackupSystemError(msg)
 
         self.info("Rescheduling backup %s" % backup._id)
-        props = ["state", "tags"]
+        props = ["state", "tags", "nextRetryDate"]
         backup.state = State.SCHEDULED
+        # clear out next retry date
+        backup.next_retry_date = None
 
         bc = get_mbs().backup_collection
         # if force is set then clear backup log

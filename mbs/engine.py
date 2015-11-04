@@ -544,18 +544,15 @@ class TaskQueueProcessor(Thread):
         details = str(exception)
         task = worker.get_task()
 
-        task.strategy.update_task_retry_info(task, exception)
-
         self.task_collection.update_task(
             task, event_type=EventType.ERROR,
-            message=log_msg, details=details, error_code=to_mbs_error_code(exception),
-            properties=["gaveUp", "nextRetryDate"])
+            message=log_msg, details=details, error_code=to_mbs_error_code(exception))
 
         self.worker_finished(worker, task, State.FAILED)
 
         nh = get_mbs().notification_handler
         # send a notification only if the task is not reschedulable
-        if task.gave_up and nh:
+        if task.exceeded_max_tries and nh:
             nh.notify_on_task_failure(task, exception, trace)
 
     ###########################################################################
