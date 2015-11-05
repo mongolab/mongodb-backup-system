@@ -20,15 +20,15 @@ from multiprocessing import Process
 
 from errors import (
     MBSError, BackupEngineError, EngineWorkerCrashedError,
-    to_mbs_error_code
+    to_mbs_error_code, is_exception_retriable
 )
 
-from utils import (ensure_dir, resolve_path, get_local_host_name,
+from utils import (resolve_path, get_local_host_name,
                    document_pretty_string, force_kill_process_and_children)
 
 from mbs import get_mbs
 
-from date_utils import timedelta_total_seconds, date_now, date_minus_seconds
+from date_utils import timedelta_total_seconds, date_now, date_minus_seconds, mid_date_between, date_plus_seconds
 
 
 from task import (
@@ -548,6 +548,9 @@ class TaskQueueProcessor(Thread):
             task, event_type=EventType.ERROR,
             message=log_msg, details=details, error_code=to_mbs_error_code(exception))
 
+        # update retry info
+        self._update_failed_task_retry_info(task)
+
         self.worker_finished(worker, task, State.FAILED)
 
         nh = get_mbs().notification_handler
@@ -696,6 +699,49 @@ class TaskQueueProcessor(Thread):
             q["$or"] = tag_filters
 
         return q
+
+    ####################################################################################################################
+    def _update_failed_task_retry_info(self, task):
+        """
+        task retry logic
+
+        :param task:
+        :return:
+        """
+
+        last_error_code = task.get_last_error_code()
+
+        # if exception is not retriable then mark backup is not retriable by setting final retry to now
+        if not is_exception_retriable(last_error_code):
+            logger.info("Last error for task %s is not retriable. Marking backup is not retriable."
+                        " Setting finalRetryDate to task start date %s ..." % (task.id, task.start_date))
+            task.final_retry_date = task.start_date
+            task.next_retry_date = None
+        else:
+            # compute final retry date
+            if not task.final_retry_date:
+                task.final_retry_date = self._compute_final_retry_date(task)
+
+            next_retry_date = self._compute_next_retry_date(task)
+            if next_retry_date <= task.final_retry_date:
+                task.next_retry_date = next_retry_date
+            else:
+                task.next_retry_date = None
+
+        self.task_collection.update_task(task, properties=["nextRetryDate", "finalRetryDate"])
+        logger.info("Updated task retry info for backup %s, next retry: %s, final retry: %s" %
+                    (task.id, task.next_retry_date, task.final_retry_date))
+
+    ####################################################################################################################
+    def _compute_final_retry_date(self, task):
+        if isinstance(task, Backup) and task.plan_occurrence:
+            return mid_date_between(task.plan_occurrence, task.plan.schedule.next_natural_occurrence())
+        else:
+            return date_plus_seconds(task.created_date, 5 * 60 * 60)
+
+    ####################################################################################################################
+    def _compute_next_retry_date(self, task):
+        return date_plus_seconds(date_now(), pow(2, task.try_count - 1) * 60)
 
     ###########################################################################
     # Logging methods

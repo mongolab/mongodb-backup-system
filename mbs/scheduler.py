@@ -166,7 +166,13 @@ class BackupScheduler(ScheduleRunner):
         """
 
         q = {
-            "state": State.FAILED
+            "state": State.FAILED,
+            "finalRetryDate": {
+                "$gt": date_now()
+            },
+            "nextRetryDate": {
+                "$lt": date_now()
+            }
         }
 
         for backup in get_mbs().backup_collection.find(q):
@@ -176,66 +182,14 @@ class BackupScheduler(ScheduleRunner):
     ####################################################################################################################
     def _process_failed_backup(self, backup):
         """
-        Handles failed backups
-        1- Updates backup next retry and final retry
-        2- reschedules backups whose next retry is less than now
-        2- NOOP on failed backups whose final retry is less than now
+
         :param backup:
         :return:
         """
-        if backup.final_retry_date and date_now() > backup.final_retry_date:
-            # NOOP
-            pass
-        elif (not backup.final_retry_date or
-            (backup.next_retry_date is None and backup.final_retry_date > date_now())):
-            self._update_failed_backup_retry_info(backup)
-
-        elif backup.next_retry_date and backup.next_retry_date < date_now():
+        if (backup.next_retry_date and backup.next_retry_date < date_now() and
+                backup.final_retry_date and backup.final_retry_date > date_now()):
             # RESCHEDULE !!!
             self._backup_system.reschedule_backup(backup)
-
-    ####################################################################################################################
-    def _update_failed_backup_retry_info(self, backup):
-        """
-        Backup retry logic
-
-        :param backup:
-        :return:
-        """
-
-        last_error_code = backup.get_last_error_code()
-
-        # if exception is not retriable then mark backup is not retriable by setting final retry to now
-        if not is_exception_retriable(last_error_code):
-            logger.info("Last error for backup %s is not retriable. Marking backup is not retriable."
-                        " Setting finalRetryDate to now...")
-            backup.final_retry_date = date_now()
-            backup.next_retry_date = None
-        else:
-            # compute final retry date
-            if not backup.final_retry_date:
-                backup.final_retry_date = self._compute_final_retry_date(backup)
-
-            next_retry_date = self._compute_next_retry_date(backup)
-            if next_retry_date <= backup.final_retry_date:
-                backup.next_retry_date = next_retry_date
-            else:
-                backup.next_retry_date = None
-
-        update_backup(backup, properties=["nextRetryDate", "finalRetryDate"])
-        logger.info("Updated backup retry info for backup %s, next retry: %s, final retry: %s" %
-                    (backup.id, backup.next_retry_date, backup.final_retry_date))
-
-    ####################################################################################################################
-    def _compute_final_retry_date(self, backup):
-        if backup.plan_occurrence:
-            return mid_date_between(backup.plan_occurrence, backup.plan.schedule.next_natural_occurrence())
-        else:
-            return date_plus_seconds(backup.created_date, 5 * 60 * 60)
-
-    ####################################################################################################################
-    def _compute_next_retry_date(self, backup):
-        return date_plus_seconds(date_now(), pow(2, backup.try_count - 1) * 60)
 
     ####################################################################################################################
     def _plan_has_backup_in_progress(self, plan):
