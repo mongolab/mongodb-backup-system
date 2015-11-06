@@ -26,7 +26,7 @@ class EventQueue(object):
 
     ####################################################################################################################
     def create_event(self, event):
-        self._event_collection.insert(event.to_document())
+        self._event_collection.save_document(event.to_document())
 
     ####################################################################################################################
     def register_event_listener(self, event_listener):
@@ -35,20 +35,34 @@ class EventQueue(object):
         })
 
         if existing:
+            event_listener.id = existing.id
             event_listener.last_seen_date = existing.last_seen_date
         else:
-            self._event_listener_collection.save_document(event_listener.to_document())
+            listener_doc = event_listener.to_document()
+            self._event_listener_collection.save_document(listener_doc)
+            event_listener.id = listener_doc["_id"]
 
         # start listening to events
         EventNotifier(self, event_listener).start()
 
     ####################################################################################################################
     def listen_to_events(self, event_listener):
-        cursor = self._event_collection.find_iter(tailable=True, await_data=True)
+        # TODO XXX we have to fix maker to work with tailable cursors
+        # currently we grab the raw dict from the pymongo collection and make it manually
+        q = None
+        if event_listener.last_seen_date:
+            q = {
+                "createdDate": {
+                    "$gt": event_listener.last_seen_date
+                }
+            }
+        cursor = self._event_collection.collection.find(query=q, tailable=True, await_data=True)
         while cursor.alive:
             try:
-                event = cursor.next()
+                event_doc = cursor.next()
+                event = self._event_collection.make_obj(event_doc)
                 event_listener.handle_event(event)
+                self.update_listener_last_seen(event_listener, event)
             except StopIteration:
                 time.sleep(1)
 
@@ -120,11 +134,12 @@ class EventListener(MBSObject):
 
     ####################################################################################################################
     def to_document(self, display_only=False):
-        return {
-            "_type": "EventListener",
+        doc = super(EventListener, self).to_document(display_only=display_only)
+        doc.update({
             "name": self.name,
             "lastSeenDate": self.last_seen_date
-        }
+        })
+        return doc
 
 ########################################################################################################################
 # Event
@@ -179,9 +194,13 @@ class Event(MBSObject):
 
     ####################################################################################################################
     def to_document(self, display_only=False):
-        return {
+        doc = super(Event, self).to_document(display_only=display_only)
+
+        doc.update({
             "_type": "Event",
             "eventType": self.event_type,
             "createdDate": self.created_date,
             "context": self._export_context(display_only=display_only)
-        }
+        })
+
+        return doc
