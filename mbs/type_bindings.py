@@ -55,6 +55,8 @@ TYPE_BINDINGS = {
     "BackupSweeper": "mbs.retention.BackupSweeper",
     "BackupExpirationManager": "mbs.retention.BackupExpirationManager",
     "BaseCredentials": "mbs.credentials.BaseCredentials",
-    "LocalBackupAssistant": "mbs.backup_assistant.LocalBackupAssistant"
+    "LocalBackupAssistant": "mbs.backup_assistant.LocalBackupAssistant",
+    "Event": "mbs.events.Event",
+    "EventListener": "mbs.events.EventListener"
 
 }
