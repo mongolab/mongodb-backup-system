@@ -15,8 +15,9 @@ EVENT_STATE_CHANGE = "STATE_CHANGE"
 ###############################################################################
 class MBSTask(MBSObject):
     def __init__(self):
+        MBSObject.__init__(self)
         # init fields
-        self._id = None
+
         self._created_date = None
         self._description = None
         self._state = None
@@ -302,7 +303,10 @@ class MBSTask(MBSObject):
 
     ###########################################################################
     def to_document(self, display_only=False):
-        doc = {
+
+        doc = super(MBSTask, self).to_document(display_only=display_only)
+
+        doc.update({
             "_type": "BackupEngineTask",
             "createdDate": self.created_date,
             "state": self.state,
@@ -314,10 +318,7 @@ class MBSTask(MBSObject):
             "tryCount": self.try_count,
             "nextRetryDate": self.next_retry_date,
             "finalRetryDate": self.final_retry_date
-        }
-
-        if self.id:
-            doc["_id"] = self.id
+        })
 
         if self.description:
             doc["description"] = self.description
