@@ -32,9 +32,13 @@ class MBSObject(object):
             displaying only. This should be used when displaying documents
             that contain credentials/etc...
         """
-        doc = {}
+        doc = {
+            "_type": self.full_type_name
+        }
         if self.id:
             doc["_id"] = self.id
+
+        return doc
 
     ###########################################################################
     @property
