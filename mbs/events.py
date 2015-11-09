@@ -24,9 +24,27 @@ class EventQueue(object):
         self._event_collection = event_collection
         self._event_listener_collection = event_listener_collection
 
+
+    ####################################################################################################################
+    def event_listeners(self):
+        return list(self._event_listener_collection.find())
+
     ####################################################################################################################
     def create_event(self, event):
+        print "Creating event: %s. event created date:%s" % (event, event.created_date)
+        self._populate_listener_subscriptions(event)
         self._event_collection.save_document(event.to_document())
+
+    ####################################################################################################################
+    def _populate_listener_subscriptions(self, event):
+        subscriptions = []
+        for event_listener in self.event_listeners():
+            if not event_listener.event_types or event.event_type in event_listener.event_types:
+                subscriptions.append({
+                    "name": event_listener.name,
+                    "acknowledged": False
+                })
+        event.subscribed_event_listeners = subscriptions
 
     ####################################################################################################################
     def register_event_listener(self, event_listener):
@@ -34,54 +52,66 @@ class EventQueue(object):
             "name": event_listener.name
         })
 
-        if existing:
-            event_listener.id = existing.id
-            event_listener.last_seen_date = existing.last_seen_date
-        else:
+        if not existing:
             listener_doc = event_listener.to_document()
             self._event_listener_collection.save_document(listener_doc)
             event_listener.id = listener_doc["_id"]
+        else:
+            # update
+            pass
 
-        # start listening to events
+        # start an event notifier
         EventNotifier(self, event_listener).start()
 
     ####################################################################################################################
     def listen_to_events(self, event_listener):
         # TODO XXX we have to fix maker to work with tailable cursors
         # currently we grab the raw dict from the pymongo collection and make it manually
-        q = None
-        if event_listener.last_seen_date:
-            q = {
-                "createdDate": {
-                    "$gt": event_listener.last_seen_date
+        q = {
+            "subscribedEventListeners": {
+                "$elemMatch": {
+                    "name": event_listener.name,
+                    "acknowledged": False
                 }
             }
-        cursor = self._event_collection.collection.find(query=q, tailable=True, await_data=True)
-        while cursor.alive:
-            try:
-                event_doc = cursor.next()
-                event = self._event_collection.make_obj(event_doc)
-                event_listener.handle_event(event)
-                self.update_listener_last_seen(event_listener, event)
-            except StopIteration:
-                time.sleep(1)
+        }
+
+        while True:
+            cursor = self._event_collection.collection.find(query=q, tailable=True, await_data=True)
+
+            while cursor.alive:
+                try:
+                    event_doc = cursor.next()
+                    event = self._event_collection.make_obj(event_doc)
+                    if self._is_event_subscribed_listener(event, event_listener):
+                        event_listener.handle_event(event)
+                        self.acknowledge_event_by_listener(event_listener, event)
+                except StopIteration:
+                    time.sleep(1)
 
     ####################################################################################################################
-    def notify_listener(self, event_listener, event):
-        event_listener.handle_event(event)
-        self.update_listener_last_seen(event_listener, event)
+    def _is_event_subscribed_listener(self, event, event_listener):
+        return len(filter(lambda s: s["name"] == event_listener.name, event.subscribed_event_listeners)) > 0
 
     ####################################################################################################################
-    def update_listener_last_seen(self, event_listener, event):
-        event_listener.last_seen_date = event.created_date
-        q = {"_id": event_listener.id}
-        u = {
-            "$set": {
-                "lastSeenDate": event_listener.last_seen_date
+    def acknowledge_event_by_listener(self, event_listener, event):
+        q = {
+            "_id": event.id,
+            "subscribedEventListeners": {
+                "$elemMatch": {
+                    "name": event_listener.name,
+                    "acknowledged": False
+                }
             }
         }
-        self._event_listener_collection.update(q, u)
 
+        u = {
+            "$set": {
+                "subscribedEventListeners.$.acknowledged": True
+            }
+        }
+
+        self._event_collection.update(q, u)
 
 ########################################################################################################################
 # EventNotifier
@@ -108,7 +138,7 @@ class EventListener(MBSObject):
     def __init__(self):
         super(EventListener, self).__init__()
         self._name = None
-        self._last_seen_date = None
+        self._event_types = None
 
     ####################################################################################################################
     @property
@@ -121,12 +151,12 @@ class EventListener(MBSObject):
 
     ####################################################################################################################
     @property
-    def last_seen_date(self):
-        return self._last_seen_date
+    def event_types(self):
+        return self._event_types
 
-    @last_seen_date.setter
-    def last_seen_date(self, value):
-        self._last_seen_date = value
+    @event_types.setter
+    def event_types(self, value):
+        self._event_types = value
 
     ####################################################################################################################
     def handle_event(self, event):
@@ -137,7 +167,7 @@ class EventListener(MBSObject):
         doc = super(EventListener, self).to_document(display_only=display_only)
         doc.update({
             "name": self.name,
-            "lastSeenDate": self.last_seen_date
+            "eventTypes:": self.event_types
         })
         return doc
 
@@ -152,6 +182,7 @@ class Event(MBSObject):
         self._event_type = None
         self._created_date = None
         self._context = {}
+        self._subscribed_event_listeners = {}
 
     ####################################################################################################################
     @property
@@ -181,6 +212,15 @@ class Event(MBSObject):
         self._context = value
 
     ####################################################################################################################
+    @property
+    def subscribed_event_listeners(self):
+        return self._subscribed_event_listeners
+
+    @subscribed_event_listeners.setter
+    def subscribed_event_listeners(self, value):
+        self._subscribed_event_listeners = value
+
+    ####################################################################################################################
     def _export_context(self, display_only=False):
         exported_context = {}
         if self.context:
@@ -200,7 +240,8 @@ class Event(MBSObject):
             "_type": "Event",
             "eventType": self.event_type,
             "createdDate": self.created_date,
-            "context": self._export_context(display_only=display_only)
+            "context": self._export_context(display_only=display_only),
+            "subscribedEventListeners": self.subscribed_event_listeners
         })
 
         return doc
