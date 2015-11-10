@@ -6,6 +6,7 @@ import time
 from base import MBSObject
 from threading import Thread
 
+from werkzeug.contrib.cache import SimpleCache
 ########################################################################################################################
 # LOGGER
 ########################################################################################################################
@@ -23,11 +24,20 @@ class EventQueue(object):
     def __init__(self, event_collection, event_listener_collection):
         self._event_collection = event_collection
         self._event_listener_collection = event_listener_collection
-
+        # lazy loaded cache
+        self._event_listener_cache = None
 
     ####################################################################################################################
     def event_listeners(self):
-        return list(self._event_listener_collection.find())
+        if not self._event_listener_cache:
+            self._event_listener_cache = SimpleCache(default_timeout=5*60)
+
+        listeners = self._event_listener_cache.get("eventListeners")
+        if listeners is None:
+            listeners = list(self._event_listener_collection.find())
+            self._event_listener_cache.set("eventListeners", listeners)
+
+        return listeners
 
     ####################################################################################################################
     def create_event(self, event):
