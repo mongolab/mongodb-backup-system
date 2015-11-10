@@ -57,6 +57,8 @@ TYPE_BINDINGS = {
     "BaseCredentials": "mbs.credentials.BaseCredentials",
     "LocalBackupAssistant": "mbs.backup_assistant.LocalBackupAssistant",
     "Event": "mbs.events.Event",
-    "EventListener": "mbs.events.EventListener"
+    "EventListener": "mbs.events.EventListener",
+    "BackupFinishedEvent": "mbs.events.BackupFinishedEvent",
+    "BackupMonitorEventListener": "mbs.monitor.BackupMonitorEventListener"
 
 }

@@ -26,6 +26,7 @@ class EventQueue(object):
         self._event_listener_collection = event_listener_collection
         # lazy loaded cache
         self._event_listener_cache = None
+        self._event_notifiers = []
 
     ####################################################################################################################
     def event_listeners(self):
@@ -71,7 +72,9 @@ class EventQueue(object):
             pass
 
         # start an event notifier
-        EventNotifier(self, event_listener).start()
+        n = EventNotifier(self, event_listener)
+        self._event_notifiers.append(n)
+        n.start()
 
     ####################################################################################################################
     def listen_to_events(self, event_listener):
