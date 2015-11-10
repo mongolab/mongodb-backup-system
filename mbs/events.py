@@ -255,3 +255,61 @@ class Event(MBSObject):
         })
 
         return doc
+
+########################################################################################################################
+# Backup Event Types
+
+class BackupEventTypes(object):
+    BACKUP_FINISHED = "BackupFinished"
+
+########################################################################################################################
+# BackupEvent
+########################################################################################################################
+class BackupEvent(Event):
+    """
+    Base class for all backup events
+    """
+    ####################################################################################################################
+    def __init__(self, backup=None):
+        super(BackupEvent, self).__init__()
+        self.backup = backup
+
+    ####################################################################################################################
+    @property
+    def backup(self):
+        return self.context.get("backup")
+
+    @backup.setter
+    def backup(self, backup):
+        self.context["backup"] = backup
+
+########################################################################################################################
+# BackupFinishedEvent
+########################################################################################################################
+class BackupFinishedEvent(BackupEvent):
+    """
+    Base class for all backup events
+    """
+    ####################################################################################################################
+    def __init__(self, backup=None, state=None):
+        super(BackupFinishedEvent, self).__init__(backup=backup)
+        self.state = state
+        self.event_type = BackupEventTypes.BACKUP_FINISHED
+
+    ####################################################################################################################
+    @property
+    def state(self):
+        return self.context.get("state")
+
+    @state.setter
+    def state(self, state):
+        self.context["state"] = state
+
+    ####################################################################################################################
+    def to_document(self, display_only=False):
+        doc = super(BackupFinishedEvent, self).to_document(display_only=display_only)
+        doc.update({
+            "_type": "BackupFinishedEvent"
+        })
+
+        return doc
