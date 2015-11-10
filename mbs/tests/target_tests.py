@@ -10,6 +10,7 @@ from mock import patch, Mock
 import mbs.target
 
 from . import BaseTest
+from .tutils import md5
 
 
 ###############################################################################
@@ -32,21 +33,21 @@ class TargetTest(BaseTest):
                                 **{'initiate_multipart_upload.return_value':
                                    mp_upload_mock}))):
             dump.write(random_data.read(10000))
-            target = self.maker.make({'_type': 'S3BucketTarget'})
+            target = self.mbs.maker.make({'_type': 'S3BucketTarget'})
             target._multi_part_put(dump.name, 'com.foo.bar', 10000)
 
             self.assertEqual(mp_upload_mock.upload_part_from_file.call_count,
                              math.ceil(10000/1024))
             self.assertTrue(mp_upload_mock.complete_upload.called)
-            self.assertEqual(hash_.hexdigest(), self.md5(dump.name))
+            self.assertEqual(hash_.hexdigest(), md5(dump.name))
 
     def test_s3_validate(self):
-        target = self.maker.make({
+        target = self.mbs.maker.make({
             '_type': 'S3BucketTarget',
         })
         self.assertEqual(len(target.validate()), 3)
 
-        target = self.maker.make({
+        target = self.mbs.maker.make({
             '_type': 'S3BucketTarget',
             'bucketName': 'foo_bar',
             'accessKey': 'xxxx',
@@ -54,7 +55,7 @@ class TargetTest(BaseTest):
         })
         self.assertEqual(len(target.validate()), 1)
 
-        target = self.maker.make({
+        target = self.mbs.maker.make({
             '_type': 'S3BucketTarget',
             'bucketName': 'FOO',
             'accessKey': 'xxxx',
@@ -62,7 +63,7 @@ class TargetTest(BaseTest):
         })
         self.assertEqual(len(target.validate()), 1)
 
-        target = self.maker.make({
+        target = self.mbs.maker.make({
             '_type': 'S3BucketTarget',
             'bucketName': 'foo',
             'accessKey': 'xxxx',
@@ -71,7 +72,7 @@ class TargetTest(BaseTest):
         self.assertEqual(len(target.validate()), 0)
 
     def test_s3_has_sufficient_permissions(self):
-        target = self.maker.make({
+        target = self.mbs.maker.make({
             '_type': 'S3BucketTarget',
             'bucketName': self._get_env_var_or_skip(
                                 'S3_UTILS_TEST_US_WEST_2_BUCKET_NAME'),
@@ -82,7 +83,7 @@ class TargetTest(BaseTest):
         })
         target.has_sufficient_permissions()
 
-        target = self.maker.make({
+        target = self.mbs.maker.make({
             '_type': 'S3BucketTarget',
             'bucketName': self._get_env_var_or_skip(
                                 'S3_UTILS_TEST_US_WEST_2_BUCKET_NAME_NO_PERMS'),

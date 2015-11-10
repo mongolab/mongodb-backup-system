@@ -1,16 +1,18 @@
 __author__ = 'abdul'
 
-import traceback
 import logging
-from utils import listify
-from sendgrid import Sendgrid, Message
-
-
 import smtplib
+import traceback
 
 from email.mime.text import MIMEText
 
+from sendgrid import Sendgrid, Message
+
+from ..utils import listify
+
+
 DEFAULT_NOTIFICATION_SUBJECT = "Backup System Notification"
+
 
 ###############################################################################
 # LOGGER
@@ -18,10 +20,11 @@ DEFAULT_NOTIFICATION_SUBJECT = "Backup System Notification"
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
+
 ###############################################################################
-###############################                 ###############################
-###############################  Notifications  ###############################
-###############################                 ###############################
+#################################            ##################################
+#################################  handlers  ##################################
+#################################            ##################################
 ###############################################################################
 
 ###############################################################################
