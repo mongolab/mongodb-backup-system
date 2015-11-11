@@ -5,6 +5,8 @@ import threading
 
 import pystache
 
+from ..mbs import get_mbs
+
 
 ###############################################################################
 # LOGGER
@@ -39,7 +41,7 @@ class NotificationTemplate(object):
                 parsed_template = cls._parsed_templates[template]
             except KeyError:
                 parsed_template = \
-                    cls._parsed_templates = \
+                    cls._parsed_templates[template] = \
                     cls._parse_template(template)
         return parsed_template
 
@@ -49,15 +51,16 @@ class NotificationTemplate(object):
         renderer = os.path.basename(template_path).rsplit('.', 1)[-1].lower()
         try:
             return cls._renderers[renderer].render_string(
-                open(template_path).read(), context, renderer)
+                open(get_mbs().resolve_notification_template_path(
+                    template_path)).read(), context, renderer)
         except KeyError:
             raise ValueError('no renderer registered for %s', renderer)
 
     ###########################################################################
-    @staticmethod
-    def render_string(template_string, context, renderer=None):
+    @classmethod
+    def render_string(cls, template_string, context, renderer=None):
         if renderer is None:
-            self.__class__._get_template(template_string)
+            template = cls._get_template(template_string)
             return template.substitute(context)
         try:
             return cls._renderers[renderer].render_string(
@@ -78,13 +81,13 @@ class MustacheNotificationTemplate(NotificationTemplate):
     ###########################################################################
     @classmethod
     def _parse_template(self, template):
-        return pystache.parse(template)
+        return pystache.parse(template.decode('utf-8'))
 
     ###########################################################################
-    @staticmethod
-    def render_string(template_string, context):
+    @classmethod
+    def render_string(cls, template_string, context, _=None):
         renderer = pystache.Renderer()
-        template = self.__class__._get_template(template_string)
+        template = cls._get_template(template_string)
         return renderer.render(template, context)
 
 NotificationTemplate.register('mustache', MustacheNotificationTemplate)

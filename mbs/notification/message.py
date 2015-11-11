@@ -30,7 +30,7 @@ class AbstractNotificationMessage(object):
 # NotificationMessage
 ###############################################################################
 class NotificationMessage(AbstractNotificationMessage):
-    
+
     ###########################################################################
     def __init__(self, message=None):
         self._message = message
@@ -95,8 +95,8 @@ class TemplateNotificationMessage(AbstractNotificationMessage):
             message = NotificationTemplate.render_string(self._template, context)
         else:
             message = \
-                MustacheNotificationTemplate.render_string(
-                    self._templatem, context, self._type)
+                NotificationTemplate.render_string(
+                    self._template, context, self._type)
 
         return message
 

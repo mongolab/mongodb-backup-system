@@ -345,6 +345,9 @@ class MBS(object):
 
     ###########################################################################
     def resolve_notification_template_path(self, path, *roots):
+        if path.startswith(os.path.sep) and os.path.isfile(path):
+            return path
+
         if len(roots) == 0:
             roots = [DEFAULT_TEMPLATE_DIR_ROOT]
 

@@ -60,6 +60,11 @@ class BaseTest(TestCase):
         return truthy(os.environ.get(ENV['RUN_INT_TESTS'], 'no'))
 
     ###########################################################################
+    def _check_run_int_tests_else_skip(self):
+        if not self.run_int_tests:
+            self.skipTest('integration tests disabled, skipping...')
+
+    ###########################################################################
     def _get_env_var_or_skip(self, env_var):
         bucket_name = os.environ.get(env_var, None)
         if bucket_name is None:

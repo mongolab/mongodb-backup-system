@@ -23,6 +23,7 @@ class MBSTest(BaseTest):
             tempdir = tempfile.mkdtemp()
             os.makedirs(os.path.join(tempdir, 'foo', 'bar'))
             os.makedirs(os.path.join(tempdir, 'foo', 'baz'))
+            os.makedirs(os.path.join(tempdir, 'not', 'in'))
 
             for template in ['foo.mustache', 'foo/foo.mustache',
                              'foo/bar/bar.string', 'foo/bar/baz.mustache']:
@@ -54,6 +55,12 @@ class MBSTest(BaseTest):
                     self.mbs.resolve_notification_template_path(
                         'foo/foo.mustache'),
                     os.path.join(tempdir, 'foo/foo.mustache'))
+                # test absolute path
+                abs_path = os.path.join( tempdir, 'not', 'in', 'roots.mustache')
+                open(abs_path, 'w').write('test')
+                self.assertEqual(
+                    self.mbs.resolve_notification_template_path(
+                        abs_path), abs_path)
 
             # multiple roots
 

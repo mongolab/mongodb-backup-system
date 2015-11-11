@@ -72,6 +72,8 @@ class TargetTest(BaseTest):
         self.assertEqual(len(target.validate()), 0)
 
     def test_s3_has_sufficient_permissions(self):
+        self._check_run_int_tests_else_skip()
+
         target = self.mbs.maker.make({
             '_type': 'S3BucketTarget',
             'bucketName': self._get_env_var_or_skip(
