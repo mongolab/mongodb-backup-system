@@ -5,7 +5,7 @@ import time
 
 from base import MBSObject
 from threading import Thread
-
+from date_utils import date_now
 from werkzeug.contrib.cache import SimpleCache
 ########################################################################################################################
 # LOGGER
@@ -42,9 +42,10 @@ class EventQueue(object):
 
     ####################################################################################################################
     def create_event(self, event):
-        print "Creating event: %s. event created date:%s" % (event, event.created_date)
+        event.created_date = date_now()
         self._populate_listener_subscriptions(event)
         self._event_collection.save_document(event.to_document())
+        print "Created event: %s. event created date:%s" % (event, event.created_date)
 
     ####################################################################################################################
     def _populate_listener_subscriptions(self, event):
@@ -90,7 +91,7 @@ class EventQueue(object):
         }
 
         while True:
-            cursor = self._event_collection.collection.find(query=q, tailable=True, await_data=True)
+            cursor = self._event_collection.collection.find(q, tailable=True, await_data=True)
 
             while cursor.alive:
                 try:
@@ -195,7 +196,7 @@ class Event(MBSObject):
         self._event_type = None
         self._created_date = None
         self._context = {}
-        self._subscribed_event_listeners = {}
+        self._subscribed_event_listeners = []
 
     ####################################################################################################################
     @property
