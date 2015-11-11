@@ -11,7 +11,6 @@ class BackupPlan(MBSObject):
 
     def __init__(self):
         MBSObject.__init__(self)
-        self._id = None
         self._created_date = None
         self._deleted_date = None
         self._description = None
@@ -25,15 +24,6 @@ class BackupPlan(MBSObject):
         self._generator = None
         self._tags = None
         self._priority = Priority.LOW
-
-    ###########################################################################
-    @property
-    def id(self):
-        return self._id
-
-    @id.setter
-    def id(self, id):
-        self._id = id
 
     ###########################################################################
     @property
@@ -172,7 +162,8 @@ class BackupPlan(MBSObject):
 
     ###########################################################################
     def to_document(self, display_only=False):
-        doc = {
+        doc = super(BackupPlan, self).to_document(display_only=display_only)
+        doc.update({
             "_type": "Plan",
             "createdDate": self.created_date,
             "deletedDate": self.deleted_date,
@@ -184,10 +175,7 @@ class BackupPlan(MBSObject):
             "strategy": self.strategy.to_document(display_only=display_only),
             "priority": self.priority,
             "generator": self.generator
-        }
-
-        if self.id:
-            doc["_id"] = self.id
+        })
 
         if self.retention_policy:
             doc["retentionPolicy"] = self.retention_policy.to_document(

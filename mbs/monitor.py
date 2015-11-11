@@ -6,6 +6,7 @@ from globals import State
 from mbs import get_mbs
 from date_utils import date_now, date_minus_seconds
 from task import EVENT_STATE_CHANGE
+from events import EventListener, BackupEventTypes
 
 import logging
 
@@ -16,6 +17,8 @@ logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
 ########################################################################################################################
+# BackupMonitor
+########################################################################################################################
 class BackupMonitor(ScheduleRunner):
     """
         Backup monitoring thread
@@ -24,6 +27,13 @@ class BackupMonitor(ScheduleRunner):
     def __init__(self, backup_system):
         self._backup_system = backup_system
         ScheduleRunner.__init__(self, schedule=Schedule(frequency_in_seconds=5*60))
+        self._backup_monitor_event_listener = BackupMonitorEventListener()
+
+    ####################################################################################################################
+    def run(self):
+        # register event listener with event queue
+        get_mbs().event_queue.register_event_listener(self._backup_monitor_event_listener)
+        super(BackupMonitor, self).run()
 
     ####################################################################################################################
     def tick(self):
@@ -53,3 +63,27 @@ class BackupMonitor(ScheduleRunner):
                 sbj = "Past due scheduled backups"
                 get_mbs().send_notification(sbj, msg)
                 break
+
+########################################################################################################################
+# BackupMonitorEventListener
+########################################################################################################################
+class BackupMonitorEventListener(EventListener):
+
+    ####################################################################################################################
+    def __init__(self):
+        super(BackupMonitorEventListener, self).__init__()
+        self.event_types = [BackupEventTypes.BACKUP_FINISHED]
+        self.name = "BackupMonitorEventListener"
+
+    ####################################################################################################################
+    def handle_event(self, event):
+        logger.info("BACKUP %s finished with state %s" % (event.backup.id, event.state))
+
+    ####################################################################################################################
+    def to_document(self, display_only=False):
+        doc = super(BackupMonitorEventListener, self).to_document(display_only=display_only)
+        doc.update({
+            "_type": "BackupMonitorEventListener"
+        })
+
+        return doc

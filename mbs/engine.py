@@ -38,6 +38,7 @@ from task import (
 from backup import Backup
 from mbs_client.client import BackupEngineClient
 
+from events import BackupFinishedEvent
 ###############################################################################
 # CONSTANTS
 ###############################################################################
@@ -599,6 +600,14 @@ class TaskQueueProcessor(Thread):
         self.task_collection.update_task(
             task, properties=["state", "endDate"],
             event_name=EVENT_STATE_CHANGE, message=message)
+
+        self.trigger_task_finished_event(task, state)
+
+    ###########################################################################
+    def trigger_task_finished_event(self, task, state):
+        if isinstance(task, Backup):
+            finished_event = BackupFinishedEvent(backup=task, state=state)
+            get_mbs().event_queue.create_event(finished_event)
 
     ###########################################################################
     def _recover(self):

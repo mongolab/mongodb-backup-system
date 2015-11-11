@@ -13,7 +13,16 @@ class MBSObject(object):
     """
     ###########################################################################
     def __init__(self):
-        pass
+        self._id = None
+
+    ###########################################################################
+    @property
+    def id(self):
+        return self._id
+
+    @id.setter
+    def id(self, id):
+        self._id = id
 
     ###########################################################################
     def to_document(self, display_only=False):
@@ -23,8 +32,13 @@ class MBSObject(object):
             displaying only. This should be used when displaying documents
             that contain credentials/etc...
         """
+        doc = {
+            "_type": self.full_type_name
+        }
+        if self.id:
+            doc["_id"] = self.id
 
-        pass
+        return doc
 
     ###########################################################################
     @property

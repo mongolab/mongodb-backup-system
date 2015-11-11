@@ -218,14 +218,14 @@ class DumpError(MBSError):
         omitted to avoid logging credentials
     """
     ###########################################################################
-    def __init__(self, return_code=None, error_log_line=None):
+    def __init__(self, return_code=None, error_log_line=None, last_namespace=None):
         msg = "Failed to mongodump"
         details = ("Failed to dump. Dump command returned a non-zero "
                    "exit status %s.Check dump logs. mongodump error log: "
                    "%s" % (return_code, error_log_line))
         self._return_code = return_code
         self._error_log_line = error_log_line
-
+        self._last_namespace = last_namespace
         super(DumpError, self).__init__(msg=msg, details=details)
 
     ###########################################################################
@@ -247,10 +247,22 @@ class DumpError(MBSError):
         self._error_log_line = val
 
     ###########################################################################
+    @property
+    def last_namespace(self):
+        return self._last_namespace
+
+    @last_namespace.setter
+    def last_namespace(self, val):
+        self._last_namespace = val
+
+    ###########################################################################
     def to_document(self, display_only=False):
         doc = super(DumpError, self).to_document(display_only=display_only)
-        doc["returnCode"] = self.return_code
-        doc["errorLogLine"] = self.error_log_line
+        doc.update({
+            "returnCode": self.return_code,
+            "errorLogLine": self.error_log_line,
+            "lastNamespace": self.last_namespace
+        })
 
         return doc
 
@@ -265,9 +277,10 @@ class BadCollectionNameError(DumpError):
         containing "/"
     """
     ###########################################################################
-    def __init__(self, return_code=None, error_log_line=None):
+    def __init__(self, return_code=None, error_log_line=None, last_namespace=None):
         super(BadCollectionNameError, self).__init__(return_code=return_code,
-                                                     error_log_line=error_log_line)
+                                                     error_log_line=error_log_line,
+                                                     last_namespace=last_namespace)
         self._message = ("Failed to mongodump... possibly because you "
                          "have collection name(s) with invalid "
                          "characters (e.g. '/'). If so, please rename or "
@@ -293,9 +306,10 @@ class IndexOutOfRangeDumpError(RetriableDumpError):
 class InvalidDBNameError(DumpError):
 
     ###########################################################################
-    def __init__(self, return_code=None, error_log_line=None):
+    def __init__(self, return_code=None, error_log_line=None, last_namespace=None):
         super(InvalidDBNameError, self).__init__(return_code=return_code,
-                                                 error_log_line=error_log_line)
+                                                 error_log_line=error_log_line,
+                                                 last_namespace=last_namespace)
         self._message = ("Failed to mongodump because the name of your "
                          "database is invalid")
 
@@ -701,7 +715,7 @@ class MBSApiError(Exception):
 ########################################################################################################################
 # Error Utility functions
 ########################################################################################################################
-def raise_dump_error(returncode, error_log_line):
+def raise_dump_error(returncode, error_log_line, last_namespace=None):
     if (returncode == 245 or
             ("Failed: error creating bson file" in error_log_line and
                 "no such file or directory" in error_log_line)):
@@ -742,7 +756,7 @@ def raise_dump_error(returncode, error_log_line):
     else:
         error_type = DumpError
 
-    raise error_type(returncode, error_log_line)
+    raise error_type(returncode, error_log_line, last_namespace=last_namespace)
 
 ########################################################################################################################
 def raise_archive_error(return_code, last_log_line):

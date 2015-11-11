@@ -1,6 +1,6 @@
 __author__ = 'abdul'
 
-import os
+
 import version
 import mbs_config as config
 import logging
@@ -24,7 +24,7 @@ from plan import BackupPlan
 from audit import AuditReport
 
 from encryption import Encryptor
-
+from events import Event, EventQueue, EventListener
 
 ###############################################################################
 # LOGGER
@@ -80,6 +80,10 @@ class MBS(object):
         self._backup_source_builder = None
         self._default_backup_assistant = None
         self._temp_dir = resolve_path(DEFAULT_BACKUP_TEMP_DIR_ROOT)
+
+        self._event_colllection = None
+        self._event_listener_collection = None
+        self._event_queue = None
 
     ###########################################################################
     @property
@@ -165,6 +169,37 @@ class MBS(object):
             self._plan_collection = pc
 
         return self._plan_collection
+
+    ###########################################################################
+    @property
+    def event_collection(self):
+        if not self._event_colllection:
+            if "events" not in self.database.collection_names():
+                self.database.create_collection("events", capped=True, size=1024*1024*10)
+
+            self._event_colllection = MBSObjectCollection(
+                self.database["events"], clazz=Event, type_bindings=self._type_bindings
+            )
+
+        return self._event_colllection
+
+    ###########################################################################
+    @property
+    def event_listener_collection(self):
+        if not self._event_listener_collection:
+            self._event_listener_collection = MBSObjectCollection(
+                self.database["event-listeners"], clazz=EventListener, type_bindings=self._type_bindings
+            )
+
+        return self._event_listener_collection
+
+    ###########################################################################
+    @property
+    def event_queue(self):
+        if not self._event_queue:
+            self._event_queue = EventQueue(self.event_collection, self.event_listener_collection)
+
+        return self._event_queue
 
     ###########################################################################
     @property
