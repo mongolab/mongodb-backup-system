@@ -1,7 +1,10 @@
 import abc
+import json
 import logging
+import os
 
 from .template import NotificationTemplate
+from ..mbs import get_mbs
 
 
 # XXX: ideally, we would move all message components here (e.g., subject, from,
@@ -101,9 +104,35 @@ class TemplateNotificationMessage(AbstractNotificationMessage):
         return message
 
 
+###############################################################################
+# get_messages
+###############################################################################
+_MESSAGES = None
+_DEFAULT_MESSAGES_PATH = os.path.join(os.path.dirname(__file__), 'messages.json')
+
+def _load_messages(path=None):
+    global _MESSAGES
+
+    if path is None:
+        path = _DEFAULT_MESSAGES_PATH
+
+    _mbs = get_mbs()
+
+    _MESSAGES = {
+        k: _mbs.maker.make(v) 
+        for k, v in json.loads(open(path).read()).iteritems()
+    }
+
+def get_messages():
+    if _MESSAGES is None:
+        _load_messages()
+    return _MESSAGES
+
+
 __all__ = [
     NotificationTemplate,
-    TemplateNotificationMessage
+    TemplateNotificationMessage,
+    get_messages
 ]
 
 

@@ -2,9 +2,25 @@ import mock
 
 import mbs.mbs as mbs
 
-from mbs.notification.message import NotificationMessage
+from mbs.notification.message import (
+    NotificationMessage, TemplateNotificationMessage, get_messages
+)
 
 from . import NotificationBaseTest
+
+
+###############################################################################
+# TestGetMessages
+###############################################################################
+class TestGetMessages(NotificationBaseTest):
+    def test_messages(self):
+        messages = get_messages()
+        self.assertIn('TaskFailureNotification', messages)
+        self.assertIsInstance(messages['TaskFailureNotification'],
+                              TemplateNotificationMessage)
+        self.assertIn('TaskRescheduleFailed', messages)
+        self.assertIsInstance(messages['TaskRescheduleFailed'],
+                              TemplateNotificationMessage)
 
 
 ###############################################################################
