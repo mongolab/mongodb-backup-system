@@ -86,9 +86,11 @@ class TemplateNotificationMessage(AbstractNotificationMessage):
         self._type = type
 
     ###########################################################################
-    def get_message(self, context):
+    def get_message(self, context=None):
         if self.type is None:
             raise RuntimeError('type not set')
+        if context is None:
+            context = {}
 
         message = None
 
