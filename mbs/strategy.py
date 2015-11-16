@@ -126,6 +126,7 @@ class BackupStrategy(MBSObject):
         self._max_lag_seconds = None
 
         self._backup_assistant = None
+        self._disable_source_stats = None
 
     ###########################################################################
     def _init_strategy(self, backup):
@@ -172,6 +173,15 @@ class BackupStrategy(MBSObject):
     @max_lag_seconds.setter
     def max_lag_seconds(self, val):
         self._max_lag_seconds = val
+
+    ###########################################################################
+    @property
+    def disable_source_stats(self):
+        return self._disable_source_stats
+
+    @disable_source_stats.setter
+    def disable_source_stats(self, val):
+        self._disable_source_stats = val
 
     ###########################################################################
     @property
@@ -476,7 +486,8 @@ class BackupStrategy(MBSObject):
                                        details=details)
 
         # record stats
-        if not backup.source_stats or self._needs_new_source_stats(backup):
+        if (not self.disable_source_stats and
+            (not backup.source_stats or self._needs_new_source_stats(backup))):
             self._compute_source_stats(backup, mongo_connector)
 
         # set backup name and description
@@ -869,6 +880,9 @@ class BackupStrategy(MBSObject):
 
         if self.max_lag_seconds:
             doc["maxLagSeconds"] = self.max_lag_seconds
+
+        if self.disable_source_stats:
+            doc["disableSourceStats"] = self.disable_source_stats
 
         if self.backup_name_scheme:
             doc["backupNameScheme"] = \
@@ -1904,6 +1918,7 @@ class HybridStrategy(BackupStrategy):
         strategy.use_suspend_io = self.use_suspend_io
         strategy.allow_offline_backups = self.allow_offline_backups
         strategy.max_lag_seconds = self.max_lag_seconds
+        strategy.disable_source_stats = self.disable_source_stats
 
         if self.use_fsynclock is not None:
             strategy.use_fsynclock = self.use_fsynclock
