@@ -129,10 +129,3 @@ def get_messages():
     return _MESSAGES
 
 
-__all__ = [
-    NotificationMessage,
-    TemplateNotificationMessage,
-    get_messages
-]
-
-
