@@ -130,7 +130,7 @@ def get_messages():
 
 
 __all__ = [
-    NotificationTemplate,
+    NotificationMessage,
     TemplateNotificationMessage,
     get_messages
 ]
