@@ -784,8 +784,8 @@ class MongoServer(MongoConnector):
             # tries to save the returned document. this is because "locks"
             # contain a key "." which is not allowed by mongodb. Also "locks"
             # Could be very big and is not really needed anyways...
-            for prop in ignored_props:
-                if prop in server_status:
+            for prop in server_status.keys():
+                if prop in ignored_props or prop.startswith("$"):
                     del server_status[prop]
             return server_status
         except Exception, e:
