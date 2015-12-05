@@ -1,6 +1,7 @@
 __author__ = 'abdul'
 
 
+import os
 import version
 import mbs_config as config
 import logging
@@ -34,6 +35,8 @@ logger.addHandler(logging.NullHandler())
 
 ###############################################################################
 DEFAULT_BACKUP_TEMP_DIR_ROOT = "~/backup_temp"
+DEFAULT_TEMPLATE_DIR_ROOT = \
+    os.path.join(os.path.dirname(__file__), "notification", "templates")
 
 ###############################################################################
 # MBS
@@ -375,6 +378,33 @@ class MBS(object):
         return {
             "mbs": version.get_mbs_version()
         }
+
+    ###########################################################################
+    def resolve_notification_template_path(self, path, *roots):
+        if path.startswith(os.path.sep) and os.path.isfile(path):
+            return path
+
+        if len(roots) == 0:
+            roots = [DEFAULT_TEMPLATE_DIR_ROOT]
+
+        def search_root(root):
+            for root_, dirs, files in os.walk(root):
+                if path in files:
+                    return os.path.join(root_, path)
+            return None
+
+        for root in roots:
+            if os.path.sep not in path:
+                template = search_root(root)
+                if template is not None:
+                    return template
+            else:
+                template = os.path.join(root, path)
+                if os.path.isfile(template):
+                    return template
+
+        raise ValueError('Template {} not found'.format(path))
+
 
 ###############################################################################
 # MBS Singleton

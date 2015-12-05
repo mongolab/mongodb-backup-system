@@ -9,17 +9,21 @@ from boto.s3.connection import HostRequiredError
 
 import mbs.s3_utils as s3_utils
 
-from . import BaseTest
+from . import BaseTest, ENV
+from .tutils import truthy
 
 
 ###############################################################################
 # S3UtilsTest
 ###############################################################################
-
 class S3UtilsTest(BaseTest):
 
     ###########################################################################
     def setUp(self):
+        super(S3UtilsTest, self).setUp()
+
+        self._check_run_int_tests_else_skip()
+
         self._key_id = self._get_env_var_or_skip('S3_UTILS_TEST_KEY_ID')
         self._secret_key = self._get_env_var_or_skip('S3_UTILS_TEST_SECRET_KEY')
         self._request = None

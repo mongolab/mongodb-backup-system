@@ -1,0 +1,12 @@
+{
+    "TaskFailureNotification": {
+        "_type": "mbs.notification.message.TemplateNotificationMessage",
+        "type": "string",
+        "template": "Task '$id' failed.\n$task\n\nCause:\n$exception\nStack Trace:\n$trace"
+    },
+    "TaskRescheduleFailed": {
+        "_type": "mbs.notification.message.TemplateNotificationMessage",
+        "type": "string",
+        "template": "Task Reschedule Failed!.\n\n\n$task"
+    }
+}

@@ -1,16 +1,19 @@
 __author__ = 'abdul'
 
-import traceback
 import logging
-from utils import listify
-from sendgrid import Sendgrid, Message
-
-
 import smtplib
+import traceback
 
 from email.mime.text import MIMEText
 
+from sendgrid import Sendgrid, Message
+
+from .message import get_messages
+from ..utils import listify
+
+
 DEFAULT_NOTIFICATION_SUBJECT = "Backup System Notification"
+
 
 ###############################################################################
 # LOGGER
@@ -18,10 +21,11 @@ DEFAULT_NOTIFICATION_SUBJECT = "Backup System Notification"
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
+
 ###############################################################################
-###############################                 ###############################
-###############################  Notifications  ###############################
-###############################                 ###############################
+#################################            ##################################
+#################################  handlers  ##################################
+#################################            ##################################
 ###############################################################################
 
 ###############################################################################
@@ -45,18 +49,20 @@ class NotificationHandler(object):
 
     ###########################################################################
     def notify_on_task_failure(self, task, exception, trace):
-        subject = "Task failed"
-        message = ("Task '%s' failed.\n%s\n\nCause: \n%s\nStack Trace:"
-                   "\n%s" % (task.id, task, exception, trace))
-
-        self.send_notification(subject, message)
+        self.send_notification(
+            "Task failed",
+            get_messages()['TaskFailureNotification'].get_message({
+                'id': task.id,
+                'task': task,
+                'exception': exception,
+                'trace': trace}))
 
     ###########################################################################
     def notify_task_reschedule_failed(self, task):
-        subject = "Task Reschedule Failed"
-        message = ("Task Reschedule Failed!.\n\n\n%s" % task)
-
-        self.send_notification(subject, message)
+        self.send_notification(
+            'Task Reschedule Failed', 
+            get_messages()['TaskRescheduleFailed'].get_message({
+                'task': task}))
 
     ###########################################################################
     def get_recipient_by_error_class(self, error_class):

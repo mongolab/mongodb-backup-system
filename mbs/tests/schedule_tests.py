@@ -15,47 +15,47 @@ class CronScheduleTest(BaseTest):
 
     ###########################################################################
     def test_make(self):
-        obj = self.maker.make({'_type': 'CronSchedule'})
+        obj = self.mbs.maker.make({'_type': 'CronSchedule'})
         self.assertIsInstance(obj, AbstractSchedule)
         self.assertIsInstance(obj, CronSchedule)
 
     ###########################################################################
     def test_validate(self):
-        obj = self.maker.make({'_type': 'CronSchedule'})
+        obj = self.mbs.maker.make({'_type': 'CronSchedule'})
         errors = obj.validate()
         self.assertEqual(len(errors), 1)
         self.assertIn('missing expression', errors[0])
 
-        obj = self.maker.make({'_type': 'CronSchedule',
-                               'expression': 'blah blah blah blah blah'})
+        obj = self.mbs.maker.make({'_type': 'CronSchedule',
+                                   'expression': 'blah blah blah blah blah'})
         errors = obj.validate()
         self.assertEqual(len(errors), 1)
         self.assertIn('invalid expression', errors[0])
 
-        obj = self.maker.make({'_type': 'CronSchedule',
-                               'expression': '*/5 * * *'})
+        obj = self.mbs.maker.make({'_type': 'CronSchedule',
+                                   'expression': '*/5 * * *'})
         errors = obj.validate()
         self.assertEqual(len(errors), 1)
         self.assertIn('invalid expression', errors[0])
 
         # shortcuts like "@monthly are not supported"
-        obj = self.maker.make({'_type': 'CronSchedule',
-                               'expression': '@monthly'})
+        obj = self.mbs.maker.make({'_type': 'CronSchedule',
+                                   'expression': '@monthly'})
         errors = obj.validate()
         self.assertEqual(len(errors), 1)
         self.assertIn('invalid expression', errors[0])
 
-        obj = self.maker.make({'_type': 'CronSchedule',
-                               'expression': '*/5 * * * *'})
+        obj = self.mbs.maker.make({'_type': 'CronSchedule',
+                                   'expression': '*/5 * * * *'})
         errors = obj.validate()
         self.assertEqual(len(errors), 0)
 
     ###########################################################################
     def test_against_frequency(self):
-        cron_sched = self.maker.make({'_type': 'CronSchedule',
-                                      'expression': '*/5 * * * *'})
-        sched = self.maker.make({'_type': 'Schedule',
-                                 'frequency_in_seconds': 300})
+        cron_sched = self.mbs.maker.make({'_type': 'CronSchedule',
+                                          'expression': '*/5 * * * *'})
+        sched = self.mbs.maker.make({'_type': 'Schedule',
+                                     'frequency_in_seconds': 300})
 
         # test period
         cron_occurrences = cron_sched.natural_occurrences_between(
@@ -88,8 +88,8 @@ class CronScheduleTest(BaseTest):
 
     ###########################################################################
     def test_max_acceptable_lag(self):
-        cron_sched = self.maker.make({'_type': 'CronSchedule',
-                                      'expression': '*/5 * * * *'})
+        cron_sched = self.mbs.maker.make({'_type': 'CronSchedule',
+                                          'expression': '*/5 * * * *'})
         self.assertEqual(
             cron_sched._max_acceptable_lag_for_period(timedelta(minutes=5)),
             cron_sched.max_acceptable_lag(datetime(2012, 10, 1)))
@@ -98,8 +98,8 @@ class CronScheduleTest(BaseTest):
             cron_sched.max_acceptable_lag(datetime(2012, 10, 1, 3, 5, 2)))
 
         # test non-constant frequency
-        cron_sched = self.maker.make({'_type': 'CronSchedule',
-                                      'expression': '0 2 * * 1,2'})
+        cron_sched = self.mbs.maker.make({'_type': 'CronSchedule',
+                                          'expression': '0 2 * * 1,2'})
         self.assertEqual(
             cron_sched._max_acceptable_lag_for_period(timedelta(6)),
             cron_sched.max_acceptable_lag(datetime(2012, 10, 8, 2)))
