@@ -1,7 +1,7 @@
 __author__ = 'abdul'
 
 from utils import document_pretty_string, dict_diff, object_full_type_name, object_type_name
-
+import json
 import copy
 
 ###############################################################################
@@ -39,6 +39,11 @@ class MBSObject(object):
             doc["_id"] = self.id
 
         return doc
+
+    ###########################################################################
+    def to_json(self):
+        json_str = str(self)
+        return json.loads(json_str)
 
     ###########################################################################
     @property
