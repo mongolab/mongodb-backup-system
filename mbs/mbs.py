@@ -173,32 +173,10 @@ class MBS(object):
 
     ###########################################################################
     @property
-    def event_collection(self):
-        if not self._event_colllection:
-            if "events" not in self.database.collection_names():
-                self.database.create_collection("events", capped=True, size=1024*1024*10)
-
-            self._event_colllection = MBSObjectCollection(
-                self.database["events"], clazz=Event, type_bindings=self._type_bindings
-            )
-
-        return self._event_colllection
-
-    ###########################################################################
-    @property
-    def event_listener_collection(self):
-        if not self._event_listener_collection:
-            self._event_listener_collection = MBSObjectCollection(
-                self.database["event-listeners"], clazz=EventListener, type_bindings=self._type_bindings
-            )
-
-        return self._event_listener_collection
-
-    ###########################################################################
-    @property
     def event_queue(self):
-        if not self._event_queue:
-            self._event_queue = EventQueue(self.event_collection, self.event_listener_collection)
+        event_queue_conf = self._get_config_value("eventQueue")
+        if not self._event_queue and event_queue_conf:
+            self._event_queue = self._maker.make(event_queue_conf)
 
         return self._event_queue
 

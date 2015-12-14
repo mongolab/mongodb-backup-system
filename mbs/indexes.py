@@ -58,21 +58,6 @@ MBS_INDEXES = {
         {
             "index": [('state', ASCENDING), ('engineGuid', ASCENDING)]
         }
-    ],
-
-    "events": [
-        {
-            "index": [('createdDate', ASCENDING)]
-        }
-    ],
-
-    "event-listeners": [
-        {
-            "index": [('name', ASCENDING)],
-            "args": {
-                "unique": True
-            }
-        }
     ]
 }
 

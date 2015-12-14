@@ -170,7 +170,6 @@ class BackupSystem(Thread):
     def backup_sweeper(self, val):
         self._backup_sweeper = val
 
-
     ###########################################################################
     @property
     def port(self):
@@ -179,6 +178,11 @@ class BackupSystem(Thread):
     @port.setter
     def port(self, port):
         self._port = port
+
+    ###########################################################################
+    @property
+    def backup_monitor(self):
+        return self._backup_monitor
 
     ###########################################################################
     # Behaviors

@@ -31,8 +31,6 @@ class BackupMonitor(ScheduleRunner):
 
     ###########################################################################
     def run(self):
-        # register event listener with event queue
-        get_mbs().event_queue.register_event_listener(self._backup_monitor_event_listener)
         super(BackupMonitor, self).run()
 
     ###########################################################################

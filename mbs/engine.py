@@ -605,7 +605,7 @@ class TaskQueueProcessor(Thread):
 
     ###########################################################################
     def trigger_task_finished_event(self, task, state):
-        if isinstance(task, Backup):
+        if get_mbs().event_queue and isinstance(task, Backup):
             finished_event = BackupFinishedEvent(backup=task, state=state)
             get_mbs().event_queue.create_event(finished_event)
 
