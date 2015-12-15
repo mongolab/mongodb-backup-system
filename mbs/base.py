@@ -1,7 +1,6 @@
 __author__ = 'abdul'
 
-from utils import document_pretty_string, dict_diff, object_full_type_name, object_type_name
-import json
+import utils
 import copy
 
 ###############################################################################
@@ -41,23 +40,22 @@ class MBSObject(object):
         return doc
 
     ###########################################################################
-    def to_json(self):
-        json_str = str(self)
-        return json.loads(json_str)
+    def to_bson(self):
+        return utils.document_to_bson(self.to_document())
 
     ###########################################################################
     @property
     def type_name(self):
-        return object_type_name(self)
+        return utils.object_type_name(self)
 
     ###########################################################################
     @property
     def full_type_name(self):
-        return object_full_type_name(self)
+        return utils.object_full_type_name(self)
 
     ###########################################################################
     def __str__(self):
-        return document_pretty_string(self.to_document(display_only=True))
+        return utils.document_pretty_string(self.to_document(display_only=True))
 
     ###########################################################################
     def __eq__(self, other):
@@ -75,7 +73,7 @@ class MBSObject(object):
 
         my_dict = self.to_document(display_only=display_only)
         other_dict = other.to_document(display_only=display_only)
-        return dict_diff(my_dict, other_dict)
+        return utils.dict_diff(my_dict, other_dict)
 
     ###########################################################################
     def clone(self):

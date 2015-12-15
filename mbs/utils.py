@@ -198,6 +198,10 @@ def parse_json(json_str):
     #json_str = minify_json.json_minify(json_str)
     return json.loads(json_str, object_hook=_custom_json_object_hook)
 
+###############################################################################
+def document_to_bson(doc):
+    json_str = document_pretty_string(doc)
+    return json.loads(json_str)
 
 ###############################################################################
 def _custom_json_object_hook(dct):
