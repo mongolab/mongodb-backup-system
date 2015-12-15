@@ -197,10 +197,6 @@ class BackupSystem(Thread):
 
         logger.info("Starting as Master instance")
         self.master_instance_run()
-        # wait until a stop is requested
-        while not self._stop_requested:
-            time.sleep(3)
-
         self.master_instance_stopped()
 
 
