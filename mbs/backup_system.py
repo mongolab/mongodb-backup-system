@@ -197,6 +197,7 @@ class BackupSystem(Thread):
 
         logger.info("Starting as Master instance")
         self.master_instance_run()
+        self.master_instance_wait_for_stop_request()
         self.master_instance_stopped()
 
 
@@ -211,13 +212,25 @@ class BackupSystem(Thread):
         self._start_plan_generators()
 
         # start backup monitor
-        self._backup_monitor.start()
+        self._start_backup_monitor()
 
         # start the scheduler
-        self._scheduler.start()
+        self._start_scheduler()
 
-      ###########################################################################
+    ###########################################################################
+    def master_instance_wait_for_stop_request(self):
+        while not self._stop_requested:
+            time.sleep(self._sleep_time)
+        self.info('Stop request received by Master instance')
+
+    ###########################################################################
     def master_instance_stopped(self):
+        self.info('Stopping backup system Master threads...')
+        self._stop_expiration_managers()
+        self._stop_plan_generators()
+        self._stop_backup_monitor()
+        self._stop_scheduler()
+        self.info('All backup system Master threads stopped')
         self._stopped = True
 
     ###########################################################################
@@ -852,7 +865,12 @@ class BackupSystem(Thread):
             self.info("Backup Sweeper stopped!")
 
     ###########################################################################
+    # Backup plan generators
+    ###########################################################################
+
+    ###########################################################################
     def _start_plan_generators(self):
+        self.info('Starting Plan Generators')
         if self.plan_generators:
             for pg in self.plan_generators:
                 pg.start()
@@ -860,9 +878,41 @@ class BackupSystem(Thread):
 
     ###########################################################################
     def _stop_plan_generators(self):
+        self.info('Stopping Plan Generators')
         if self.plan_generators:
             for pg in self.plan_generators:
                 pg.stop()
+        self.info('Plan Generators stopped!')
+
+    ###########################################################################
+    # Backup monitor
+    ###########################################################################
+
+    ###########################################################################
+    def _start_backup_monitor(self):
+        self.info('Starting Backup Monitor')
+        self._backup_monitor.start()
+
+    ###########################################################################
+    def _stop_backup_monitor(self):
+        self.info('Stopping Backup Monitor')
+        self._backup_monitor.stop()
+        self.info('Backup Monitor stopped!')
+
+    ###########################################################################
+    # Backup scheduler
+    ###########################################################################
+
+    ###########################################################################
+    def _start_scheduler(self):
+        self.info('Starting Scheduler')
+        self._scheduler.start()
+
+    ###########################################################################
+    def _stop_scheduler(self):
+        self.info('Stopping Scheduler')
+        self._scheduler.stop()
+        self.info('Scheduler stopped!')
 
     ###########################################################################
     # Command Server
