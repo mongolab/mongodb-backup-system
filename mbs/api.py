@@ -172,14 +172,19 @@ class BackupSystemApiServer(Thread):
         arg_json = get_request_json()
         backup_id = arg_json.get('backupId')
         destination_uri = arg_json.get('destinationUri')
+        no_index_restore = arg_json.get('noIndexRestore')
+        no_users_restore = arg_json.get('noUsersRestore')
+        no_roles_restore = arg_json.get('noRolesRestore')
         tags = arg_json.get('tags')
         source_database_name = arg_json.get('sourceDatabaseName')
         try:
             bs = self.backup_system
             r = bs.schedule_backup_restore(backup_id,
                                            destination_uri,
-                                           source_database_name=
-                                           source_database_name,
+                                           source_database_name=source_database_name,
+                                           no_index_restore=no_index_restore,
+                                           no_users_restore=no_users_restore,
+                                           no_roles_restore=no_roles_restore,
                                            tags=tags)
             return str(r)
         except Exception, e:

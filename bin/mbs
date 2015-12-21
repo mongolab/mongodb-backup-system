@@ -462,11 +462,14 @@ def restore_backup(parsed_args):
     destination_uri = parsed_args.destinationUri
     backup_id = parsed_args.backupId
     src_db = parsed_args.sourceDatabase
-
-    result = client.restore_backup(backup_id, destination_uri,
+    no_index_restore = parsed_args.noIndexRestore
+    no_users_restore = parsed_args.noDbUsersAndRoles
+    no_roles_restore = parsed_args.noDbUsersAndRoles
+    result = client.restore_backup(backup_id, destination_uri, no_index_restore=no_index_restore,
+                                   no_users_restore=no_users_restore, no_roles_restore=no_roles_restore,
                                    source_database_name=src_db)
 
-    document_pretty_string(result)
+    print document_pretty_string(result)
 
 ###############################################################################
 def download_restore_log(parsed_args):
@@ -963,6 +966,26 @@ PARSER_DEF = {
                     "help": "Name of the database to restore from (used with"
                             " server/cluster level backups to restore a single"
                             " db)"
+                },
+
+                    {
+                    "name": "noIndexRestore",
+                    "type" : "optional",
+                    "cmd_arg":  ["--noIndexRestore"],
+                    "nargs": 0,
+                    "help": "Don't restore indexes",
+                    "action": "store_true",
+                    "default": False
+                },
+
+                    {
+                    "name": "noDbUsersAndRoles",
+                    "type" : "optional",
+                    "cmd_arg":  ["--noDbUsersAndRoles"],
+                    "nargs": 0,
+                    "help": "Don't restore db user/roles",
+                    "action": "store_true",
+                    "default": False
                 }
             ],
             "function": restore_backup

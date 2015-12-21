@@ -552,8 +552,8 @@ class BackupSystem(Thread):
                 return backup.source_stats["databaseStats"].keys()
 
     ###########################################################################
-    def schedule_backup_restore(self, backup_id, destination_uri,
-                                tags=None,
+    def schedule_backup_restore(self, backup_id, destination_uri,tags=None,
+                                no_index_restore=None, no_users_restore=None, no_roles_restore=None,
                                 source_database_name=None):
         backup = get_mbs().backup_collection.get_by_id(backup_id)
         destination = build_backup_source(destination_uri)
@@ -564,6 +564,9 @@ class BackupSystem(Thread):
         restore.source_backup = backup
         restore.source_database_name = source_database_name
         restore.strategy = backup.strategy
+        restore.strategy.no_index_restore = no_index_restore
+        restore.strategy.no_users_restore = no_users_restore
+        restore.strategy.no_roles_restore = no_roles_restore
         restore.destination = destination
         # resolve tags
         tags = tags or restore.source_backup.tags

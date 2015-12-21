@@ -130,6 +130,10 @@ class BackupStrategy(MBSObject):
         self._backup_assistant = None
         self._disable_source_stats = None
 
+        self._no_index_restore = None
+        self._no_users_restore = None
+        self._no_roles_restore = None
+
     ###########################################################################
     def _init_strategy(self, backup):
 
@@ -256,6 +260,33 @@ class BackupStrategy(MBSObject):
     @backup_assistant.setter
     def backup_assistant(self, val):
         self._backup_assistant = val
+
+    ###########################################################################
+    @property
+    def no_index_restore(self):
+        return self._no_index_restore
+
+    @no_index_restore.setter
+    def no_index_restore(self, val):
+        self._no_index_restore = val
+
+    ###########################################################################
+    @property
+    def no_users_restore(self):
+        return self._no_users_restore
+
+    @no_users_restore.setter
+    def no_users_restore(self, val):
+        self._no_users_restore = val
+
+    ###########################################################################
+    @property
+    def no_roles_restore(self):
+        return self._no_roles_restore
+
+    @no_roles_restore.setter
+    def no_roles_restore(self, val):
+        self._no_roles_restore = val
 
     ###########################################################################
     def is_use_suspend_io(self):
@@ -893,6 +924,15 @@ class BackupStrategy(MBSObject):
             not isinstance(self.backup_assistant, backup_assistant.LocalBackupAssistant)):
             doc["backupAssistant"] = self.backup_assistant.to_document()
 
+        if self.no_index_restore is not None:
+            doc["noIndexRestore"] = self.no_index_restore
+
+        if self.no_users_restore is not None:
+            doc["noUsersRestore"] = self.no_users_restore
+
+        if self.no_roles_restore is not None:
+            doc["noRolesRestore"] = self.no_roles_restore
+
         return doc
 
 ###############################################################################
@@ -905,7 +945,6 @@ class DumpStrategy(BackupStrategy):
         BackupStrategy.__init__(self)
         self._force_table_scan = None
         self._dump_users = None
-        self._no_index_restore = None
 
     ###########################################################################
     @property
@@ -915,15 +954,6 @@ class DumpStrategy(BackupStrategy):
     @force_table_scan.setter
     def force_table_scan(self, val):
         self._force_table_scan = val
-
-    ###########################################################################
-    @property
-    def no_index_restore(self):
-        return self._no_index_restore
-
-    @no_index_restore.setter
-    def no_index_restore(self, val):
-        self._no_index_restore = val
 
     ###########################################################################
     @property
@@ -946,9 +976,6 @@ class DumpStrategy(BackupStrategy):
 
         if self.dump_users is not None:
             doc["dumpUsers"] = self.dump_users
-
-        if self.no_index_restore is not None:
-            doc["noIndexRestore"] = self.no_index_restore
 
         return doc
 
@@ -1307,7 +1334,8 @@ class DumpStrategy(BackupStrategy):
 
         # include users in restore if its a database restore and
         # mongo version is >= 2.6.0
-        if dest_mongo_version >= VERSION_2_6 and source_database_name is not None:
+        if ((not self.no_roles_restore or not self.no_users_restore) and
+                    dest_mongo_version >= VERSION_2_6 and source_database_name is not None):
             restore_options.append("--restoreDbUsersAndRoles")
 
         # stop on errors for 3.0 restores
@@ -1324,6 +1352,8 @@ class DumpStrategy(BackupStrategy):
             _restore_log_file_name(restore), _log_file_name(restore.source_backup),
             delete_old_admin_users_file=delete_old_admin_users_file,
             delete_old_users_file=delete_old_users_file,
+            no_users_restore=self.no_users_restore,
+            no_roles_restore=self.no_roles_restore,
             options=restore_options)
 
         if restore_info and "restoreCollectionCounts" in restore_info:
@@ -1981,12 +2011,23 @@ class HybridStrategy(BackupStrategy):
 
         strategy.backup_assistant = self.backup_assistant
 
+        # restore settings
+        strategy.no_index_restore = self.no_index_restore
+        strategy.no_users_restore = self.no_users_restore
+        strategy.no_roles_restore = self.no_roles_restore
+
     ###########################################################################
     def _do_run_restore(self, restore):
+
         if restore.source_backup.is_event_logged(EVENT_END_EXTRACT):
-            return self.dump_strategy._do_run_restore(restore)
+            selected_strategy = self.dump_strategy
         else:
-            return self.cloud_block_storage_strategy._do_run_restore(restore)
+            selected_strategy = self.cloud_block_storage_strategy
+
+        # set defaults and save back
+        self._set_default_settings(selected_strategy)
+
+        return selected_strategy._do_run_restore(restore)
 
     ###########################################################################
     def _set_backup_name_and_desc(self, backup):

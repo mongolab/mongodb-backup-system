@@ -71,6 +71,8 @@ class BackupAssistant(MBSObject):
     def run_mongo_restore(self, restore, destination_uri, dump_dir, source_database_name,
                           log_file_name, dump_log_file_name, delete_old_users_file=None,
                           delete_old_admin_users_file=None,
+                          no_users_restore=None,
+                          no_roles_restore=None,
                           options=None):
         pass
 
@@ -270,6 +272,8 @@ class LocalBackupAssistant(BackupAssistant):
                           log_file_name, dump_log_file_name,
                           delete_old_users_file=None,
                           delete_old_admin_users_file=None,
+                          no_users_restore=None,
+                          no_roles_restore=None,
                           options=None):
 
         if source_database_name:
@@ -285,6 +289,12 @@ class LocalBackupAssistant(BackupAssistant):
 
         if delete_old_users_file or delete_old_admin_users_file:
             self._delete_restore_old_users_files(restore, source_dir, include_admin=delete_old_admin_users_file)
+
+        if no_users_restore:
+            self._delete_users_from_dump(restore, source_dir)
+
+        if no_roles_restore:
+            self._delete_roles_from_dump(restore, source_dir)
 
         working_dir = workspace
         log_path = os.path.join(workspace, log_file_name)
@@ -323,20 +333,37 @@ class LocalBackupAssistant(BackupAssistant):
         restore_source_path = os.path.join(workspace, restore_source_dir)
 
         db_dirs = list_dir_subdirs(restore_source_path)
-        for db_dir in db_dirs:
-            if db_dir == "admin" and not include_admin:
+        for dbname in db_dirs:
+            if dbname == "admin" and not include_admin:
                 continue
-            db_dir_path = os.path.join(restore_source_path, db_dir)
-            bson_file = os.path.join(db_dir_path, "system.users.bson")
-            json_md_file = os.path.join(db_dir_path, "system.users.metadata.json")
-            if os.path.exists(bson_file):
-                logger.info("2.6 Restore workaround: Deleting old "
-                            "system.users bson file '%s'" % bson_file)
-                os.remove(bson_file)
-            if os.path.exists(json_md_file):
-                logger.info("2.6 Restore workaround: Deleting old system."
-                            "users.metadata.json file '%s'" % json_md_file)
-                os.remove(json_md_file)
+
+            logger.info("2.6 Restore workaround: Deleting old %s.system.users collection" % dbname)
+            self._delete_collection_from_dump(restore, restore_source_dir, dbname, "system.users")
+
+    ####################################################################################################################
+    def _delete_users_from_dump(self, restore, restore_source_dir):
+        logger.info("Deleting admin.system.users collection")
+        self._delete_collection_from_dump(restore, restore_source_dir, "admin", "system.users")
+
+    ####################################################################################################################
+    def _delete_roles_from_dump(self, restore, restore_source_dir):
+        logger.info("Deleting admin.system.roles collection")
+        self._delete_collection_from_dump(restore, restore_source_dir, "admin", "system.roles")
+
+    ####################################################################################################################
+    def _delete_collection_from_dump(self, restore, restore_source_dir, dbname, coll_name):
+        workspace = self.get_task_workspace_dir(restore)
+        restore_source_path = os.path.join(workspace, restore_source_dir)
+
+        db_dir_path = os.path.join(restore_source_path, dbname)
+        bson_file = os.path.join(db_dir_path, "%s.bson" % coll_name)
+        json_md_file = os.path.join(db_dir_path, "%s.metadata.json" % coll_name)
+        if os.path.exists(bson_file):
+            logger.info("Deleting collection %s.%s bson file '%s'" % (dbname, coll_name, bson_file))
+            os.remove(bson_file)
+        if os.path.exists(json_md_file):
+            logger.info("Deleting collection %s.%s json metadata file '%s'" % (dbname, coll_name, json_md_file))
+            os.remove(json_md_file)
 
     ####################################################################################################################
     def is_connector_local_to_assistant(self, mongo_connector, backup):
