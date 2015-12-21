@@ -35,7 +35,7 @@ class NotificationHandler(object):
 
     ###########################################################################
     def __init__(self):
-        self._error_recipient_mapping = None
+        self._error_recipient_mapping = {}
 
     ###########################################################################
     def send_notification(self, subject, message, recipient=None):
