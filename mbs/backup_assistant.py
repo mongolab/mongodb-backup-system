@@ -69,10 +69,10 @@ class BackupAssistant(MBSObject):
 
     ####################################################################################################################
     def run_mongo_restore(self, restore, destination_uri, dump_dir, source_database_name,
-                          log_file_name, dump_log_file_name, delete_old_users_file=None,
-                          delete_old_admin_users_file=None,
-                          no_users_restore=None,
-                          no_roles_restore=None,
+                          log_file_name, dump_log_file_name,
+                          exclude_system_users=None,
+                          exclude_admin_system_users=None,
+                          exclude_system_roles=None,
                           options=None):
         pass
 
@@ -270,10 +270,9 @@ class LocalBackupAssistant(BackupAssistant):
     ####################################################################################################################
     def run_mongo_restore(self, restore, destination_uri, dump_dir, source_database_name,
                           log_file_name, dump_log_file_name,
-                          delete_old_users_file=None,
-                          delete_old_admin_users_file=None,
-                          no_users_restore=None,
-                          no_roles_restore=None,
+                          exclude_system_users=None,
+                          exclude_admin_system_users=None,
+                          exclude_system_roles=None,
                           options=None):
 
         if source_database_name:
@@ -287,13 +286,13 @@ class LocalBackupAssistant(BackupAssistant):
         if os.path.exists(dump_log_path):
             os.remove(dump_log_path)
 
-        if delete_old_users_file or delete_old_admin_users_file:
-            self._delete_restore_old_users_files(restore, source_dir, include_admin=delete_old_admin_users_file)
+        if exclude_system_users:
+            self._delete_system_users_from_dump(restore, source_dir)
 
-        if no_users_restore:
-            self._delete_users_from_dump(restore, source_dir)
+        if exclude_admin_system_users:
+            self._delete_admin_system_users_from_dump(restore, source_dir)
 
-        if no_roles_restore:
+        if exclude_system_roles:
             self._delete_roles_from_dump(restore, source_dir)
 
         working_dir = workspace
@@ -328,20 +327,26 @@ class LocalBackupAssistant(BackupAssistant):
             raise RestoreError(returncode, last_log_line)
 
     ####################################################################################################################
-    def _delete_restore_old_users_files(self, restore, restore_source_dir, include_admin=False):
+    def _delete_system_users_from_dump(self, restore, restore_source_dir):
+        """
+        deletes all system.user collections from dump (except for admin)
+        :param restore:
+        :param restore_source_dir:
+        :return:
+        """
         workspace = self.get_task_workspace_dir(restore)
         restore_source_path = os.path.join(workspace, restore_source_dir)
 
         db_dirs = list_dir_subdirs(restore_source_path)
         for dbname in db_dirs:
-            if dbname == "admin" and not include_admin:
+            if dbname == "admin":
                 continue
 
             logger.info("2.6 Restore workaround: Deleting old %s.system.users collection" % dbname)
             self._delete_collection_from_dump(restore, restore_source_dir, dbname, "system.users")
 
     ####################################################################################################################
-    def _delete_users_from_dump(self, restore, restore_source_dir):
+    def _delete_admin_system_users_from_dump(self, restore, restore_source_dir):
         logger.info("Deleting admin.system.users collection")
         self._delete_collection_from_dump(restore, restore_source_dir, "admin", "system.users")
 

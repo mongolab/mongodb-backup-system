@@ -1279,13 +1279,13 @@ class DumpStrategy(BackupStrategy):
                                MongoNormalizedVersion(source_stats["version"])
         dest_mongo_version = mongo_connector.get_mongo_version()
 
-        # Delete all old system.user collection files if restoring from 2.4 =>
-        #  2.6
-        delete_old_admin_users_file = source_mongo_version < VERSION_2_6 <= dest_mongo_version
+        # Delete admin system.user collection files if no_users_restore or restoring from 2.4 => 2.6
+        exclude_admin_system_users = self.no_users_restore or source_mongo_version < VERSION_2_6 <= dest_mongo_version
 
-        # Delete old system.user collection files if restoring from 2.6 => 2.6
-        delete_old_users_file = (delete_old_admin_users_file or
-                                 (source_mongo_version >= VERSION_2_6 and dest_mongo_version >= VERSION_2_6))
+        # Delete  system.user collection files if restoring from/to >=2.6
+        exclude_system_users = source_mongo_version >= VERSION_2_6 and dest_mongo_version >= VERSION_2_6
+
+        exclude_system_roles = self.no_roles_restore
 
         if dest_mongo_version >= VERSION_2_6:
             _grant_restore_role(mongo_connector)
@@ -1350,10 +1350,9 @@ class DumpStrategy(BackupStrategy):
         restore_info = self.backup_assistant.run_mongo_restore(
             restore, dest_uri, dump_dir, source_database_name,
             _restore_log_file_name(restore), _log_file_name(restore.source_backup),
-            delete_old_admin_users_file=delete_old_admin_users_file,
-            delete_old_users_file=delete_old_users_file,
-            no_users_restore=self.no_users_restore,
-            no_roles_restore=self.no_roles_restore,
+            exclude_admin_system_users=exclude_admin_system_users,
+            exclude_system_users=exclude_system_users,
+            exclude_system_roles=exclude_system_roles,
             options=restore_options)
 
         if restore_info and "restoreCollectionCounts" in restore_info:
