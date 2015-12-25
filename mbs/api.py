@@ -459,6 +459,6 @@ def get_requested_backup_id():
 ###############################################################################
 def get_request_value(key):
     if request.method == "POST":
-        return get_request_json().get(key)
+        return request.json.get(key)
     else:
         return request.args.get(key)
