@@ -24,6 +24,7 @@ class Backup(MBSTask):
         self._dont_expire = False
         self._deleted_date = None
         self._dump_collection_counts = None
+        self._cluster_stats = None
 
     ###########################################################################
     def execute(self):
@@ -74,6 +75,15 @@ class Backup(MBSTask):
     @source_stats.setter
     def source_stats(self, source_stats):
         self._source_stats = source_stats
+
+    ###########################################################################
+    @property
+    def cluster_stats(self):
+        return self._cluster_stats
+
+    @cluster_stats.setter
+    def cluster_stats(self, val):
+        self._cluster_stats = val
 
     ###########################################################################
     @property
@@ -213,7 +223,8 @@ class Backup(MBSTask):
             "planOccurrence": self.plan_occurrence,
             "expiredDate": self.expired_date,
             "dontExpire": self.dont_expire,
-            "deletedDate": self.deleted_date
+            "deletedDate": self.deleted_date,
+            "clusterStats": self.cluster_stats
         })
 
         if self.name:

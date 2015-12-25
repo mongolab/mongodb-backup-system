@@ -430,6 +430,8 @@ class BackupStrategy(MBSObject):
     ###########################################################################
     def _select_new_cluster_member(self, backup, mongo_cluster):
 
+        # grab cluster stats
+        self._compute_cluster_stats(backup, mongo_cluster)
         source = backup.source
         max_lag_seconds = self.max_lag_seconds or DEFAULT_MAX_LAG
         # compute max lag
@@ -500,6 +502,15 @@ class BackupStrategy(MBSObject):
                                           mongo_cluster))
             raise NoEligibleMembersFound(source.uri, msg=msg)
 
+    ###########################################################################
+    def _compute_cluster_stats(self, backup, mongo_cluster):
+        cluster_stats = {
+            "rsStatus": mongo_cluster.primary_member.get_rs_status()
+        }
+        backup.cluster_stats = cluster_stats
+
+        update_backup(backup, properties="clusterStats",
+                      event_name="COMPUTE_CLUSTER_STATS", message="Compute cluster stats")
     ###########################################################################
     def backup_mongo_connector(self, backup, mongo_connector):
 
