@@ -129,10 +129,17 @@ class CreatePlanError(BackupSystemError):
 class BackupEngineError(MBSError):
     pass
 
+
 ###############################################################################
-# BackupEngineError
+# EngineCrashedError
 ###############################################################################
-class EngineWorkerCrashedError(MBSError):
+class EngineCrashedError(BackupEngineError):
+    pass
+
+###############################################################################
+# EngineWorkerCrashedError
+###############################################################################
+class EngineWorkerCrashedError(BackupEngineError):
     pass
 
 ###############################################################################
