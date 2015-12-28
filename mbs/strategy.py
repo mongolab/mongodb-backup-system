@@ -305,6 +305,17 @@ class BackupStrategy(MBSObject):
 
     ###########################################################################
     def get_backup_mongo_connector(self, backup):
+        connector = self.select_backup_mongo_connector(backup)
+
+        # set the selected source
+        selected_sources = backup.source.get_selected_sources(connector)
+        backup.selected_sources = selected_sources
+        update_backup(backup, properties="selectedSources", event_name="SELECT_SOURCES",
+                      message="Selected backup sources" )
+        return connector
+
+    ###########################################################################
+    def select_backup_mongo_connector(self, backup):
         logger.info("Selecting connector to run backup '%s'" % backup.id)
         connector = backup.source.get_connector()
         if isinstance(connector, MongoCluster):
@@ -317,12 +328,6 @@ class BackupStrategy(MBSObject):
 
         logger.info("Selected connector %s for backup '%s'" %
                     (connector.info(), backup.id))
-
-        # set the selected source
-        selected_sources = backup.source.get_selected_sources(connector)
-        backup.selected_sources = selected_sources
-        update_backup(backup, properties="selectedSources", event_name="SELECT_SOURCES",
-                      message="Selected backup sources" )
         return connector
 
     ###########################################################################
