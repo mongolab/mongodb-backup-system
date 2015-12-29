@@ -305,30 +305,61 @@ class BackupStrategy(MBSObject):
 
     ###########################################################################
     def get_backup_mongo_connector(self, backup):
-        connector = self.select_backup_mongo_connector(backup)
+        source_connector = backup.source.get_connector()
+        selected_connector = self.select_backup_mongo_connector(backup, source_connector)
+        self._populate_connector_warnings(backup, selected_connector)
 
         # set the selected source
-        selected_sources = backup.source.get_selected_sources(connector)
+        selected_sources = backup.source.get_selected_sources(selected_connector)
         backup.selected_sources = selected_sources
         update_backup(backup, properties="selectedSources", event_name="SELECT_SOURCES",
-                      message="Selected backup sources" )
-        return connector
+                      message="Selected backup sources")
+
+        if isinstance(source_connector, MongoCluster):
+            # grab cluster stats
+            self._compute_cluster_stats(backup, source_connector)
+
+        return selected_connector
 
     ###########################################################################
-    def select_backup_mongo_connector(self, backup):
+    def select_backup_mongo_connector(self, backup, source_connector):
         logger.info("Selecting connector to run backup '%s'" % backup.id)
-        connector = backup.source.get_connector()
-        if isinstance(connector, MongoCluster):
-            connector = self._select_backup_cluster_member(backup, connector)
-        elif isinstance(connector, ShardedClusterConnector):
-            connector = self._select_backup_sharded_cluster_members(
-                backup, connector)
+        if isinstance(source_connector, MongoCluster):
+            selected_connector = self._select_backup_cluster_member(backup, source_connector)
+        elif isinstance(source_connector, ShardedClusterConnector):
+            selected_connector = self._select_backup_sharded_cluster_members(backup, source_connector)
+        else:
+            selected_connector = source_connector
 
-        self._validate_connector(backup, connector)
+        self._validate_connector(backup, selected_connector)
 
         logger.info("Selected connector %s for backup '%s'" %
-                    (connector.info(), backup.id))
-        return connector
+                    (selected_connector.info(), backup.id))
+        return selected_connector
+
+    ####################################################################################################################
+    def _populate_connector_warnings(self, backup, connector):
+        if isinstance(connector, MongoServer):
+            # warn if its a primary
+            if connector.is_primary():
+                logger.warning("Backup '%s' will be extracted from the "
+                               "primary!" % backup.id)
+
+                msg = "Warning! The dump will be extracted from the  primary"
+                update_backup(backup, event_type=EventType.WARNING,
+                              event_name="USING_PRIMARY_WARNING",
+                              message=msg)
+            # log warning if secondary is too stale
+            elif connector.is_secondary():
+                if connector.is_too_stale():
+                    logger.warning("Backup '%s' will be extracted from a "
+                                   "too stale member!" % backup.id)
+
+                    msg = ("Warning! The dump will be extracted from a too "
+                           "stale member")
+                    update_backup(backup, event_type=EventType.WARNING,
+                                  event_name="USING_TOO_STALE_WARNING",
+                                  message=msg)
 
     ###########################################################################
     def _validate_connector(self, backup, connector):
@@ -434,9 +465,6 @@ class BackupStrategy(MBSObject):
 
     ###########################################################################
     def _select_new_cluster_member(self, backup, mongo_cluster):
-
-        # grab cluster stats
-        self._compute_cluster_stats(backup, mongo_cluster)
         source = backup.source
         max_lag_seconds = self.max_lag_seconds or DEFAULT_MAX_LAG
         # compute max lag
@@ -472,31 +500,12 @@ class BackupStrategy(MBSObject):
                                                   mongo_cluster))
                     raise NoEligibleMembersFound(source.uri, msg=msg)
 
-                # log warning if secondary is too stale
-                if best_secondary.is_too_stale():
-                    logger.warning("Backup '%s' will be extracted from a "
-                                   "too stale member!" % backup.id)
-
-                    msg = ("Warning! The dump will be extracted from a too "
-                           "stale member")
-                    update_backup(backup, event_type=EventType.WARNING,
-                                  event_name="USING_TOO_STALE_WARNING",
-                                  message=msg)
-
-
         if (not selected_member and
             self.member_preference in [MemberPreference.BEST,
                                        MemberPreference.PRIMARY_ONLY]):
             # otherwise dump from primary if primary ok or if this is the
             # last try. log warning because we are dumping from a primary
             selected_member = primary_member
-            logger.warning("Backup '%s' will be extracted from the "
-                           "primary!" % backup.id)
-
-            msg = "Warning! The dump will be extracted from the  primary"
-            update_backup(backup, event_type=EventType.WARNING,
-                          event_name="USING_PRIMARY_WARNING",
-                          message=msg)
 
         if selected_member:
             return selected_member
