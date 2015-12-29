@@ -204,8 +204,11 @@ class NoEligibleMembersFound(ReplicasetError):
 
     ###########################################################################
     def __init__(self, uri=None, msg=None):
-        details = ("No eligible members in '%s' found to take backup from" %
-                   mongo_uri_tools.mask_mongo_uri(uri))
+        if uri:
+            details = ("No eligible members in '%s' found to take backup from" %
+                       mongo_uri_tools.mask_mongo_uri(uri))
+        else:
+            details = None
         super(NoEligibleMembersFound, self).__init__(details=details, msg=msg)
 
 
