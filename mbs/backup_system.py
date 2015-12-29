@@ -646,6 +646,7 @@ class BackupSystem(Thread):
                     if isinstance(value, DynamicTag):
                         task.tags[name] = value.generate_tag_value(task)
         except Exception, e:
+            error_code = to_mbs_error_code(e)
             msg = ("Failed to resolve task tags. Trace: \n%s" %
                    traceback.format_exc())
             logger.error(msg)
@@ -654,7 +655,7 @@ class BackupSystem(Thread):
             set_task_retry_info(task, task_collection, e, persist=task.id is not None)
 
             if not task.id:
-                task.log_event(State.FAILED, message=msg)
+                task.log_event(State.FAILED, message=msg, error_code=error_code)
 
             else:
                 tc = task_collection
@@ -662,6 +663,7 @@ class BackupSystem(Thread):
                                properties=["state"],
                                event_name="FAILED_TO_RESOLVE_TAGS",
                                details=msg,
+                               error_code=error_code,
                                event_type=EventType.ERROR)
 
 
