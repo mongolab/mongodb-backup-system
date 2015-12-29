@@ -288,7 +288,10 @@ class BackupSystem(Thread):
         if backup.plan and backup.plan.tags:
             backup.tags = backup.plan.tags.copy()
 
-        self._resolve_task_tags(backup, bc)
+        try:
+            self._resolve_task_tags(backup)
+        except Exception, ex:
+            self._task_failed_to_schedule(backup, bc, ex)
 
         if backup.state == State.FAILED:
             self._notify_task_reschedule_failed(backup)
@@ -391,8 +394,13 @@ class BackupSystem(Thread):
 
             backup.tags = tags
 
-            # resolve tags
-            self._resolve_task_tags(backup, get_mbs().backup_collection)
+            bc = get_mbs().backup_collection
+            try:
+                # resolve tags
+
+                self._resolve_task_tags(backup)
+            except Exception, ex:
+                self._task_failed_to_schedule(backup, bc, ex)
 
             backup_doc = backup.to_document()
             get_mbs().backup_collection.save_document(backup_doc)
@@ -569,14 +577,20 @@ class BackupSystem(Thread):
         # resolve tags
         tags = tags or restore.source_backup.tags
         restore.tags = tags
-        self._resolve_task_tags(restore, get_mbs().restore_collection)
+
+        rc = get_mbs().restore_collection
+        try:
+            self._resolve_task_tags(restore)
+        except Exception, ex:
+            self._task_failed_to_schedule(restore, rc, ex)
 
         restore.created_date = date_now()
 
         logger.info("Saving restore task: %s" % restore)
         restore_doc = restore.to_document()
-        get_mbs().restore_collection.save_document(restore_doc)
+        rc.save_document(restore_doc)
         restore.id = restore_doc["_id"]
+
         return restore
 
     ###########################################################################
@@ -639,33 +653,40 @@ class BackupSystem(Thread):
         return backup.state == State.SCHEDULED and date_minus_seconds(date_now(), max_wait_time) > backup.created_date
 
     ###########################################################################
-    def _resolve_task_tags(self, task, task_collection):
-        try:
-            if task.tags:
-                for name, value in task.tags.items():
-                    if isinstance(value, DynamicTag):
-                        task.tags[name] = value.generate_tag_value(task)
-        except Exception, e:
-            error_code = to_mbs_error_code(e)
-            msg = ("Failed to resolve task tags. Trace: \n%s" %
-                   traceback.format_exc())
-            logger.error(msg)
-            logger.error(traceback.format_exc())
-            task.state = State.FAILED
-            set_task_retry_info(task, task_collection, e, persist=task.id is not None)
+    def _resolve_task_tags(self, task):
+        if task.tags:
+            for name, value in task.tags.items():
+                if isinstance(value, DynamicTag):
+                    task.tags[name] = value.generate_tag_value(task)
 
-            if not task.id:
-                task.log_event(State.FAILED, message=msg, error_code=error_code)
 
-            else:
-                tc = task_collection
-                tc.update_task(task,
-                               properties=["state"],
-                               event_name="FAILED_TO_RESOLVE_TAGS",
-                               details=msg,
-                               error_code=error_code,
-                               event_type=EventType.ERROR)
+    ####################################################################################################################
+    def _task_failed_to_schedule(self, task, task_collection, exception):
 
+        # log error
+        msg = ("Failed to schedule task. Trace: \n%s" %
+               traceback.format_exc())
+        logger.error(msg)
+        logger.error(traceback.format_exc())
+        # set state to failed
+        task.state = State.FAILED
+        # bump up try count
+        task.try_count += 1
+
+        set_task_retry_info(task, task_collection, exception,
+                            persist=task.id is not None)
+
+        error_code = to_mbs_error_code(exception)
+        if not task.id:
+            task.log_event(State.FAILED, message=msg, error_code=error_code)
+        else:
+            tc = task_collection
+            tc.update_task(task,
+                           properties=["state", "tryCount"],
+                           event_name="FAILED_TO_SCHEDULE",
+                           details=msg,
+                           error_code=error_code,
+                           event_type=EventType.ERROR)
 
 
     ###########################################################################
