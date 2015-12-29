@@ -41,6 +41,7 @@ from flask import Flask
 from flask.globals import request
 from monitor import BackupMonitor
 from scheduler import BackupScheduler
+from task_utils import set_task_retry_info
 
 ###############################################################################
 ########################                                #######################
@@ -389,16 +390,8 @@ class BackupSystem(Thread):
 
             backup.tags = tags
 
-            try:
-                # resolve tags
-                self._resolve_task_tags(backup, get_mbs().backup_collection)
-            except Exception, e:
-                msg = ("Failed to resolve backup tags. Trace: \n%s" %
-                       traceback.format_exc())
-                backup.change_state(State.FAILED, message=msg)
-                backup.reschedulable = True
-                logger.error(msg)
-                logger.error(traceback.format_exc())
+            # resolve tags
+            self._resolve_task_tags(backup, get_mbs().backup_collection)
 
             backup_doc = backup.to_document()
             get_mbs().backup_collection.save_document(backup_doc)
@@ -653,14 +646,15 @@ class BackupSystem(Thread):
             logger.error(msg)
             logger.error(traceback.format_exc())
             task.state = State.FAILED
-            task.reschedulable = True
+            set_task_retry_info(task, task_collection, e, persist=task.id is not None)
+
             if not task.id:
                 task.log_event(State.FAILED, message=msg)
 
             else:
                 tc = task_collection
                 tc.update_task(task,
-                               properties=["state", "reschedulable"],
+                               properties=["state"],
                                event_name="FAILED_TO_RESOLVE_TAGS",
                                details=msg,
                                event_type=EventType.ERROR)

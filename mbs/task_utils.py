@@ -13,7 +13,7 @@ logger.addHandler(logging.NullHandler())
 
 
 ########################################################################################################################
-def set_task_retry_info(task, task_collection, error):
+def set_task_retry_info(task, task_collection, error, persist=True):
 
     error_code = to_mbs_error_code(error)
     # if exception is not retriable then mark backup is not retriable by setting final retry to now
@@ -36,9 +36,10 @@ def set_task_retry_info(task, task_collection, error):
     logger.info("Set task retry info for backup %s, next retry: %s, final retry: %s" %
                 (task.id, task.next_retry_date, task.final_retry_date))
 
-    task_collection.update_task(task, properties=["nextRetryDate", "finalRetryDate"])
-    logger.info("Updated task retry info for backup %s, next retry: %s, final retry: %s" %
-                (task.id, task.next_retry_date, task.final_retry_date))
+    if persist:
+        task_collection.update_task(task, properties=["nextRetryDate", "finalRetryDate"])
+        logger.info("Updated task retry info for backup %s, next retry: %s, final retry: %s" %
+                    (task.id, task.next_retry_date, task.final_retry_date))
 
 ####################################################################################################################
 def _compute_final_retry_date(task):
