@@ -20,7 +20,7 @@ from multiprocessing import Process
 
 from errors import (
     MBSError, BackupEngineError, EngineWorkerCrashedError,
-    to_mbs_error_code, is_exception_retriable
+    to_mbs_error_code
 )
 
 from utils import (resolve_path, get_local_host_name,
@@ -28,7 +28,7 @@ from utils import (resolve_path, get_local_host_name,
 
 from mbs import get_mbs
 
-from date_utils import timedelta_total_seconds, date_now, date_minus_seconds, mid_date_between, date_plus_seconds
+from date_utils import timedelta_total_seconds, date_now, date_minus_seconds
 
 
 from task import (
@@ -38,8 +38,7 @@ from task import (
 from backup import Backup
 from mbs_client.client import BackupEngineClient
 
-from events import BackupFinishedEvent
-from task_utils import set_task_retry_info
+from task_utils import set_task_retry_info, trigger_task_finished_event
 
 ###############################################################################
 # CONSTANTS
@@ -603,13 +602,7 @@ class TaskQueueProcessor(Thread):
             task, properties=["state", "endDate"],
             event_name=EVENT_STATE_CHANGE, message=message)
 
-        self.trigger_task_finished_event(task, state)
-
-    ###########################################################################
-    def trigger_task_finished_event(self, task, state):
-        if get_mbs().event_queue and isinstance(task, Backup) and state == State.FAILED:
-            finished_event = BackupFinishedEvent(backup=task, state=state)
-            get_mbs().event_queue.create_event(finished_event)
+        trigger_task_finished_event(task, state)
 
     ###########################################################################
     def _recover(self):

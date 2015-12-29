@@ -4,6 +4,9 @@ import logging
 from .errors import is_exception_retriable, to_mbs_error_code, MBSError
 from .backup import Backup
 from .date_utils import mid_date_between, date_plus_seconds, date_now
+from .mbs import get_mbs
+from .globals import State
+from .events import BackupFinishedEvent
 
 ###############################################################################
 # LOGGER
@@ -11,6 +14,16 @@ from .date_utils import mid_date_between, date_plus_seconds, date_now
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
+
+
+###########################################################################
+def trigger_task_finished_event(task, state):
+    try:
+        if get_mbs().event_queue and isinstance(task, Backup) and state == State.FAILED:
+            finished_event = BackupFinishedEvent(backup=task, state=state)
+            get_mbs().event_queue.create_event(finished_event)
+    except Exception, ex:
+        logger.exception("Failed to trigger task event finished")
 
 ########################################################################################################################
 def set_task_retry_info(task, task_collection, error, persist=True):
@@ -40,6 +53,7 @@ def set_task_retry_info(task, task_collection, error, persist=True):
         task_collection.update_task(task, properties=["nextRetryDate", "finalRetryDate"])
         logger.info("Updated task retry info for backup %s, next retry: %s, final retry: %s" %
                     (task.id, task.next_retry_date, task.final_retry_date))
+
 
 ####################################################################################################################
 def _compute_final_retry_date(task):
