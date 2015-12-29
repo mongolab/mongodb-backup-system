@@ -41,7 +41,7 @@ from flask import Flask
 from flask.globals import request
 from monitor import BackupMonitor
 from scheduler import BackupScheduler
-from task_utils import set_task_retry_info
+from task_utils import set_task_retry_info, trigger_task_finished_event
 
 ###############################################################################
 ########################                                #######################
@@ -292,6 +292,7 @@ class BackupSystem(Thread):
 
         if backup.state == State.FAILED:
             self._notify_task_reschedule_failed(backup)
+            trigger_task_finished_event(backup, State.FAILED)
 
         bc.update_task(backup, properties=props,
                        event_name=EVENT_STATE_CHANGE,
@@ -400,6 +401,10 @@ class BackupSystem(Thread):
             backup.id = backup_doc["_id"]
 
             self.info("Saved backup \n%s" % backup)
+
+            if backup.state == State.FAILED:
+                trigger_task_finished_event(backup, State.FAILED)
+
             return backup
         except Exception, e:
             args_str = dict_to_str(kwargs)
