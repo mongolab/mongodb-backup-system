@@ -203,14 +203,45 @@ class PrimaryNotFoundError(ReplicasetError):
 class NoEligibleMembersFound(ReplicasetError):
 
     ###########################################################################
-    def __init__(self, uri=None, msg=None):
+    def __init__(self, uri=None, msg=None, rs_status=None, rs_conf=None):
         if uri:
             details = ("No eligible members in '%s' found to take backup from" %
                        mongo_uri_tools.mask_mongo_uri(uri))
         else:
             details = None
+
+        self._rs_status = rs_status
+        self._rs_conf = rs_conf
+
         super(NoEligibleMembersFound, self).__init__(details=details, msg=msg)
 
+    ###########################################################################
+    @property
+    def rs_status(self):
+        return self._rs_status
+
+    @rs_status.setter
+    def rs_status(self, val):
+        self._rs_status = val
+
+    ###########################################################################
+    @property
+    def rs_conf(self):
+        return self._rs_conf
+
+    @rs_conf.setter
+    def rs_conf(self, val):
+        self._rs_conf = val
+
+    ####################################################################################################################
+    def to_document(self, display_only=False):
+        doc = super(NoEligibleMembersFound, self).to_document(display_only=display_only)
+        doc.update({
+            "rsStatus": self.rs_status,
+            "rsConf": self.rs_conf
+        })
+
+        return doc
 
 ###############################################################################
 class DBStatsError(MBSError):

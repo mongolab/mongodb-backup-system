@@ -5,6 +5,7 @@ import os
 import time
 
 import logging
+import operator
 import re
 
 from mbs import get_mbs
@@ -331,7 +332,7 @@ class BackupStrategy(MBSObject):
         else:
             selected_connector = source_connector
 
-        self._validate_connector(backup, selected_connector)
+        self._validate_connector(backup, source_connector, selected_connector)
 
         logger.info("Selected connector %s for backup '%s'" %
                     (selected_connector.info(), backup.id))
@@ -362,7 +363,7 @@ class BackupStrategy(MBSObject):
                                   message=msg)
 
     ###########################################################################
-    def _validate_connector(self, backup, connector):
+    def _validate_connector(self, backup, source_connector, connector):
 
         if isinstance(connector, ShardedClusterConnector):
             self._validate_sharded_connector(backup, connector)
@@ -403,13 +404,25 @@ class BackupStrategy(MBSObject):
             msg = "Selected connector '%s' is a Primary" % connector
             raise NoEligibleMembersFound(backup.source.uri, msg=msg)
 
+        # FAIL if best secondary was not a P0 within max_lag_seconds
+        # if cluster has any P0
+        max_lag_seconds = self._max_allowed_lag_for_backup(backup)
+
+        if (isinstance(source_connector, MongoCluster) and
+                max_lag_seconds and
+                source_connector.has_p0s() and connector.priority != 0):
+            msg = ("No eligible p0 secondary found within max lag '%s'"
+                   " for cluster '%s'" % (max_lag_seconds, source_connector))
+            self.raise_no_eligible_members_found(source_connector, msg=msg)
+
         logger.info("Member preference validation for backup '%s' passed!" %
                     backup.id)
 
     ###########################################################################
     def _validate_sharded_connector(self, backup, sharded_connector):
-        for connector in sharded_connector.selected_shard_secondaries:
-            self._validate_connector(backup, connector)
+        for shard, selected_connector in zip(sharded_connector.shards,
+                                             sharded_connector.selected_shard_secondaries):
+            self._validate_connector(backup, shard, selected_connector)
 
     ###########################################################################
     def _select_backup_cluster_member(self, backup, mongo_cluster):
@@ -438,7 +451,17 @@ class BackupStrategy(MBSObject):
         """
         return True
 
-    ###########################################################################
+    ####################################################################################################################
+    def _max_allowed_lag_for_backup(self, backup):
+        max_lag_seconds = self.max_lag_seconds or DEFAULT_MAX_LAG
+        # compute max lag
+        if not max_lag_seconds and backup.plan:
+            max_lag_seconds = backup.plan.schedule.max_acceptable_lag(
+                backup.plan_occurrence)
+
+        return max_lag_seconds
+
+    ####################################################################################################################
     def get_mongo_connector_used_by(self, backup):
         if backup.selected_sources and len(backup.selected_sources) == 1:
             return backup.selected_sources[0].get_connector()
@@ -463,60 +486,139 @@ class BackupStrategy(MBSObject):
 
             return build_mongo_connector(uri)
 
-    ###########################################################################
+    ####################################################################################################################
     def _select_new_cluster_member(self, backup, mongo_cluster):
-        source = backup.source
-        max_lag_seconds = self.max_lag_seconds or DEFAULT_MAX_LAG
-        # compute max lag
-        if not max_lag_seconds and backup.plan:
-            max_lag_seconds = backup.plan.schedule.max_acceptable_lag(
-                backup.plan_occurrence)
+        max_lag_seconds = self._max_allowed_lag_for_backup(backup)
 
-        # find a server to dump from
-
+        # get primary member
         primary_member = mongo_cluster.primary_member
-        selected_member = None
-        best_secondary = None
-        # dump from best secondary if configured and found
-        if ((self.member_preference == MemberPreference.BEST and
-             backup.try_count < MAX_NO_RETRIES) or
-            (self.member_preference == MemberPreference.SECONDARY_ONLY and
-             backup.try_count <= MAX_NO_RETRIES)):
 
+        # SECONDARY_ONLY
+        if self.member_preference == MemberPreference.SECONDARY_ONLY:
+            return self.get_cluster_best_secondary(mongo_cluster, max_lag_seconds=max_lag_seconds)
+        # BEST
+        elif self.member_preference == MemberPreference.BEST:
             try:
-                best_secondary = mongo_cluster.get_best_secondary(max_lag_seconds=max_lag_seconds)
+                return self.get_cluster_best_secondary(mongo_cluster, max_lag_seconds=max_lag_seconds)
             except NoEligibleMembersFound, ne:
                 logger.error(str(ne))
-
-            if best_secondary:
-                selected_member = best_secondary
-
-                # FAIL if best secondary was not a P0 within max_lag_seconds
-                # if cluster has any P0
-                if (max_lag_seconds and mongo_cluster.has_p0s() and
-                            best_secondary.priority != 0):
-                    msg = ("No eligible p0 secondary found within max lag '%s'"
-                           " for cluster '%s'" % (max_lag_seconds,
-                                                  mongo_cluster))
-                    raise NoEligibleMembersFound(source.uri, msg=msg)
-
-        if (not selected_member and
-            self.member_preference in [MemberPreference.BEST,
-                                       MemberPreference.PRIMARY_ONLY]):
-            # otherwise dump from primary if primary ok or if this is the
-            # last try. log warning because we are dumping from a primary
-            selected_member = primary_member
-
-        if selected_member:
-            return selected_member
+                return primary_member
+        # PRIMARY ONLY
+        elif self.member_preference == MemberPreference.PRIMARY_ONLY:
+            return primary_member
         else:
-            # error out
-            msg = ("No eligible secondary found within max lag '%s'"
-                   " for cluster '%s'" % (max_lag_seconds,
-                                          mongo_cluster))
-            raise NoEligibleMembersFound(source.uri, msg=msg)
+            self.raise_no_eligible_members_found(mongo_cluster, "Can't find any members for pref %s" %
+                                                 self.member_preference)
 
-    ###########################################################################
+    ####################################################################################################################
+    def raise_no_eligible_members_found(self, mongo_cluster, msg):
+        rs_conf = None
+        rs_status = None
+        try:
+            rs_status = mongo_cluster.primary_member.get_rs_status()
+        finally:
+            try:
+                rs_conf = mongo_cluster.primary_member.rs_conf
+            finally:
+                pass
+        raise NoEligibleMembersFound(mongo_cluster.uri, msg, rs_status=rs_status, rs_conf=rs_conf)
+
+
+    ####################################################################################################################
+    def get_cluster_best_secondary(self, mongo_cluster, max_lag_seconds=None):
+        """
+            Returns the best source member to get the pull from.
+            This only applicable for cluster connections.
+            best = passives with least lags, if no passives then least lag
+        """
+        members = mongo_cluster.members
+
+        all_secondaries = []
+        hidden_secondaries = []
+        p0_secondaries = []
+        other_secondaries = []
+
+        # check if there is a mongolab node
+        backup_node = mongo_cluster.get_mongolab_backup_node()
+
+        if backup_node:
+            logger.info("Found mongolabBackupNode '%s'. Validating ..." %
+                        backup_node)
+            # Ah! validate it if meets the conditions
+            self._validate_cluster_backup_node(backup_node, max_lag_seconds)
+            logger.info("mongolabBackupNode '%s' is valid! Returning as the "
+                        "best secondary for '%s'" % (backup_node, self))
+            return backup_node
+
+        master_status = mongo_cluster.primary_member.member_rs_status
+
+        # find secondaries
+        for member in members:
+            try:
+                if not member.is_online():
+                    logger.info("Member '%s' appears to be offline. "
+                                "Excluding..." % member)
+                    continue
+                elif member.is_secondary():
+                    all_secondaries.append(member)
+                    # compute lags
+                    member.compute_lag(master_status)
+                    if member.hidden:
+                        hidden_secondaries.append(member)
+                    elif member.priority == 0:
+                        p0_secondaries.append(member)
+                    else:
+                        other_secondaries.append(member)
+            except Exception, ex:
+                logger.exception("get_cluster_best_secondary(): Cannot determine "
+                                 "lag for '%s'. Skipping " % member)
+
+        if not all_secondaries:
+            self.raise_no_eligible_members_found(mongo_cluster, "No secondaries found for cluster '%s'" % mongo_cluster)
+
+        # NOTE: we use member_host property to sort instead of address since
+        # a member might have multiple addresses mapped to it but member_host
+        # will always be the same regardless which address you use to connect
+        # to the member. This is to ensure that this algorithm produces
+        # consistent results
+
+        hidden_secondaries.sort(key=operator.attrgetter('member_host'))
+        p0_secondaries.sort(key=operator.attrgetter('member_host'))
+        other_secondaries.sort(key=operator.attrgetter('member_host'))
+
+        # merge results into one list
+        merged_list = hidden_secondaries + p0_secondaries + other_secondaries
+
+        if merged_list:
+            for secondary in merged_list:
+                if max_lag_seconds is None:
+                    return secondary
+                elif secondary.lag_in_seconds <= max_lag_seconds:
+                    return secondary
+
+        self.raise_no_eligible_members_found(mongo_cluster,
+                                             "No secondaries found for cluster %s within max allowed lag %s" %
+                                             (self, max_lag_seconds))
+
+    ####################################################################################################################
+    def _validate_cluster_backup_node(self, mongo_cluster, backup_node, max_lag_seconds=None):
+        master_status = mongo_cluster.primary_member.member_rs_status
+        if not backup_node.is_online():
+            self.raise_no_eligible_members_found(mongo_cluster, "Backup Node '%s' is offline" % backup_node)
+
+        if not backup_node.is_secondary():
+            self.raise_no_eligible_members_found(mongo_cluster, "Backup Node '%s' not is not secondary" % backup_node)
+
+        if max_lag_seconds is not None:
+            backup_node.compute_lag(master_status)
+            if backup_node.lag_in_seconds > max_lag_seconds:
+                msg = ("Backup Node '%s' is lagging %s which is more"
+                       " than max lag allowed %s" %
+                       (backup_node, backup_node.lag_in_seconds,
+                        max_lag_seconds))
+                self.raise_no_eligible_members_found(mongo_cluster, msg)
+
+    ####################################################################################################################
     def _compute_cluster_stats(self, backup, mongo_cluster):
         cluster_stats = {
             "rsStatus": mongo_cluster.primary_member.get_rs_status()

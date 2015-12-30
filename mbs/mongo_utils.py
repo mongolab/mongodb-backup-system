@@ -1,7 +1,7 @@
 __author__ = 'abdul'
 
 # Contains mongo db utility functions
-import operator
+
 import time
 
 import pymongo
@@ -361,7 +361,7 @@ class MongoCluster(MongoConnector):
     def connection(self):
         return self.primary_member.connection
 
-    ###########################################################################
+    ####################################################################################################################
     def _init_members(self):
         uri_wrapper = self._uri_wrapper
         # validate that uri has DB set to admin or nothing
@@ -389,103 +389,6 @@ class MongoCluster(MongoConnector):
         self._primary_member = primary_member
 
     ###########################################################################
-    def get_best_secondary(self, max_lag_seconds=None):
-        """
-            Returns the best source member to get the pull from.
-            This only applicable for cluster connections.
-            best = passives with least lags, if no passives then least lag
-        """
-        members = self.members
-
-        all_secondaries = []
-        hidden_secondaries = []
-        p0_secondaries = []
-        other_secondaries = []
-
-        # check if there is a mongolab node
-        backup_node = self.get_mongolab_backup_node()
-
-        if backup_node:
-            logger.info("Found mongolabBackupNode '%s'. Validating ..." %
-                        backup_node)
-            # Ah! validate it if meets the conditions
-            self._validate_backup_node(backup_node, max_lag_seconds)
-            logger.info("mongolabBackupNode '%s' is valid! Returning as the "
-                        "best secondary for '%s'" % (backup_node, self))
-            return backup_node
-
-        master_status = self.primary_member.member_rs_status
-
-        # find secondaries
-        for member in members:
-            try:
-                if not member.is_online():
-                    logger.info("Member '%s' appears to be offline. "
-                                "Excluding..." % member)
-                    continue
-                elif member.is_secondary():
-                    all_secondaries.append(member)
-                    # compute lags
-                    member.compute_lag(master_status)
-                    if member.hidden:
-                        hidden_secondaries.append(member)
-                    elif member.priority == 0:
-                        p0_secondaries.append(member)
-                    else:
-                        other_secondaries.append(member)
-            except Exception, ex:
-                logger.exception("get_best_secondary(): Cannot determine "
-                                 "lag for '%s'. Skipping " % member)
-
-        if not all_secondaries:
-            raise NoEligibleMembersFound(self.uri, "No secondaries found for cluster '%s'" % self)
-
-        # NOTE: we use member_host property to sort instead of address since
-        # a member might have multiple addresses mapped to it but member_host
-        # will always be the same regardless which address you use to connect
-        # to the member. This is to ensure that this algorithm produces
-        # consistent results
-
-        hidden_secondaries.sort(key=operator.attrgetter('member_host'))
-        p0_secondaries.sort(key=operator.attrgetter('member_host'))
-        other_secondaries.sort(key=operator.attrgetter('member_host'))
-
-        # merge results into one list
-        merged_list = hidden_secondaries + p0_secondaries + other_secondaries
-
-        if merged_list:
-            for secondary in merged_list:
-                if max_lag_seconds is None:
-                    return secondary
-                elif secondary.lag_in_seconds <= max_lag_seconds:
-                    return secondary
-
-        raise NoEligibleMembersFound(self.uri, "No secondaries found for cluster %s within max"
-                                               " allowed lag %s" % (self, max_lag_seconds))
-
-    ###########################################################################
-    def _validate_backup_node(self, backup_node, max_lag_seconds=None):
-        master_status = self.primary_member.member_rs_status
-        if not backup_node.is_online():
-            raise NoEligibleMembersFound(self.uri,
-                                         "mongolabBackupNode '%s' is offline" %
-                                         backup_node)
-
-        if not backup_node.is_secondary():
-            raise NoEligibleMembersFound(self.uri,
-                                         "mongolabBackupNode '%s' not "
-                                         "secondary" % backup_node)
-
-        if max_lag_seconds is not None:
-            backup_node.compute_lag(master_status)
-            if backup_node.lag_in_seconds > max_lag_seconds:
-                msg = ("mongolabBackupNode '%s' is lagging %s which is more"
-                       " than max lag allowed %s" %
-                       (backup_node, backup_node.lag_in_seconds,
-                        max_lag_seconds))
-                raise NoEligibleMembersFound(self.uri, msg)
-
-    ###########################################################################
     def has_p0s(self):
         """
 
@@ -496,6 +399,7 @@ class MongoCluster(MongoConnector):
                 return True
 
         return False
+
     ###########################################################################
     def get_mongolab_backup_node(self):
         rs_conf = self.primary_member.rs_conf
