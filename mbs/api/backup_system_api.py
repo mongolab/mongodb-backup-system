@@ -149,27 +149,6 @@ class BackupSystemApiServer(ApiServer):
         super(BackupSystemApiServer, self).build_flask_server(flask_server)
 
         # build custom
-        @flask_server.errorhandler(MBSApiError)
-        def handle_invalid_usage(error):
-            response = jsonify(error.to_dict())
-            response.status_code = error.status_code
-            return response
-
-        # build stop method
-        @flask_server.route('/stop', methods=['GET'])
-        @self.api_auth_service.auth("/stop")
-        @self.mbs_endpoint
-        @crossdomain(origin='*')
-        def stop_api_server_request():
-            return document_pretty_string(self.stop_api_server())
-
-        #build status method
-        @flask_server.route('/status', methods=['GET'])
-        @self.api_auth_service.auth("/status")
-        @crossdomain(origin='*')
-        @self.mbs_endpoint
-        def status_request():
-            return document_pretty_string(self.status())
 
         # build get backup database names
         @flask_server.route('/get-backup-database-names',
