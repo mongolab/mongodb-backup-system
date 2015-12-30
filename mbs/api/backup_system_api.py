@@ -38,13 +38,6 @@ class BackupSystemApiServer(ApiServer):
 
     ###########################################################################
     @property
-    def api_auth_service(self):
-        if not self._api_auth_service:
-            self._api_auth_service = DefaultApiAuthService()
-        return self._api_auth_service
-
-    ###########################################################################
-    @property
     def backup_system(self):
         return get_mbs().backup_system
 
