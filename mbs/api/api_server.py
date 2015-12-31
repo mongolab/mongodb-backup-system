@@ -164,10 +164,9 @@ class ApiServer(Thread):
     ####################################################################################################################
     def _do_stop(self):
         try:
-            # This is how we stop waitress unfortunately
-            self._waitress_server.task_dispatcher.shutdown(timeout=5)
-            import asyncore
-            asyncore.socket_map.clear()
+            # This is how we stop waitress unfortunately, kill with sighup
+            import os
+            os.kill(os.getpid(), 1)
 
         except Exception:
             traceback.print_exc()

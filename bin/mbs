@@ -421,7 +421,7 @@ def _do_start_backup_event_listener(fork=False):
             redirect_std_to_logger()
 
     # forked child process
-    get_mbs().backup_event_listener.run()
+    get_mbs().backup_event_listener.start()
 
 ###############################################################################
 def stop_backup_event_listener(parsed_args):
