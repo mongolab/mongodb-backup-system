@@ -69,6 +69,9 @@ class MBS(object):
         self._backup_system = None
         self._api_server = None
 
+        # listens for backup events coming through rest
+        self._backup_event_listener = None
+
         self._api_client = None
 
 
@@ -255,7 +258,6 @@ class MBS(object):
 
         return self._api_server
 
-
     ###########################################################################
     @property
     def api_client(self):
@@ -269,6 +271,17 @@ class MBS(object):
                 self._api_client = mbs_client.client.backup_system_client()
 
         return self._api_client
+
+    ###########################################################################
+    @property
+    def backup_event_listener(self):
+
+        if not self._backup_event_listener:
+            listener_server_conf = self._get_config_value("backupEventListener")
+            if listener_server_conf:
+                self._backup_event_listener = self._maker.make(listener_server_conf)
+
+        return self._backup_event_listener
 
     ###########################################################################
     @property

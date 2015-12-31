@@ -369,6 +369,101 @@ def status_api_server(parsed_args):
 
     print document_pretty_string(api_client().get_status())
 
+
+###############################################################################
+# Backup Event Listener Commands
+###############################################################################
+def start_backup_event_listener(parsed_args):
+    validate_event_listener()
+
+    client = event_listener_client()
+
+    handlers = {
+        signal.SIGINT:  partial(client.stop_command),
+        signal.SIGTERM: partial(client.stop_command)
+    }
+    with SignalWatcher(handlers) as watcher:
+        status = client.get_status()
+        if status["status"] == STATUS_RUNNING:
+            print "BackupEventListener already started"
+            return
+        elif status["status"] == STATUS_STOPPING:
+            print ("BackupEventListener is stopping now. Please wait until it is "
+                   "completely stopped then try starting again")
+            return
+
+        _do_start_backup_event_listener(fork=not parsed_args.foreground)
+
+        def event_listener_started():
+            return client.get_status()["status"] == STATUS_RUNNING
+        wait_for(event_listener_started, timeout=5)
+
+        if event_listener_started():
+            print "BackupEventListener started successfully!"
+        else:
+            print "BackupEventListener did not start. Please check logs"
+
+        wait_for(lambda: watcher.signaled, log_func=lambda: True)
+
+###############################################################################
+def _do_start_backup_event_listener(fork=False):
+    if fork:
+        child_pid = os.fork()
+        if child_pid:
+            # parent process. return
+            print "Forked BackupEventListener process %s" % child_pid
+            return
+        else:
+            # need to disown yourself, Son
+            os.setsid()
+            os.umask(0)
+            # redirect std out/err to logger
+            redirect_std_to_logger()
+
+    # forked child process
+    get_mbs().backup_event_listener.run()
+
+###############################################################################
+def stop_backup_event_listener(parsed_args):
+    validate_event_listener()
+
+    client = event_listener_client()
+
+    status = client.get_status()
+    if status["status"] == STATUS_STOPPING:
+        print "A stop request has already been made"
+        return
+    elif status["status"] == STATUS_STOPPED:
+        print "BackupEventListener is not running"
+        return
+
+    print "Stopping BackupEventListener..."
+
+    client.stop_command()
+
+    def stopped():
+        return client.get_status()["status"] == "stopped"
+    print "Waiting for BackupEventListener to stop"
+    wait_for(stopped, timeout=100)
+
+    if stopped():
+        print "BackupEventListener stopped successfully. Bye!"
+    else:
+        print "Unable to stop api server within 100 seconds"
+        exit(1)
+
+###############################################################################
+def status_backup_event_listener(parsed_args):
+    validate_event_listener()
+
+    print document_pretty_string(event_listener_client().get_status())
+
+###############################################################################
+def validate_event_listener():
+    if not get_mbs().backup_event_listener:
+        print "No backup event listener configured"
+        exit(1)
+
 ###############################################################################
 def run_plan_generators(parsed_args):
     bs = _get_backup_system()
@@ -579,12 +674,18 @@ def _get_log_file_name(parsed_args):
         return "backup_system.log"
     elif "start-api-server" in parsed_args.raw_args:
         return "api-server.log"
+    elif "start-backup-event-listener" in parsed_args.raw_args:
+        return "backup-event-listener.log"
     else:
         return "mbs.log"
 
 ###############################################################################
 def api_client():
     return get_mbs().api_client
+
+###############################################################################
+def event_listener_client():
+    return get_mbs().backup_event_listener.local_client
 
 ###############################################################################
 # command parser
@@ -847,6 +948,60 @@ PARSER_DEF = {
                 "description": "gets the status of the backup system",
                 "function": status_api_server
             },
+
+
+        {
+            "prog": "start-backup-event-listener",
+            "shortDescription": "starts the event listener server",
+            "description": "starts the api server",
+            "function": start_backup_event_listener,
+            "args": [
+                {
+                    "name": "fork",
+                    "type": "optional",
+                    "cmd_arg":  "--fork",
+                    "nargs": 0,
+                    "help": "fork the server process",
+                    "action": "store_true",
+                    "default": True
+                },
+                {
+                    "name": "foreground",
+                    "type": "optional",
+                    "cmd_arg":  "--foreground",
+                    "nargs": 0,
+                    "help": "start server in foreground",
+                    "action": "store_true",
+                    "default": False
+                }
+            ]
+        },
+
+        #### stop-api-server ####
+        {
+            "prog": "stop-backup-event-listener",
+            "shortDescription": "stops the event listener",
+            "description": "stops the event listener",
+            "function": stop_backup_event_listener,
+            "args": [
+                {
+                    "name": "force",
+                    "type": "optional",
+                    "cmd_arg":  ["--force", "-f"],
+                    "nargs": 0,
+                    "help": "force stop event listener",
+                    "action": "store_true",
+                    "default": False
+                }
+            ]
+        },
+        #### status-backup-event-listener ####
+        {
+            "prog": "status-backup-event-listener",
+            "shortDescription": "gets the status of the event listener",
+            "description": "gets the status of the event listener",
+            "function": status_backup_event_listener
+        },
         #### run-plan-generators ####
             {
             "prog": "run-plan-generators",
