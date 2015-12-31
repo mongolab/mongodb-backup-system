@@ -10,7 +10,7 @@ from flask import Flask
 from mbs.utils import document_pretty_string, object_type_name
 from mbs.errors import MBSApiError
 from mbs.netutils import crossdomain
-
+from mbs_client.client import MBSClient
 
 
 from waitress import serve
@@ -45,6 +45,7 @@ class ApiServer(Thread):
         self._ssl_options = None
         self._num_workers = DEFAULT_NUM_WORKERS
         self._waitress_server = None
+        self._local_client = None
 
     ####################################################################################################################
     @property
@@ -106,6 +107,13 @@ class ApiServer(Thread):
         self._num_workers = val
 
     ####################################################################################################################
+    @property
+    def local_client(self):
+        if self._local_client is None:
+            self._local_client = MBSClient(api_url="http://0.0.0.0:%s" % self.port)
+        return self._local_client
+
+    ####################################################################################################################
     def status(self):
         return {
             "status": "running",
@@ -126,6 +134,7 @@ class ApiServer(Thread):
         @self.api_auth_service.auth("/stop")
         @crossdomain(origin='*')
         def stop_api_server_request():
+            logger.info("Received a stop command")
             return document_pretty_string(self.stop_api_server())
 
         # build status method
@@ -133,6 +142,7 @@ class ApiServer(Thread):
         @self.api_auth_service.auth("/status")
         @crossdomain(origin='*')
         def status_request():
+            logger.info("Received a status command")
             return document_pretty_string(self.status())
 
     ####################################################################################################################
