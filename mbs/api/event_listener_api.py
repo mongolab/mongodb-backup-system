@@ -2,7 +2,7 @@ __author__ = 'abdul'
 
 import logging
 
-from base import ApiServer
+from api_server import ApiServer
 from mbs.netutils import crossdomain
 
 
@@ -12,12 +12,14 @@ from mbs.netutils import crossdomain
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
-DEFAULT_NUM_WORKERS = 20
+###############################################################################
+# BackupEventListener
+###############################################################################
+class BackupEventListener(ApiServer):
 
-###############################################################################
-# BackupSystemApiServer
-###############################################################################
-class BackupEventListenerApiServer(ApiServer):
+    ###########################################################################
+    def __init__(self, port=9009):
+        super(BackupEventListener, self).__init__(port=port)
 
     ###########################################################################
     def handle_backup_event(self):
@@ -27,7 +29,7 @@ class BackupEventListenerApiServer(ApiServer):
     def build_flask_server(self, flask_server):
 
         # call super
-        super(BackupEventListenerApiServer, self).build_flask_server(flask_server)
+        super(BackupEventListener, self).build_flask_server(flask_server)
 
         # build restore method
         @flask_server.route('/handle-backup-event', methods=['POST'])

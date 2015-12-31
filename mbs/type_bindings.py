@@ -59,6 +59,7 @@ TYPE_BINDINGS = {
     "Event": "mbs.events.Event",
     "EventListener": "mbs.events.EventListener",
     "BackupFinishedEvent": "mbs.events.BackupFinishedEvent",
-    "BackupMonitorEventListener": "mbs.monitor.BackupMonitorEventListener"
+    "BackupMonitorEventListener": "mbs.monitor.BackupMonitorEventListener",
+    "BackupEventListener": "mbs.api.event_listener_api.BackupEventListener"
 
 }
