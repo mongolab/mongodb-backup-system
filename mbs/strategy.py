@@ -2396,7 +2396,7 @@ def backup_format_bindings(backup):
 
 ###############################################################################
 def backup_warning_keys(backup):
-    return set(map(lambda log_event: log_event.name, backup.get_warnings()))
+    return set(map(lambda log_event: log_event.name, backup.get_warning_logs()))
 
 
 ###############################################################################

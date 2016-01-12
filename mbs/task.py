@@ -231,18 +231,18 @@ class MBSTask(MBSObject):
 
     ###########################################################################
     def has_errors(self):
-        return len(self.get_errors()) > 0
+        return len(self.get_error_logs()) > 0
 
     ###########################################################################
     def has_warnings(self):
-        return len(self.get_warnings()) > 0
+        return len(self.get_warning_logs()) > 0
 
     ###########################################################################
-    def get_errors(self):
+    def get_error_logs(self):
         return self._get_logs_by_event_type(EventType.ERROR)
 
     ###########################################################################
-    def get_warnings(self):
+    def get_warning_logs(self):
         return self._get_logs_by_event_type(EventType.WARNING)
 
     ###########################################################################
@@ -255,8 +255,8 @@ class MBSTask(MBSObject):
             return self.logs[-1].message
 
     ###########################################################################
-    def get_last_error_code(self):
-        errors = self.get_errors()
+    def get_last_error(self):
+        errors = self.get_error_logs()
         if(errors):
             return errors[-1].error_code
 
