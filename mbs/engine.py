@@ -563,16 +563,14 @@ class TaskQueueProcessor(Thread):
     ###########################################################################
     def worker_crashed(self, worker):
         # page immediately
-        subject = "Backup Worker crashed!"
-        message = ("Backup worker crashed on engine '%s'" % self._engine.id)
+        subject = "Task Worker crashed for task %s!" % worker.backup
 
         errmsg = ("Worker crash detected! Worker (id %s, pid %s, task"
                   " id '%s') finished with a non-zero exit code '%s'"
-                  % (worker.id, worker.pid, worker.task_id,
-                  worker.exitcode))
+                  % (worker.id, worker.pid, worker.task_id, worker.exitcode))
 
         exception = EngineWorkerCrashedError(errmsg)
-        get_mbs().send_error_notification(subject, message, exception)
+        get_mbs().send_error_notification(subject, errmsg, exception)
 
         self.error(errmsg)
         self._cleanup_worker_resources(worker)
