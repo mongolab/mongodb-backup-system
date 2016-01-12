@@ -119,6 +119,9 @@ setup(
         'bin/st'
     ],
     packages=find_packages(),
+    package_data={
+        "notification": ["*.json"]
+    },
     install_requires=requirements()['core'],
     tests_require=requirements()['test'],
     dependency_links=requirements()['links'],
