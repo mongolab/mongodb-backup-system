@@ -60,6 +60,8 @@ TYPE_BINDINGS = {
     "EventListener": "mbs.events.EventListener",
     "BackupFinishedEvent": "mbs.events.BackupFinishedEvent",
     "BackupMonitorEventListener": "mbs.monitor.BackupMonitorEventListener",
-    "BackupEventListener": "mbs.api.event_listener_api.BackupEventListener"
+    "BackupEventListener": "mbs.api.event_listener_api.BackupEventListener",
+    "TemplateNotificationMessage": "mbs.notification.message.TemplateNotificationMessage",
+    "EmailNotification": "mbs.notification.message.EmailNotification"
 
 }
