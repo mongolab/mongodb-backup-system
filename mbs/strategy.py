@@ -1310,9 +1310,9 @@ class DumpStrategy(BackupStrategy):
         # execute dump command
         dump_info = self.backup_assistant.dump_backup(backup, uri, destination, log_file_name, options=dump_options)
         if dump_info and "dumpCollectionCounts" in dump_info:
-            backup.dump_collection_counts = dump_info["dumpCollectionCounts"]
+            backup.data_stats["dumpCollectionCounts"] = dump_info["dumpCollectionCounts"]
 
-        update_backup(backup, properties="dumpCollectionCounts",
+        update_backup(backup, properties="dataStats",
                       event_name=EVENT_END_EXTRACT,
                       message="Dump completed")
 
@@ -1483,7 +1483,7 @@ class DumpStrategy(BackupStrategy):
             options=restore_options)
 
         if restore_info and "restoreCollectionCounts" in restore_info:
-            restore.restore_collection_counts = restore_info["restoreCollectionCounts"]
+            restore.data_stats["restoreCollectionCounts"] = restore_info["restoreCollectionCounts"]
 
         update_restore(restore, properties="restoreCollectionCounts",
                        event_name="END_RESTORE_DUMP",
@@ -1493,13 +1493,13 @@ class DumpStrategy(BackupStrategy):
     def _validate_restore(self, restore):
         try:
 
-            restore.dump_collection_counts = read_dump_collection_counts(restore.source_backup)
-            update_restore(restore, properties="dumpCollectionCounts",
+            restore.data_stats["dumpCollectionCounts"] = read_dump_collection_counts(restore.source_backup)
+            update_restore(restore, properties="dataStats",
                            event_name="READ_DUMP_COLLECTION_COUNTS",
                            message="Reading mongodump collection counts for validation")
 
-            restore.destination_collection_counts = self.get_destination_collection_counts(restore)
-            update_restore(restore, properties="destinationCollectionCounts",
+            restore.data_stats["destinationCollectionCounts"] = self.get_destination_collection_counts(restore)
+            update_restore(restore, properties="dataStats",
                            event_name="GET_DEST_COLLECTION_COUNTS",
                            message="Reading destination collection counts for validation")
 
@@ -1516,14 +1516,14 @@ class DumpStrategy(BackupStrategy):
         src_db = restore.source_database_name or restore.source_backup.source.database_name
         dest_db = restore.destination.database_name
 
-        c1 = self._comparable_collection_count(restore.dump_collection_counts, src_db=src_db, dest_db=dest_db)
-        c2 = self._comparable_collection_count(restore.restore_collection_counts)
-        c3 = self._comparable_collection_count(restore.destination_collection_counts)
+        c1 = self._comparable_collection_count(restore.data_stats.get("dumpCollectionCounts"), src_db=src_db, dest_db=dest_db)
+        c2 = self._comparable_collection_count(restore.data_stats.get("restoreCollectionCounts"))
+        c3 = self._comparable_collection_count(restore.data_stats.get("destinationCollectionCounts"))
         all_counts = [c1, c2, c3]
 
         # add backup dump counts if present
-        if restore.source_backup.dump_collection_counts:
-            c4 = self._comparable_collection_count(restore.source_backup.dump_collection_counts,
+        if restore.source_backup.data_stats.get("dumpCollectionCounts"):
+            c4 = self._comparable_collection_count(restore.source_backup.data_stats.get("dumpCollectionCounts"),
                                                    src_db=src_db, dest_db=dest_db)
             all_counts.append(c4)
 

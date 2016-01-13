@@ -14,9 +14,8 @@ class Restore(MBSTask):
         self._source_database_name = None
         self._destination = None
         self._destination_stats = None
-        self._dump_collection_counts = None
-        self._restore_collection_counts = None
-        self._destination_collection_counts = None
+
+        self._data_stats = {}
         self._valid = None
 
     ###########################################################################
@@ -71,30 +70,12 @@ class Restore(MBSTask):
 
     ###########################################################################
     @property
-    def dump_collection_counts(self):
-        return self._dump_collection_counts
+    def data_stats(self):
+        return self._data_stats
 
-    @dump_collection_counts.setter
-    def dump_collection_counts(self, val):
-        self._dump_collection_counts = val
-
-    ###########################################################################
-    @property
-    def restore_collection_counts(self):
-        return self._restore_collection_counts
-
-    @restore_collection_counts.setter
-    def restore_collection_counts(self, val):
-        self._restore_collection_counts = val
-
-    ###########################################################################
-    @property
-    def destination_collection_counts(self):
-        return self._destination_collection_counts
-
-    @destination_collection_counts.setter
-    def destination_collection_counts(self, val):
-        self._destination_collection_counts = val
+    @data_stats.setter
+    def data_stats(self, val):
+        self._data_stats = val
 
     ###########################################################################
     @property
@@ -113,9 +94,7 @@ class Restore(MBSTask):
             "sourceBackup": DBRef("backups", self.source_backup.id),
             "sourceDatabaseName": self.source_database_name,
             "destination": self.destination.to_document(display_only=display_only),
-            "dumpCollectionCounts": self.dump_collection_counts,
-            "restoreCollectionCounts": self.restore_collection_counts,
-            "destinationCollectionCounts": self.destination_collection_counts,
+            "dataStats": self.data_stats,
             "valid": self.valid
         })
 
