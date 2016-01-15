@@ -902,22 +902,6 @@ class ShardedClusterConnector(MongoConnector):
         return stats
 
     ###########################################################################
-    def select_shard_best_secondaries(self, max_lag_seconds=None):
-        best_secondaries = []
-
-        for shard in self.shards:
-            shard_best = shard.get_best_secondary(max_lag_seconds=
-                                                  max_lag_seconds)
-            if not shard_best:
-                raise NoEligibleMembersFound(shard.uri, msg="No best secondary found within max lag "
-                                                            "for shard '%s'" % shard.connector_id)
-            best_secondaries.append(shard_best)
-
-        self._selected_shard_secondaries = best_secondaries
-
-        return best_secondaries
-
-    ###########################################################################
     def config_db(self):
         return self.router.get_db("config")
 

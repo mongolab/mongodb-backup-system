@@ -440,9 +440,24 @@ class BackupStrategy(MBSObject):
     def _select_backup_sharded_cluster_members(self, backup, sharded_cluster):
         # MAX LAG HAS TO BE 5 for sharded backups!
         # select best secondaries within shards
-        sharded_cluster.select_shard_best_secondaries(max_lag_seconds=5)
+        self.select_shard_best_secondaries(max_lag_seconds=5)
 
         return sharded_cluster
+
+    ###########################################################################
+    def select_shard_best_secondaries(self, sharded_cluster, max_lag_seconds=None):
+        best_secondaries = []
+
+        for shard in sharded_cluster.shards:
+            shard_best = self.get_cluster_best_secondary(shard, max_lag_seconds=max_lag_seconds)
+            if not shard_best:
+                raise NoEligibleMembersFound(shard.uri, msg="No best secondary found within max lag "
+                                                            "for shard '%s'" % shard.connector_id)
+            best_secondaries.append(shard_best)
+
+        sharded_cluster._selected_shard_secondaries = best_secondaries
+
+        return best_secondaries
 
     ###########################################################################
     def _needs_new_member_selection(self, backup):
