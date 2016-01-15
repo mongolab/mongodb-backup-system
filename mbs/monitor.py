@@ -27,7 +27,6 @@ class BackupMonitor(ScheduleRunner):
     def __init__(self, backup_system):
         self._backup_system = backup_system
         ScheduleRunner.__init__(self, schedule=Schedule(frequency_in_seconds=5*60))
-        self._backup_monitor_event_listener = BackupMonitorEventListener(backup_monitor=self)
 
     ###########################################################################
     def run(self):
@@ -36,10 +35,6 @@ class BackupMonitor(ScheduleRunner):
     ###########################################################################
     def tick(self):
         self._notify_on_past_due_scheduled_backups()
-
-    ###########################################################################
-    def on_backup_event(self, event):
-        logger.info("BACKUP %s finished with state %s" % (event.backup.id, event.state))
 
     ###########################################################################
     def _notify_on_past_due_scheduled_backups(self):
@@ -65,28 +60,3 @@ class BackupMonitor(ScheduleRunner):
                 sbj = "Past due scheduled backups"
                 get_mbs().send_notification(sbj, msg)
                 break
-
-###############################################################################
-# BackupMonitorEventListener
-###############################################################################
-class BackupMonitorEventListener(EventListener):
-
-    ###########################################################################
-    def __init__(self, backup_monitor=None):
-        super(BackupMonitorEventListener, self).__init__()
-        self.event_types = [BackupEventTypes.BACKUP_FINISHED]
-        self.name = "BackupMonitorEventListener"
-        self._backup_monitor = backup_monitor
-
-    ###########################################################################
-    def handle_event(self, event):
-        self._backup_monitor.on_backup_event(event)
-
-    ###########################################################################
-    def to_document(self, display_only=False):
-        doc = super(BackupMonitorEventListener, self).to_document(display_only=display_only)
-        doc.update({
-            "_type": "BackupMonitorEventListener"
-        })
-
-        return doc
