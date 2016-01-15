@@ -560,7 +560,7 @@ class BackupStrategy(MBSObject):
             logger.info("Found mongolabBackupNode '%s'. Validating ..." %
                         backup_node)
             # Ah! validate it if meets the conditions
-            self._validate_cluster_backup_node(backup_node, max_lag_seconds)
+            self._validate_cluster_backup_node(mongo_cluster, backup_node, max_lag_seconds)
             logger.info("mongolabBackupNode '%s' is valid! Returning as the "
                         "best secondary for '%s'" % (backup_node, self))
             return backup_node
