@@ -440,7 +440,7 @@ class BackupStrategy(MBSObject):
     def _select_backup_sharded_cluster_members(self, backup, sharded_cluster):
         # MAX LAG HAS TO BE 5 for sharded backups!
         # select best secondaries within shards
-        self.select_shard_best_secondaries(max_lag_seconds=5)
+        self.select_shard_best_secondaries(sharded_cluster, max_lag_seconds=5)
 
         return sharded_cluster
 
