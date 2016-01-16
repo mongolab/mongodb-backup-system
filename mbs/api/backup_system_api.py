@@ -220,5 +220,9 @@ class BackupSystemApiServer(ApiServer):
 ########################################################################################################################
 
 def get_requested_backup_id():
-    return get_request_value("backupId")
+    backup_id = get_request_value("backupId")
+    if isinstance(backup_id, dict):
+        backup_id = backup_id["$oid"]
+
+    return backup_id
 
