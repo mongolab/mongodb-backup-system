@@ -343,6 +343,11 @@ class BackupSystem(Thread):
 
         # create a copy of plan tags to backup to keep original plan tag values
         tags = plan.tags.copy() if plan.tags else None
+        # TODO XXX temporarily setting max allowed lag here just incase some engine has old bug of computing max lag
+
+        strategy = plan.strategy
+        if not strategy.max_lag_seconds and plan_occurrence:
+            strategy.max_lag_seconds = plan.schedule.max_acceptable_lag(plan_occurrence)
 
         backup = self.schedule_backup(strategy=plan.strategy,
                                       source=plan.source,
