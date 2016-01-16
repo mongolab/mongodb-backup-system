@@ -468,11 +468,13 @@ class BackupStrategy(MBSObject):
 
     ####################################################################################################################
     def _max_allowed_lag_for_backup(self, backup):
-        max_lag_seconds = self.max_lag_seconds or DEFAULT_MAX_LAG
+        max_lag_seconds = self.max_lag_seconds
         # compute max lag
-        if not max_lag_seconds and backup.plan:
-            max_lag_seconds = backup.plan.schedule.max_acceptable_lag(
-                backup.plan_occurrence)
+        if not max_lag_seconds:
+            if backup.plan:
+                max_lag_seconds = backup.plan.schedule.max_acceptable_lag(backup.plan_occurrence)
+            else:
+                max_lag_seconds = DEFAULT_MAX_LAG
 
         return max_lag_seconds
 
