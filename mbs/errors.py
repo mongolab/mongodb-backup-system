@@ -826,3 +826,12 @@ def to_mbs_error_code(error):
         return error
     else:
         return MBSErrorWrapper(msg=str(error), cause=error)
+
+########################################################################################################################
+def str_in_exception_message(s, ex, ignore_case=False):
+    ex_str = utils.str_ignore_unicode(str(ex))
+    if ignore_case:
+        ex_str = ex_str.lower()
+
+    return s in ex_str
+
