@@ -758,7 +758,6 @@ class MBSApiError(Exception):
 ########################################################################################################################
 def raise_dump_error(returncode, error_log_line, last_namespace=None):
     # encode error log line
-    error_log_line = utils.str_to_unicode(error_log_line)
     if (returncode == 245 or
             ("Failed: error creating bson file" in error_log_line and
                 "no such file or directory" in error_log_line)):
