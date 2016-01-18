@@ -757,11 +757,4 @@ def object_full_type_name(obj):
 def object_type_name(obj):
     return obj.__class__.__name__
 
-###############################################################################
-def str_to_unicode(s):
-    return s.decode('utf-8')
-
-###############################################################################
-def str_ignore_unicode(s):
-    return str_to_unicode(s).encode('ascii', 'ignore')
 

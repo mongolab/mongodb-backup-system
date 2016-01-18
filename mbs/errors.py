@@ -830,7 +830,7 @@ def to_mbs_error_code(error):
 
 ########################################################################################################################
 def str_in_exception_message(s, ex, ignore_case=False):
-    ex_str = utils.str_ignore_unicode(str(ex))
+    ex_str = unicode(ex).encode('ascii', 'ignore')
     if ignore_case:
         ex_str = ex_str.lower()
 
