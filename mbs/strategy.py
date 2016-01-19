@@ -1089,6 +1089,8 @@ class DumpStrategy(BackupStrategy):
         BackupStrategy.__init__(self)
         self._force_table_scan = None
         self._dump_users = None
+        self._dump_options_overrides = None
+        self._restore_options_overrides = None
 
     ###########################################################################
     @property
@@ -1107,6 +1109,25 @@ class DumpStrategy(BackupStrategy):
     @dump_users.setter
     def dump_users(self, val):
         self._dump_users = val
+
+
+    ###########################################################################
+    @property
+    def dump_options_overrides(self):
+        return self._dump_options_overrides
+
+    @dump_options_overrides.setter
+    def dump_options_overrides(self, val):
+        self._dump_options_overrides = val
+
+    ###########################################################################
+    @property
+    def restore_options_overrides(self):
+        return self._restore_options_overrides
+
+    @restore_options_overrides.setter
+    def restore_options_overrides(self, val):
+        self._restore_options_overrides = val
 
     ###########################################################################
     def to_document(self, display_only=False):
@@ -1323,6 +1344,9 @@ class DumpStrategy(BackupStrategy):
                     self.dump_users is not False):
             dump_options.append("--dumpDbUsersAndRoles")
 
+        # apply overrides
+        self._apply_dump_options_overrides(dump_options)
+
         log_file_name = _log_file_name(backup)
         # execute dump command
         dump_info = self.backup_assistant.dump_backup(backup, uri, destination, log_file_name, options=dump_options)
@@ -1490,6 +1514,8 @@ class DumpStrategy(BackupStrategy):
         if self.no_index_restore:
             restore_options.append("--noIndexRestore")
 
+        restore_options = self._apply_restore_options_overrides(restore_options)
+
         # execute dump command
         restore_info = self.backup_assistant.run_mongo_restore(
             restore, dest_uri, dump_dir, source_database_name,
@@ -1596,6 +1622,71 @@ class DumpStrategy(BackupStrategy):
 
         logger.info("Upload log file for %s completed successfully!" %
                     restore.id)
+
+
+    ###########################################################################
+    def _apply_dump_options_overrides(self, dump_options):
+        return self._apply_mongoctl_options_overrides(dump_options, self.dump_options_overrides)
+
+    ###########################################################################
+    def _apply_restore_options_overrides(self, restore_options):
+        return self._apply_mongoctl_options_overrides(restore_options, self.restore_options_overrides)
+
+    ###########################################################################
+    def _apply_mongoctl_options_overrides(self, options, overrides):
+        """
+
+        :param options as list:
+        :param overrides as list:
+        :return applies overrides in the overrides list to the options list:
+        """
+        options = options or []
+        overrides = overrides or []
+
+        options_dict = _option_list_to_dict(options)
+        overrides_dict = _option_list_to_dict(overrides)
+
+        for name, val in overrides_dict.items():
+            options_dict[name] = val
+
+        # convert
+        return _dict_to_option_list(options_dict)
+
+###############################################################################
+def _option_list_to_dict(options):
+    """
+
+    :param options:
+    :return options as a dictionary:
+    """
+    options_dict = {}
+    option_name = None
+
+    for o in options:
+        if o.startswith("-"):
+            option_name = o
+            options_dict[option_name] = []
+            continue
+        else:
+            option_val = o
+            options_dict[option_name].append(option_val)
+
+    return options_dict
+
+###############################################################################
+def _dict_to_option_list(options_dict):
+    """
+
+    :param options_dict:
+    :return options as list:
+    """
+    options = []
+    for name, val in options_dict.items():
+        options.append(name)
+        options.extend(val)
+
+    return options
+
 
 ###############################################################################
 # Helpers
