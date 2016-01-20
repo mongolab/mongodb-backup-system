@@ -477,7 +477,7 @@ class BackupSystem(Thread):
 
             self.info("Saved backup plan \n%s" % plan)
             # process plan to set next occurrence
-            self._process_plan(plan)
+            self._scheduler._process_plan(plan)
             return plan
         except Exception, e:
             args_str = dict_to_str(kwargs)
