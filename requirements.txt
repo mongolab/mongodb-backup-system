@@ -22,6 +22,7 @@ mbs_client>=0.2.7
 azure==1.0.1
 requests==2.0.1
 waitress==0.8.10
+python-simple-hipchat==0.4.0
 
 https://github.com/objectlabs/robustify/archive/0.1.0.zip#egg=robustify-0.1.0
 https://github.com/objectlabs/maker-py/archive/0.1.8.zip#egg=makerpy-0.1.9

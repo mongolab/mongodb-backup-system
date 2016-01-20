@@ -10,7 +10,7 @@ from sendgrid import Sendgrid, Message
 
 from .message import get_messages
 from ..utils import listify
-
+import hipchat
 
 DEFAULT_NOTIFICATION_SUBJECT = "Backup System Notification"
 
@@ -247,6 +247,74 @@ class SmtpNotificationHandler(EmailNotificationHandler):
     @smtp_password.setter
     def smtp_password(self, smtp_password):
         self._smtp_password = smtp_password
+
+
+###############################################################################
+# HipchatNotificationHandler
+###############################################################################
+class HipchatNotificationHandler(NotificationHandler):
+
+    ###########################################################################
+    def __init__(self):
+        NotificationHandler.__init__(self)
+
+        self._api_token = None
+        self._room_id = None
+        self._from_name = None
+        self._color = None
+
+    ###########################################################################
+    @property
+    def api_token(self):
+        return self._api_token
+
+    @api_token.setter
+    def api_token(self, val):
+        self._api_token = val
+
+    ###########################################################################
+    @property
+    def room_id(self):
+        return self._room_id
+
+    @room_id.setter
+    def room_id(self, val):
+        self._room_id = val
+
+    ###########################################################################
+    @property
+    def from_name(self):
+        return self._from_name
+
+    @from_name.setter
+    def from_name(self, val):
+        self._from_name = val
+
+    ###########################################################################
+    @property
+    def color(self):
+        return self._color
+
+    @color.setter
+    def color(self, val):
+        self._color = val
+
+    ###########################################################################
+
+    def send_notification(self, subject, message, recipient=None):
+
+        try:
+
+            room_id = recipient or self.room_id
+            logger.info("Sending notification hipchat...")
+            hipster = hipchat.HipChat(token=self.api_token)
+
+            hipchat_message = "%s\n\n%s" % (subject, message)
+            hipster.message_room(room_id, self.from_name, hipchat_message, color=self.color)
+            logger.info("Email sent successfully!")
+        except Exception, e:
+            logger.error("Error while sending email:\n%s" %
+                         traceback.format_exc())
 
 ###############################################################################
 def get_class_full_name(clazz):
