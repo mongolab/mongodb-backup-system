@@ -89,6 +89,8 @@ class MBS(object):
         self._event_listener_collection = None
         self._event_queue = None
 
+        self._error_notification_handler = None
+
     ###########################################################################
     @property
     def temp_dir(self):
@@ -295,6 +297,15 @@ class MBS(object):
 
     ###########################################################################
     @property
+    def error_notification_handler(self):
+        handler_conf = self._get_config_value("errorNotificationHandler")
+        if not self._error_notification_handler and handler_conf:
+            self._error_notification_handler = self._maker.make(handler_conf)
+
+        return self._error_notification_handler
+
+    ###########################################################################
+    @property
     def default_backup_assistant(self):
         import backup_assistant
         assistant_conf = self._get_config_value("defaultBackupAssistant")
@@ -318,7 +329,7 @@ class MBS(object):
 
     ###########################################################################
     def send_error_notification(self, subject, message, exception):
-        nh = self.notification_handler
+        nh = self.error_notification_handler
         if nh:
             nh.send_error_notification(subject, message, exception)
 
