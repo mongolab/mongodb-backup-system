@@ -299,9 +299,14 @@ class DumpError(MBSError):
     ###########################################################################
     def to_document(self, display_only=False):
         doc = super(DumpError, self).to_document(display_only=display_only)
+        # truncate log line
+        error_line = self.error_log_line
+        if error_line and len(error_line) > 1000:
+            error_line = self.error_log_line[:1000]
+
         doc.update({
             "returnCode": self.return_code,
-            "errorLogLine": self.error_log_line,
+            "errorLogLine": error_line,
             "lastNamespace": self.last_namespace
         })
 
