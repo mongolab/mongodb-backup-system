@@ -11,6 +11,7 @@ from sendgrid import Sendgrid, Message
 from .message import get_messages
 from ..utils import listify
 import hipchat
+import pygerduty
 
 DEFAULT_NOTIFICATION_SUBJECT = "Backup System Notification"
 
@@ -314,6 +315,71 @@ class HipchatNotificationHandler(NotificationHandler):
             logger.info("Email sent successfully!")
         except Exception, e:
             logger.error("Error while sending email:\n%s" %
+                         traceback.format_exc())
+
+
+###############################################################################
+# PagerDutyNotificationHandler
+###############################################################################
+class PagerDutyNotificationHandler(NotificationHandler):
+
+    ###########################################################################
+    def __init__(self):
+        NotificationHandler.__init__(self)
+
+        self._api_key = None
+        self._service_key = None
+        self._sub_domain = None
+        self._client_name = None
+
+    ###########################################################################
+    @property
+    def api_key(self):
+        return self._api_key
+
+    @api_key.setter
+    def api_key(self, val):
+        self._api_key = val
+
+    ###########################################################################
+    @property
+    def service_key(self):
+        return self._service_key
+
+    @service_key.setter
+    def service_key(self, val):
+        self._service_key = val
+
+    ###########################################################################
+    @property
+    def sub_domain(self):
+        return self._sub_domain
+
+    @sub_domain.setter
+    def sub_domain(self, val):
+        self._sub_domain = val
+
+    ###########################################################################
+    @property
+    def client_name(self):
+        return self._client_name
+
+    @client_name.setter
+    def client_name(self, val):
+        self._client_name = val
+
+    ###########################################################################
+    def send_notification(self, subject, message, recipient=None):
+
+        try:
+            pager = pygerduty.PagerDuty(self.sub_domain, self.api_key)
+            kwargs = {}
+            if self.client_name:
+                kwargs["client"] = self.client_name
+
+            pager.create_event(self.service_key, subject, "trigger", message, subject, kwargs)
+        except Exception, e:
+            logger.error("Error while creating pager duty event:\n%s" %
                          traceback.format_exc())
 
 ###############################################################################
