@@ -13,7 +13,7 @@ from mongo_uri_tools import parse_mongo_uri
 from bson.son import SON
 from errors import *
 from date_utils import timedelta_total_seconds
-from utils import is_host_local, document_pretty_string
+from utils import is_host_local, document_pretty_string, safe_stringify
 from verlib import NormalizedVersion, suggest_normalized_version
 from bson.objectid import ObjectId
 import logging
@@ -58,7 +58,7 @@ def mongo_connect(uri, conn_timeout=None, **kwargs):
     except Exception, e:
         if is_connection_exception(e):
             raise ConnectionError(uri_wrapper.masked_uri, cause=e)
-        elif "authentication failed" in str(e):
+        elif "authentication failed" in safe_stringify(e):
             raise AuthenticationFailedError(uri_wrapper.masked_uri, cause=e)
         else:
             raise

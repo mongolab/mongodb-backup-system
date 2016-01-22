@@ -20,7 +20,7 @@ from date_utils import timedelta_total_seconds, date_now, mid_date_between, date
 
 from subprocess import CalledProcessError
 from errors import *
-from utils import (which, ensure_dir, execute_command, execute_command_wrapper,
+from utils import (which, ensure_dir, execute_command, execute_command_wrapper, safe_stringify,
                    listify, list_dir_subdirs, document_pretty_string)
 
 from source import CompositeBlockStorage
@@ -518,7 +518,7 @@ class BackupStrategy(MBSObject):
             try:
                 return self.get_cluster_best_secondary(mongo_cluster, max_lag_seconds=max_lag_seconds)
             except NoEligibleMembersFound, ne:
-                logger.error(str(ne))
+                logger.error(safe_stringify(ne))
                 return primary_member
         # PRIMARY ONLY
         elif self.member_preference == MemberPreference.PRIMARY_ONLY:

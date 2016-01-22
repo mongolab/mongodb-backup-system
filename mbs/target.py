@@ -14,7 +14,7 @@ import mbs
 import s3_utils
 
 from base import MBSObject
-from utils import which, execute_command, export_mbs_object_list
+from utils import which, execute_command, export_mbs_object_list, safe_stringify
 from azure.storage.blob import BlobService
 from boto.s3.key import Key
 from boto.exception import S3ResponseError
@@ -501,7 +501,7 @@ class S3BucketTarget(BackupTarget):
                                                        self.bucket_name)
                 self._bucket = bucket
             except S3ResponseError, re:
-                if "404" in str(re) or "403" in str(re):
+                if "404" in safe_stringify(re) or "403" in safe_stringify(re):
                     raise TargetInaccessibleError(self.bucket_name,
                                                   cause=re)
                 else:
@@ -676,17 +676,17 @@ class S3BucketTarget(BackupTarget):
                                   (self.bucket_name))
             except Exception, e:
                 logger.exception("has_sufficient_permissions() error")
-                errors.append(str(e))
+                errors.append(safe_stringify(e))
             finally:
                 if key is not None:
                     try:
                         key.delete()
                     except Exception as e:
                         logger.exception("has_sufficient_permissions() error")
-                        errors.append(str(e))
+                        errors.append(safe_stringify(e))
         except Exception as e:
             logger.exception("has_sufficient_permissions() error")
-            errors.append(str(e))
+            errors.append(safe_stringify(e))
 
         return errors
 
@@ -750,7 +750,7 @@ class RackspaceCloudFilesTarget(BackupTarget):
             container_obj = container.create_object(destination_path)
             container_obj.load_from_filename(file_path)
         except Exception, ex:
-            if "unauthorized" in str(ex).lower():
+            if "unauthorized" in safe_stringify(ex).lower():
                 raise TargetConnectionError(self.container_name, ex)
             else:
                 raise
@@ -846,7 +846,7 @@ class RackspaceCloudFilesTarget(BackupTarget):
             return True
         except Exception, e:
             # handle case when file does not exist
-            err = str(e)
+            err = safe_stringify(e)
             if "404" in err:
                 return False
             if "403" in err:

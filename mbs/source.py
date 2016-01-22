@@ -28,7 +28,7 @@ from oauth2client.client import SignedJwtAssertionCredentials
 from apiclient.http import HttpRequest, HttpError
 
 from utils import (
-    freeze_mount_point, unfreeze_mount_point, export_mbs_object_list,
+    freeze_mount_point, unfreeze_mount_point, export_mbs_object_list, safe_stringify,
     suspend_lvm_mount_point, resume_lvm_mount_point, safe_format, random_string
 )
 
@@ -454,7 +454,7 @@ class EbsVolumeStorage(VolumeStorage):
             return True
         except Exception, e:
             if ("does not exist" in str(e) or
-                "InvalidSnapshot.NotFound" in str(e)):
+                "InvalidSnapshot.NotFound" in safe_stringify(e)):
                 logger.warning("Snapshot '%s' does not exist" % snapshot_id)
                 return False
             else:
@@ -482,7 +482,7 @@ class EbsVolumeStorage(VolumeStorage):
             else:
                 raise Ec2SnapshotDoesNotExistError("Snapshot %s does not exist!" % ebs_ref.snapshot_id)
         except Exception, e:
-            if not isinstance(e, Ec2SnapshotDoesNotExistError) and "InvalidSnapshot.NotFound" in str(e):
+            if not isinstance(e, Ec2SnapshotDoesNotExistError) and "InvalidSnapshot.NotFound" in safe_stringify(e):
                 raise Ec2SnapshotDoesNotExistError("Snapshot %s does not exist!" % ebs_ref.snapshot_id)
             else:
                 raise

@@ -1,7 +1,7 @@
 __author__ = 'abdul'
 
 from netutils import fetch_url
-from utils import random_string
+from utils import random_string, safe_stringify
 from date_utils import date_to_seconds, date_plus_seconds, date_now
 from hashlib import sha1
 
@@ -34,7 +34,7 @@ def set_account_temp_url_key(storage_url,  auth_token, temp_key):
     try:
         return fetch_url(storage_url, headers=headers, method="POST")
     except Exception, e:
-        if "204" in str(e):
+        if "204" in safe_stringify(e):
             pass
         else:
             raise

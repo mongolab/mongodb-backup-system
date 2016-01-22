@@ -757,4 +757,12 @@ def object_full_type_name(obj):
 def object_type_name(obj):
     return obj.__class__.__name__
 
+###############################################################################
+def safe_stringify(exception):
+    """
+
+    :param exception:
+    :return:
+    """
+    return unicode(exception).encode('ascii', 'ignore')
 

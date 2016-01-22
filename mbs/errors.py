@@ -91,7 +91,7 @@ class MBSError(Exception, MBSObject):
             else:
                 doc["cause"] = {
                     "causeType": utils.object_full_type_name(self.cause),
-                    "message": str(self.cause)
+                    "message": utils.safe_stringify(self.cause)
                 }
 
         return doc
@@ -632,7 +632,7 @@ def is_connection_exception(exception):
     if isinstance(exception, ConnectionFailure):
         return True
     else:
-        msg = unicode(exception)
+        msg = utils.safe_stringify(exception)
         return ("timed out" in msg or "refused" in msg or "reset" in msg or
                 "Broken pipe" in msg or "closed" in msg or "IncompleteRead" in msg)
 
@@ -654,7 +654,7 @@ def raise_if_not_retriable(exception):
 ###############################################################################
 def raise_if_not_ec2_retriable(exception):
     # retry on boto request limit and other ec2 errors
-    msg = str(exception)
+    msg = utils.safe_stringify(exception)
     if ((isinstance(exception, BotoServerError) and
          exception.status == 503) or "ConcurrentTagAccess" in msg):
         logger.warn("Caught a retriable exception: %s" % exception)
@@ -762,6 +762,7 @@ class MBSApiError(Exception):
 # Error Utility functions
 ########################################################################################################################
 def raise_dump_error(returncode, error_log_line, last_namespace=None):
+    error_log_line = utils.safe_stringify(error_log_line)
     # encode error log line
     if (returncode == 245 or
             ("Failed: error creating bson file" in error_log_line and
@@ -831,13 +832,6 @@ def to_mbs_error_code(error):
     if isinstance(error, MBSError):
         return error
     else:
-        return MBSErrorWrapper(msg=str(error), cause=error)
+        return MBSErrorWrapper(msg=utils.safe_stringify(error), cause=error)
 
-########################################################################################################################
-def str_in_exception_message(s, ex, ignore_case=False):
-    ex_str = unicode(ex).encode('ascii', 'ignore')
-    if ignore_case:
-        ex_str = ex_str.lower()
-
-    return s in ex_str
 

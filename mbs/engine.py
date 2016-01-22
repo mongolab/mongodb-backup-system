@@ -23,7 +23,7 @@ from errors import (
     to_mbs_error_code
 )
 
-from utils import (resolve_path, get_local_host_name,
+from utils import (resolve_path, get_local_host_name, safe_stringify,
                    document_pretty_string, force_kill_process_and_children)
 
 from mbs import get_mbs
@@ -543,7 +543,7 @@ class TaskQueueProcessor(Thread):
         else:
             log_msg = "Unexpected error. Please contact admin"
 
-        details = str(exception)
+        details = safe_stringify(exception)
         task = worker.get_task()
 
         self.task_collection.update_task(
