@@ -669,8 +669,7 @@ class BackupSweeper(ScheduleRunner):
 
     ###########################################################################
     def _wait_for_queue_to_be_empty(self):
-        while not self._sweep_queue.empty():
-            time.sleep(1)
+        self._sweep_queue.join()
 
     ###########################################################################
     def _stop_and_wait_for_all_workers_to_finish(self):
@@ -786,8 +785,13 @@ class SweepWorker(ScheduleRunner):
 
     ###########################################################################
     def tick(self):
-        while not self._sweep_queue.empty():
-            backup = self._sweep_queue.get(True)
+        while True:
+
+            try:
+                backup = self._sweep_queue.get_nowait()
+            except Queue.Empty:
+                # breaking
+                break
             self._total_processed += 1
             try:
                 deleted = self._backup_sweeper.delete_backup_targets(backup)
@@ -802,6 +806,8 @@ class SweepWorker(ScheduleRunner):
                 msg = ("%s\n\nStack Trace:\n%s" % (msg,
                                                    traceback.format_exc()))
                 get_mbs().send_error_notification(subject, msg, ex)
+            finally:
+                self._sweep_queue.task_done()
 
 
 ###############################################################################
