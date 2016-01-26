@@ -722,17 +722,21 @@ class BackupSweeper(ScheduleRunner):
         except Exception, e:
             msg = "Error while attempting to expire backup '%s': " % e
             logger.exception(msg)
+            # if the backup expiration has errored out for 5 times (including this time) then mark as deleted
+            if backup.event_logged_count("DELETE_ERROR") > 5:
+                msg = ("Giving up on delete backup '%s'. Failed at least 5 times. Marking backup as deleted" %
+                       backup.id)
+                logger.warning(msg)
+                # set deleted date
+                backup.deleted_date = date_now()
+                get_mbs().send_error_notification("Error deleting backup", msg, e)
+
             persistence.update_backup(backup,
                                       event_name="DELETE_ERROR",
                                       message=msg,
+                                      properties=["deletedDate"],
                                       event_type=EventType.ERROR)
-            # if the backup expiration has errored out for 3 times then mark as
-            # unexpirable
-            if backup.event_logged_count("DELETE_ERROR") >= 3:
-                logger.info("Giving up on delete backup '%s'. Failed at least"
-                            " three times. Marking backup as deleted" %
-                            backup.id)
-                raise
+
 
     ###########################################################################
     def validate_backup_target_delete(self, backup):
