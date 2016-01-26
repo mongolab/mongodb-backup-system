@@ -647,10 +647,10 @@ class BackupSweeper(ScheduleRunner):
             self._sweep_queue.put(backup)
             backups_iterated += 1
             # PERFORMANCE OPTIMIZATION
-            # process 100 at max at a time
+            # process 10 at max at a time
             # This is needed because making backup objects (from within the backups_iter) takes up a lot of CPU/Memory
             # This is needed to give it a breath
-            if backups_iterated % 100 == 0:
+            if backups_iterated % 10 == 0:
                 self._wait_for_queue_to_be_empty()
 
         self._finish_cycle()
