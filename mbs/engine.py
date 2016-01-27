@@ -219,7 +219,7 @@ class BackupEngine(Thread):
         message = ("BackupEngine '%s' Error!. Cause: %s. "
                    "\n\nStack Trace:\n%s" %
                    (self.engine_guid, exception, traceback.format_exc()))
-        get_mbs().send_error_notification(subject, message, exception)
+        get_mbs().notifications.send_error_notification(subject, message, exception)
 
 
     ###########################################################################
@@ -555,10 +555,9 @@ class TaskQueueProcessor(Thread):
 
         self.worker_finished(worker, task, State.FAILED)
 
-        nh = get_mbs().notification_handler
         # send a notification only if the task is not reschedulable
-        if task.exceeded_max_tries and nh:
-            nh.notify_on_task_failure(task, exception, trace)
+        if task.exceeded_max_tries:
+            get_mbs().notifications.notify_on_task_failure(task, exception, trace)
 
     ###########################################################################
     def worker_crashed(self, worker):
@@ -570,7 +569,7 @@ class TaskQueueProcessor(Thread):
                   % (worker.id, worker.pid, worker.task_id, worker.exitcode))
 
         exception = EngineWorkerCrashedError(errmsg)
-        get_mbs().send_error_notification(subject, errmsg, exception)
+        get_mbs().notifications.send_error_notification(subject, errmsg, exception)
 
         self.error(errmsg)
         self._cleanup_worker_resources(worker)

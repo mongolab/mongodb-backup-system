@@ -24,6 +24,105 @@ logger.addHandler(logging.NullHandler())
 
 
 ###############################################################################
+# NotificationPriority class
+class NotificationPriority(object):
+    NORMAL = "normal"
+    CRITICAL = "critical"
+
+
+###############################################################################
+# NotificationPriority class
+class NotificationType(object):
+    DEFAULT = "default"
+    ERROR = "error"
+    EVENT = "event"
+
+###############################################################################
+# Notifications class
+###############################################################################
+class Notifications(object):
+    def __init__(self):
+        self._handlers = {}
+        self._handler_mapping = {}
+
+    ###########################################################################
+    @property
+    def handlers(self):
+        return self._handlers
+
+    @handlers.setter
+    def handlers(self, val):
+        self._handlers = val
+
+    ###########################################################################
+    @property
+    def handler_mapping(self):
+        return self._handler_mapping
+
+    @handler_mapping.setter
+    def handler_mapping(self, val):
+        self._handler_mapping = val
+
+    ###########################################################################
+    def send_notification(self, subject, message, recipient=None,
+                          notification_type=NotificationType.DEFAULT,
+                          priority=None):
+        handlers = self.get_handlers_for(notification_type, priority=priority) or []
+        for handler in handlers:
+            try:
+                handler.send_notification(subject, message, recipient)
+            except Exception, ex:
+                logger.exception("Exception while sending notification")
+
+    ###########################################################################
+    def send_error_notification(self, subject, message):
+        self.send_notification(subject, message, notification_type=NotificationType.ERROR)
+
+    ###########################################################################
+    def send_event_notification(self, subject, message, priority=None):
+        self.send_notification(subject, message, notification_type=NotificationType.EVENT,
+                               priority=priority)
+
+    ###########################################################################
+    def notify_on_task_failure(self, task, exception, trace):
+        self.send_notification(
+            "Task failed",
+            get_messages()['TaskFailureNotification'].get_message({
+                'id': task.id,
+                'task': task,
+                'exception': exception,
+                'trace': trace}))
+
+    ###########################################################################
+    def notify_task_reschedule_failed(self, task):
+        self.send_notification(
+            'Task Reschedule Failed',
+            get_messages()['TaskRescheduleFailed'].get_message({
+                'task': task}))
+    ###########################################################################
+    def get_handlers_for(self, notification_type, priority=NotificationPriority.NORMAL):
+        handlers_conf = self.handler_mapping.get(notification_type)
+        handler_names = None
+
+        if not handlers_conf:
+            handler_names = NotificationType.DEFAULT
+        else:
+            if isinstance(handlers_conf, dict):
+                handler_names = handlers_conf.get(priority)
+            else:
+                handler_names = str(handlers_conf)
+
+        return map(self._get_handler_by_name, listify(handler_names))
+
+    ###########################################################################
+    def get_default_handler(self):
+        return self.handler_mapping.get(NotificationType.DEFAULT)
+
+    ###########################################################################
+    def _get_handler_by_name(self, name):
+        return self._handlers.get(name)
+
+###############################################################################
 #################################            ##################################
 #################################  handlers  ##################################
 #################################            ##################################
@@ -41,51 +140,6 @@ class NotificationHandler(object):
     ###########################################################################
     def send_notification(self, subject, message, recipient=None):
         pass
-
-    ###########################################################################
-    def send_error_notification(self, subject, message, exception):
-        recipient = self.get_recipient_by_error_class(exception.__class__)
-
-        self.send_notification(subject, message, recipient)
-
-    ###########################################################################
-    def notify_on_task_failure(self, task, exception, trace):
-        self.send_notification(
-            "Task failed",
-            get_messages()['TaskFailureNotification'].get_message({
-                'id': task.id,
-                'task': task,
-                'exception': exception,
-                'trace': trace}))
-
-    ###########################################################################
-    def notify_task_reschedule_failed(self, task):
-        self.send_notification(
-            'Task Reschedule Failed', 
-            get_messages()['TaskRescheduleFailed'].get_message({
-                'task': task}))
-
-    ###########################################################################
-    def get_recipient_by_error_class(self, error_class):
-        class_name = get_class_full_name(error_class)
-        if class_name in self.error_recipient_mapping:
-            return self.error_recipient_mapping[class_name]
-        else:
-            for base in error_class.__bases__:
-                recipient = self.get_recipient_by_error_class(base)
-                if recipient:
-                    return recipient
-
-
-
-    ###########################################################################
-    @property
-    def error_recipient_mapping(self):
-        return self._error_recipient_mapping
-
-    @error_recipient_mapping.setter
-    def error_recipient_mapping(self, val):
-        self._error_recipient_mapping = val
 
 ###############################################################################
 # EmailNotificationHandler
@@ -307,12 +361,16 @@ class HipchatNotificationHandler(NotificationHandler):
         try:
 
             room_id = recipient or self.room_id
-            logger.info("Sending notification hipchat...")
+            logger.info("Sending notification hipchat '%s'..." % subject)
             hipster = hipchat.HipChat(token=self.api_token)
 
             hipchat_message = "%s\n\n%s" % (subject, message)
+            # limit message to 9000 chars
+            if len(hipchat_message) > 9000:
+                hipchat_message = hipchat_message[:9000] + "..."
             hipster.message_room(room_id, self.from_name, hipchat_message, color=self.color)
-            logger.info("Email sent successfully!")
+
+            logger.info("Hipchat sent successfully!")
         except Exception, e:
             logger.error("Error while sending email:\n%s" %
                          traceback.format_exc())
@@ -377,7 +435,8 @@ class PagerDutyNotificationHandler(NotificationHandler):
             if self.client_name:
                 kwargs["client"] = self.client_name
 
-            pager.create_event(self.service_key, subject, "trigger", message, subject, kwargs)
+            logger.info("PagerDuty: Sending notification: %s..." % subject)
+            pager.create_event(self.service_key, subject, "trigger", message, subject, **kwargs)
         except Exception, e:
             logger.error("Error while creating pager duty event:\n%s" %
                          traceback.format_exc())

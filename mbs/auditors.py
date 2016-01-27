@@ -55,10 +55,9 @@ class BackupAuditor(object):
 class GlobalAuditor():
 
     ###########################################################################
-    def __init__(self, audit_collection, notification_handler=None):
+    def __init__(self, audit_collection):
         self._auditors = []
         self._audit_collection = audit_collection
-        self._notification_handler = notification_handler
 
     ###########################################################################
     def register_auditor(self, auditor):
@@ -76,14 +75,13 @@ class GlobalAuditor():
             logger.info("GlobalAuditor: Saving audit report: \n%s" % report)
             self._audit_collection.save_document(report.to_document())
 
-            # send notification if specified
-            if self._notification_handler:
-                self._send_audit_report(auditor, report)
+            # send audit report
+            self._send_audit_report(auditor, report)
         except Exception, e:
             sbj = "Auditor %s Error" % auditor.name
             msg = ("Auditor %s Error!.\n\nStack Trace:\n%s" %
                    (auditor.name, traceback.format_exc()))
-            get_mbs().send_error_notification(sbj, msg, e)
+            get_mbs().notifications.send_error_notification(sbj, msg, e)
 
     ###########################################################################
     def generate_yesterday_audit_reports(self):
@@ -95,7 +93,8 @@ class GlobalAuditor():
                    (auditor.name, datetime_to_string(report.audit_date)))
 
         message = report.summary()
-        self._notification_handler.send_notification(subject, message)
+        get_mbs().notifications.send_notification(subject, message,
+                                                  notification_type="audit")
 
 ###############################################################################
 # PlanScheduleAuditor

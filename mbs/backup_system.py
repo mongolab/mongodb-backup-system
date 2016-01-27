@@ -87,7 +87,6 @@ class BackupSystem(Thread):
         # auditing stuff
 
         # init global editor
-        self._audit_notification_handler = None
         self._auditors = None
         self._global_auditor = None
         self._audit_schedule = None
@@ -122,15 +121,6 @@ class BackupSystem(Thread):
 
     ###########################################################################
     @property
-    def audit_notification_handler(self):
-        return self._audit_notification_handler
-
-    @audit_notification_handler.setter
-    def audit_notification_handler(self, handler):
-        self._audit_notification_handler = handler
-
-    ###########################################################################
-    @property
     def audit_schedule(self):
         return self._audit_schedule
 
@@ -143,9 +133,7 @@ class BackupSystem(Thread):
     def global_auditor(self):
         if not self._global_auditor:
             ac = get_mbs().audit_collection
-            nh = self.audit_notification_handler
-            self._global_auditor = GlobalAuditor(audit_collection=ac,
-                                                 notification_handler=nh)
+            self._global_auditor = GlobalAuditor(audit_collection=ac)
             # register auditors with global auditor
             if self.auditors:
                 for auditor in self.auditors:
@@ -294,7 +282,7 @@ class BackupSystem(Thread):
             self._task_failed_to_schedule(backup, bc, ex)
 
         if backup.state == State.FAILED:
-            self._notify_task_reschedule_failed(backup)
+            get_mbs().notifications.notify_task_reschedule_failed(backup)
             trigger_task_finished_event(backup, State.FAILED)
 
         bc.update_task(backup, properties=props,
@@ -728,13 +716,7 @@ class BackupSystem(Thread):
         message = ("BackupSystem Error!.\n\nStack Trace:\n%s" %
                    traceback.format_exc())
 
-        get_mbs().send_error_notification(subject, message, exception)
-
-    ###########################################################################
-    def _notify_task_reschedule_failed(self, task):
-        nh = get_mbs().notification_handler
-        if nh:
-            nh.notify_task_reschedule_failed(task)
+        get_mbs().notifications.send_error_notification(subject, message, exception)
 
     ###########################################################################
     def _kill_backup_system_process(self):

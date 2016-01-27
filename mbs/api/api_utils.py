@@ -37,7 +37,7 @@ def send_api_error(end_point, exception):
     message = ("BackupSystemAPI Error on '%s'.\n\nStack Trace:\n%s" %
                (end_point, traceback.format_exc()))
 
-    get_mbs().send_error_notification(subject, message, exception)
+    get_mbs().notifications.send_error_notification(subject, message, exception)
 
 ########################################################################################################################
 def raise_forbidden_error(msg):

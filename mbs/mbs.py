@@ -25,7 +25,7 @@ from plan import BackupPlan
 from audit import AuditReport
 
 from encryption import Encryptor
-from events import Event, EventQueue, EventListener
+
 
 ###############################################################################
 # LOGGER
@@ -55,8 +55,8 @@ class MBS(object):
         # make the maker
         self._maker =  Maker(type_bindings=self._type_bindings)
 
-        # init notification handler
-        self._notification_handler = self.get_notification_handler()
+        #  notifications
+        self._notifications = None
 
         # init object collections
         self._backup_collection = None
@@ -88,8 +88,6 @@ class MBS(object):
         self._event_colllection = None
         self._event_listener_collection = None
         self._event_queue = None
-
-        self._error_notification_handler = None
 
     ###########################################################################
     @property
@@ -225,9 +223,6 @@ class MBS(object):
             raise MBSError("No 'engines' configured")
 
         engines = self._maker.make(engines_conf)
-        for engine in engines:
-            engine.notification_handler = self._notification_handler
-
         return engines
 
 
@@ -287,22 +282,12 @@ class MBS(object):
 
     ###########################################################################
     @property
-    def notification_handler(self):
-        return self._notification_handler
+    def notifications(self):
+        if not self._notifications:
+            notifications_conf = self._get_config_value("notifications")
+            self._notifications = self.maker.make(notifications_conf)
 
-    ###########################################################################
-    def get_notification_handler(self):
-        handler_conf = self._get_config_value("notificationHandler")
-        return self._maker.make(handler_conf)
-
-    ###########################################################################
-    @property
-    def error_notification_handler(self):
-        handler_conf = self._get_config_value("errorNotificationHandler")
-        if not self._error_notification_handler and handler_conf:
-            self._error_notification_handler = self._maker.make(handler_conf)
-
-        return self._error_notification_handler
+        return self._notifications
 
     ###########################################################################
     @property
@@ -320,18 +305,6 @@ class MBS(object):
                 self._default_backup_assistant.temp_dir = self.temp_dir
 
         return self._default_backup_assistant
-
-    ###########################################################################
-    def send_notification(self, subject, message):
-        nh = self.notification_handler
-        if nh:
-            nh.send_notification(subject, message)
-
-    ###########################################################################
-    def send_error_notification(self, subject, message, exception):
-        nh = self.error_notification_handler
-        if nh:
-            nh.send_error_notification(subject, message, exception)
 
     ###########################################################################
     def _get_encryptor(self):
