@@ -4,9 +4,7 @@ from schedule_runner import ScheduleRunner
 from schedule import Schedule
 from globals import State
 from mbs import get_mbs
-from date_utils import date_now, date_minus_seconds
-from task import EVENT_STATE_CHANGE
-from events import EventListener, BackupEventTypes
+from mbs.notification.handler import NotificationPriority, NotificationType
 
 import logging
 
@@ -58,5 +56,6 @@ class BackupMonitor(ScheduleRunner):
                 logger.info(msg)
                 logger.info("Sending a notification...")
                 sbj = "Past due scheduled backups"
-                get_mbs().send_notification(sbj, msg)
+                get_mbs().notifications.send_notification(sbj, msg, notification_type=NotificationType.EVENT,
+                                                          priority=NotificationPriority.CRITICAL)
                 break

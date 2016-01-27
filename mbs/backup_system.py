@@ -43,6 +43,8 @@ from monitor import BackupMonitor
 from scheduler import BackupScheduler
 from task_utils import set_task_retry_info, trigger_task_finished_event
 
+from mbs.notification.handler import NotificationPriority, NotificationType
+
 ###############################################################################
 ########################                                #######################
 ########################           Backup System        #######################
@@ -708,7 +710,8 @@ class BackupSystem(Thread):
 
             self.info("Sending a notification...")
             sbj = "Late in-progress backups"
-            get_mbs().send_notification(sbj, msg)
+            get_mbs().notifications.send_notification(sbj, msg, notification_type=NotificationType.EVENT,
+                                                      priority=NotificationPriority.CRITICAL)
 
     ###########################################################################
     def _notify_error(self, exception):
