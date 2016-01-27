@@ -43,7 +43,7 @@ from monitor import BackupMonitor
 from scheduler import BackupScheduler
 from task_utils import set_task_retry_info, trigger_task_finished_event
 
-from mbs.notification.handler import NotificationPriority, NotificationType
+from notification.handler import NotificationPriority, NotificationType
 
 ###############################################################################
 ########################                                #######################

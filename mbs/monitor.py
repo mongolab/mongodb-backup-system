@@ -4,7 +4,7 @@ from schedule_runner import ScheduleRunner
 from schedule import Schedule
 from globals import State
 from mbs import get_mbs
-from mbs.notification.handler import NotificationPriority, NotificationType
+from notification.handler import NotificationPriority, NotificationType
 
 import logging
 
