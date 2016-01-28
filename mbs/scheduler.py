@@ -4,18 +4,20 @@ from schedule_runner import ScheduleRunner
 from schedule import Schedule
 from globals import State
 from mbs import get_mbs
-from date_utils import date_now, date_plus_seconds, mid_date_between
+from date_utils import date_now, timedelta_total_seconds
 from task import EVENT_STATE_CHANGE
 import traceback
 import logging
-from errors import InvalidPlanError, is_exception_retriable
-from persistence import update_backup
+from errors import InvalidPlanError
+
+import Queue
 ########################################################################################################################
 # LOGGER
 ########################################################################################################################
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
+PLAN_WORKER_COUNT = 5
 ########################################################################################################################
 class BackupScheduler(ScheduleRunner):
     """
@@ -25,6 +27,18 @@ class BackupScheduler(ScheduleRunner):
     def __init__(self, backup_system):
         self._backup_system = backup_system
         ScheduleRunner.__init__(self, schedule=Schedule(frequency_in_seconds=10))
+        self._plans_queue = Queue.Queue()
+        self._plan_workers = None
+
+    ####################################################################################################################
+    def run(self):
+        self._plan_workers = []
+        for i in range(0, PLAN_WORKER_COUNT):
+            worker = PlanWorker(self, self._plans_queue)
+            self._plan_workers.append(worker)
+            worker.start()
+
+        super(BackupScheduler,self).run()
 
     ####################################################################################################################
     def tick(self):
@@ -41,18 +55,18 @@ class BackupScheduler(ScheduleRunner):
     ####################################################################################################################
     def _process_plans_considered_now(self, process_max_count=None):
         count = 0
+        start_date = date_now()
         for plan in self._get_plans_to_consider_now(limit=process_max_count):
-            try:
-                self._process_plan(plan)
-            except Exception, e:
-                logger.exception("Error while processing plan '%s'. "
-                                 "Cause: %s" % (plan.id, e))
-
-                self._backup_system._notify_error(e)
+            self._plans_queue.put(plan)
             if process_max_count:
                 count += 1
                 if count >= process_max_count:
                     break
+        # wait for workers to finish
+        self._plans_queue.join()
+
+        time_elapsed = timedelta_total_seconds(date_now() - start_date)
+        logger.info("Finished processing %s plans in %s seconds" % ((process_max_count or "all"), time_elapsed))
 
     ####################################################################################################################
     def _process_plan(self, plan):
@@ -200,3 +214,37 @@ class BackupScheduler(ScheduleRunner):
         return get_mbs().backup_collection.find_one(q) is not None
 
     ####################################################################################################################
+
+
+#########################################################################################################################
+
+PLAN_WORKER_SCHEDULE = Schedule(frequency_in_seconds=1)
+
+class PlanWorker(ScheduleRunner):
+    """
+        A Thread that periodically expire backups that are due for expiration
+    """
+    ####################################################################################################################
+    def __init__(self, scheduler, plan_queue):
+        ScheduleRunner.__init__(self, schedule=PLAN_WORKER_SCHEDULE)
+        self._scheduler = scheduler
+        self._plan_queue = plan_queue
+
+    ####################################################################################################################
+    def tick(self):
+        while True:
+
+            try:
+                plan = self._plan_queue.get_nowait()
+            except Queue.Empty:
+                # breaking
+                break
+            try:
+                self._scheduler._process_plan(plan)
+            except Exception, e:
+                logger.exception("Error while processing plan '%s'. "
+                                 "Cause: %s" % (plan.id, e))
+
+                self._scheduler._backup_system._notify_error(e)
+            finally:
+                self._plan_queue.task_done()
