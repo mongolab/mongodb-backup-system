@@ -5,7 +5,7 @@ from schedule import Schedule
 from globals import State
 from mbs import get_mbs
 from notification.handler import NotificationPriority, NotificationType
-
+from mbs.date_utils import date_minus_seconds, date_now
 import logging
 
 ###############################################################################
@@ -13,6 +13,11 @@ import logging
 ###############################################################################
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
+
+
+# maximum backup wait time in seconds: default to five hours
+MAX_BACKUP_WAIT_TIME = 5 * 60 * 60
+ONE_OFF_BACKUP_MAX_WAIT_TIME = 60
 
 ###############################################################################
 # BackupMonitor
@@ -52,7 +57,7 @@ class BackupMonitor(ScheduleRunner):
         past_due_backup_ids = []
 
         for backup in get_mbs().backup_collection.find_iter(q):
-            if self._backup_system.is_backup_past_due(backup):
+            if self.is_backup_past_due(backup):
                 past_due_backup_ids.append(str(backup.id))
 
         if past_due_backup_ids:
@@ -63,3 +68,16 @@ class BackupMonitor(ScheduleRunner):
             sbj = "Past due scheduled backups"
             get_mbs().notifications.send_notification(sbj, msg, notification_type=NotificationType.EVENT,
                                                       priority=NotificationPriority.CRITICAL)
+
+
+    ###########################################################################
+    def is_backup_past_due(self, backup):
+
+        max_wait_time = MAX_BACKUP_WAIT_TIME
+        if backup.plan:
+            if isinstance(backup.plan.schedule, Schedule):
+                max_wait_time = min(MAX_BACKUP_WAIT_TIME, backup.plan.schedule.frequency_in_seconds / 2)
+        else:
+            max_wait_time = ONE_OFF_BACKUP_MAX_WAIT_TIME
+
+        return backup.state == State.SCHEDULED and date_minus_seconds(date_now(), max_wait_time) > backup.created_date

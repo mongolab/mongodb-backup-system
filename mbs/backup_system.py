@@ -60,10 +60,6 @@ logger.addHandler(logging.NullHandler())
 ###############################################################################
 # Constants
 ###############################################################################
-# maximum backup wait time in seconds: default to five hours
-MAX_BACKUP_WAIT_TIME = 5 * 60 * 60
-ONE_OFF_BACKUP_MAX_WAIT_TIME = 60
-
 
 BACKUP_SYSTEM_STATUS_RUNNING = "running"
 BACKUP_SYSTEM_STATUS_STOPPING = "stopping"
@@ -636,18 +632,6 @@ class BackupSystem(Thread):
             return time_str_to_datetime_today(self._audit_schedule)
 
     ###########################################################################
-    def is_backup_past_due(self, backup):
-
-        max_wait_time = MAX_BACKUP_WAIT_TIME
-        if backup.plan:
-            if isinstance(backup.plan.schedule, Schedule):
-                max_wait_time = min(MAX_BACKUP_WAIT_TIME, backup.plan.schedule.frequency_in_seconds / 2)
-        else:
-            max_wait_time = ONE_OFF_BACKUP_MAX_WAIT_TIME
-
-        return backup.state == State.SCHEDULED and date_minus_seconds(date_now(), max_wait_time) > backup.created_date
-
-    ###########################################################################
     def _resolve_task_tags(self, task):
         if task.tags:
             for name, value in task.tags.items():
@@ -682,36 +666,6 @@ class BackupSystem(Thread):
                            details=msg,
                            error_code=error_code,
                            event_type=EventType.ERROR)
-
-
-    ###########################################################################
-    def _notify_on_late_in_progress_backups(self):
-        """
-            Send notifications for jobs that have been in progress for a period
-            longer than a MAX_BACKUP_WAIT_TIME threshold
-        """
-
-        min_start_date = date_minus_seconds(date_now(), MAX_BACKUP_WAIT_TIME)
-        q = {
-            "state": State.IN_PROGRESS,
-            "startDate": {
-                "$lt": min_start_date
-            }
-        }
-
-        late_backups = get_mbs().backup_collection.find(q)
-
-        if late_backups:
-            msg = ("You have %s in-progress backups that has been running for"
-                   " more than the maximum waiting time (%s seconds)." %
-                   (len(late_backups), MAX_BACKUP_WAIT_TIME))
-            self.info(msg)
-
-
-            self.info("Sending a notification...")
-            sbj = "Late in-progress backups"
-            get_mbs().notifications.send_notification(sbj, msg, notification_type=NotificationType.EVENT,
-                                                      priority=NotificationPriority.CRITICAL)
 
 
     ###########################################################################
