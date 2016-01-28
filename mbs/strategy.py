@@ -615,7 +615,7 @@ class BackupStrategy(MBSObject):
 
         self.raise_no_eligible_members_found(mongo_cluster,
                                              "No secondaries found for cluster %s within max allowed lag %s" %
-                                             (self, max_lag_seconds))
+                                             (mongo_cluster, max_lag_seconds))
 
     ####################################################################################################################
     def _validate_cluster_backup_node(self, mongo_cluster, backup_node, max_lag_seconds=None):
