@@ -5,7 +5,7 @@ from schedule import Schedule
 from globals import State
 from mbs import get_mbs
 from notification.handler import NotificationPriority, NotificationType
-from mbs.date_utils import date_minus_seconds, date_now
+from date_utils import date_minus_seconds, date_now
 import logging
 
 ###############################################################################
