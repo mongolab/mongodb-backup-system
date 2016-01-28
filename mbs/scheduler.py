@@ -65,8 +65,9 @@ class BackupScheduler(ScheduleRunner):
         # wait for workers to finish
         self._plans_queue.join()
 
-        time_elapsed = timedelta_total_seconds(date_now() - start_date)
-        logger.info("Finished processing %s plans in %s seconds" % ((process_max_count or "all"), time_elapsed))
+        if count:
+            time_elapsed = timedelta_total_seconds(date_now() - start_date)
+            logger.info("Finished processing %s plans in %s seconds" % ((count or "all"), time_elapsed))
 
     ####################################################################################################################
     def _process_plan(self, plan):
