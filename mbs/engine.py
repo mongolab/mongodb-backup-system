@@ -415,7 +415,6 @@ class TaskQueueProcessor(Thread):
             except Exception, e:
                 self.error("Caught an error: '%s'.\nStack Trace:\n%s" %
                            (e, traceback.format_exc()))
-                self._engine._notify_error(e)
             finally:
                 time.sleep(self._sleep_time)
 
