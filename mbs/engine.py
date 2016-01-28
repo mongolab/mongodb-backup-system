@@ -214,15 +214,6 @@ class BackupEngine(Thread):
         self.restore_processor.join()
 
     ###########################################################################
-    def _notify_error(self, exception):
-        subject = "BackupEngine Error (%s)" % type(exception)
-        message = ("BackupEngine '%s' Error!. Cause: %s. "
-                   "\n\nStack Trace:\n%s" %
-                   (self.engine_guid, exception, traceback.format_exc()))
-        get_mbs().notifications.send_error_notification(subject, message)
-
-
-    ###########################################################################
     def _get_tag_bindings(self):
         """
             Returns a dict of binding name/value that will be used for

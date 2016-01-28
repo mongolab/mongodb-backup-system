@@ -249,6 +249,9 @@ class PlanWorker(ScheduleRunner):
                 logger.exception("Error while processing plan '%s'. "
                                  "Cause: %s" % (plan.id, e))
 
-                self._scheduler._backup_system._notify_error(e)
+                subject = "Plan Scheduler Error"
+                message = ("Error while processing plan '%s'. Cause: %s.\n\nStack Trace:\n%s" %
+                           (plan.id, e, traceback.format_exc()))
+                get_mbs().notifications.send_error_notification(subject, message)
             finally:
                 self._plan_queue.task_done()

@@ -729,7 +729,6 @@ class BackupSweeper(ScheduleRunner):
                 logger.warning(msg)
                 # set deleted date
                 backup.deleted_date = date_now()
-                get_mbs().notifications.send_error_notification("Error deleting backup", msg)
 
             persistence.update_backup(backup,
                                       event_name="DELETE_ERROR",
@@ -814,10 +813,6 @@ class SweepWorker(ScheduleRunner):
                 msg = ("BackupSweeper: Error while attempting to "
                        "delete backup targets for backup '%s'" % backup.id)
                 logger.exception(msg)
-                subject = "BackupSweeper Error"
-                msg = ("%s\n\nStack Trace:\n%s" % (msg,
-                                                   traceback.format_exc()))
-                get_mbs().notifications.send_error_notification(subject, msg)
             finally:
                 self._sweep_queue.task_done()
 

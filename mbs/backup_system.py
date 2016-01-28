@@ -713,13 +713,6 @@ class BackupSystem(Thread):
             get_mbs().notifications.send_notification(sbj, msg, notification_type=NotificationType.EVENT,
                                                       priority=NotificationPriority.CRITICAL)
 
-    ###########################################################################
-    def _notify_error(self, exception):
-        subject = "BackupSystem Error"
-        message = ("BackupSystem Error!.\n\nStack Trace:\n%s" %
-                   traceback.format_exc())
-
-        get_mbs().notifications.send_error_notification(subject, message)
 
     ###########################################################################
     def _kill_backup_system_process(self):
