@@ -72,7 +72,12 @@ class BackupMonitor(ScheduleRunner):
 
     ###########################################################################
     def is_backup_past_due(self, backup):
+        max_wait_time = self.get_backup_max_wait_time(backup)
+        return (backup.state == State.SCHEDULED and
+                date_minus_seconds(date_now(), max_wait_time) > backup.created_date)
 
+    ###########################################################################
+    def get_backup_max_wait_time(self, backup):
         max_wait_time = MAX_BACKUP_WAIT_TIME
         if backup.plan:
             if isinstance(backup.plan.schedule, Schedule):
@@ -80,4 +85,4 @@ class BackupMonitor(ScheduleRunner):
         else:
             max_wait_time = ONE_OFF_BACKUP_MAX_WAIT_TIME
 
-        return backup.state == State.SCHEDULED and date_minus_seconds(date_now(), max_wait_time) > backup.created_date
+        return max_wait_time
