@@ -32,13 +32,16 @@ class BackupScheduler(ScheduleRunner):
 
     ####################################################################################################################
     def run(self):
+        self._init_workers()
+        super(BackupScheduler,self).run()
+
+    ####################################################################################################################
+    def _init_workers(self):
         self._plan_workers = []
         for i in range(0, PLAN_WORKER_COUNT):
             worker = PlanWorker(self, self._plans_queue)
             self._plan_workers.append(worker)
             worker.start()
-
-        super(BackupScheduler,self).run()
 
     ####################################################################################################################
     def tick(self):
