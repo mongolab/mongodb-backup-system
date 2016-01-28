@@ -719,7 +719,7 @@ class BackupSystem(Thread):
         message = ("BackupSystem Error!.\n\nStack Trace:\n%s" %
                    traceback.format_exc())
 
-        get_mbs().notifications.send_error_notification(subject, message, exception)
+        get_mbs().notifications.send_error_notification(subject, message)
 
     ###########################################################################
     def _kill_backup_system_process(self):

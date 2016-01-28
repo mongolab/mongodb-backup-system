@@ -219,7 +219,7 @@ class BackupEngine(Thread):
         message = ("BackupEngine '%s' Error!. Cause: %s. "
                    "\n\nStack Trace:\n%s" %
                    (self.engine_guid, exception, traceback.format_exc()))
-        get_mbs().notifications.send_error_notification(subject, message, exception)
+        get_mbs().notifications.send_error_notification(subject, message)
 
 
     ###########################################################################
@@ -569,7 +569,7 @@ class TaskQueueProcessor(Thread):
                   % (worker.id, worker.pid, worker.task_id, worker.exitcode))
 
         exception = EngineWorkerCrashedError(errmsg)
-        get_mbs().notifications.send_error_notification(subject, errmsg, exception)
+        get_mbs().notifications.send_error_notification(subject, errmsg)
 
         self.error(errmsg)
         self._cleanup_worker_resources(worker)

@@ -81,7 +81,7 @@ class GlobalAuditor():
             sbj = "Auditor %s Error" % auditor.name
             msg = ("Auditor %s Error!.\n\nStack Trace:\n%s" %
                    (auditor.name, traceback.format_exc()))
-            get_mbs().notifications.send_error_notification(sbj, msg, e)
+            get_mbs().notifications.send_error_notification(sbj, msg)
 
     ###########################################################################
     def generate_yesterday_audit_reports(self):

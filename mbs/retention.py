@@ -223,7 +223,7 @@ class BackupExpirationManager(ScheduleRunner):
             subject = "BackupExpirationManager Error"
             message = ("BackupExpirationManager Error!.\n\nStack Trace:\n%s" %
                        traceback.format_exc())
-            get_mbs().notifications.send_error_notification(subject, message, ex)
+            get_mbs().notifications.send_error_notification(subject, message)
 
     ###########################################################################
     def _expire_backups_due(self):
@@ -237,7 +237,7 @@ class BackupExpirationManager(ScheduleRunner):
             subject = "BackupExpirationManager Error"
             message = ("BackupExpirationManager Error!.\n\nStack Trace:\n%s" %
                        traceback.format_exc())
-            get_mbs().notifications.send_error_notification(subject, message, ex)
+            get_mbs().notifications.send_error_notification(subject, message)
 
 
         try:
@@ -247,7 +247,7 @@ class BackupExpirationManager(ScheduleRunner):
             subject = "BackupExpirationManager Error"
             message = ("BackupExpirationManager Error!.\n\nStack Trace:\n%s" %
                        traceback.format_exc())
-            get_mbs().notifications.send_error_notification(subject, message, ex)
+            get_mbs().notifications.send_error_notification(subject, message)
 
         try:
             self._expire_due_canceled_backups()
@@ -256,7 +256,7 @@ class BackupExpirationManager(ScheduleRunner):
             subject = "BackupExpirationManager Error"
             message = ("BackupExpirationManager Error!.\n\nStack Trace:\n%s" %
                        traceback.format_exc())
-            get_mbs().notifications.send_error_notification(subject, message, ex)
+            get_mbs().notifications.send_error_notification(subject, message)
 
         logger.info("BackupExpirationManager: END EXPIRATION CHECK CYCLE")
 
@@ -332,7 +332,7 @@ class BackupExpirationManager(ScheduleRunner):
             message = ("BackupExpirationManager Error while processing"
                        " plan '%s'\n\nStack Trace:\n%s" %
                        (plan.id, traceback.format_exc()))
-            get_mbs().notifications.send_error_notification(subject, message, e)
+            get_mbs().notifications.send_error_notification(subject, message)
 
         return total_expired, total_dont_expire
 
@@ -609,7 +609,7 @@ class BackupSweeper(ScheduleRunner):
             subject = "BackupSweeper Error"
             message = ("BackupSweeper Error!.\n\nStack Trace:\n%s" %
                        traceback.format_exc())
-            get_mbs().notifications.send_error_notification(subject, message, ex)
+            get_mbs().notifications.send_error_notification(subject, message)
 
     ###########################################################################
     def _delete_backups_targets_due(self):
@@ -729,7 +729,7 @@ class BackupSweeper(ScheduleRunner):
                 logger.warning(msg)
                 # set deleted date
                 backup.deleted_date = date_now()
-                get_mbs().notifications.send_error_notification("Error deleting backup", msg, e)
+                get_mbs().notifications.send_error_notification("Error deleting backup", msg)
 
             persistence.update_backup(backup,
                                       event_name="DELETE_ERROR",
@@ -817,7 +817,7 @@ class SweepWorker(ScheduleRunner):
                 subject = "BackupSweeper Error"
                 msg = ("%s\n\nStack Trace:\n%s" % (msg,
                                                    traceback.format_exc()))
-                get_mbs().notifications.send_error_notification(subject, msg, ex)
+                get_mbs().notifications.send_error_notification(subject, msg)
             finally:
                 self._sweep_queue.task_done()
 
