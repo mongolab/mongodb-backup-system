@@ -342,7 +342,9 @@ class S3BucketTarget(BackupTarget):
         self._bucket_name = None
         self._encrypted_access_key = None
         self._encrypted_secret_key = None
-        self._bucket = None
+        self._connection = None
+        self._bucket_ = None
+        self._region = None
 
     ###########################################################################
     def do_put_file(self, file_path, destination_path, metadata=None):
@@ -492,22 +494,35 @@ class S3BucketTarget(BackupTarget):
         self._bucket_name = str(bucket_name)
 
     ###########################################################################
+    @property
+    def region(self):
+        if not self._region:
+            self._connect_to_bucket()
+
+        return self._region
+
+    ###########################################################################
     def _get_bucket(self):
         if not self._bucket:
-            _, bucket, __ = self._get_bucket_connection()
-            self._bucket = bucket
+            self._connect_to_bucket()
 
         return self._bucket
 
     ###########################################################################
-    def _get_bucket_connection(self):
-        try:
-            return s3_utils.get_connection_for_bucket(self.access_key, self.secret_key, self.bucket_name)
-        except S3ResponseError, re:
-            if "404" in safe_stringify(re) or "403" in safe_stringify(re):
-                raise TargetInaccessibleError(self.bucket_name, cause=re)
-            else:
-                raise
+    def _connect_to_bucket(self):
+        if not(self._connection and self._bucket):
+            try:
+                conn, bucket, region = s3_utils.get_connection_for_bucket(self.access_key, self.secret_key,
+                                                                          self.bucket_name)
+                self._connection = conn
+                self._bucket = bucket
+                self._region = region
+            except S3ResponseError, re:
+                if "404" in safe_stringify(re) or "403" in safe_stringify(re):
+                    raise TargetInaccessibleError(self.bucket_name, cause=re)
+                else:
+                    raise
+
 
     ###########################################################################
     def _get_file_ref_key(self, file_reference):
@@ -649,7 +664,8 @@ class S3BucketTarget(BackupTarget):
     def has_sufficient_permissions(self):
         errors = []
         try:
-            conn, bucket, region = self._get_bucket_connection()
+
+            bucket = self._get_bucket()
 
             # test read/write
 
