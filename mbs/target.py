@@ -494,19 +494,20 @@ class S3BucketTarget(BackupTarget):
     ###########################################################################
     def _get_bucket(self):
         if not self._bucket:
-            try:
-                _, bucket, __ = \
-                    s3_utils.get_connection_for_bucket(self.access_key,
-                                                       self.secret_key,
-                                                       self.bucket_name)
-                self._bucket = bucket
-            except S3ResponseError, re:
-                if "404" in safe_stringify(re) or "403" in safe_stringify(re):
-                    raise TargetInaccessibleError(self.bucket_name,
-                                                  cause=re)
-                else:
-                    raise
+            _, bucket, __ = self._get_bucket_connection()
+            self._bucket = bucket
+
         return self._bucket
+
+    ###########################################################################
+    def _get_bucket_connection(self):
+        try:
+            return s3_utils.get_connection_for_bucket(self.access_key, self.secret_key, self.bucket_name)
+        except S3ResponseError, re:
+            if "404" in safe_stringify(re) or "403" in safe_stringify(re):
+                raise TargetInaccessibleError(self.bucket_name, cause=re)
+            else:
+                raise
 
     ###########################################################################
     def _get_file_ref_key(self, file_reference):
@@ -648,10 +649,7 @@ class S3BucketTarget(BackupTarget):
     def has_sufficient_permissions(self):
         errors = []
         try:
-            conn, bucket, region = \
-                s3_utils.get_connection_for_bucket(self.access_key,
-                                                   self.secret_key,
-                                                   self.bucket_name)
+            conn, bucket, region = self._get_bucket_connection()
 
             # test read/write
 
