@@ -62,8 +62,9 @@ def get_connection_for_bucket(api_key_id, api_secret_key, bucket_name,
     bucket = None
     try:
         bucket = con.get_bucket(bucket_name)
-    except S3ResponseError:
-        pass
+    except S3ResponseError, e:
+        if e.status != 400:
+            raise
 
     if (bucket is not None):
         # NOTE: if bucket retrieval is successful, but the region we return is
