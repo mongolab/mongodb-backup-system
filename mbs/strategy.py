@@ -577,7 +577,7 @@ class BackupStrategy(MBSObject):
                                 "Excluding..." % member)
                     continue
                 elif member.is_secondary():
-                    if member.slave_delay():
+                    if member.slave_delay:
                         logger.info("Member '%s' appears to have slave delay. "
                                     "Excluding..." % member)
                         continue
