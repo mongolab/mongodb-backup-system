@@ -1220,6 +1220,10 @@ class DumpStrategy(BackupStrategy):
         target_references = self.backup_assistant.upload_backup(backup, tar_file_name, all_targets,
                                                                 destination_path=upload_dest_path)
 
+        if len(target_references) != len(all_targets):
+            raise TargetUploadError("Upload target mismatch! requested to upload to %s targets and got %s target"
+                                    " references back" % (len(all_targets), len(target_references)))
+
         # set the target reference
         target_reference = target_references[0]
 
