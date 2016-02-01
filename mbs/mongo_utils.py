@@ -723,6 +723,11 @@ class MongoServer(MongoConnector):
 
     ###########################################################################
     @property
+    def slave_delay(self):
+        return self.member_config_prop("slaveDelay")
+
+    ###########################################################################
+    @property
     def member_host(self):
         """
             returns the "host" property from the rs member config
