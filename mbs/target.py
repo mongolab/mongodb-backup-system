@@ -343,7 +343,7 @@ class S3BucketTarget(BackupTarget):
         self._encrypted_access_key = None
         self._encrypted_secret_key = None
         self._connection = None
-        self._bucket_ = None
+        self._bucket = None
         self._region = None
 
     ###########################################################################
