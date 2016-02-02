@@ -361,12 +361,12 @@ class BackupExpirationManager(ScheduleRunner):
                 break
 
             total_processed += 1
-            if self.should_expire_onetime_backup(onetime_backup):
-                self.expire_backup(onetime_backup)
-                total_expired += 1
-            elif self.is_onetime_backup_not_expirable(onetime_backup):
+            if self.is_onetime_backup_not_expirable(onetime_backup):
                 mark_backup_never_expire(onetime_backup)
                 total_dont_expire += 1
+            elif self.is_onetime_backup_due_for_expiration(onetime_backup):
+                self.expire_backup(onetime_backup)
+                total_expired += 1
 
         logger.info("BackupExpirationManager: Finished processing Onetime"
                     " Backups.\nTotal Expired=%s, Total Don't Expire=%s, "
@@ -413,7 +413,7 @@ class BackupExpirationManager(ScheduleRunner):
         return persistence.get_backup_plan(plan.id) is not None
 
     ###########################################################################
-    def should_expire_onetime_backup(self, backup):
+    def is_onetime_backup_due_for_expiration(self, backup):
         return False
 
     ###########################################################################
