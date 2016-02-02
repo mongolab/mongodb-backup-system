@@ -83,10 +83,12 @@ class BackupScheduler(ScheduleRunner):
 
         errors = plan.validate()
         if errors:
-            err_msg = ("Plan '%s' is invalid.Please correct the following"
+            err_msg = ("Plan '%s' is invalid. Deleting...."
                        " errors.\n%s" % (plan.id, errors))
+            self._backup_system.remove_plan(plan.id)
+
             raise InvalidPlanError(err_msg)
-            # TODO disable plan ???
+
 
         now = date_now()
         next_natural_occurrence = plan.schedule.next_natural_occurrence()
