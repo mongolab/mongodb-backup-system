@@ -333,11 +333,11 @@ class BadCollectionNameError(DumpError):
                          "drop these collection(s)")
 
 ###############################################################################
-class InvalidBSONObjSizeError(DumpError):
+class InvalidBSONObjSizeError(RetriableDumpError):
     pass
 
 ###############################################################################
-class CorruptionError(DumpError):
+class CorruptionError(RetriableDumpError):
     pass
 
 ###############################################################################
@@ -383,6 +383,10 @@ class DumpConnectivityError(RetriableDumpError):
 
 ###############################################################################
 class DBClientCursorFailError(RetriableDumpError):
+    pass
+
+###############################################################################
+class CollectionReadError(RetriableDumpError):
     pass
 
 ###############################################################################
@@ -797,6 +801,8 @@ def raise_dump_error(returncode, error_log_line, last_namespace=None):
         error_type = DBClientCursorFailError
     elif "index out of range" in error_log_line:
         error_type = IndexOutOfRangeDumpError
+    elif "error reading collection" in error_log_line:
+        error_type = CollectionReadError
 
     # Generic retriable errors
     elif is_retriable_dump_error(returncode, error_log_line):
