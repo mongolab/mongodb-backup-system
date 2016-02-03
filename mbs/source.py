@@ -453,7 +453,7 @@ class EbsVolumeStorage(VolumeStorage):
             logger.info("Snapshot '%s' deleted successfully!" % snapshot_id)
             return True
         except Exception, e:
-            if ("does not exist" in str(e) or
+            if ("does not exist" in safe_stringify(e) or
                 "InvalidSnapshot.NotFound" in safe_stringify(e)):
                 logger.warning("Snapshot '%s' does not exist" % snapshot_id)
                 return False
