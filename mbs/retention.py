@@ -319,7 +319,7 @@ class BackupExpirationManager(ScheduleRunner):
         # Ensure we have the latest revision of the backup plan
         plan = persistence.get_backup_plan(plan.id) or plan
         try:
-            expirable_backups, non_expirable_backups =  self.find_expirable_backups(plan, plan_backups)
+            expirable_backups, non_expirable_backups = self.find_plan_expirable_backups(plan, plan_backups)
             if non_expirable_backups:
                 mark_plan_backups_not_expirable(plan, non_expirable_backups)
                 total_dont_expire += len(non_expirable_backups)
