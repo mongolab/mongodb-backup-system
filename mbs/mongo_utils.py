@@ -389,18 +389,6 @@ class MongoCluster(MongoConnector):
         self._primary_member = primary_member
 
     ###########################################################################
-    def has_p0s(self):
-        """
-
-        :return: True if cluster has any member with priority 0
-        """
-        for member in self.members:
-            if member.is_online() and (member.priority == 0 or member.hidden):
-                return True
-
-        return False
-
-    ###########################################################################
     def get_mongolab_backup_node(self):
         rs_conf = self.primary_member.rs_conf
         for mem_conf in rs_conf["members"]:

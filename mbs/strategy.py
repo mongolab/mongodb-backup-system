@@ -405,15 +405,19 @@ class BackupStrategy(MBSObject):
             raise NoEligibleMembersFound(backup.source.uri, msg=msg)
 
         # FAIL if best secondary was not a P0 within max_lag_seconds
-        # if cluster has any P0
+        # if cluster has any P0 (excluding slave delay)
         max_lag_seconds = self._max_allowed_lag_for_backup(backup)
 
         if (isinstance(source_connector, MongoCluster) and
                 max_lag_seconds and
-                source_connector.has_p0s() and connector.priority != 0):
-            msg = ("No eligible p0 secondary found within max lag '%s'"
-                   " for cluster '%s'" % (max_lag_seconds, source_connector))
-            self.raise_no_eligible_members_found(source_connector, msg=msg)
+                connector.priority != 0):
+            for member in source_connector.members:
+                if (member.is_online() and
+                        (member.priority == 0 or member.hidden) and
+                        not member.slave_delay):
+                    msg = ("No eligible p0 secondary found within max lag '%s'"
+                           " for cluster '%s'" % (max_lag_seconds, source_connector))
+                    self.raise_no_eligible_members_found(source_connector, msg=msg)
 
         logger.info("Member preference validation for backup '%s' passed!" %
                     backup.id)
