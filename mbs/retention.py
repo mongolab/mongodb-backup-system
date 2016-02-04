@@ -886,7 +886,7 @@ def robustified_delete_backup(backup):
 
 ###############################################################################
 def mark_plan_backups_not_expirable(plan, backups):
-    logger.info("Marking all backups for plan '%s' as dontExpire (total of %s)"
+    logger.info("Marking following backups for plan '%s' as dontExpire (total of %s)"
                 % (plan.id, len(backups)))
 
     for backup in backups:
