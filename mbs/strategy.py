@@ -689,6 +689,7 @@ class BackupStrategy(MBSObject):
         :param mongo_connector:
         :return:
         """
+        logger.info("Computing source stats for backup '%s' , connector '%s'..." % (backup.id, mongo_connector))
         dbname = backup.source.database_name
         try:
             if (self.backup_mode == BackupMode.ONLINE and
@@ -699,6 +700,9 @@ class BackupStrategy(MBSObject):
                 update_backup(backup, properties="sourceStats",
                               event_name="COMPUTED_SOURCE_STATS",
                               message="Computed source stats")
+
+                logger.info("Finished computing source stats for backup '%s' , connector '%s'." % (backup.id,
+                                                                                                   mongo_connector))
         except Exception, e:
             if is_connection_exception(e) and self.allow_offline_backups:
                 # switch to offline mode
@@ -737,6 +741,7 @@ class BackupStrategy(MBSObject):
 
     ###########################################################################
     def _calculate_backup_rate(self, backup):
+        logger.info("Calculating backup rate for backup '%s'..." % backup.id)
         duration = timedelta_total_seconds(date_now() - backup.start_date)
         if backup.source_stats and backup.source_stats.get("dataSize"):
             size_mb = float(backup.source_stats["dataSize"]) / (1024 * 1024)
@@ -746,6 +751,7 @@ class BackupStrategy(MBSObject):
                 backup.backup_rate_in_mbps = rate
                 # save changes
                 update_backup(backup, properties="backupRateInMBPS")
+
 
     ###########################################################################
     def cleanup_backup(self, backup):
@@ -790,6 +796,7 @@ class BackupStrategy(MBSObject):
     # Helpers
     ###########################################################################
     def _validate_max_data_size(self, backup):
+        logger.info("Validating backup '%s' against max data size..." % backup.id)
         if (self.max_data_size and
             backup.source_stats and
             backup.source_stats.get("dataSize") and
@@ -800,6 +807,7 @@ class BackupStrategy(MBSObject):
             raise SourceDataSizeExceedsLimits(data_size=data_size,
                                               max_size=self.max_data_size,
                                               database_name=database_name)
+        logger.info("max data size validation for backup '%s' passed!" % backup.id)
 
 
     ###########################################################################
@@ -1001,6 +1009,8 @@ class BackupStrategy(MBSObject):
 
     ###########################################################################
     def _set_backup_name_and_desc(self, backup, update=False):
+        logger.info("Setting backup name and description for backup '%s'" % backup.id)
+
         # update backup name and desc
         update_props = list()
 
@@ -1797,8 +1807,11 @@ class CloudBlockStorageStrategy(BackupStrategy):
 
     ###########################################################################
     def _snapshot_backup(self, backup, mongo_connector):
+        logger.info("Running snapshot backup '%s'..." % backup.id)
 
         address = mongo_connector.address
+
+        logger.info("Getting cloud block storage object for snapshot backup '%s'..." % backup.id)
         cbs = self.get_backup_cbs(backup, mongo_connector)
 
         # validate
