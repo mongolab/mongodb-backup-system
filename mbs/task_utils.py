@@ -21,9 +21,11 @@ def trigger_task_finished_event(task, state):
     try:
         if get_mbs().event_queue and isinstance(task, Backup) and state == State.FAILED:
             finished_event = BackupFinishedEvent(backup=task, state=state)
+
             get_mbs().event_queue.create_event(finished_event)
+            logger.info("Event for backup %s created successfully!" % task.id)
     except Exception, ex:
-        logger.exception("Failed to trigger task event finished")
+        logger.exception("Failed to trigger task event finished for backup %s" % task.id)
 
 ########################################################################################################################
 def set_task_retry_info(task, task_collection, error, persist=True):
