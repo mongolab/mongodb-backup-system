@@ -450,6 +450,9 @@ class EbsVolumeStorage(VolumeStorage):
         try:
             logger.info("Deleting snapshot '%s' " % snapshot_id)
             self.ec2_connection.delete_snapshot(snapshot_id)
+            if self.snapshot_exists(snapshot_id):
+                raise SnapshotDeleteError("Snapshot '%s' still exists after deleting!" % snapshot_id)
+
             logger.info("Snapshot '%s' deleted successfully!" % snapshot_id)
             return True
         except Exception, e:
@@ -622,6 +625,10 @@ class EbsVolumeStorage(VolumeStorage):
                     (snapshot_id, self.volume_id , elapsed_time))
         if snapshots:
             return snapshots[0]
+
+    ###########################################################################
+    def snapshot_exists(self, snapshot_id):
+        return self.get_ebs_snapshot_by_id(snapshot_id) is not None
 
     ###########################################################################
     def suspend_io(self):

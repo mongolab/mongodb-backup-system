@@ -558,6 +558,12 @@ class Ec2SnapshotDoesNotExistError(MBSError, RetriableError):
     """
 
 ###############################################################################
+class SnapshotDeleteError(BlockStorageSnapshotError, RetriableError):
+    """
+        Raised when there was an error while deleting a snapshot
+    """
+
+###############################################################################
 # MongoLockError
 ###############################################################################
 class MongoLockError(MBSError):
