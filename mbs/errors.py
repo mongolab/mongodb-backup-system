@@ -96,6 +96,14 @@ class MBSError(Exception, MBSObject):
 
         return doc
 
+
+###############################################################################
+class RetriableError(Exception):
+    """
+        Base class for ALL retriable errors. All retriable errors should
+        inherit this class
+    """
+
 ###############################################################################
 # MBSErrorWrapper
 ###############################################################################
@@ -139,7 +147,7 @@ class EngineCrashedError(BackupEngineError):
 ###############################################################################
 # EngineWorkerCrashedError
 ###############################################################################
-class EngineWorkerCrashedError(BackupEngineError):
+class EngineWorkerCrashedError(BackupEngineError, RetriableError):
     pass
 
 ###############################################################################
@@ -147,13 +155,6 @@ class EngineWorkerCrashedError(BackupEngineError):
 ###############################################################################
 class ConfigurationError(MBSError):
     pass
-
-###############################################################################
-class RetriableError(Exception):
-    """
-        Base class for ALL retriable errors. All retriable errors should
-        inherit this class
-    """
 
 ###############################################################################
 
