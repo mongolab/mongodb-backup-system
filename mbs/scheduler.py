@@ -85,9 +85,10 @@ class BackupScheduler(ScheduleRunner):
         if errors:
             err_msg = ("Plan '%s' is invalid. Deleting...."
                        " errors.\n%s" % (plan.id, errors))
+            logger.error(err_msg)
             self._backup_system.remove_plan(plan.id)
 
-            raise InvalidPlanError(err_msg)
+            return
 
 
         now = date_now()
