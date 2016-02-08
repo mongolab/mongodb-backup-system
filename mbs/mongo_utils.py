@@ -64,6 +64,12 @@ def mongo_connect(uri, conn_timeout=None, **kwargs):
             raise
 
 ###############################################################################
+def  get_mongo_connection_id(connection):
+    myuri = connection["admin"].command({"whatsmyuri": 1})
+    if myuri:
+        return myuri["you"].split(":")[1]
+
+###############################################################################
 class MongoConnector(object):
 
     ###########################################################################

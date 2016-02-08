@@ -16,7 +16,7 @@ from indexes import MBS_INDEXES
 from errors import MBSError
 
 from utils import read_config_json, resolve_function, resolve_path
-from mongo_utils import mongo_connect
+from mongo_utils import mongo_connect, get_mongo_connection_id
 
 from backup import Backup
 from restore import Restore
@@ -138,6 +138,8 @@ class MBS(object):
         if not self._database:
             # use w=1
             self._database = mongo_connect(self._get_database_uri(), w=1)
+            connection_id = get_mongo_connection_id(self._database.connection)
+            logger.info("Successfully connected to mbs database (mongo connection id %s)" % connection_id)
 
         return self._database
 
