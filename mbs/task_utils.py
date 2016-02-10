@@ -7,6 +7,9 @@ from .date_utils import mid_date_between, date_plus_seconds, date_now
 from .mbs import get_mbs
 from .globals import State
 from .events import BackupFinishedEvent
+from .notification.handler import NotificationPriority
+
+import traceback
 
 ###############################################################################
 # LOGGER
@@ -18,14 +21,26 @@ logger.addHandler(logging.NullHandler())
 
 ###########################################################################
 def trigger_task_finished_event(task, state):
-    try:
-        if get_mbs().event_queue and isinstance(task, Backup) and state == State.FAILED:
-            finished_event = BackupFinishedEvent(backup=task, state=state)
 
-            get_mbs().event_queue.create_event(finished_event)
-            logger.info("Event for backup %s created successfully!" % task.id)
+    # NOOP on all events except for backup failed
+    if not (get_mbs().event_queue and isinstance(task, Backup) and state == State.FAILED):
+        return
+
+    backup = task
+
+    try:
+        finished_event = BackupFinishedEvent(backup=backup, state=state)
+
+        get_mbs().event_queue.create_event(finished_event)
+        logger.info("Event for backup %s created successfully!" % task.id)
     except Exception, ex:
-        logger.exception("Failed to trigger task event finished for backup %s" % task.id)
+        logger.exception("Failed to trigger backup event finished for backup %s" % task.id)
+        # notify on failures to trigger task event
+        sbj = "Failed to trigger Backup Failed Event for backup %s (%s)" % (backup.id, backup.description)
+        msg = "Failed to trigger Backup Failed Event for backup %s (%s): \nError: %s" % \
+              (backup.id, backup.description, traceback.format_exc())
+
+        get_mbs().notifications.send_event_notification(sbj, msg, priority=NotificationPriority.CRITICAL)
 
 ########################################################################################################################
 def set_task_retry_info(task, task_collection, error, persist=True):
