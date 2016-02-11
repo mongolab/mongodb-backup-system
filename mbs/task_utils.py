@@ -1,44 +1,49 @@
 __author__ = 'abdul'
 
 import logging
-from .errors import is_exception_retriable, to_mbs_error_code, MBSError
+from .errors import is_exception_retriable, to_mbs_error_code
 from .backup import Backup
+from .restore import Restore
 from .date_utils import mid_date_between, date_plus_seconds, date_now
 from .mbs import get_mbs
-from .globals import State
-from .events import BackupFinishedEvent
+
+from .events import BackupFinishedEvent, RestoreFinishedEvent
 from .notification.handler import NotificationPriority
 
 import traceback
 
-###############################################################################
+########################################################################################################################
 # LOGGER
-###############################################################################
+########################################################################################################################
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
 
 
-###########################################################################
+########################################################################################################################
 def trigger_task_finished_event(task, state):
 
-    # NOOP on all events except for backup failed
-    if not (get_mbs().event_queue and isinstance(task, Backup) and state == State.FAILED):
+    # NOOP when there is no event queue
+    if not get_mbs().event_queue:
         return
 
-    backup = task
-
+    if isinstance(task, Backup):
+        finished_event = BackupFinishedEvent(backup=task, state=state)
+        task_type = "Backup"
+    elif isinstance(task, Restore):
+        finished_event = RestoreFinishedEvent(restore=task, state=state)
+        task_type = "Restore"
+    else:
+        raise Exception("Unknown task type!!!!")
     try:
-        finished_event = BackupFinishedEvent(backup=backup, state=state)
-
         get_mbs().event_queue.create_event(finished_event)
-        logger.info("Event for backup %s created successfully!" % task.id)
+        logger.info("Event for %s %s created successfully!" % (task_type, task.id))
     except Exception, ex:
-        logger.exception("Failed to trigger backup event finished for backup %s" % task.id)
+        logger.exception("Failed to trigger finished event for %s %s" % (task_type, task.id))
         # notify on failures to trigger task event
-        sbj = "Failed to trigger Backup Failed Event for backup %s (%s)" % (backup.id, backup.description)
-        msg = "Failed to trigger Backup Failed Event for backup %s (%s): \nError: %s" % \
-              (backup.id, backup.description, traceback.format_exc())
+        sbj = "Failed to trigger Finished Event for %s %s (%s)" % (task_type, task.id, task.description)
+        msg = "Failed to trigger Finished Event for %s %s (%s): \nError: %s" % \
+              (task_type, task.id, task.description, traceback.format_exc())
 
         get_mbs().notifications.send_event_notification(sbj, msg, priority=NotificationPriority.CRITICAL)
 
@@ -72,13 +77,13 @@ def set_task_retry_info(task, task_collection, error, persist=True):
                     (task.id, task.next_retry_date, task.final_retry_date))
 
 
-####################################################################################################################
+########################################################################################################################
 def _compute_final_retry_date(task):
     if isinstance(task, Backup) and task.plan_occurrence:
         return mid_date_between(task.plan_occurrence, task.plan.schedule.next_natural_occurrence())
     else:
         return date_plus_seconds(task.created_date, 5 * 60 * 60)
 
-####################################################################################################################
+########################################################################################################################
 def _compute_next_retry_date(task):
     return date_plus_seconds(date_now(), pow(2, task.try_count - 1) * 60)

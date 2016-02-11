@@ -93,7 +93,7 @@ class BackupEvent(Event):
 ########################################################################################################################
 class BackupFinishedEvent(BackupEvent):
     """
-    Base class for all backup events
+    Triggered when a backup finishes (goes to FAILED or SUCCEEDED state)
     """
     ####################################################################################################################
     def __init__(self, backup=None, state=None):
@@ -114,6 +114,72 @@ class BackupFinishedEvent(BackupEvent):
         doc = super(BackupFinishedEvent, self).to_document(display_only=display_only)
         doc.update({
             "_type": "BackupFinishedEvent",
+            "state": self.state
+        })
+
+        return doc
+
+
+
+########################################################################################################################
+# RestoreEvent
+########################################################################################################################
+class RestoreEvent(Event):
+    """
+    Base class for all restore events
+    """
+    ####################################################################################################################
+    def __init__(self, restore=None):
+        super(RestoreEvent, self).__init__()
+        self._restore = restore
+
+    ####################################################################################################################
+    @property
+    def restore(self):
+        return self._restore
+
+    @restore.setter
+    def restore(self, restore):
+        self._restore = restore
+
+    ####################################################################################################################
+    def to_document(self, display_only=False):
+        doc = super(Event, self).to_document(display_only=display_only)
+
+        doc.update({
+            "_type": "RestoreEvent",
+            "createdDate": self.created_date,
+            "backup": self.restore.to_document(display_only=display_only)
+        })
+
+        return doc
+
+########################################################################################################################
+# RestoreFinishedEvent
+########################################################################################################################
+class RestoreFinishedEvent(RestoreEvent):
+    """
+    Triggered when a restore finishes (goes to FAILED or SUCCEEDED state)
+    """
+    ####################################################################################################################
+    def __init__(self, restore=None, state=None):
+        super(RestoreFinishedEvent, self).__init__(restore=restore)
+        self._state = state
+
+    ####################################################################################################################
+    @property
+    def state(self):
+        return self._state
+
+    @state.setter
+    def state(self, state):
+        self._state = state
+
+    ####################################################################################################################
+    def to_document(self, display_only=False):
+        doc = super(RestoreFinishedEvent, self).to_document(display_only=display_only)
+        doc.update({
+            "_type": "RestoreFinishedEvent",
             "state": self.state
         })
 
