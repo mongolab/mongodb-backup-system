@@ -225,13 +225,22 @@ class MBSTask(MBSObject):
 
 
     ###########################################################################
-    @property
     def exceeded_max_tries(self):
         return self.final_retry_date and date_now() > self.final_retry_date
 
     ###########################################################################
+    def succeeded_after_failure(self):
+        return self.state == State.SUCCEEDED and self.has_failed()
+
+    ###########################################################################
     def has_errors(self):
         return len(self.get_error_logs()) > 0
+
+    ###########################################################################
+    def has_failed(self):
+        if self.logs:
+            failures = filter(lambda l: l.state == State.FAILED, self.logs)
+            return failures and len(failures) > 0
 
     ###########################################################################
     def has_warnings(self):
