@@ -109,6 +109,22 @@ class BackupFinishedEvent(BackupEvent):
     def state(self, state):
         self._state = state
 
+
+    ####################################################################################################################
+    #TODO XXX Remove this when all clients no longer use the "context" field and use "backup"/"state" properties
+    # as direct properties
+    @property
+    def context(self):
+        return None
+
+    @context.setter
+    def context(self, value):
+        if value:
+            if "backup" in value:
+                self.backup = value["backup"]
+            if "state" in value:
+                self.state = value["state"]
+
     ####################################################################################################################
     def to_document(self, display_only=False):
         doc = super(BackupFinishedEvent, self).to_document(display_only=display_only)
