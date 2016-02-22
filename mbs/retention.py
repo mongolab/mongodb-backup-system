@@ -280,8 +280,7 @@ class BackupExpirationManager(ScheduleRunner):
         logger.info("BackupExpirationManager: Executing query :\n%s" %
                     document_pretty_string(q))
 
-        backups_iter = get_mbs().backup_collection.find_iter(query=q, sort=s,
-                                                             timeout=False)
+        backups_iter = get_mbs().backup_collection.find_iter(query=q, sort=s, no_cursor_timeout=True)
 
         current_backup = next(backups_iter, None)
 
@@ -353,8 +352,7 @@ class BackupExpirationManager(ScheduleRunner):
 
         logger.info("BackupExpirationManager: Executing query :\n%s" %
                     document_pretty_string(q))
-        onetime_backups_iter = get_mbs().backup_collection.find_iter(
-            query=q, timeout=False)
+        onetime_backups_iter = get_mbs().backup_collection.find_iter(query=q, no_cursor_timeout=True)
 
         for onetime_backup in onetime_backups_iter:
             if self.stop_requested:
@@ -388,8 +386,7 @@ class BackupExpirationManager(ScheduleRunner):
 
         logger.info("BackupExpirationManager: Executing query :\n%s" %
                     document_pretty_string(q))
-        canceled_backups_iter = get_mbs().backup_collection.find_iter(
-            query=q, timeout=False)
+        canceled_backups_iter = get_mbs().backup_collection.find_iter(query=q, no_cursor_timeout=True)
 
         for backup in canceled_backups_iter:
             if self.stop_requested:
@@ -635,8 +632,7 @@ class BackupSweeper(ScheduleRunner):
         logger.info("BackupSweeper: Executing query :\n%s" %
                     document_pretty_string(q))
 
-        backups_iter = get_mbs().backup_collection.find_iter(query=q,
-                                                             timeout=False)
+        backups_iter = get_mbs().backup_collection.find_iter(query=q, no_cursor_timeout=True)
 
         backups_iterated = 0
         # process all plan backups
