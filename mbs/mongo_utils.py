@@ -53,7 +53,10 @@ def mongo_connect(uri, conn_timeout=None, **kwargs):
                 uri += "/admin"
 
         mongo_client = MongoClient(uri, **kwargs)
-        return mongo_client.get_default_database()
+        # ensure connect
+        mongo_client.server_info()
+
+        return mongo_client
 
     except Exception, e:
         if is_connection_exception(e):
@@ -64,8 +67,8 @@ def mongo_connect(uri, conn_timeout=None, **kwargs):
             raise
 
 ###############################################################################
-def  get_mongo_connection_id(connection):
-    myuri = connection["admin"].command({"whatsmyuri": 1})
+def  get_client_connection_id(mongo_client):
+    myuri = mongo_client.admin.command({"whatsmyuri": 1})
     if myuri:
         return myuri["you"].split(":")[1]
 
@@ -97,7 +100,7 @@ class MongoConnector(object):
 
     ###########################################################################
     @property
-    def connection(self):
+    def mongo_client(self):
         return None
 
     ###########################################################################
@@ -120,7 +123,16 @@ class MongoConnector(object):
 
     ###########################################################################
     def is_online(self):
-        return self.connection is not None
+        if self.mongo_client:
+            try:
+                self.mongo_client.server_info()
+                return True
+            except Exception, cfe:
+                return False
+        else:
+            return False
+
+
 
     ###########################################################################
     @robustify(max_attempts=3, retry_interval=3,
@@ -128,7 +140,7 @@ class MongoConnector(object):
                do_on_failure=raise_exception)
     def get_mongo_version(self):
         try:
-            version = self.connection.server_info()['version']
+            version = self.mongo_client.server_info()['version']
             return MongoNormalizedVersion(version)
         except Exception, e:
             if is_connection_exception(e):
@@ -248,7 +260,7 @@ class MongoConnector(object):
                do_on_failure=raise_exception)
     def _is_master_command(self):
         return (self.is_online() and
-                self.connection["admin"].command({"isMaster" : 1}))
+                self.mongo_client.admin.command({"isMaster" : 1}))
 
     ###########################################################################
     def info(self):
@@ -275,20 +287,20 @@ class MongoDatabase(MongoConnector):
         if not self._uri_wrapper.database:
             raise ConfigurationError("Uri must contain a database")
 
-        self._database = None
+        self._mongo_client = None
 
     ###########################################################################
     @property
     def database(self):
-        if not self._database:
-            self._database = mongo_connect(self.uri,
-                                           conn_timeout=self.conn_timeout)
-        return self._database
+        return self.mongo_client.get_default_database()
 
     ###########################################################################
     @property
-    def connection(self):
-        return self.database.connection
+    def mongo_client(self):
+        if not self._mongo_client:
+            self._mongo_client = mongo_connect(self.uri, conn_timeout=self.conn_timeout)
+
+        return self._mongo_client
 
     ###########################################################################
     def whatsmyuri(self):
@@ -299,8 +311,8 @@ class MongoDatabase(MongoConnector):
         try:
             stats = _calculate_database_stats(self.database)
             # capture host in stats
-            conn = self.connection
-            stats["host"] = "%s:%s" % (conn.host, conn.port)
+            client = self.mongo_client
+            stats["host"] = client.address
             stats["connectionId"] = self.connection_id
             stats["version"] = str(self.get_mongo_version())
             return stats
@@ -364,8 +376,8 @@ class MongoCluster(MongoConnector):
 
     ###########################################################################
     @property
-    def connection(self):
-        return self.primary_member.connection
+    def mongo_client(self):
+        return self.primary_member.mongo_client
 
     ####################################################################################################################
     def _init_members(self):
@@ -433,10 +445,8 @@ class MongoServer(MongoConnector):
         MongoConnector.__init__(self, uri, connector_id=connector_id,
                                 display_name=display_name,
                                 conn_timeout=conn_timeout)
-        self._connection = None
-        self._admin_db = None
+        self._mongo_client = None
         self._attempted_connection = False
-        self._authed_to_admin = False
 
         self._rs_conf = None
         self._member_rs_status = None
@@ -454,57 +464,22 @@ class MongoServer(MongoConnector):
 
     ###########################################################################
     @property
-    def admin_db(self):
-        if self._admin_db:
-            return self._admin_db
-        try:
+    def mongo_client(self):
+        if not self._mongo_client:
             # default connection timeout and convert to mills
             conn_timeout_mills = self.conn_timeout * 1000
 
-            connection = pymongo.Connection(
-                self.connection_address,
-                socketTimeoutMS=conn_timeout_mills,
-                connectTimeoutMS=conn_timeout_mills,
-                slaveOk=True)
+            self._mongo_client = mongo_connect(self.uri,
+                                               socketTimeoutMS=conn_timeout_mills,
+                                               connectTimeoutMS=conn_timeout_mills,
+                                               slaveOk=True)
+        return self._mongo_client
 
-            self._admin_db = connection["admin"]
-            return self._admin_db
-        except Exception, e:
-            if is_connection_exception(e):
-                logger.error("Error while trying to connect to '%s'. %s" %
-                             (self, e))
-            else:
-                raise
 
-    ###########################################################################
-    def get_auth_admin_db(self):
-        if self._authed_to_admin or self.is_arbiter():
-            return self._admin_db
-
-        # authenticate to admin db if creds are available
-        if self._uri_wrapper.username:
-            auth = self._admin_db.authenticate(
-                self._uri_wrapper.username,
-                self._uri_wrapper.password)
-            if not auth:
-                raise AuthenticationFailedError(self._uri_wrapper.masked_uri)
-
-        self._authed_to_admin = True
-        return self._admin_db
 
     ###########################################################################
     def get_db(self, name):
-        return self.get_auth_admin_db().connection[name]
-
-    ###########################################################################
-    @property
-    def connection(self):
-        if not self._connection and not self._attempted_connection:
-            self._attempted_connection = False
-            if self.admin_db:
-                self._connection = self.admin_db.connection
-
-        return self._connection
+        return self.mongo_client[name]
 
     ###########################################################################
     @property
@@ -580,17 +555,13 @@ class MongoServer(MongoConnector):
                do_on_failure=raise_exception)
     def get_stats(self, only_for_db=None):
 
-        # ensure that we are authed to admin
-        self.get_auth_admin_db()
-
+        client = self.mongo_client
         # compute database stats
         try:
             if only_for_db:
-                db = self.connection[only_for_db]
-                db_stats = _calculate_database_stats(db)
+                db_stats = _calculate_database_stats(client[only_for_db])
             else:
-                conn = self.connection
-                db_stats = _calculate_connection_databases_stats(conn)
+                db_stats = _calculate_client_databases_stats(client)
 
 
             stats =  {
@@ -617,20 +588,17 @@ class MongoServer(MongoConnector):
                do_on_failure=raise_exception)
     def get_collection_counts(self, only_for_db=None):
 
-        # ensure that we are authed to admin
-        self.get_auth_admin_db()
 
         # compute database stats
         try:
             if only_for_db:
-                db = self.connection[only_for_db]
+                db = self.mongo_client[only_for_db]
                 db_col_count = _database_collection_counts(db)
                 return {
                     db.name: db_col_count
                 }
             else:
-                conn = self.connection
-                return _connection_collection_counts(conn)
+                return _client_collection_counts(self.mongo_client)
         except Exception, e:
             if is_connection_exception(e):
                 details = ("Error while trying to compute collection counts for server "
@@ -647,7 +615,7 @@ class MongoServer(MongoConnector):
     def _get_member_rs_status(self):
         try:
             rs_status_cmd = SON([('replSetGetStatus', 1)])
-            rs_status =  self.get_auth_admin_db().command(rs_status_cmd)
+            rs_status = self.mongo_client.admin.command(rs_status_cmd)
             for member in rs_status['members']:
                 if 'self' in member and member['self']:
                     return member
@@ -663,7 +631,7 @@ class MongoServer(MongoConnector):
     def get_rs_status(self):
         try:
             rs_status_cmd = SON([('replSetGetStatus', 1)])
-            return self.get_auth_admin_db().command(rs_status_cmd)
+            return self.mongo_client.admin.command(rs_status_cmd)
         except Exception, e:
             details = "Cannot get rs for member '%s'" % self
             raise ReplicasetError(details=details, cause=e)
@@ -675,7 +643,7 @@ class MongoServer(MongoConnector):
     def _get_server_status(self):
         try:
             server_status_cmd = SON([('serverStatus', 1)])
-            server_status = self.get_auth_admin_db().command(server_status_cmd)
+            server_status = self.mongo_client.admin.command(server_status_cmd)
             ignored_props = ["locks", "recordStats", "$gleStats"]
             # IMPORTANT NOTE: We remove the "locks" property
             # which is introduced in 2.2.0 to avoid having issues if a client
@@ -698,7 +666,7 @@ class MongoServer(MongoConnector):
     def _get_rs_config(self):
 
         try:
-            local_db = self.get_auth_admin_db().connection["local"]
+            local_db = self.mongo_client.local
             return local_db['system.replset'].find_one()
         except Exception, e:
                 details = "Cannot get rs config for member '%s'." % self
@@ -749,8 +717,7 @@ class MongoServer(MongoConnector):
             if self.is_server_locked():
                 raise ServerAlreadyLockedError("Cannot run fsynclock on server '%s' "
                                                "because its already locked!" % self)
-            admin_db = self.get_auth_admin_db()
-            result = admin_db.command(SON([("fsync", 1),("lock", True)]))
+            result = self.mongo_client.admin.command(SON([("fsync", 1),("lock", True)]))
 
 
             if result.get("ok"):
@@ -767,8 +734,7 @@ class MongoServer(MongoConnector):
     ###########################################################################
     def is_server_locked(self):
         logger.info("Checking if '%s' is already locked." % self)
-        admin_db = self.get_auth_admin_db()
-        current_op = admin_db.current_op()
+        current_op = self.mongo_client.admin.current_op()
         locked = current_op and current_op.get("fsyncLock") is not None
 
         logger.info("is_server_locked return '%s' for '%s'." % (locked, self))
@@ -786,8 +752,7 @@ class MongoServer(MongoConnector):
         try:
             logger.info("Attempting to run fsyncunlock on %s" % self)
 
-            admin_db = self.get_auth_admin_db()
-            result = admin_db["$cmd.sys.unlock"].find_one()
+            result = self.mongo_client.admin["$cmd.sys.unlock"].find_one()
 
             if result.get("ok"):
                 logger.info("fsyncunlock ran successfully on %s" % self)
@@ -806,7 +771,7 @@ class MongoServer(MongoConnector):
 
     ###########################################################################
     def get_cmd_line_opts(self):
-        return self._admin_db.command({"getCmdLineOpts": 1})["parsed"]
+        return self.mongo_client.admin.command({"getCmdLineOpts": 1})["parsed"]
 
     ###########################################################################
     def is_config_server(self):
@@ -814,7 +779,7 @@ class MongoServer(MongoConnector):
 
     ###########################################################################
     def whatsmyuri(self):
-        return self.get_auth_admin_db().command({"whatsmyuri": 1})
+        return self.mongo_client.admin.command({"whatsmyuri": 1})
 
 ###############################################################################
 class ShardedClusterConnector(MongoConnector):
@@ -1032,10 +997,10 @@ def _calculate_database_stats(db):
 @robustify(max_attempts=3, retry_interval=3,
            do_on_exception=raise_if_not_retriable,
            do_on_failure=raise_exception)
-def _calculate_connection_databases_stats(connection):
+def _calculate_client_databases_stats(mongo_client):
     """
 
-    :param connection:
+    :param mongo_client:
     :return: dict with following structure
         { [sum of all database stats except for local],
           "databaseStats": {dbname : stats} , except local
@@ -1057,10 +1022,10 @@ def _calculate_connection_databases_stats(connection):
         "nsSizeMB": 0
     }
 
-    database_names = connection.database_names()
+    database_names = mongo_client.database_names()
 
     for dbname in database_names:
-        db = connection[dbname]
+        db = mongo_client[dbname]
         db_stats = _calculate_database_stats(db)
         # capture local database stats
         if dbname == "local":
@@ -1100,10 +1065,10 @@ def _database_collection_counts(db):
 @robustify(max_attempts=3, retry_interval=3,
            do_on_exception=raise_if_not_retriable,
            do_on_failure=raise_exception)
-def _connection_collection_counts(connection):
+def _client_collection_counts(mongo_client):
     """
 
-    :param connection:
+    :param mongo_client:
     :return: dict with all dbs collection counts
 
     """
@@ -1111,10 +1076,10 @@ def _connection_collection_counts(connection):
     collection_counts = {}
 
 
-    database_names = connection.database_names()
+    database_names = mongo_client.database_names()
 
     for dbname in database_names:
-        db = connection[dbname]
+        db = mongo_client[dbname]
         db_collection_counts = _database_collection_counts(db)
         collection_counts[dbname] = db_collection_counts
 
