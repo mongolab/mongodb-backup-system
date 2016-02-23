@@ -521,7 +521,7 @@ class S3BucketTarget(BackupTarget):
                 if "403" in safe_stringify(re):
                     raise TargetInaccessibleError(self.bucket_name, cause=re)
                 elif "404" in safe_stringify(re):
-                    raise TargetContainerDoesNotExistError(self.bucket_name, cause=re)
+                    raise NoSuchContainerError(self.bucket_name, cause=re)
                 else:
                     raise
 
