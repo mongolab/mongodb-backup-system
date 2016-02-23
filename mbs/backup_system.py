@@ -660,7 +660,7 @@ class BackupSystem(Thread):
 
         error_code = to_mbs_error_code(exception)
         if not task.id:
-            task.log_event(State.FAILED, message=msg, error_code=error_code)
+            task.log_event(event_type=EventType.ERROR, message=msg, error_code=error_code)
         else:
             tc = task_collection
             tc.update_task(task,
