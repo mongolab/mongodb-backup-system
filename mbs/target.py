@@ -518,8 +518,10 @@ class S3BucketTarget(BackupTarget):
                 self._bucket = bucket
                 self._region = region
             except S3ResponseError, re:
-                if "404" in safe_stringify(re) or "403" in safe_stringify(re):
+                if "403" in safe_stringify(re):
                     raise TargetInaccessibleError(self.bucket_name, cause=re)
+                elif "404" in safe_stringify(re):
+                    raise TargetContainerDoesNotExistError(self.bucket_name, cause=re)
                 else:
                     raise
 

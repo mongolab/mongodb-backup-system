@@ -467,6 +467,15 @@ class TargetInaccessibleError(TargetError):
                                                       cause=cause)
 
 ###############################################################################
+class TargetContainerDoesNotExistError(TargetError):
+    """
+        Raised when the container does not exist
+    """
+    def __init__(self, container_name=None, cause=None):
+        msg = ("Cloud storage container %s does not exist.\n%s" % (container_name, cause))
+        super(TargetContainerDoesNotExistError, self).__init__(msg=msg, cause=cause)
+
+###############################################################################
 class TargetConnectionError(TargetError, RetriableError):
     def __init__(self, container_name=None, cause=None):
         msg = ("Could not connect to cloud storage "
