@@ -1163,9 +1163,6 @@ class DumpStrategy(BackupStrategy):
         return doc
 
     ###########################################################################
-    @robustify(max_attempts=3, retry_interval=30,
-               do_on_exception=raise_if_not_retriable,
-               do_on_failure=raise_exception)
     def do_backup_mongo_connector(self, backup, mongo_connector):
         """
             Override
