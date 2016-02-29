@@ -50,23 +50,15 @@ def trigger_task_finished_event(task, state):
 ########################################################################################################################
 def set_task_retry_info(task, task_collection, error, persist=True):
 
-    error_code = to_mbs_error_code(error)
-    # if exception is not retriable then mark backup is not retriable by setting final retry to now
-    if not is_exception_retriable(error_code):
-        logger.info("Last error for task %s is not retriable. Marking backup is not retriable."
-                    " Setting finalRetryDate to task start date %s ..." % (task.id, task.start_date))
-        task.final_retry_date = task.start_date
-        task.next_retry_date = None
-    else:
-        # compute final retry date
-        if not task.final_retry_date:
-            task.final_retry_date = _compute_final_retry_date(task)
+    # compute final retry date
+    if not task.final_retry_date:
+        task.final_retry_date = _compute_final_retry_date(task)
 
-        next_retry_date = _compute_next_retry_date(task)
-        if next_retry_date <= task.final_retry_date:
-            task.next_retry_date = next_retry_date
-        else:
-            task.next_retry_date = None
+    next_retry_date = _compute_next_retry_date(task, error)
+    if next_retry_date <= task.final_retry_date:
+        task.next_retry_date = next_retry_date
+    else:
+        task.next_retry_date = None
 
     logger.info("Set task retry info for backup %s, next retry: %s, final retry: %s" %
                 (task.id, task.next_retry_date, task.final_retry_date))
@@ -85,5 +77,12 @@ def _compute_final_retry_date(task):
         return date_plus_seconds(task.created_date, 5 * 60 * 60)
 
 ########################################################################################################################
-def _compute_next_retry_date(task):
-    return date_plus_seconds(date_now(), pow(2, task.try_count - 1) * 60)
+def _compute_next_retry_date(task, error):
+    if task.try_count == 1 and not is_exception_retriable(error):
+        initial_backoff = 60 * 60
+    else:
+        initial_backoff = 0
+
+    backoff = initial_backoff + pow(2, task.try_count - 1) * 60
+
+    return date_plus_seconds(date_now(), backoff)
