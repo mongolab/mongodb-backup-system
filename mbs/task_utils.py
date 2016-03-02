@@ -57,6 +57,8 @@ def set_task_retry_info(task, task_collection, error, persist=True):
     next_retry_date = _compute_next_retry_date(task, error)
     if next_retry_date <= task.final_retry_date:
         task.next_retry_date = next_retry_date
+    elif task.final_retry_date > date_now():
+        task.next_retry_date = task.final_retry_date
     else:
         task.next_retry_date = None
 
