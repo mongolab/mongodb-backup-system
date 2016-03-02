@@ -204,7 +204,7 @@ class BackupScheduler(ScheduleRunner):
         :param backup:
         :return:
         """
-        if backup.next_retry_date and backup.next_retry_date < date_now() :
+        if backup.next_retry_date < date_now():
             # RESCHEDULE !!!
             self._backup_system.reschedule_backup(backup)
 
