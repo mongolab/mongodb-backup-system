@@ -48,7 +48,7 @@ def trigger_task_finished_event(task, state):
         get_mbs().notifications.send_event_notification(sbj, msg, priority=NotificationPriority.CRITICAL)
 
 ########################################################################################################################
-def set_task_retry_info(task, task_collection, error, persist=True):
+def set_task_retry_info(task, error):
 
     # compute final retry date
     if not task.final_retry_date:
@@ -64,11 +64,6 @@ def set_task_retry_info(task, task_collection, error, persist=True):
 
     logger.info("Set task retry info for backup %s, next retry: %s, final retry: %s" %
                 (task.id, task.next_retry_date, task.final_retry_date))
-
-    if persist:
-        task_collection.update_task(task, properties=["nextRetryDate", "finalRetryDate"])
-        logger.info("Updated task retry info for backup %s, next retry: %s, final retry: %s" %
-                    (task.id, task.next_retry_date, task.final_retry_date))
 
 
 ########################################################################################################################

@@ -655,8 +655,7 @@ class BackupSystem(Thread):
         # bump up try count
         task.try_count += 1
 
-        set_task_retry_info(task, task_collection, exception,
-                            persist=task.id is not None)
+        set_task_retry_info(task, exception)
 
         error_code = to_mbs_error_code(exception)
         if not task.id:
@@ -664,7 +663,7 @@ class BackupSystem(Thread):
         else:
             tc = task_collection
             tc.update_task(task,
-                           properties=["state", "tryCount"],
+                           properties=["state", "tryCount", "nextRetryDate", "finalRetryDate"],
                            event_name="FAILED_TO_SCHEDULE",
                            details=msg,
                            error_code=error_code,
