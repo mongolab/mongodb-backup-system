@@ -54,7 +54,7 @@ def mongo_connect(uri, conn_timeout=None, **kwargs):
 
         mongo_client = MongoClient(uri, **kwargs)
         # ensure connect
-        mongo_client.server_info()
+        ping(mongo_client)
 
         return mongo_client
 
@@ -125,7 +125,7 @@ class MongoConnector(object):
     def is_online(self):
         if self.mongo_client:
             try:
-                self.mongo_client.server_info()
+                ping(self.mongo_client)
                 return True
             except Exception, cfe:
                 return False
@@ -1121,6 +1121,11 @@ class MongoNormalizedVersion(NormalizedVersion):
 
     def __str__(self):
         return self.version_str
+
+
+###############################################################################
+def ping(mongo_client):
+    return mongo_client.get_database("admin").command({"ping": 1})
 
 
 
