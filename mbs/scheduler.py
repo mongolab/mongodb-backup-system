@@ -188,9 +188,6 @@ class BackupScheduler(ScheduleRunner):
 
         q = {
             "state": State.FAILED,
-            "finalRetryDate": {
-                "$gt": date_now()
-            },
             "nextRetryDate": {
                 "$lt": date_now()
             }
@@ -207,8 +204,7 @@ class BackupScheduler(ScheduleRunner):
         :param backup:
         :return:
         """
-        if (backup.next_retry_date and backup.next_retry_date < date_now() and
-                backup.final_retry_date and backup.final_retry_date > date_now()):
+        if backup.next_retry_date < date_now():
             # RESCHEDULE !!!
             self._backup_system.reschedule_backup(backup)
 

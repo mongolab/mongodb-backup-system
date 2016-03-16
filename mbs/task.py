@@ -226,7 +226,8 @@ class MBSTask(MBSObject):
 
     ###########################################################################
     def exceeded_max_tries(self):
-        return self.final_retry_date and date_now() > self.final_retry_date
+        return self.final_retry_date and (date_now() > self.final_retry_date
+                                          or self.next_retry_date is None)
 
     ###########################################################################
     def succeeded_after_failure(self):

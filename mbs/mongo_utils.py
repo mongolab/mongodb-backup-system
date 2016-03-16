@@ -643,8 +643,8 @@ class MongoServer(MongoConnector):
     def _get_server_status(self):
         try:
             server_status_cmd = SON([('serverStatus', 1)])
-            server_status = self.mongo_client.admin.command(server_status_cmd)
-            ignored_props = ["locks", "recordStats", "$gleStats"]
+            server_status = self.get_auth_admin_db().command(server_status_cmd)
+            ignored_props = ["locks", "recordStats", "$gleStats", "wiredTiger"]
             # IMPORTANT NOTE: We remove the "locks" property
             # which is introduced in 2.2.0 to avoid having issues if a client
             # tries to save the returned document. this is because "locks"

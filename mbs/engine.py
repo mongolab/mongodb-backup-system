@@ -541,7 +541,7 @@ class TaskQueueProcessor(Thread):
             message=log_msg, details=details, error_code=to_mbs_error_code(exception))
 
         # update retry info
-        set_task_retry_info(task, self.task_collection, exception)
+        set_task_retry_info(task, exception)
 
         self.worker_finished(worker, task, State.FAILED)
 
@@ -588,7 +588,7 @@ class TaskQueueProcessor(Thread):
         task.end_date = date_now()
         task.state = state
         self.task_collection.update_task(
-            task, properties=["state", "endDate"],
+            task, properties=["state", "endDate", "nextRetryDate", "finalRetryDate"],
             event_name=EVENT_STATE_CHANGE, message=message)
 
         trigger_task_finished_event(task, state)
@@ -613,12 +613,12 @@ class TaskQueueProcessor(Thread):
             # fail task
             self.info("Recovery: Failing task %s" % task.id)
             error = EngineWorkerCrashedError(msg="Engine crashed")
-            set_task_retry_info(task, self.task_collection, error)
+            set_task_retry_info(task, error)
             task.state = State.FAILED
             task.end_date = date_now()
             # update
             self.task_collection.update_task(
-                task, properties=["state", "endDate"],
+                task, properties=["state", "endDate", "nextRetryDate", "finalRetryDate"],
                 event_type=EVENT_STATE_CHANGE, message=msg)
 
             total_crashed += 1

@@ -467,6 +467,15 @@ class TargetInaccessibleError(TargetError):
                                                       cause=cause)
 
 ###############################################################################
+class NoSuchContainerError(TargetError):
+    """
+        Raised when the container does not exist
+    """
+    def __init__(self, container_name=None, cause=None):
+        msg = ("No such Cloud storage container %s .\n%s" % (container_name, cause))
+        super(NoSuchContainerError, self).__init__(msg=msg, cause=cause)
+
+###############################################################################
 class TargetConnectionError(TargetError, RetriableError):
     def __init__(self, container_name=None, cause=None):
         msg = ("Could not connect to cloud storage "
@@ -777,7 +786,8 @@ def raise_dump_error(returncode, error_log_line, last_namespace=None):
     # encode error log line
     if (returncode == 245 or
             ("Failed: error creating bson file" in error_log_line and
-                "no such file or directory" in error_log_line)):
+                "no such file or directory" in error_log_line) or
+        "contains a path separator" in error_log_line):
         error_type = BadCollectionNameError
     elif "10334" in error_log_line:
         if "BSONObj size: 0 (0x00000000)" in error_log_line:
