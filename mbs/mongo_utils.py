@@ -105,6 +105,15 @@ class MongoConnector(object):
 
     ###########################################################################
     @property
+    def admin_db(self):
+        return self.get_db("admin")
+
+    ###########################################################################
+    def get_db(self, name):
+        return self.mongo_client[name]
+
+    ###########################################################################
+    @property
     def connection_id(self):
         try:
             if self.is_online() and not self._connection_id:
@@ -260,7 +269,7 @@ class MongoConnector(object):
                do_on_failure=raise_exception)
     def _is_master_command(self):
         return (self.is_online() and
-                self.mongo_client.admin.command({"isMaster" : 1}))
+                self.admin_db.command({"isMaster" : 1}))
 
     ###########################################################################
     def info(self):
@@ -475,12 +484,6 @@ class MongoServer(MongoConnector):
                                                slaveOk=True)
         return self._mongo_client
 
-
-
-    ###########################################################################
-    def get_db(self, name):
-        return self.mongo_client[name]
-
     ###########################################################################
     @property
     def lag_in_seconds(self):
@@ -615,7 +618,7 @@ class MongoServer(MongoConnector):
     def _get_member_rs_status(self):
         try:
             rs_status_cmd = SON([('replSetGetStatus', 1)])
-            rs_status = self.mongo_client.admin.command(rs_status_cmd)
+            rs_status = self.admin_db.command(rs_status_cmd)
             for member in rs_status['members']:
                 if 'self' in member and member['self']:
                     return member
@@ -631,7 +634,7 @@ class MongoServer(MongoConnector):
     def get_rs_status(self):
         try:
             rs_status_cmd = SON([('replSetGetStatus', 1)])
-            return self.mongo_client.admin.command(rs_status_cmd)
+            return self.admin_db.command(rs_status_cmd)
         except Exception, e:
             details = "Cannot get rs for member '%s'" % self
             raise ReplicasetError(details=details, cause=e)
@@ -643,7 +646,7 @@ class MongoServer(MongoConnector):
     def _get_server_status(self):
         try:
             server_status_cmd = SON([('serverStatus', 1)])
-            server_status = self.get_auth_admin_db().command(server_status_cmd)
+            server_status = self.admin_db.command(server_status_cmd)
             ignored_props = ["locks", "recordStats", "$gleStats", "wiredTiger"]
             # IMPORTANT NOTE: We remove the "locks" property
             # which is introduced in 2.2.0 to avoid having issues if a client
@@ -717,7 +720,7 @@ class MongoServer(MongoConnector):
             if self.is_server_locked():
                 raise ServerAlreadyLockedError("Cannot run fsynclock on server '%s' "
                                                "because its already locked!" % self)
-            result = self.mongo_client.admin.command(SON([("fsync", 1),("lock", True)]))
+            result = self.admin_db.command(SON([("fsync", 1),("lock", True)]))
 
 
             if result.get("ok"):
@@ -734,7 +737,7 @@ class MongoServer(MongoConnector):
     ###########################################################################
     def is_server_locked(self):
         logger.info("Checking if '%s' is already locked." % self)
-        current_op = self.mongo_client.admin.current_op()
+        current_op = self.admin_db.current_op()
         locked = current_op and current_op.get("fsyncLock") is not None
 
         logger.info("is_server_locked return '%s' for '%s'." % (locked, self))
@@ -752,7 +755,7 @@ class MongoServer(MongoConnector):
         try:
             logger.info("Attempting to run fsyncunlock on %s" % self)
 
-            result = self.mongo_client.admin["$cmd.sys.unlock"].find_one()
+            result = self.admin_db["$cmd.sys.unlock"].find_one()
 
             if result.get("ok"):
                 logger.info("fsyncunlock ran successfully on %s" % self)
@@ -771,7 +774,7 @@ class MongoServer(MongoConnector):
 
     ###########################################################################
     def get_cmd_line_opts(self):
-        return self.mongo_client.admin.command({"getCmdLineOpts": 1})["parsed"]
+        return self.admin_db.command({"getCmdLineOpts": 1})["parsed"]
 
     ###########################################################################
     def is_config_server(self):
@@ -779,7 +782,7 @@ class MongoServer(MongoConnector):
 
     ###########################################################################
     def whatsmyuri(self):
-        return self.mongo_client.admin.command({"whatsmyuri": 1})
+        return self.admin_db.command({"whatsmyuri": 1})
 
 ###############################################################################
 class ShardedClusterConnector(MongoConnector):

@@ -2534,10 +2534,10 @@ def _grant_restore_role(connector):
     logger.info("Check if we granting restore role is needed for %s" %
                 connector)
     if isinstance(connector, MongoServer):
-        admin_db = connector.get_auth_admin_db()
+        admin_db = connector.admin_db
         user = connector._uri_wrapper.username
     elif isinstance(connector, MongoCluster):
-        admin_db = connector.primary_member.get_auth_admin_db()
+        admin_db = connector.primary_member.admin_db
         user = connector.primary_member._uri_wrapper.username
     else:
         logger.info("restore role is NOT needed for %s. Skipping..." %
