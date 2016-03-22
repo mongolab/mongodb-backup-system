@@ -548,7 +548,7 @@ class TaskQueueProcessor(Thread):
         # send a notification only if the task is not reschedulable
         # if there is an event queue configured then do not notify (because it should be handled by the backup
         # event listener)
-        if task.exceeded_max_tries():
+        if not get_mbs().event_queue and task.exceeded_max_tries():
             get_mbs().notifications.notify_on_task_failure(task, exception, trace)
 
     ###########################################################################
