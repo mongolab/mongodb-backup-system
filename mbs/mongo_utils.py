@@ -132,14 +132,16 @@ class MongoConnector(object):
 
     ###########################################################################
     def is_online(self):
-        if self.mongo_client:
+
             try:
-                ping(self.mongo_client)
-                return True
+                if self.mongo_client:
+                    ping(self.mongo_client)
+                    return True
+                else:
+                    return False
             except Exception, cfe:
                 return False
-        else:
-            return False
+
 
 
 
