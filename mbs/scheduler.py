@@ -53,7 +53,9 @@ class BackupScheduler(ScheduleRunner):
         except Exception, e:
             logger.error("Caught an error: '%s'.\nStack Trace:\n%s" %
                        (e, traceback.format_exc()))
-            self._backup_system._notify_error(e)
+            subject = "Plan Scheduler Error"
+            message = ("%s.\n\nStack Trace:\n%s" % (e, traceback.format_exc()))
+            get_mbs().notifications.send_error_notification(subject, message)
 
     ####################################################################################################################
     def _process_plans_considered_now(self, process_max_count=None):
