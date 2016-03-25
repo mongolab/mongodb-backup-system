@@ -165,7 +165,7 @@ class RestoreEvent(Event):
         doc.update({
             "_type": "RestoreEvent",
             "createdDate": self.created_date,
-            "backup": self.restore.to_document(display_only=display_only)
+            "restore": self.restore.to_document(display_only=display_only)
         })
 
         return doc
