@@ -4,6 +4,9 @@ import logging
 from schedule import Schedule
 from schedule_runner import ScheduleRunner
 
+from mbs.mbs import get_mbs
+from mbs.notification.handler import NotificationPriority
+
 ###############################################################################
 # LOGGER
 ###############################################################################
@@ -54,20 +57,27 @@ class PlanGenerator(ScheduleRunner):
 
     ####################################################################################################################
     def run_generator(self, dry_run=False):
-        if dry_run:
-            logger.info("----- DRY RUN ------")
 
-        logger.info("Running plan generator '%s' " % self.name)
-        # remove expired plans
-        for plan in self.get_plans_to_remove():
-            if not dry_run:
-                self._backup_system.remove_plan(plan.id)
-            else:
-                logger.info("DRY RUN: remove plan '%s' " % plan.id)
+        try:
+            if dry_run:
+                logger.info("----- DRY RUN ------")
 
-        # save new plans
-        for plan in self.get_plans_to_save():
-            if not dry_run:
-                self._backup_system.save_plan(plan)
-            else:
-                logger.info("DRY RUN: save plan: %s" % plan)
+            logger.info("Running plan generator '%s' " % self.name)
+            # remove expired plans
+            for plan in self.get_plans_to_remove():
+                if not dry_run:
+                    self._backup_system.remove_plan(plan.id)
+                else:
+                    logger.info("DRY RUN: remove plan '%s' " % plan.id)
+
+            # save new plans
+            for plan in self.get_plans_to_save():
+                if not dry_run:
+                    self._backup_system.save_plan(plan)
+                else:
+                    logger.info("DRY RUN: save plan: %s" % plan)
+        except Exception, ex:
+            logger.exception("Error in running plan generator %s" % self.name)
+
+            get_mbs().notifications.send_event_notification("Error in running plan generator %s" % self.name,
+                                                            str(ex), priority=NotificationPriority.CRITICAL)
