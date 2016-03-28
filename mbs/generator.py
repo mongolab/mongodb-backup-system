@@ -4,8 +4,8 @@ import logging
 from schedule import Schedule
 from schedule_runner import ScheduleRunner
 
-from mbs.mbs import get_mbs
-from mbs.notification.handler import NotificationPriority
+from mbs import get_mbs
+from notification.handler import NotificationPriority
 
 ###############################################################################
 # LOGGER
