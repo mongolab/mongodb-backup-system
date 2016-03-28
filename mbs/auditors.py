@@ -122,7 +122,7 @@ class PlanScheduleAuditor(BackupAuditor):
         failed_plan_reports = []
         all_warned_audits = []
         total_warnings = 0
-        for plan in get_mbs().plan_collection.find():
+        for plan in get_mbs().plan_collection.find(no_cursor_timeout=True):
             plan_report = self._create_plan_audit_report(plan, audit_date)
 
             if plan_report.has_failures():
@@ -268,7 +268,7 @@ class PlanRetentionAuditor(BackupAuditor):
         all_warned_audits = []
         total_warnings = 0
 
-        for plan in get_mbs().plan_collection.find():
+        for plan in get_mbs().plan_collection.find(no_cursor_timeout=True):
             logger.info("=== Processing Plan '%s'..." % plan.id)
             if not plan.retention_policy:
                 logger.warning("Plan '%s' has not retention policy! "

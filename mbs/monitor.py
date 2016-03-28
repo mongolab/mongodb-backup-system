@@ -56,7 +56,7 @@ class BackupMonitor(ScheduleRunner):
 
         past_due_backup_ids = []
 
-        for backup in get_mbs().backup_collection.find_iter(q):
+        for backup in get_mbs().backup_collection.find_iter(q, no_cursor_timeout=True):
             if self.is_backup_past_due(backup):
                 past_due_backup_ids.append(str(backup.id))
 
