@@ -419,7 +419,9 @@ class MongoCluster(MongoConnector):
 
     ###########################################################################
     def get_mongolab_backup_node(self):
+        logger.info("Attempting to determine mongolab backup node for %s" % self.connector_id)
         rs_conf = self.primary_member.rs_conf
+        logger.info("rs.conf for primary  '%s' is %s" % (self.primary_member.connector_id, rs_conf))
         for mem_conf in rs_conf["members"]:
             if("tags" in mem_conf and
                        "mongolabBackupNode" in mem_conf["tags"]):
