@@ -44,6 +44,7 @@ from scheduler import BackupScheduler
 from task_utils import set_task_retry_info, trigger_task_finished_event
 
 from notification.handler import NotificationPriority, NotificationType
+from schedule_runner import ScheduleRunner
 
 ###############################################################################
 ########################                                #######################
@@ -94,6 +95,8 @@ class BackupSystem(Thread):
         self._command_server = BackupSystemCommandServer(self)
         self._backup_monitor = BackupMonitor(self)
         self._scheduler = BackupScheduler(self)
+
+        self._master_monitor = MbsMasterMonitor(self)
 
     ###########################################################################
     @property
@@ -204,6 +207,10 @@ class BackupSystem(Thread):
         # start the scheduler
         self._start_scheduler()
 
+
+        # start the master monitor
+        self._start_master_monitor()
+
     ###########################################################################
     def master_instance_wait_for_stop_request(self):
         while not self._stop_requested:
@@ -217,6 +224,7 @@ class BackupSystem(Thread):
         self._stop_plan_generators()
         self._stop_backup_monitor()
         self._stop_scheduler()
+        self._stop_master_monitor()
         self.info('All backup system Master threads stopped')
         self._stopped = True
 
@@ -879,6 +887,40 @@ class BackupSystem(Thread):
         self.info('Scheduler stopped!')
 
     ###########################################################################
+    def _start_master_monitor(self):
+        self.info('Starting Master Monitor')
+        self._master_monitor.start()
+
+    ###########################################################################
+    def _stop_master_monitor(self):
+        self.info('Stopping Master Monitor')
+        self._master_monitor.stop()
+        self.info('Master Monitor stopped!')
+
+    ###########################################################################
+    def monitor_master(self):
+        services_down = []
+        if not self._scheduler.is_alive():
+            services_down.append("Scheduler")
+        if self._backup_expiration_manager and not self._backup_expiration_manager.is_alive():
+            services_down.append("Expiration Manager")
+
+        if self._backup_sweeper and not self._backup_sweeper.is_alive():
+            services_down.append("Backup Sweeper")
+
+        if self._plan_generators:
+            for g in self._plan_generators:
+                if not g.is_alive():
+                    services_down.append("Plan Generator: '%s'" % g.name)
+
+        if services_down:
+            msg = "Mbs Master has some services down: %s" % "\n".join(services_down)
+            logger.error(msg)
+            get_mbs().notifications.send_event_notification("Master Services DOWN!!!!",
+                                                            msg, priority=NotificationPriority.CRITICAL)
+
+
+    ###########################################################################
     # Command Server
     ###########################################################################
 
@@ -1006,3 +1048,21 @@ class BackupSystemCommandServer(Thread):
         except Exception, e:
             raise BackupSystemError("Error while stopping flask server:"
                                     " %s" % e)
+
+#################################################################################
+class MbsMasterMonitor(ScheduleRunner):
+
+    ###########################################################################
+    def __init__(self, master):
+        self._master = master
+        super(MbsMasterMonitor, self).__init__(Schedule(frequency_in_seconds=10))
+
+    ###########################################################################
+    def tick(self):
+        try:
+            self._master.monitor_master()
+        except Exception, ex:
+            logger.exception("MbsMasterMonitor error")
+            get_mbs().notifications.send_event_notification("MbsMasterMonitor error",
+                                                            str(ex), priority=NotificationPriority.CRITICAL)
+
