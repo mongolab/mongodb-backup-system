@@ -7,7 +7,8 @@ import logging
 from schedule import Schedule
 from date_utils import date_now
 from utils import wait_for
-
+from mbs import get_mbs
+import traceback
 ###############################################################################
 # ScheduleRunner
 ###############################################################################
@@ -61,8 +62,12 @@ class ScheduleRunner(Thread):
                     self.tick()
                 except Exception, ex:
                     logger.exception("ScheduleRunner.tick() error")
+                    get_mbs().notifications.send_error_notification("ScheduleRunner.tick() error",
+                                                                    traceback.format_exc())
         except Exception, ex:
             logger.exception("ScheduleRunner.run() error")
+            get_mbs().notifications.send_error_notification("ScheduleRunner.run() error",
+                                                            traceback.format_exc())
         self._stopped = True
 
     ###########################################################################
