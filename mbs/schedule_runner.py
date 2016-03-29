@@ -46,17 +46,23 @@ class ScheduleRunner(Thread):
 
     ###########################################################################
     def run(self):
-        while not self.stop_requested:
-            next_occurrence = self._schedule.next_natural_occurrence()
-            while date_now() < next_occurrence and not self._stop_requested:
-                time.sleep(self._sleep_time)
 
-            # break if stop requested
-            if self._stop_requested:
-                break
+        try:
+            while not self.stop_requested:
+                next_occurrence = self._schedule.next_natural_occurrence()
+                while date_now() < next_occurrence and not self._stop_requested:
+                    time.sleep(self._sleep_time)
 
-            self.tick()
+                # break if stop requested
+                if self._stop_requested:
+                    break
 
+                try:
+                    self.tick()
+                except Exception, ex:
+                    logger.exception("ScheduleRunner.tick() error")
+        except Exception, ex:
+            logger.exception("ScheduleRunner.run() error")
         self._stopped = True
 
     ###########################################################################
