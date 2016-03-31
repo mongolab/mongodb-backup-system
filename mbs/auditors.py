@@ -8,7 +8,7 @@ from globals import State
 import logging
 from date_utils import yesterday_date, datetime_to_string, date_plus_seconds
 
-from mbs.notification import NotificationPriority
+from notification import NotificationPriority
 
 ###############################################################################
 # LOGGER
