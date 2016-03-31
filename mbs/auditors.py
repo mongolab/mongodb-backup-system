@@ -166,7 +166,8 @@ class PlanScheduleAuditor(BackupAuditor):
         if (not self.max_allowed_failures_percentage or
                 (total_failures * self.max_allowed_failures_percentage * 100 >= total_plans)):
             subject = "%s Auditor Failure: Too many failures!!!" % self.name
-            msg = "There are %s failures out of %s which is >= 1%%" % (total_failures, total_plans)
+            msg = "There are %s failures out of %s which is >= %s%%" % (total_failures, total_plans,
+                                                                        self.max_allowed_failures_percentage)
             logger.error(subject)
             logger.error(msg)
             get_mbs().notifications.send_event_notification(subject, msg, priority=NotificationPriority.CRITICAL)
