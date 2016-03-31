@@ -8,6 +8,8 @@ from globals import State
 import logging
 from date_utils import yesterday_date, datetime_to_string, date_plus_seconds
 
+from mbs.notification import NotificationPriority
+
 ###############################################################################
 # LOGGER
 ###############################################################################
@@ -32,7 +34,7 @@ class BackupAuditor(object):
 
     ###########################################################################
     def __init__(self):
-        pass
+        self._max_allowed_failures_percentage = 0
 
     ###########################################################################
     def audit_report(self, audit_date):
@@ -50,6 +52,14 @@ class BackupAuditor(object):
     @property
     def name(self):
         return "BACKUP AUDITOR"
+
+    @property
+    def max_allowed_failures_percentage(self):
+        return self._max_allowed_failures_percentage
+
+    @max_allowed_failures_percentage.setter
+    def max_allowed_failures_percentage(self, v):
+        self._max_allowed_failures_percentage = v
 
 ###############################################################################
 class GlobalAuditor():
@@ -150,6 +160,16 @@ class PlanScheduleAuditor(BackupAuditor):
 
         logger.info("PlanScheduleAuditor: Generated report:\n%s " %
                     all_plans_report)
+
+
+        # alert if failed audits are >= max allowed percent of total
+        if (not self.max_allowed_failures_percentage or
+                (total_failures * self.max_allowed_failures_percentage * 100 >= total_plans)):
+            subject = "%s Auditor Failure: Too many failures!!!" % self.name
+            msg = "There are %s failures out of %s which is >= 1%%" % (total_failures, total_plans)
+            logger.error(subject)
+            logger.error(msg)
+            get_mbs().notifications.send_event_notification(subject, msg, priority=NotificationPriority.CRITICAL)
 
         return all_plans_report
 
