@@ -169,7 +169,7 @@ class PlanScheduleAuditor(BackupAuditor):
                                                                         self.max_allowed_failures_percentage * 100)
             logger.error(subject)
             logger.error(msg)
-            #get_mbs().notifications.send_event_notification(subject, msg, priority=NotificationPriority.CRITICAL)
+            get_mbs().notifications.send_event_notification(subject, msg, priority=NotificationPriority.CRITICAL)
 
         return all_plans_report
 
