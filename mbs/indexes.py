@@ -58,6 +58,12 @@ MBS_INDEXES = {
         {
             "index": [('state', ASCENDING), ('engineGuid', ASCENDING)]
         }
+    ],
+
+    "audits": [
+        {
+            "index": [('auditDate', ASCENDING), ('auditType', ASCENDING)]
+        }
     ]
 }
 
