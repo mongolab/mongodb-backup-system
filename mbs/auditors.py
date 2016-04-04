@@ -59,7 +59,7 @@ class BackupAuditor(object):
 
     @max_allowed_failures_percentage.setter
     def max_allowed_failures_percentage(self, v):
-        self._max_allowed_failures_percentage = v
+        self._max_allowed_failures_percentage = float(v)
 
 ###############################################################################
 class GlobalAuditor():
@@ -161,12 +161,11 @@ class PlanScheduleAuditor(BackupAuditor):
         logger.info("PlanScheduleAuditor: Generated report:\n%s " %
                     all_plans_report)
 
-
         # alert if failed audits are >= max allowed percent of total
-        if total_failures / total_plans > self.max_allowed_failures_percentage:
+        if float(total_failures) / total_plans > self.max_allowed_failures_percentage:
             subject = "%s Auditor Failure: Too many failures!!!" % self.name
             msg = "There are %s failures out of %s which is > %s%%" % (total_failures, total_plans,
-                                                                        self.max_allowed_failures_percentage * 100)
+                                                                       self.max_allowed_failures_percentage * 100)
             logger.error(subject)
             logger.error(msg)
             get_mbs().notifications.send_event_notification(subject, msg, priority=NotificationPriority.CRITICAL)
