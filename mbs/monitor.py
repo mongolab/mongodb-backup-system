@@ -61,8 +61,7 @@ class BackupMonitor(ScheduleRunner):
                 past_due_backup_infos.append("%s (%s)" % (str(backup.id), backup.source.get_source_info()))
 
         if past_due_backup_infos:
-            msg = ("You have scheduled backups that has past the maximum "
-                   "waiting time: \n%s" % ", \n".join(past_due_backup_infos))
+            msg = ("Backup(s) in SCHEDULED for too long: \n%s" % ", \n".join(past_due_backup_infos))
             logger.info(msg)
             logger.info("Sending a notification...")
             sbj = "Past due scheduled backups"
