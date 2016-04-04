@@ -169,6 +169,9 @@ class PlanScheduleAuditor(BackupAuditor):
             logger.error(subject)
             logger.error(msg)
             get_mbs().notifications.send_event_notification(subject, msg, priority=NotificationPriority.CRITICAL)
+        else:
+            logger.info("NO ALERT for %s Auditor: There are %s failures out of %s which is < %s%%" %
+                        (self.name,total_failures, total_plans, self.max_allowed_failures_percentage * 100))
 
         return all_plans_report
 
