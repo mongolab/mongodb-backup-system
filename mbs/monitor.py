@@ -54,15 +54,15 @@ class BackupMonitor(ScheduleRunner):
             "state": State.SCHEDULED,
         }
 
-        past_due_backup_ids = []
+        past_due_backup_infos = []
 
         for backup in get_mbs().backup_collection.find_iter(q, no_cursor_timeout=True):
             if self.is_backup_past_due(backup):
-                past_due_backup_ids.append(str(backup.id))
+                past_due_backup_infos.append("%s (%s)" % (str(backup.id), backup.source.get_source_info()))
 
-        if past_due_backup_ids:
+        if past_due_backup_infos:
             msg = ("You have scheduled backups that has past the maximum "
-                   "waiting time: \n%s" % "\n".join(past_due_backup_ids))
+                   "waiting time: \n%s" % ", \n".join(past_due_backup_infos))
             logger.info(msg)
             logger.info("Sending a notification...")
             sbj = "Past due scheduled backups"
