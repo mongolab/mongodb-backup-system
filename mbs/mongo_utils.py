@@ -52,6 +52,10 @@ def mongo_connect(uri, conn_timeout=None, **kwargs):
             else:
                 uri += "/admin"
 
+        # add serverSelectionTimeoutMS for pymongo 3.2
+        if pymongo.get_version_string().startswith("3.2"):
+            kwargs["serverSelectionTimeoutMS"] = 1
+
         mongo_client = MongoClient(uri, **kwargs)
         # ensure connect
         ping(mongo_client)
