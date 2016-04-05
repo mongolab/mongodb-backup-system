@@ -141,10 +141,10 @@ class MongoConnector(object):
                 if self.mongo_client:
                     ping(self.mongo_client)
                     return True
-                else:
-                    return False
-            except Exception, cfe:
-                return False
+            except (pymongo.errors.OperationFailure, pymongo.errors.AutoReconnect), ofe:
+                return "refused" not in str(ofe)
+            except pymongo.errors.ConnectionFailure, cfe:
+                return "connection closed" in str(cfe)
 
 
 
@@ -485,11 +485,14 @@ class MongoServer(MongoConnector):
         if not self._mongo_client:
             # default connection timeout and convert to mills
             conn_timeout_mills = self.conn_timeout * 1000
-
-            self._mongo_client = mongo_connect(self.uri,
-                                               socketTimeoutMS=conn_timeout_mills,
-                                               connectTimeoutMS=conn_timeout_mills,
-                                               slaveOk=True)
+            kwargs = {
+                "socketTimeoutMS": conn_timeout_mills,
+                "connectTimeoutMS": conn_timeout_mills
+            }
+            # add slaveOk for older pymongo versions
+            if pymongo.get_version_string().startswith("2"):
+                kwargs["slaveOk"] = True
+            self._mongo_client = mongo_connect(self.uri, **kwargs)
         return self._mongo_client
 
     ###########################################################################
