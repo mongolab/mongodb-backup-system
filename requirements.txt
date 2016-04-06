@@ -15,7 +15,7 @@ httplib2>=0.9
 psutil==1.2.1
 mongoctl>=0.7.8
 robustify>=0.1.0
-makerpy>=0.3.1
+makerpy>=0.3.2
 google-api-python-client==1.2
 sendgrid==0.1.3
 mbs_client>=0.3.0
@@ -26,7 +26,7 @@ python-simple-hipchat==0.4.0
 Pygerduty==0.31.0
 
 https://github.com/objectlabs/robustify/archive/0.1.0.zip#egg=robustify-0.1.0
-https://github.com/objectlabs/maker-py/archive/0.3.1.zip#egg=makerpy-0.3.1
+https://github.com/objectlabs/maker-py/archive/0.3.2.zip#egg=makerpy-0.3.2
 https://github.com/mongolab/mongoctl/archive/0.7.8.zip#egg=mongoctl-0.7.8
 https://github.com/abdulito/splitfile/archive/master.zip#egg=splitfile-0.1.1
 https://github.com/mongolab/mongodb-backup-system-client/archive/0.3.0.zip#egg=mbs_client-0.3.0
