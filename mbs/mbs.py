@@ -138,7 +138,8 @@ class MBS(object):
         if not self._mbs_db_client:
             self._mbs_db_client = mongo_connect(self._get_database_uri(), w=1)
             connection_id = get_client_connection_id(self._mbs_db_client)
-            logger.info("Successfully connected to mbs database (mongo connection id %s)" % connection_id)
+            logger.info("Successfully connected to mbs database (mongo connection id %s) (PID %s)" %
+                        (connection_id, os.getpid()))
 
         return self._mbs_db_client
 
