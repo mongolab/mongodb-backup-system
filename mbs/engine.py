@@ -190,9 +190,7 @@ class BackupEngine(Thread):
     @property
     def backup_processor(self):
         if not self._backup_processor:
-            bc = get_mbs().backup_collection
-            self._backup_processor = TaskQueueProcessor("Backups", bc, self,
-                                                        self._max_workers)
+            self._backup_processor = TaskQueueProcessor("Backups", "backups", self, self._max_workers)
         return self._backup_processor
 
 
@@ -200,10 +198,15 @@ class BackupEngine(Thread):
     @property
     def restore_processor(self):
         if not self._restore_processor:
-            rc = get_mbs().restore_collection
-            self._restore_processor = TaskQueueProcessor("Restores", rc, self,
-                                                         self._max_workers)
+            self._restore_processor = TaskQueueProcessor("Restores", "restores", self, self._max_workers)
         return self._restore_processor
+
+    ###########################################################################
+    def get_task_collection_by_name(self, name):
+        if name == "backups":
+            return get_mbs().backup_collection
+        elif name == "restores":
+            return get_mbs().restore_collection
 
     ###########################################################################
     def wait_task_processors(self):
@@ -383,11 +386,11 @@ class BackupEngine(Thread):
 
 class TaskQueueProcessor(Thread):
     ###########################################################################
-    def __init__(self, name, task_collection, engine, max_workers=10):
+    def __init__(self, name, task_collection_name, engine, max_workers=10):
         Thread.__init__(self)
 
         self._name = name
-        self._task_collection = task_collection
+        self._task_collection_name = task_collection_name
         self._engine = engine
         self._sleep_time = 25
         self._stopped = False
@@ -445,7 +448,10 @@ class TaskQueueProcessor(Thread):
     ###########################################################################
     @property
     def task_collection(self):
-        return self._task_collection
+        # NOTE we are not memoizing the collection to ensure that the we get a process local copy.
+        # This is to avoid pymongo3 vs multiprocessing issue since this TaskQueueProcessor object will be
+        # copied down to the subprocess
+        return self._engine.get_task_collection_by_name(self._task_collection_name)
 
     ###########################################################################
     def _start_next_task(self):

@@ -766,3 +766,18 @@ def safe_stringify(exception):
     """
     return unicode(exception).encode('ascii', 'ignore')
 
+
+###############################################################################
+PROCESS_LOCAL = {}
+
+def multiprocess_local():
+    """
+
+    :return: a dict local to the current process
+    """
+    global PROCESS_LOCAL
+    if os.getpid() not in PROCESS_LOCAL:
+        PROCESS_LOCAL[os.getpid()] = dict()
+
+    return PROCESS_LOCAL[os.getpid()]
+
