@@ -85,7 +85,6 @@ class BackupEngine(Thread):
         self._command_port = command_port
         self._command_server = EngineCommandServer(self)
         self._tags = None
-        self._resolved_tags = None
         self._stopped = False
         self._backup_processor = None
         self._restore_processor = None
@@ -134,13 +133,6 @@ class BackupEngine(Thread):
         self._tags = tags
 
     ###########################################################################
-    def get_resolved_tags(self):
-        if not self._resolved_tags and self.tags:
-            self._resolved_tags = self._resolve_tags(self.tags)
-
-        return self._resolved_tags
-
-    ###########################################################################
     @property
     def command_port(self):
         return self._command_port
@@ -161,9 +153,8 @@ class BackupEngine(Thread):
         self.info("Starting up... ")
         self.info("PID is %s" % os.getpid())
         self.info("PATH is '%s'" % os.environ['PATH'])
-        if self.get_resolved_tags():
-            self.info("Tags are: %s" %
-                      document_pretty_string(self.get_resolved_tags()))
+        if self.tags:
+            self.info("Tags are: %s" % document_pretty_string(self.tags))
         else:
             self.info("No tags configured")
 
@@ -215,35 +206,6 @@ class BackupEngine(Thread):
 
         # start the restore processor
         self.restore_processor.join()
-
-    ###########################################################################
-    def _get_tag_bindings(self):
-        """
-            Returns a dict of binding name/value that will be used for
-            resolving tags. Binding names starts with a '$'.
-            e.g. "$HOST":"FOO"
-        """
-        return {
-            "$HOST": get_local_host_name()
-        }
-
-    ###########################################################################
-    def _resolve_tags(self, tags):
-        resolved_tags = {}
-        for name,value in tags.items():
-            resolved_tags[name] = self._resolve_tag_value(value)
-
-        return resolved_tags
-
-    ###########################################################################
-    def _resolve_tag_value(self, value):
-        # if value is not a string then return it as is
-        if not isinstance(value, (str, unicode)):
-            return value
-        for binding_name, binding_value in self._get_tag_bindings().items():
-            value = value.replace(binding_name, binding_value)
-
-        return value
 
     ###########################################################################
     def kill_engine_process(self):
@@ -687,7 +649,7 @@ class TaskQueueProcessor(Thread):
     ###########################################################################
     def _get_scheduled_tasks_query(self):
         q = {"state": State.SCHEDULED}
-        tags = self._engine.get_resolved_tags()
+        tags = self._engine.tags
         # add tags if specified
         if tags:
             tag_filters = []
