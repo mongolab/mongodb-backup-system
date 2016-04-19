@@ -13,7 +13,7 @@ pystache==0.5.4
 verlib==0.1
 httplib2>=0.9
 psutil==1.2.1
-mongoctl>=1.0.3
+mongoctl>=1.0.6
 robustify>=0.1.0
 makerpy>=0.3.3
 google-api-python-client==1.2
@@ -27,7 +27,7 @@ Pygerduty==0.31.0
 
 https://github.com/objectlabs/robustify/archive/0.1.0.zip#egg=robustify-0.1.0
 https://github.com/objectlabs/maker-py/archive/0.3.3.zip#egg=makerpy-0.3.3
-https://github.com/mongolab/mongoctl/archive/1.0.3.zip#egg=mongoctl-1.0.3
+https://github.com/mongolab/mongoctl/archive/1.0.6.zip#egg=mongoctl-1.0.6
 https://github.com/abdulito/splitfile/archive/master.zip#egg=splitfile-0.1.1
 https://github.com/mongolab/mongodb-backup-system-client/archive/0.3.2.zip#egg=mbs_client-0.3.2
 
