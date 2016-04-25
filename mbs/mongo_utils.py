@@ -146,9 +146,6 @@ class MongoConnector(object):
             except pymongo.errors.ConnectionFailure, cfe:
                 return "connection closed" in str(cfe)
 
-
-
-
     ###########################################################################
     @robustify(max_attempts=3, retry_interval=3,
                do_on_exception=raise_if_not_retriable,
@@ -165,7 +162,9 @@ class MongoConnector(object):
             else:
                 raise
 
-
+    ###########################################################################
+    def _supports_mongo_fsyncunlock_command(self):
+        return self.get_mongo_version() >= MongoNormalizedVersion("3.2.0")
 
     ###########################################################################
     def get_stats(self, only_for_db=None):
@@ -765,7 +764,10 @@ class MongoServer(MongoConnector):
         try:
             logger.info("Attempting to run fsyncunlock on %s" % self)
 
-            result = self.admin_db["$cmd.sys.unlock"].find_one()
+            if self._supports_mongo_fsyncunlock_command():
+                result = self.admin_db.command(SON([("fsyncUnlock", 1)]))
+            else:
+                result = self.admin_db["$cmd.sys.unlock"].find_one()
 
             if result.get("ok"):
                 logger.info("fsyncunlock ran successfully on %s" % self)
