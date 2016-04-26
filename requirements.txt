@@ -27,7 +27,7 @@ Pygerduty==0.31.0
 
 git+git://github.com/objectlabs/robustify@0.1.0#egg=robustify-0.1.0
 git+git://github.com/objectlabs/maker-py@0.3.4#egg=makerpy-0.3.4
-git+git://github.com/mongolab/mongoctl@1.0.6#egg=mbs-mongoctl-1.0.6
+git+git://github.com/mongolab/mongoctl@1.0.6#egg=mbs_mongoctl-1.0.6
 git+git://github.com/abdulito/splitfile#egg=splitfile-0.1.1
 git+git://github.com/mongolab/mongodb-backup-system-client@0.3.2#egg=mbs_client-0.3.2
 
