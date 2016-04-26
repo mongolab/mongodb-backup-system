@@ -13,7 +13,7 @@ pystache==0.5.4
 verlib==0.1
 httplib2>=0.9
 psutil==1.2.1
-mongoctl>=1.0.6
+mbs_mongoctl>=1.0.6
 robustify>=0.1.0
 makerpy>=0.3.4
 google-api-python-client==1.2
