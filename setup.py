@@ -16,12 +16,17 @@ except ImportError:
 ###############################################################################
 def parse_archive(line):
     parts = urlparse(line)
-    if len(parts.fragment) == 0:
+    fragment = parts.fragment
+    # deal with older python versions where urlparse doesnt parse git uris
+    if not fragment and "#" in line:
+        fragment = line.split("#")[1]
+
+    if not fragment:
         raise ValueError('no egg specified')
-    if parts.fragment.count('-') > 1:
+    if fragment.count('-') > 1:
         raise ValueError('hyphens in package names should be replaced with '
                          'underscores')
-    return line, parts.fragment.split('=')[1].replace('-', '==')
+    return line, fragment.split('=')[1].replace('-', '==')
 
 
 ###############################################################################
