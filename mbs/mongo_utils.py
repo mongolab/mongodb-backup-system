@@ -139,12 +139,9 @@ class MongoConnector(object):
 
             try:
                 if self.mongo_client:
-                    ping(self.mongo_client)
                     return True
-            except (pymongo.errors.OperationFailure, pymongo.errors.AutoReconnect), ofe:
-                return "refused" not in str(ofe)
-            except pymongo.errors.ConnectionFailure, cfe:
-                return "connection closed" in str(cfe)
+            except ConnectionError, ce:
+                return "refused" not in str(ce) or "connection closed" in str(ce)
 
     ###########################################################################
     @robustify(max_attempts=3, retry_interval=3,
