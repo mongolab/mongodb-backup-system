@@ -612,7 +612,9 @@ class TaskQueueProcessor(Thread):
 
         c = self.task_collection
 
-        task = c.find_and_modify(query=q, sort=s, update=u, new=True)
+        task = c.find_one(query=q, sort=s)
+        if task:
+            task = c.find_and_modify(query=q, sort=s, update=u, new=True)
 
         return task
 
@@ -643,8 +645,9 @@ class TaskQueueProcessor(Thread):
              }
         }
 
-        return self.task_collection.find_and_modify(query=q, update=u,
-                                                    new=True)
+        task = self.task_collection.find_one(query=q)
+        if task:
+            return self.task_collection.find_and_modify(query=q, update=u, new=True)
 
     ###########################################################################
     def _get_scheduled_tasks_query(self):
