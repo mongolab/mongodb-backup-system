@@ -141,6 +141,8 @@ class MongoConnector(object):
                 if self.mongo_client:
                     ping(self.mongo_client)
                     return True
+            except ConnectionError, ce:
+                return "refused" not in str(ce)
             except (pymongo.errors.OperationFailure, pymongo.errors.AutoReconnect), ofe:
                 return "refused" not in str(ofe)
             except pymongo.errors.ConnectionFailure, cfe:
