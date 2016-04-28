@@ -619,20 +619,20 @@ class TaskQueueProcessor(Thread):
     ###########################################################################
     def _read_next_failed_past_due_task(self):
         min_fail_end_date = date_minus_seconds(date_now(), MAX_FAIL_DUE_TIME)
-        q = { "state": State.FAILED,
-              "engineGuid": self._engine.engine_guid,
-              "$or": [
-                      {
-                      "plan.nextOccurrence": {"$lte": date_now()}
-                  },
-
-                      {
-                      "plan": {"$exists": False},
-                      "endDate": {"$lte": min_fail_end_date}
-                  }
-
-
-              ]
+        q = {
+            "$or": [
+                {
+                    "state": State.FAILED,
+                    "engineGuid": self._engine.engine_guid,
+                    "plan.nextOccurrence": {"$lte": date_now()}
+                },
+                {
+                    "state": State.FAILED,
+                    "engineGuid": self._engine.engine_guid,
+                    "plan": {"$exists": False},
+                    "endDate": {"$lte": min_fail_end_date}
+                }
+            ]
         }
 
         msg = "Task failed and is past due. Cancelling..."
