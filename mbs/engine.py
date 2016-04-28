@@ -389,9 +389,9 @@ class TaskQueueProcessor(Thread):
 
         # monitor workers
         self._monitor_workers()
-        # Cancel a failed task every 5 ticks and there are available
+        # Cancel a failed task every 20 ticks and there are available
         # workers
-        if self._tick_count % 5 == 0 and self._has_available_workers():
+        if self._tick_count % 20 == 0 and self._has_available_workers():
             self._clean_next_past_due_failed_task()
 
     ###########################################################################
