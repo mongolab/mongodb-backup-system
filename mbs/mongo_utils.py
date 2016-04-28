@@ -56,6 +56,8 @@ def mongo_connect(uri, conn_timeout=None, **kwargs):
         if pymongo.get_version_string().startswith("3.2"):
             kwargs["serverSelectionTimeoutMS"] = 3000
 
+        kwargs["maxPoolSize"] = 1
+
         mongo_client = MongoClient(uri, **kwargs)
         # ensure connect
         ping(mongo_client)
