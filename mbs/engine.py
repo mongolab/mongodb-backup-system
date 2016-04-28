@@ -652,12 +652,9 @@ class TaskQueueProcessor(Thread):
         tags = self._engine.tags
         # add tags if specified
         if tags:
-            tag_filters = []
             for name, value in tags.items():
                 tag_prop_path = "tags.%s" % name
-                tag_filters.append({tag_prop_path: value})
-
-            q["$or"] = tag_filters
+                q[tag_prop_path] = value
 
         return q
 
