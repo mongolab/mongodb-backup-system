@@ -167,8 +167,11 @@ class MongoConnector(object):
                 raise
 
     ###########################################################################
-    def _supports_mongo_fsyncunlock_command(self):
+    def version_greater_than_3_2(self):
         return self.get_mongo_version() >= MongoNormalizedVersion("3.2.0")
+
+    def version_greater_than_3_0(self):
+        return self.get_mongo_version() >= MongoNormalizedVersion("3.0.0")
 
     ###########################################################################
     def get_stats(self, only_for_db=None):
@@ -682,8 +685,11 @@ class MongoServer(MongoConnector):
     def _get_rs_config(self):
 
         try:
-            local_db = self.mongo_client.local
-            return local_db['system.replset'].find_one()
+            if self.version_greater_than_3_0():
+                return self.admin_db.command(SON([('replSetGetConfig', 1)]), "admin")["config"]
+            else:
+                local_db = self.mongo_client.local
+                return local_db['system.replset'].find_one()
         except Exception, e:
                 details = "Cannot get rs config for member '%s'." % self
                 raise ReplicasetError(details=details, cause=e)
@@ -768,7 +774,7 @@ class MongoServer(MongoConnector):
         try:
             logger.info("Attempting to run fsyncunlock on %s" % self)
 
-            if self._supports_mongo_fsyncunlock_command():
+            if self.version_greater_than_3_0():
                 result = self.admin_db.command(SON([("fsyncUnlock", 1)]))
             else:
                 result = self.admin_db["$cmd.sys.unlock"].find_one()
