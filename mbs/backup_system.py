@@ -514,19 +514,26 @@ class BackupSystem(Thread):
 
             is_new_plan = not plan.id
 
-            plan_doc = plan.to_document()
-            get_mbs().plan_collection.save_document(plan_doc)
-            plan.id = plan_doc["_id"]
-
             if is_new_plan:
                 self.info("Saving new plan: \n%s" % plan)
+                plan_doc = plan.to_document()
+                get_mbs().plan_collection.save_document(plan_doc)
+                plan.id = plan_doc["_id"]
+                self.info("Plan saved successfully")
             else:
                 self.info("Updating plan: \n%s" % plan)
+                self.update_existing_plan(plan)
+                self.info("Plan updated successfully")
 
-            self.info("Plan saved successfully")
+
         except Exception, e:
             raise BackupSystemError("Error while saving plan %s. %s" %
                                        (plan, e))
+
+    ###########################################################################
+    def update_existing_plan(self, plan):
+        # TODO XXX remove the pymongo collection save call because it is deprecated
+        return get_mbs().plan_collection.collection.save(plan.to_document())
 
     ###########################################################################
     def remove_plan(self, plan_id):
