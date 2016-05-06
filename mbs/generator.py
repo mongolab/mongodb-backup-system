@@ -72,10 +72,17 @@ class PlanGenerator(ScheduleRunner):
 
             # save new plans
             for plan in self.get_plans_to_save():
-                if not dry_run:
-                    self._backup_system.save_plan(plan)
-                else:
-                    logger.info("DRY RUN: save plan: %s" % plan)
+                try:
+                    if not dry_run:
+                        self._backup_system.save_plan(plan)
+                    else:
+                        logger.info("DRY RUN: save plan: %s" % plan)
+                except Exception, ex:
+                    logger.exception("Error while saving plan %s" % plan)
+
+                    get_mbs().notifications.send_event_notification("Error in saving plan for generator %s" %
+                                                                    self.name,
+                                                                    str(ex), priority=NotificationPriority.CRITICAL)
         except Exception, ex:
             logger.exception("Error in running plan generator %s" % self.name)
 
