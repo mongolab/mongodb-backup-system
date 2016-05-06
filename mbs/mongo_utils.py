@@ -774,7 +774,7 @@ class MongoServer(MongoConnector):
         try:
             logger.info("Attempting to run fsyncunlock on %s" % self)
 
-            if self.version_greater_than_3_0():
+            if self.version_greater_than_3_2():
                 result = self.admin_db.command(SON([("fsyncUnlock", 1)]))
             else:
                 result = self.admin_db["$cmd.sys.unlock"].find_one()
