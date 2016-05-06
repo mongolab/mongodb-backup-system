@@ -650,7 +650,10 @@ class MongoServer(MongoConnector):
     def get_rs_status(self):
         try:
             rs_status_cmd = SON([('replSetGetStatus', 1)])
-            return self.admin_db.command(rs_status_cmd)
+            status = self.admin_db.command(rs_status_cmd)
+            if status:
+                clenup_stats_value(status)
+            return status
         except Exception, e:
             details = "Cannot get rs for member '%s'" % self
             raise ReplicasetError(details=details, cause=e)
@@ -1152,5 +1155,11 @@ class MongoNormalizedVersion(NormalizedVersion):
 def ping(mongo_client):
     return mongo_client.get_database("admin").command({"ping": 1})
 
+
+###############################################################################
+def clenup_stats_value(stats):
+    for prop in stats.keys():
+        if prop.startswith("$"):
+            del stats[prop]
 
 
