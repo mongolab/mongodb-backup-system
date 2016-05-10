@@ -50,6 +50,10 @@ def trigger_task_finished_event(task, state):
 ########################################################################################################################
 def set_task_retry_info(task, error):
 
+    if not isinstance(task, Backup):
+        # NOOP on restores
+        return
+
     # compute final retry date
     if not task.final_retry_date:
         task.final_retry_date = _compute_final_retry_date(task)
