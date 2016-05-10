@@ -68,10 +68,14 @@ def set_task_retry_info(task, error):
 
 ########################################################################################################################
 def _compute_final_retry_date(task):
-    if isinstance(task, Backup) and task.plan_occurrence:
-        return mid_date_between(task.plan_occurrence, task.plan.schedule.next_natural_occurrence())
+    if isinstance(task, Backup):
+        if task.plan_occurrence:
+            return mid_date_between(task.plan_occurrence, task.plan.schedule.next_natural_occurrence())
+        else:
+            return date_plus_seconds(task.created_date, 5 * 60 * 60)
     else:
-        return date_plus_seconds(task.created_date, 5 * 60 * 60)
+        # restore, NOOP
+        pass
 
 ########################################################################################################################
 def _compute_next_retry_date(task, error):
