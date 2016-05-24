@@ -54,7 +54,7 @@ def mongo_connect(uri, conn_timeout=None, **kwargs):
 
         # add serverSelectionTimeoutMS for pymongo 3.2
         if pymongo.get_version_string().startswith("3.2"):
-            kwargs["serverSelectionTimeoutMS"] = conn_timeout_mills
+            kwargs["serverSelectionTimeoutMS"] = 3000
 
         kwargs["maxPoolSize"] = 1
 
