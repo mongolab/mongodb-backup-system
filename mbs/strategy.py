@@ -1990,7 +1990,7 @@ class CloudBlockStorageStrategy(BackupStrategy):
 
 
     ###########################################################################
-    def _ensure_unlocked_and_resumed(self, backup, cbs, mongo_connector):
+    def _ensure_unlocked_and_resumed(self, backup, mongo_connector, cbs):
 
         last_suspend = backup.get_last_event_entry(BackupEventNames.SUSPEND_IO)
         last_resume = backup.get_last_event_entry(BackupEventNames.RESUME_IO)
