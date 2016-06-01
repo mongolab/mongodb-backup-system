@@ -28,8 +28,8 @@ logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
 # CONSTS
-# db connection timeout, 160 seconds
-CONN_TIMEOUT = 160
+# db connection timeout, 20 seconds
+CONN_TIMEOUT = 20
 
 ###############################################################################
 @robustify(max_attempts=3, retry_interval=3,
