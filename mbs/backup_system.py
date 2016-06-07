@@ -288,7 +288,8 @@ class BackupSystem(Thread):
             self._task_failed_to_schedule(backup, bc, ex)
 
         if backup.state == State.FAILED:
-            get_mbs().notifications.notify_task_reschedule_failed(backup)
+            if not get_mbs().event_queue:
+                get_mbs().notifications.notify_task_reschedule_failed(backup)
             trigger_task_finished_event(backup, State.FAILED)
 
         bc.update_task(backup, properties=props,
