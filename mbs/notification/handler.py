@@ -112,14 +112,14 @@ class Notifications(object):
             else:
                 handler_names = str(handlers_conf)
 
-        return map(self._get_handler_by_name, listify(handler_names))
+        return map(self.get_handler_by_name, listify(handler_names))
 
     ###########################################################################
     def get_default_handler(self):
         return self.handler_mapping.get(NotificationType.DEFAULT)
 
     ###########################################################################
-    def _get_handler_by_name(self, name):
+    def get_handler_by_name(self, name):
         return self._handlers.get(name)
 
 ###############################################################################
@@ -430,16 +430,24 @@ class PagerDutyNotificationHandler(NotificationHandler):
     def send_notification(self, subject, message, recipient=None):
 
         try:
-            pager = pygerduty.PagerDuty(self.sub_domain, self.api_key)
+            pager = self.get_pager()
             kwargs = {}
             if self.client_name:
                 kwargs["client"] = self.client_name
 
             logger.info("PagerDuty: Sending notification: %s..." % subject)
-            pager.create_event(self.service_key, subject, "trigger", message, subject, **kwargs)
+            return pager.create_event(self.service_key, subject, "trigger", message, subject, **kwargs)
         except Exception, e:
             logger.error("Error while creating pager duty event:\n%s" %
                          traceback.format_exc())
+
+    ###########################################################################
+    def resolve_incident(self, incident_key):
+        return self.get_pager().resolve_incident(self.service_key, incident_key)
+
+    ###########################################################################
+    def get_pager(self):
+        return pygerduty.PagerDuty(self.sub_domain, self.api_key)
 
 ###############################################################################
 def get_class_full_name(clazz):
