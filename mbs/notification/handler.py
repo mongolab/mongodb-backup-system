@@ -443,6 +443,7 @@ class PagerDutyNotificationHandler(NotificationHandler):
 
     ###########################################################################
     def resolve_incident(self, incident_key):
+        logger.info("PagerDutyNotificationHandler: Resolving incident '%s'" % incident_key)
         return self.get_pager().resolve_incident(self.service_key, incident_key)
 
     ###########################################################################
