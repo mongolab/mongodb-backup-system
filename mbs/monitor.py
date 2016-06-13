@@ -19,6 +19,9 @@ logger.addHandler(logging.NullHandler())
 MAX_BACKUP_WAIT_TIME = 5 * 60 * 60
 ONE_OFF_BACKUP_MAX_WAIT_TIME = 60
 
+
+PAST_DUE_ALERT_SUBJECT = "Past due scheduled backups"
+
 ###############################################################################
 # BackupMonitor
 ###############################################################################
@@ -30,6 +33,7 @@ class BackupMonitor(ScheduleRunner):
     def __init__(self, backup_system):
         self._backup_system = backup_system
         ScheduleRunner.__init__(self, schedule=Schedule(frequency_in_seconds=5*60))
+        self._alerting_on_past_due = False
 
     ###########################################################################
     def run(self):
@@ -64,10 +68,17 @@ class BackupMonitor(ScheduleRunner):
             msg = ("Backup(s) in SCHEDULED for too long: \n%s" % ", \n".join(past_due_backup_infos))
             logger.info(msg)
             logger.info("Sending a notification...")
-            sbj = "Past due scheduled backups"
+            sbj = PAST_DUE_ALERT_SUBJECT
             get_mbs().notifications.send_notification(sbj, msg, notification_type=NotificationType.EVENT,
                                                       priority=NotificationPriority.CRITICAL)
+            self._alerting_on_past_due = True
 
+        elif self._alerting_on_past_due:
+            self._clear_past_due_alert()
+
+    ###########################################################################
+    def _clear_past_due_alert(self):
+        self._alerting_on_past_due = False
 
     ###########################################################################
     def is_backup_past_due(self, backup):
