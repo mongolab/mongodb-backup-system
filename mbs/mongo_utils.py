@@ -143,12 +143,17 @@ class MongoConnector(object):
                 if self.mongo_client:
                     ping(self.mongo_client)
                     return True
-            except ConnectionError, ce:
-                return "refused" not in str(ce)
-            except (pymongo.errors.OperationFailure, pymongo.errors.AutoReconnect), ofe:
-                return "refused" not in str(ofe)
-            except pymongo.errors.ConnectionFailure, cfe:
-                return "connection closed" in str(cfe)
+            except (pymongo.errors.ConnectionFailure,
+                    pymongo.errors.OperationFailure,
+                    pymongo.errors.AutoReconnect,
+                    ConnectionError), ce:
+
+                pymongo_error = ce if isinstance(ce, pymongo.errors.PyMongoError) else ce.cause
+                err_str = str(pymongo_error)
+                if isinstance(pymongo_error, pymongo.errors.ConnectionFailure):
+                    return "connection closed" in str(pymongo_error)
+
+                return "refused" not in err_str and "No servers found" not in err_str
 
     ###########################################################################
     @robustify(max_attempts=3, retry_interval=3,
