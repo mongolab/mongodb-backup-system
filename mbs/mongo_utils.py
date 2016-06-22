@@ -20,6 +20,8 @@ import logging
 from robustify.robustify import robustify
 from date_utils import date_now
 
+
+from pymo import mongo_client as _mongo_client
 ###############################################################################
 # LOGGER
 ###############################################################################
@@ -54,13 +56,11 @@ def mongo_connect(uri, conn_timeout=None, **kwargs):
 
         # add serverSelectionTimeoutMS for pymongo 3.2
         if pymongo.get_version_string().startswith("3.2"):
-            kwargs["serverSelectionTimeoutMS"] = 3000
+            kwargs["serverSelectionTimeoutMS"] = conn_timeout_mills
 
         kwargs["maxPoolSize"] = 1
 
-        mongo_client = MongoClient(uri, **kwargs)
-        # ensure connect
-        ping(mongo_client)
+        mongo_client = _mongo_client(uri, **kwargs)
 
         return mongo_client
 
@@ -141,7 +141,6 @@ class MongoConnector(object):
 
             try:
                 if self.mongo_client:
-                    ping(self.mongo_client)
                     return True
             except (pymongo.errors.ConnectionFailure,
                     pymongo.errors.OperationFailure,
@@ -1154,12 +1153,6 @@ class MongoNormalizedVersion(NormalizedVersion):
 
     def __str__(self):
         return self.version_str
-
-
-###############################################################################
-def ping(mongo_client):
-    return mongo_client.get_database("admin").command({"ping": 1})
-
 
 ###############################################################################
 def clenup_stats_value(stats):
