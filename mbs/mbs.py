@@ -391,8 +391,10 @@ class MBS(object):
 ###############################################################################
 # MBS Singleton
 ###############################################################################
+mbs_singleton = None
 def get_mbs():
-    mbs_singleton = multiprocess_local().get("mbs_singleton")
+    global  mbs_singleton
+    #mbs_singleton = multiprocess_local().get("mbs_singleton")
     if not mbs_singleton:
         mbs_config = read_config_json("mbs", config.MBS_CONF_PATH)
         mbs_type = mbs_config.get("_type")
@@ -401,7 +403,7 @@ def get_mbs():
             mbs_class = resolve_class(mbs_type)
 
         mbs_singleton = mbs_class(mbs_config)
-        multiprocess_local()["mbs_singleton"] = mbs_singleton
+        #multiprocess_local()["mbs_singleton"] = mbs_singleton
     return mbs_singleton
 
 
