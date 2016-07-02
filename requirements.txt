@@ -27,7 +27,7 @@ git+git://github.com/objectlabs/maker-py.git@0.3.4#egg=makerpy-0.3.4
 git+git://github.com/mongolab/mongoctl.git@1.1.3#egg=mongoctl-1.1.3
 git+git://github.com/abdulito/splitfile.git#egg=splitfile-0.1.1
 git+git://github.com/mongolab/mongodb-backup-system-client.git@0.3.2#egg=mbs_client-0.3.2
-git+git://github.com/mlab/pymo.git#egg=pymo-0.1.0
+git+git://github.com/mlab/pymo.git@0.1.0#egg=pymo-0.1.0
 
 # test
 
