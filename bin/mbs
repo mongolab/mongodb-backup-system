@@ -23,12 +23,14 @@ from mbs.mbs_logging import setup_logging, redirect_std_to_logger
 
 from mbs.persistence import get_backup, get_backup_plan, get_restore
 
-from mbs_client.client import backup_system_client
+import code
 
 ###############################################################################
 # MAIN
 ###############################################################################
 def main(args):
+    register_debug_handler()
+
     parser = dargparse.build_parser(PARSER_DEF)
 
     if len(args) < 1:
@@ -686,6 +688,26 @@ def api_client():
 ###############################################################################
 def event_listener_client():
     return get_mbs().backup_event_listener.local_client
+
+
+
+
+###############################################################################
+def do_debug(sig, frame):
+    """Interrupt running process, and provide a python prompt for
+    interactive debugging."""
+    d={'_frame':frame}         # Allow access to frame object.
+    d.update(frame.f_globals)  # Unless shadowed by global
+    d.update(frame.f_locals)
+
+    i = code.InteractiveConsole(d)
+    message  = "Signal received : entering python shell.\nTraceback:\n"
+    message += ''.join(traceback.format_stack(frame))
+    print message
+
+###############################################################################
+def register_debug_handler():
+    signal.signal(signal.SIGUSR1, do_debug)  # Register handler
 
 ###############################################################################
 # command parser
