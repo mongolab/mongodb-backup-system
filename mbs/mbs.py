@@ -265,7 +265,7 @@ class MBS(object):
     ###########################################################################
     @property
     def api_client(self):
-
+        logger.info("++++> mbs.api_client (BEGIN)")
         if not self._api_client:
             api_client_conf = self._get_config_value("apiClient")
             if api_client_conf:
@@ -274,6 +274,7 @@ class MBS(object):
                 import mbs_client.client
                 self._api_client = mbs_client.client.backup_system_client()
 
+        logger.info("++++> mbs.api_client (END)")
         return self._api_client
 
     ###########################################################################
