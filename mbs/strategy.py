@@ -828,9 +828,6 @@ class BackupStrategy(MBSObject):
     ###########################################################################
     # NOTE: Unlock is very important so # of retries is set to a high number to ensure (12
     # we try
-    @robustify(max_attempts=120, retry_interval=5,
-               do_on_exception=raise_if_not_retriable,
-               do_on_failure=raise_exception)
     def _fsyncunlock(self, backup, mongo_connector):
         if isinstance(mongo_connector, MongoServer):
             msg = ("Running fsyncunlock on '%s' (connection '%s')" %
