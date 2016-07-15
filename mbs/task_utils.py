@@ -6,7 +6,7 @@ from .backup import Backup
 from .restore import Restore
 from .date_utils import mid_date_between, date_plus_seconds, date_now
 from .mbs import get_mbs
-
+from .globals import State
 from .events import BackupFinishedEvent, RestoreFinishedEvent
 from .notification.handler import NotificationPriority
 
@@ -44,8 +44,8 @@ def trigger_task_finished_event(task, state):
         sbj = "Failed to trigger Finished Event for %s %s (%s)" % (task_type, task.id, task.description)
         msg = "Failed to trigger Finished Event for %s %s (%s): \nError: %s" % \
               (task_type, task.id, task.description, traceback.format_exc())
-
-        get_mbs().notifications.send_event_notification(sbj, msg, priority=NotificationPriority.CRITICAL)
+        priority = NotificationPriority.CRITICAL if state == State.FAILED else NotificationPriority.NORMAL
+        get_mbs().notifications.send_event_notification(sbj, msg, priority=priority)
 
 ########################################################################################################################
 def set_task_retry_info(task, error):
