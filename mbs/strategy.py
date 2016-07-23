@@ -113,7 +113,7 @@ class BackupStrategy(MBSObject):
     def __init__(self):
         MBSObject.__init__(self)
         self._member_preference = None
-        self._ensure_localhost = False
+        self._ensure_localhost = None
         self._max_data_size = None
         self._backup_name_scheme = None
         self._backup_description_scheme = None
