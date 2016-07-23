@@ -296,7 +296,6 @@ class BackupStrategy(MBSObject):
     ###########################################################################
     def run_backup(self, backup):
         self._init_strategy(backup)
-        self.backup_assistant.create_task_workspace(backup)
         self._do_run_backup(backup)
 
     ###########################################################################
@@ -663,6 +662,8 @@ class BackupStrategy(MBSObject):
                        mongo_connector)
             raise BackupNotOnLocalhost(msg="Error while attempting to dump",
                                        details=details)
+
+        self.backup_assistant.create_task_workspace(backup)
 
         # record stats
         if (not self.disable_source_stats and
