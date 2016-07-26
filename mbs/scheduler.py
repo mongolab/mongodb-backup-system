@@ -48,14 +48,31 @@ class BackupScheduler(ScheduleRunner):
 
         try:
             self._process_plans_considered_now(process_max_count=100)
-            self._cancel_past_cycle_backups()
-            self._process_failed_backups()
         except Exception, e:
             logger.error("Caught an error: '%s'.\nStack Trace:\n%s" %
-                       (e, traceback.format_exc()))
+                         (e, traceback.format_exc()))
             subject = "Plan Scheduler Error"
             message = ("%s.\n\nStack Trace:\n%s" % (e, traceback.format_exc()))
             get_mbs().notifications.send_error_notification(subject, message)
+
+        try:
+            self._process_failed_backups()
+        except Exception, e:
+            logger.error("Caught an error: '%s'.\nStack Trace:\n%s" %
+                         (e, traceback.format_exc()))
+            subject = "Plan Scheduler Error"
+            message = ("%s.\n\nStack Trace:\n%s" % (e, traceback.format_exc()))
+            get_mbs().notifications.send_error_notification(subject, message)
+
+        try:
+            self._cancel_past_cycle_backups()
+        except Exception, e:
+            logger.error("Caught an error: '%s'.\nStack Trace:\n%s" %
+                         (e, traceback.format_exc()))
+            subject = "Plan Scheduler Error"
+            message = ("%s.\n\nStack Trace:\n%s" % (e, traceback.format_exc()))
+            get_mbs().notifications.send_error_notification(subject, message)
+
 
     ####################################################################################################################
     def _process_plans_considered_now(self, process_max_count=None):
@@ -206,6 +223,7 @@ class BackupScheduler(ScheduleRunner):
         :param backup:
         :return:
         """
+        logger.info("BackupScheduler: processing failed backup '%s' ..." % backup.id)
         if backup.next_retry_date < date_now():
             # RESCHEDULE !!!
             self._backup_system.reschedule_backup(backup)
