@@ -877,7 +877,7 @@ class BackupStrategy(MBSObject):
             raise ConfigurationError("Invalid suspend io attempt. '%s' has to"
                                      " be a MongoServer" % mongo_connector)
 
-        if ensure_local and not mongo_connector.is_local():
+        if ensure_local and not self.backup_assistant.is_connector_local_to_assistant(mongo_connector, backup):
             err = ("Cannot suspend io for '%s' because is not local to"
                    " this box" % mongo_connector)
             raise ConfigurationError(err)
@@ -942,7 +942,7 @@ class BackupStrategy(MBSObject):
                 "Invalid resume io attempt. '%s' has to be a MongoServer" %
                 mongo_connector)
 
-        if ensure_local and not mongo_connector.is_local():
+        if ensure_local and self.backup_assistant.is_connector_local_to_assistant(mongo_connector, backup):
             err = ("Cannot resume io for '%s' because is not local to "
                    "this box" % mongo_connector)
             raise ConfigurationError(err)
