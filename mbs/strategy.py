@@ -655,8 +655,8 @@ class BackupStrategy(MBSObject):
     def backup_mongo_connector(self, backup, mongo_connector):
 
         # ensure local host if specified
-        if (self.ensure_localhost and not
-            self.backup_assistant.is_connector_local_to_assistant(mongo_connector, backup)):
+        if (self.ensure_localhost and
+                not self.backup_assistant.is_connector_local_to_assistant(mongo_connector, backup)):
             details = ("Source host for dump source '%s' is not running "
                        "locally and strategy.ensureLocalHost is set to true" %
                        mongo_connector)
@@ -942,7 +942,7 @@ class BackupStrategy(MBSObject):
                 "Invalid resume io attempt. '%s' has to be a MongoServer" %
                 mongo_connector)
 
-        if ensure_local and self.backup_assistant.is_connector_local_to_assistant(mongo_connector, backup):
+        if ensure_local and not self.backup_assistant.is_connector_local_to_assistant(mongo_connector, backup):
             err = ("Cannot resume io for '%s' because is not local to "
                    "this box" % mongo_connector)
             raise ConfigurationError(err)
