@@ -1318,8 +1318,12 @@ class DumpStrategy(BackupStrategy):
         update_backup(backup, event_name=EVENT_START_EXTRACT,
                       message="Dumping backup")
 
+        # only mongo servers
+
+        if not isinstance(mongo_connector, MongoServer):
+            raise Exception("Connector '%s' is not a MongoServer" % mongo_connector)
         # dump the the server
-        uri = mongo_connector.uri
+        uri = mongo_connector.dump_uri()
         uri_wrapper = mongo_uri_tools.parse_mongo_uri(uri)
         if database_name and not uri_wrapper.database:
             if not uri.endswith("/"):
@@ -1331,8 +1335,7 @@ class DumpStrategy(BackupStrategy):
 
         dump_options = []
         # Add --journal for config server backup
-        if (isinstance(mongo_connector, MongoServer) and
-                mongo_connector.is_config_server()):
+        if mongo_connector.is_config_server():
             dump_options.append("--journal")
 
         # if its a server level backup then add forceTableScan and oplog
@@ -1347,8 +1350,7 @@ class DumpStrategy(BackupStrategy):
         # if mongo version is >= 2.4 and we are using admin creds then pass
         # --authenticationDatabase
         mongo_version = mongo_connector.get_mongo_version()
-        if (mongo_version >= MongoNormalizedVersion("2.4.0") and
-            isinstance(mongo_connector, (MongoServer, MongoCluster))):
+        if mongo_version >= MongoNormalizedVersion("2.4.0") :
             dump_options.extend([
                 "--authenticationDatabase",
                 "admin"

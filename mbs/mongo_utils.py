@@ -813,6 +813,11 @@ class MongoServer(MongoConnector):
     def whatsmyuri(self):
         return self.admin_db.command({"whatsmyuri": 1})
 
+    ###########################################################################
+    def dump_uri(self):
+        address = self._is_master_command()["me"]
+        return "mongodb://%s:%s@%s" % (self._uri_wrapper.username, self._uri_wrapper.password, address)
+
 ###############################################################################
 class ShardedClusterConnector(MongoConnector):
     ###########################################################################
