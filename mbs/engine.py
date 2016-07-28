@@ -82,6 +82,7 @@ class BackupEngine(Thread):
         self._id = id
         self._engine_guid = None
         self._max_workers = int(max_workers)
+        self._sleep_time = 25
         self._command_port = command_port
         self._command_server = EngineCommandServer(self)
         self._tags = None
@@ -142,12 +143,23 @@ class BackupEngine(Thread):
         self._command_port = command_port
 
 
+    ###########################################################################
+    @property
+    def sleep_time(self):
+        return self._sleep_time
+
+    @sleep_time.setter
+    def sleep_time(self, val):
+        self._sleep_time = val
+
+    ###########################################################################
     @property
     def client(self):
         if self._client is None:
             self._client = BackupEngineClient(api_url="http://0.0.0.0:%s" %
                                                       self.command_port)
         return self._client
+
     ###########################################################################
     def run(self):
         self.info("Starting up... ")
@@ -181,7 +193,8 @@ class BackupEngine(Thread):
     @property
     def backup_processor(self):
         if not self._backup_processor:
-            self._backup_processor = TaskQueueProcessor("Backups", "backups", self, self._max_workers)
+            self._backup_processor = TaskQueueProcessor("Backups", "backups", self, self._max_workers,
+                                                        sleep_time=self.sleep_time)
         return self._backup_processor
 
 
@@ -189,7 +202,8 @@ class BackupEngine(Thread):
     @property
     def restore_processor(self):
         if not self._restore_processor:
-            self._restore_processor = TaskQueueProcessor("Restores", "restores", self, self._max_workers)
+            self._restore_processor = TaskQueueProcessor("Restores", "restores", self, self._max_workers,
+                                                         sleep_time=self.sleep_time)
         return self._restore_processor
 
     ###########################################################################
@@ -348,13 +362,13 @@ class BackupEngine(Thread):
 
 class TaskQueueProcessor(Thread):
     ###########################################################################
-    def __init__(self, name, task_collection_name, engine, max_workers=10):
+    def __init__(self, name, task_collection_name, engine, max_workers=10, sleep_time=25):
         Thread.__init__(self)
 
         self._name = name
         self._task_collection_name = task_collection_name
         self._engine = engine
-        self._sleep_time = 25
+        self._sleep_time = sleep_time
         self._stopped = False
         self._max_workers = int(max_workers)
         self._tick_count = 0
