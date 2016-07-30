@@ -651,7 +651,14 @@ class BackupStrategy(MBSObject):
 
         update_backup(backup, properties="clusterStats",
                       event_name="COMPUTE_CLUSTER_STATS", message="Compute cluster stats")
-    ###########################################################################
+
+    ####################################################################################################################
+    def _create_backup_workspace(self, backup):
+        self.backup_assistant.create_task_workspace(backup)
+        if not backup.is_event_logged("CREATE_WORKSPACE"):
+            update_backup(backup, event_name="CREATE_WORKSPACE", message="Creating backup workspace")
+
+    ####################################################################################################################
     def backup_mongo_connector(self, backup, mongo_connector):
 
         # ensure local host if specified
@@ -662,8 +669,6 @@ class BackupStrategy(MBSObject):
                        mongo_connector)
             raise BackupNotOnLocalhost(msg="Error while attempting to dump",
                                        details=details)
-
-        self.backup_assistant.create_task_workspace(backup)
 
         # record stats
         if (not self.disable_source_stats and
@@ -761,7 +766,8 @@ class BackupStrategy(MBSObject):
         logger.info("Running Cleanup for backup %s" % backup.id)
         update_backup(backup, event_name="CLEANUP", message="Running cleanup")
 
-        self.backup_assistant.delete_task_workspace(backup)
+        if backup.is_event_logged("CREATE_WORKSPACE"):
+            self.backup_assistant.delete_task_workspace(backup)
 
     ###########################################################################
     def run_restore(self, restore):
@@ -1166,6 +1172,9 @@ class DumpStrategy(BackupStrategy):
             Override
         """
         source = backup.source
+
+        # create backup workspace
+        self._create_backup_workspace(backup)
 
         # run mongoctl dump
         if not backup.is_event_logged(EVENT_END_EXTRACT):
@@ -2316,7 +2325,7 @@ class HybridStrategy(BackupStrategy):
         return (ds._needs_new_source_stats(backup) and
                 cs._needs_new_source_stats(backup))
 
-    ###########################################################################
+    #################################################################################
     def to_document(self, display_only=False):
         doc =  BackupStrategy.to_document(self, display_only=display_only)
         doc.update({
