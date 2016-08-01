@@ -1373,6 +1373,7 @@ class LVMStorage(CompositeBlockStorage):
     def __init__(self):
         CompositeBlockStorage.__init__(self)
         self._volume_size = None
+        self._fs_type = None
 
 
     ###########################################################################
@@ -1383,6 +1384,15 @@ class LVMStorage(CompositeBlockStorage):
     @volume_size.setter
     def volume_size(self, volume_size):
         self._volume_size = volume_size
+
+    ###########################################################################
+    @property
+    def fs_type(self):
+        return self._fs_type
+
+    @fs_type.setter
+    def fs_type(self, val):
+        self._fs_type = val
 
     ###########################################################################
     def do_create_snapshot(self, name_template, description_template):
@@ -1428,7 +1438,8 @@ class LVMStorage(CompositeBlockStorage):
 
         doc.update({
             "_type": "LVMStorage",
-            "volumeSize": self.volume_size
+            "volumeSize": self.volume_size,
+            "fsType": self.fs_type
         })
 
         return doc
