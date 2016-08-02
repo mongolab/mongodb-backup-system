@@ -718,8 +718,11 @@ class TaskWorker(object):
             # increase # of tries
             task.try_count += 1
 
-            logger.info("Running task '%s' (try # %s) (worker PID '%s')..." %
-                      (task.id, task.try_count, os.getpid()))
+            logger.info("Running %s '%s' (try # %s) (worker PID '%s')..." %
+                      (task.type_name, task.id, task.try_count, os.getpid()))
+
+            logger.info(str(task))
+
             # set start date
             task.start_date = date_now()
 
