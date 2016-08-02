@@ -726,6 +726,8 @@ class TaskWorker(object):
             # set start date
             task.start_date = date_now()
 
+            task.worker_info = self.get_worker_info()
+
             # set queue_latency_in_minutes if its not already set
             if not task.queue_latency_in_minutes:
                 latency = self._calculate_queue_latency(task)
@@ -736,7 +738,7 @@ class TaskWorker(object):
 
             # UPDATE!
             self.get_task_collection().update_task(
-                task, properties=["tryCount", "startDate", "endDate", "queueLatencyInMinutes"])
+                task, properties=["tryCount", "startDate", "endDate", "queueLatencyInMinutes", "workerInfo"])
 
             # run the task
             task.execute()
@@ -811,6 +813,13 @@ class TaskWorker(object):
         # event listener)
         if not get_mbs().event_queue and task.exceeded_max_tries():
             get_mbs().notifications.notify_on_task_failure(task, exception, trace)
+
+
+    ###########################################################################
+    def get_worker_info(self):
+        return {
+            "pid": os.getpid()
+        }
 
 
 

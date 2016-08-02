@@ -33,6 +33,7 @@ class MBSTask(MBSObject):
         self._log_target_reference = None
         self._next_retry_date = None
         self._final_retry_date = None
+        self._worker_info = None
 
     ###########################################################################
     def execute(self):
@@ -206,6 +207,15 @@ class MBSTask(MBSObject):
         self._log_target_reference = target_reference
 
     ###########################################################################
+    @property
+    def worker_info(self):
+        return self._worker_info
+
+    @worker_info.setter
+    def worker_info(self, val):
+        self._worker_info = val
+
+    ###########################################################################
     def log_event(self, event_type=EventType.INFO, name=None, message=None,
                   details=None, error_code=None):
         logs = self.logs
@@ -344,6 +354,9 @@ class MBSTask(MBSObject):
 
         if self.log_target_reference:
             doc["logTargetReference"] = self.log_target_reference.to_document(display_only=display_only)
+
+        if self.worker_info:
+            doc["workerInfo"] = self.worker_info
 
         return doc
 
