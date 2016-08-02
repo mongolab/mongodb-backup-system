@@ -477,7 +477,7 @@ class TaskQueueProcessor(Thread):
         if task:
             # clean it
             worker = self._clean_task(task)
-            self.info("Started clean task for task %s" % task.id)
+            self.info("Started cleanup for %s %s" % (task.type_name, task.id))
 
     ###########################################################################
     def _clean_task(self, task):
@@ -488,7 +488,7 @@ class TaskQueueProcessor(Thread):
     def _start_task(self, task):
         self.info("Received %s %s" % (task.type_name, task.id))
         worker = self._start_new_worker(task)
-        self.info("Started task %s (worker %s)" % (task.id, worker.pid))
+        self.info("Started %s %s (worker %s)" % (task.type_name, task.id, worker.pid))
 
     ###########################################################################
     def _start_new_worker(self, task, cleaner=False):
@@ -510,11 +510,11 @@ class TaskQueueProcessor(Thread):
     ###########################################################################
     def worker_crashed(self, worker):
         # page immediately
-        subject = "Task Worker crashed for task %s!" % worker.task.id
+        subject = "Worker crashed for %s %s!" % (worker.task.type_name, worker.task.id)
 
-        errmsg = ("Worker crash detected! Worker (id %s, pid %s, task"
+        errmsg = ("Worker crash detected! Worker (id %s, pid %s, %s"
                   " id '%s') finished with a non-zero exit code '%s'"
-                  % (worker.id, worker.pid, worker.task.id, worker.exit_code))
+                  % (worker.id, worker.pid, worker.task.type_name, worker.task.id, worker.exit_code))
 
         exception = EngineWorkerCrashedError(errmsg)
         get_mbs().notifications.send_error_notification(subject, errmsg)
@@ -538,10 +538,10 @@ class TaskQueueProcessor(Thread):
         }
 
         total_crashed = 0
-        msg = ("Engine crashed while task was in progress. Failing...")
         for task in self.task_collection.find(q):
+            msg = ("Engine crashed while %s was in progress. Failing..." % task.type_name)
             # fail task
-            self.info("Recovery: Failing task %s" % task.id)
+            self.info("Recovery: Failing %s %s" % (task.type_name, task.id))
             error = EngineWorkerCrashedError(msg="Engine crashed")
             set_task_retry_info(task, error)
             task.state = State.FAILED
