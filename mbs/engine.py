@@ -747,12 +747,12 @@ class TaskWorker(object):
             # success!
             self.worker_success()
 
-            logger.info("Task '%s' completed successfully" % task.id)
+            logger.info("%s '%s' completed successfully" % (task.type_name, task.id))
 
         except Exception, e:
             # fail
             trace = traceback.format_exc()
-            logger.error("Task failed. Cause %s. \nTrace: %s" % (e, trace))
+            logger.error("%s failed. Cause %s. \nTrace: %s" % (task.type_name, e, trace))
             self.worker_fail(exception=e, trace=trace)
 
     ###########################################################################
@@ -771,7 +771,7 @@ class TaskWorker(object):
     def worker_success(self):
         self.get_task_collection().update_task(
             self._task,
-            message="Task completed successfully!")
+            message="%s completed successfully!" % self._task.type_name)
 
         self.worker_finished(State.SUCCEEDED)
 
