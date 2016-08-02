@@ -16,7 +16,7 @@ from flask import Flask
 from flask.globals import request
 from globals import State, EventType
 from threading import Thread
-from multiprocessing import Process
+
 
 from errors import (
     MBSError, BackupEngineError, EngineWorkerCrashedError,
@@ -24,7 +24,7 @@ from errors import (
 )
 
 from utils import (resolve_path, get_local_host_name, safe_stringify,
-                   document_pretty_string, force_kill_process_and_children)
+                   document_pretty_string, force_kill_process_and_children, which)
 
 from mbs import get_mbs
 
@@ -36,9 +36,12 @@ from task import (
 )
 
 from backup import Backup
+from restore import Restore
 from mbs_client.client import BackupEngineClient
 
 from task_utils import set_task_retry_info, trigger_task_finished_event
+
+import subprocess
 
 ###############################################################################
 # CONSTANTS
@@ -373,7 +376,6 @@ class TaskQueueProcessor(Thread):
         self._max_workers = int(max_workers)
         self._tick_count = 0
         self._workers = {}
-        self._worker_id_seq = 0
 
     ###########################################################################
     def run(self):
@@ -440,12 +442,12 @@ class TaskQueueProcessor(Thread):
         for worker in self._workers.values():
             if not worker.is_alive():
                 # detect worker crashes
-                if worker.exitcode != 0:
+                if worker.exit_code != 0:
                     self.worker_crashed(worker)
                 else:
                     self.info("Detected worker '%s' (pid %s, task id '%s') "
                               "finished successfully. Cleaning up resources..."
-                              % (worker.id, worker.pid, worker.task_id))
+                              % (worker.id, worker.pid, worker.task.id))
                     self._cleanup_worker_resources(worker)
 
     ###########################################################################
@@ -464,7 +466,7 @@ class TaskQueueProcessor(Thread):
     ###########################################################################
     def _get_task_worker(self, task):
         for worker in self._workers.values():
-            if worker.task_id == task.id:
+            if worker.task.id == task.id:
                 return worker
 
     ###########################################################################
@@ -475,28 +477,30 @@ class TaskQueueProcessor(Thread):
         if task:
             # clean it
             worker = self._clean_task(task)
-            self.info("Started clean task for task %s, TaskCleanWorker %s" %
-                      (task.id, worker.id))
+            self.info("Started clean task for task %s" % task.id)
 
     ###########################################################################
     def _clean_task(self, task):
-        worker = self._start_new_worker(task, TaskCleanWorker)
+        worker = self._start_new_worker(task, cleaner=True)
         return worker
 
     ###########################################################################
     def _start_task(self, task):
-        self.info("Received  task %s" % task)
-        worker = self._start_new_worker(task, TaskWorker)
-        self.info("Started task %s, TaskWorker %s" %
-                  (task.id, worker.id))
+        self.info("Received %s %s" % (task.type_name, task.id))
+        worker = self._start_new_worker(task)
+        self.info("Started task %s (worker %s)" % (task.id, worker.pid))
 
     ###########################################################################
-    def _start_new_worker(self, task, worker_type):
+    def _start_new_worker(self, task, cleaner=False):
 
-        worker_id = self.next_worker_id()
-        worker = worker_type(worker_id, task.id, self)
-        self._workers[worker_id] = worker
+        if not cleaner:
+            worker = TaskWorker(task)
+        else:
+            worker = TaskCleanWorker(task)
+
         worker.start()
+        self._workers[worker.id] = worker
+
         return worker
 
     ###########################################################################
@@ -504,76 +508,20 @@ class TaskQueueProcessor(Thread):
         return self.worker_count < self._max_workers
 
     ###########################################################################
-    def next_worker_id(self):
-        self._worker_id_seq += 1
-        return self._worker_id_seq
-
-    ###########################################################################
-    def worker_fail(self, worker, exception, trace=None):
-        if isinstance(exception, MBSError):
-            log_msg = exception.message
-        else:
-            log_msg = "Unexpected error. Please contact admin"
-
-        details = safe_stringify(exception)
-        task = worker.get_task()
-
-        self.task_collection.update_task(
-            task, event_type=EventType.ERROR,
-            message=log_msg, details=details, error_code=to_mbs_error_code(exception))
-
-        # update retry info
-        set_task_retry_info(task, exception)
-
-        self.worker_finished(worker, task, State.FAILED)
-
-        # send a notification only if the task is not reschedulable
-        # if there is an event queue configured then do not notify (because it should be handled by the backup
-        # event listener)
-        if not get_mbs().event_queue and task.exceeded_max_tries():
-            get_mbs().notifications.notify_on_task_failure(task, exception, trace)
-
-    ###########################################################################
     def worker_crashed(self, worker):
         # page immediately
-        subject = "Task Worker crashed for task %s!" % worker.task_id
+        subject = "Task Worker crashed for task %s!" % worker.task.id
 
         errmsg = ("Worker crash detected! Worker (id %s, pid %s, task"
                   " id '%s') finished with a non-zero exit code '%s'"
-                  % (worker.id, worker.pid, worker.task_id, worker.exitcode))
+                  % (worker.id, worker.pid, worker.task.id, worker.exit_code))
 
         exception = EngineWorkerCrashedError(errmsg)
         get_mbs().notifications.send_error_notification(subject, errmsg)
 
         self.error(errmsg)
         self._cleanup_worker_resources(worker)
-        self.worker_fail(worker, exception)
-
-    ###########################################################################
-    def worker_success(self, worker):
-        task = worker.get_task()
-        self.task_collection.update_task(
-            task,
-            message="Task completed successfully!")
-
-        self.worker_finished(worker, task, State.SUCCEEDED)
-
-    ###########################################################################
-    def cleaner_finished(self, worker):
-        task = worker.get_task()
-        self.worker_finished(worker, task, State.CANCELED)
-
-    ###########################################################################
-    def worker_finished(self, worker, task, state, message=None):
-
-        # set end date
-        task.end_date = date_now()
-        task.state = state
-        self.task_collection.update_task(
-            task, properties=["state", "endDate", "nextRetryDate", "finalRetryDate"],
-            event_name=EVENT_STATE_CHANGE, message=message)
-
-        trigger_task_finished_event(task, state)
+        worker.worker_fail(worker, exception)
 
     ###########################################################################
     def _recover(self):
@@ -693,23 +641,25 @@ class TaskQueueProcessor(Thread):
 # TaskWorker
 ###############################################################################
 
-class TaskWorker(Process):
+class TaskWorker(object):
 
     ###########################################################################
-    def __init__(self, id, task_id, processor):
-        Process.__init__(self)
-        self._id = id
-        self._task_id = task_id
-        self._processor = processor
+    def __init__(self, task):
+        self._task = task
+        self._popen = None
+        self._id = None
+
 
     ###########################################################################
     @property
-    def task_id(self):
-        return self._task_id
+    def task(self):
+        return self._task
 
     ###########################################################################
-    def get_task(self):
-        return self._processor.task_collection.get_by_id(self.task_id)
+    @property
+    def pid(self):
+        if self._popen:
+            return self._popen.pid
 
     ###########################################################################
     @property
@@ -718,19 +668,58 @@ class TaskWorker(Process):
 
     ###########################################################################
     @property
-    def processor(self):
-        return self._processor
+    def pid(self):
+        if self._popen:
+            return self._popen.pid
+
+    ###########################################################################
+    def get_task_collection(self):
+        if isinstance(self._task, Backup):
+            return get_mbs().backup_collection
+        elif isinstance(self._task, Restore):
+            return get_mbs().restore_collection
+
+    ###########################################################################
+    def get_cmd(self):
+        return "run-%s" % self._task.type_name.lower()
+
+    ###########################################################################
+    def start(self):
+        cmd = self.get_cmd()
+        run_task_command = [which("mbs"), cmd, str(self._task.id)]
+        log_file_name = "%s-%s.log" % (self._task.type_name.lower(), str(self._task.id))
+        log_file_path = resolve_path(os.path.join(mbs_config.MBS_LOG_PATH, log_file_name))
+        log_file = open(log_file_path, "a")
+        self._popen = subprocess.Popen(run_task_command, stdout=log_file, stderr=subprocess.STDOUT)
+        self._id = str(self._popen.pid)
+
+    ###########################################################################
+    def join(self):
+        self._popen.wait()
+
+    ###########################################################################
+    @property
+    def exit_code(self):
+        if self._popen:
+            if self._popen.returncode:
+                return self._popen.returncode
+            else:
+                return self._popen.poll()
+
+    ###########################################################################
+    def is_alive(self):
+        return self.exit_code is None
 
     ###########################################################################
     def run(self):
-        task = self.get_task()
+        task = self._task
 
         try:
             # increase # of tries
             task.try_count += 1
 
-            self.info("Running task '%s' (try # %s) (worker PID '%s')..." %
-                      (task.id, task.try_count, self.pid))
+            logger.info("Running task '%s' (try # %s) (worker PID '%s')..." %
+                      (task.id, task.try_count, os.getpid()))
             # set start date
             task.start_date = date_now()
 
@@ -743,7 +732,7 @@ class TaskWorker(Process):
             task.end_date = None
 
             # UPDATE!
-            self._processor.task_collection.update_task(
+            self.get_task_collection().update_task(
                 task, properties=["tryCount", "startDate", "endDate", "queueLatencyInMinutes"])
 
             # run the task
@@ -753,15 +742,15 @@ class TaskWorker(Process):
             task.cleanup()
 
             # success!
-            self._processor.worker_success(self)
+            self.worker_success()
 
-            self.info("Task '%s' completed successfully" % task.id)
+            logger.info("Task '%s' completed successfully" % task.id)
 
         except Exception, e:
             # fail
             trace = traceback.format_exc()
-            self.error("Task failed. Cause %s. \nTrace: %s" % (e, trace))
-            self._processor.worker_fail(self, exception=e, trace=trace)
+            logger.error("Task failed. Cause %s. \nTrace: %s" % (e, trace))
+            self.worker_fail(exception=e, trace=trace)
 
     ###########################################################################
     def _calculate_queue_latency(self, task):
@@ -776,16 +765,50 @@ class TaskWorker(Process):
         return round(latency_secs/60, 2)
 
     ###########################################################################
-    def info(self, msg):
-        self._processor.info("Worker-%s: %s" % (self.id, msg))
+    def worker_success(self):
+        self.get_task_collection().update_task(
+            self._task,
+            message="Task completed successfully!")
+
+        self.worker_finished(State.SUCCEEDED)
 
     ###########################################################################
-    def warning(self, msg):
-        self._processor.warning("Worker-%s: %s" % (self.id, msg))
+    def worker_finished(self, state, message=None):
+
+        # set end date
+        self._task.end_date = date_now()
+        self._task.state = state
+        self.get_task_collection().update_task(
+            self._task, properties=["state", "endDate", "nextRetryDate", "finalRetryDate"],
+            event_name=EVENT_STATE_CHANGE, message=message)
+
+        trigger_task_finished_event(self._task, state)
 
     ###########################################################################
-    def error(self, msg):
-        self._processor.error("Worker-%s: %s" % (self.id, msg))
+    def worker_fail(self, exception, trace=None):
+        if isinstance(exception, MBSError):
+            log_msg = exception.message
+        else:
+            log_msg = "Unexpected error. Please contact admin"
+
+        details = safe_stringify(exception)
+        task = self._task
+
+        self.get_task_collection().update_task(
+            task, event_type=EventType.ERROR,
+            message=log_msg, details=details, error_code=to_mbs_error_code(exception))
+
+        # update retry info
+        set_task_retry_info(task, exception)
+
+        self.worker_finished(State.FAILED)
+
+        # send a notification only if the task is not reschedulable
+        # if there is an event queue configured then do not notify (because it should be handled by the backup
+        # event listener)
+        if not get_mbs().event_queue and task.exceeded_max_tries():
+            get_mbs().notifications.notify_on_task_failure(task, exception, trace)
+
 
 
 ###############################################################################
@@ -795,16 +818,23 @@ class TaskWorker(Process):
 class TaskCleanWorker(TaskWorker):
 
     ###########################################################################
-    def __init__(self, id, task_id, engine):
-        TaskWorker.__init__(self, id, task_id, engine)
+    def __init__(self, task):
+        TaskWorker.__init__(self, task)
+
+    ###########################################################################
+    def get_cmd(self):
+        return "clean-%s" % self._task.type_name.lower()
 
     ###########################################################################
     def run(self):
         try:
-            task = self.get_task()
-            task.cleanup()
+            self._task.cleanup()
         finally:
-            self._processor.cleaner_finished(self)
+            self.cleaner_finished()
+
+    ###########################################################################
+    def cleaner_finished(self):
+        self.worker_finished(State.CANCELED)
 
 ###############################################################################
 # EngineCommandServer
