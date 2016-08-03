@@ -215,7 +215,6 @@ class LocalBackupAssistant(BackupAssistant):
 
     ####################################################################################################################
     def suspend_io(self, backup, mongo_connector, cloud_block_storage):
-        raise Exception("method not supported")
         cloud_block_storage.suspend_io()
 
     ####################################################################################################################
