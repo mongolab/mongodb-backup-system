@@ -24,7 +24,7 @@ from errors import (
 )
 
 from utils import (resolve_path, get_local_host_name, safe_stringify,
-                   document_pretty_string, force_kill_process_and_children, which)
+                   document_pretty_string, force_kill_process_and_children, which, ensure_dir)
 
 from mbs import get_mbs
 
@@ -687,8 +687,11 @@ class TaskWorker(object):
     def start(self):
         cmd = self.get_cmd()
         run_task_command = [which("mbs"), cmd, str(self._task.id)]
+        log_dir = resolve_path(os.path.join(mbs_config.MBS_LOG_PATH, self._task.type_name.lower() + "s"))
+        ensure_dir(log_dir)
         log_file_name = "%s-%s.log" % (self._task.type_name.lower(), str(self._task.id))
-        log_file_path = resolve_path(os.path.join(mbs_config.MBS_LOG_PATH, log_file_name))
+        log_file_path = os.path.join(log_dir, log_file_name)
+
         log_file = open(log_file_path, "a")
         self._popen = subprocess.Popen(run_task_command, stdout=log_file, stderr=subprocess.STDOUT)
         self._id = str(self._popen.pid)
