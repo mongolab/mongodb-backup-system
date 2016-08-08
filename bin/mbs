@@ -750,7 +750,7 @@ PARSER_DEF = {
             "type": "optional",
             "cmd_arg": "--log-path",
             "displayName": "LOG_PATH",
-            "help": "path to mbs lohs ; defaults to %(default)s",
+            "help": "path to mbs logs ; defaults to %(default)s",
             "default": mbs_config.MBS_LOG_PATH
         },
         {
