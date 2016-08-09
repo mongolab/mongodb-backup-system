@@ -255,8 +255,7 @@ class BackupEngine(Thread):
     ###########################################################################
     def _get_pid_file_path(self):
         pid_file_name = "engine_%s_pid.txt" % self.id
-        return resolve_path(os.path.join(mbs_config.mbs_conf_dir(),
-                                         pid_file_name))
+        return resolve_path(os.path.join("~/.mbs", pid_file_name))
 
     ###########################################################################
     def force_stop(self):
