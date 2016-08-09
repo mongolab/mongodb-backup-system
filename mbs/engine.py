@@ -568,9 +568,21 @@ class TaskQueueProcessor(Thread):
 
         log_entry = state_change_log_entry(State.IN_PROGRESS)
         q = self._get_scheduled_tasks_query()
-        u = {"$set" : { "state": State.IN_PROGRESS,
-                        "engineGuid": self._engine.engine_guid},
-             "$push": {"logs":log_entry.to_document()}}
+        u = {
+            "$set": {
+                "state": State.IN_PROGRESS,
+                "engineGuid": self._engine.engine_guid
+            },
+            "$push": {
+                "logs": log_entry.to_document()
+            }
+        }
+
+        # Ensure that engines will not pickup tasks that were already processed by other engines
+        if self._tick_count % 2 == 0:
+            q["engineGuid"] = self._engine.engine_guid
+        else:
+            q["engineGuid"] = None
 
         # sort by priority except every third tick, we sort by created date to
         # avoid starvation
@@ -583,7 +595,10 @@ class TaskQueueProcessor(Thread):
 
         task = c.find_one(query=q, sort=s)
         if task:
-            task = c.find_and_modify(query=q, sort=s, update=u, new=True)
+            if task.engine_guid and task.engine_guid != self._engine.engine_guid:
+                raise Exception("Unexpected error")
+            else:
+                task = c.find_and_modify(query=q, sort=s, update=u, new=True)
 
         return task
 
