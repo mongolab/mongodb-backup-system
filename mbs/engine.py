@@ -42,6 +42,8 @@ from mbs_client.client import BackupEngineClient
 from task_utils import set_task_retry_info, trigger_task_finished_event
 
 import subprocess
+from schedule_runner import ScheduleRunner
+from schedule import Schedule
 
 ###############################################################################
 # CONSTANTS
@@ -173,6 +175,10 @@ class BackupEngine(Thread):
         else:
             self.info("No tags configured")
 
+        # ensure task log dirs
+        ensure_dir(task_log_dir("backup"))
+        ensure_dir(task_log_dir("restore"))
+
         self._update_pid_file()
         # Start the command server
         self._start_command_server()
@@ -196,17 +202,16 @@ class BackupEngine(Thread):
     @property
     def backup_processor(self):
         if not self._backup_processor:
-            self._backup_processor = TaskQueueProcessor("Backups", "backups", self, self._max_workers,
-                                                        sleep_time=self.sleep_time)
+            self._backup_processor = TaskQueueProcessor("Backups", Backup().type_name, "backups", self,
+                                                        self._max_workers, sleep_time=self.sleep_time)
         return self._backup_processor
-
 
     ###########################################################################
     @property
     def restore_processor(self):
         if not self._restore_processor:
-            self._restore_processor = TaskQueueProcessor("Restores", "restores", self, self._max_workers,
-                                                         sleep_time=self.sleep_time)
+            self._restore_processor = TaskQueueProcessor("Restores", Restore().type_name, "restores", self,
+                                                         self._max_workers, sleep_time=self.sleep_time)
         return self._restore_processor
 
     ###########################################################################
@@ -365,7 +370,7 @@ class BackupEngine(Thread):
 
 class TaskQueueProcessor(Thread):
     ###########################################################################
-    def __init__(self, name, task_collection_name, engine, max_workers=10, sleep_time=25):
+    def __init__(self, name, task_type_name, task_collection_name, engine, max_workers=10, sleep_time=25):
         Thread.__init__(self)
 
         self._name = name
@@ -376,9 +381,11 @@ class TaskQueueProcessor(Thread):
         self._max_workers = int(max_workers)
         self._tick_count = 0
         self._workers = {}
+        self._log_file_sweeper = TaskLogFileSweeper(task_type_name)
 
     ###########################################################################
     def run(self):
+        self._log_file_sweeper.start()
         self._recover()
 
         while not self._stopped:
@@ -392,6 +399,7 @@ class TaskQueueProcessor(Thread):
 
         ## wait for all workers to finish (if any)
         self._wait_for_running_workers()
+        self._log_file_sweeper.stop(True)
         self.info("Exited main loop")
 
     ###########################################################################
@@ -852,6 +860,19 @@ class TaskCleanWorker(TaskWorker):
         self.worker_finished(State.CANCELED)
 
 ###############################################################################
+def task_log_path(task):
+    log_dir = task_log_dir(task.type_name.lower())
+    log_file_name = "%s-%s.log" % (task.type_name.lower(), str(task.id))
+    log_file_path = os.path.join(log_dir, log_file_name)
+
+    return log_file_path
+
+###############################################################################
+def task_log_dir(task_type_name):
+    log_dir = resolve_path(os.path.join(mbs_config.MBS_LOG_PATH, task_type_name.lower() + "s"))
+    return log_dir
+
+###############################################################################
 # EngineCommandServer
 ###############################################################################
 class EngineCommandServer(Thread):
@@ -979,3 +1000,75 @@ class EngineCommandServer(Thread):
         except Exception, e:
             raise BackupEngineError("Error while stopping flask server:"
                                     " %s" % e)
+
+
+###############################################################################
+
+LOG_FILE_ARCHIVE_CUTOFF_TIME = 24 * 2 * 60
+
+LOG_FILE_DELETE_CUTOFF_TIME = 10 * LOG_FILE_ARCHIVE_CUTOFF_TIME
+
+###############################################################################
+# TaskLogFileSweeper
+###############################################################################
+class TaskLogFileSweeper(ScheduleRunner):
+
+    ###############################################################################
+    def __init__(self, task_type_name):
+        super(TaskLogFileSweeper, self).__init__(schedule=Schedule(frequency_in_seconds=3600))
+        self._logs_dir = task_log_dir(task_type_name)
+        self._archive_logs_dir = os.path.join(self._logs_dir, "ARCHIVE")
+        ensure_dir(self._logs_dir)
+        ensure_dir(self._archive_logs_dir)
+
+    ###############################################################################
+    def tick(self):
+        self._archive()
+        self._sweep()
+
+    ###############################################################################
+    def _archive(self):
+        cutoff_time = time.time() - LOG_FILE_ARCHIVE_CUTOFF_TIME
+        for fname in os.listdir(self._logs_dir):
+            try:
+                fpath = os.path.join(self._logs_dir, fname)
+                if os.path.isfile(fpath) and os.path.getmtime(fpath) < cutoff_time:
+                    self._archive_file(fpath)
+            except Exception, ex:
+                logger.exception("Error archiving log file '%s'" % fname)
+
+    ###############################################################################
+    def _archive_file(self, file_path):
+        self._validate_log_file(file_path)
+
+        file_name = os.path.basename(file_path)
+        destination = os.path.join(self._archive_logs_dir, file_name)
+        logger.debug("Archiving log file '%s'" % file_path)
+
+        os.rename(file_path, destination)
+
+    ###############################################################################
+    def _sweep(self):
+        cutoff_time = time.time() - LOG_FILE_DELETE_CUTOFF_TIME
+        for fname in os.listdir(self._archive_logs_dir):
+            try:
+                fpath = os.path.join(self._archive_logs_dir, fname)
+                if os.path.isfile(fpath) and os.path.getmtime(fpath) < cutoff_time:
+                    self._sweep_file(fpath)
+            except Exception, ex:
+                logger.exception("Error sweeping log file '%s'" % fname)
+
+    ###############################################################################
+    def _sweep_file(self, file_path):
+        self._validate_log_file(file_path)
+        logger.debug("Sweeping log file '%s'" % file_path)
+
+        os.remove(file_path)
+
+    ###############################################################################
+    def _validate_log_file(self, file_path):
+
+        if not (file_path.endswith(".log") and file_path.startswith(self._logs_dir)):
+            raise Exception("file '%s' is not a valid log file" % file_path)
+
+
