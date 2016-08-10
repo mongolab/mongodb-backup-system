@@ -708,7 +708,13 @@ class TaskWorker(object):
     ###########################################################################
     def start(self):
         cmd = self.get_cmd()
-        run_task_command = [which("mbs"), cmd, str(self._task.id)]
+        run_task_command = [
+            which("mbs"),
+            "--config-path",
+            mbs_config.MBS_CONF_PATH,
+            cmd,
+            str(self._task.id)
+        ]
         log_dir = resolve_path(os.path.join(mbs_config.MBS_LOG_PATH, self._task.type_name.lower() + "s"))
         ensure_dir(log_dir)
         log_file_name = "%s-%s.log" % (self._task.type_name.lower(), str(self._task.id))
