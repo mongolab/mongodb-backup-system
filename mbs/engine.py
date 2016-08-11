@@ -1024,7 +1024,7 @@ class EngineCommandServer(Thread):
 
 ###############################################################################
 
-LOG_FILE_ARCHIVE_CUTOFF_TIME = 24 * 2 * 60
+LOG_FILE_ARCHIVE_CUTOFF_TIME = 24 * 2 * 60 * 60
 
 LOG_FILE_DELETE_CUTOFF_TIME = 10 * LOG_FILE_ARCHIVE_CUTOFF_TIME
 
