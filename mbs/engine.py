@@ -729,8 +729,11 @@ class TaskWorker(object):
         log_file_path = os.path.join(log_dir, log_file_name)
 
         log_file = open(log_file_path, "a")
+        child_env_var = os.environ.copy()
+        if self._env_vars:
+            child_env_var.update(self._env_vars)
         self._popen = subprocess.Popen(run_task_command, stdout=log_file, stderr=subprocess.STDOUT,
-                                       env=self._env_vars)
+                                       env=child_env_var)
         self._id = str(self._popen.pid)
 
     ###########################################################################
