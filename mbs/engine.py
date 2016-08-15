@@ -364,7 +364,7 @@ class BackupEngine(Thread):
 
 
 ###############################################################################
-# TaskWorker
+# TaskQueueProcessor
 ###############################################################################
 
 class TaskQueueProcessor(Thread):
@@ -501,9 +501,9 @@ class TaskQueueProcessor(Thread):
     def _start_new_worker(self, task, cleaner=False):
 
         if not cleaner:
-            worker = TaskWorker(task)
+            worker = TaskWorker(task, env_vars=self._engine.get_task_worker_env_vars())
         else:
-            worker = TaskCleanWorker(task)
+            worker = TaskCleanWorker(task, env_vars=self._engine.get_task_worker_env_vars())
 
         worker.start()
         self._workers[worker.id] = worker
@@ -659,6 +659,14 @@ class TaskQueueProcessor(Thread):
     def error(self, msg):
         self._engine.info("%s Task Processor: %s" % (self._name, msg))
 
+    ###########################################################################
+    def get_task_worker_env_vars(self):
+        """
+        to override as needed
+        :return:
+        """
+        return None
+
 ###############################################################################
 # TaskWorker
 ###############################################################################
@@ -666,11 +674,11 @@ class TaskQueueProcessor(Thread):
 class TaskWorker(object):
 
     ###########################################################################
-    def __init__(self, task):
+    def __init__(self, task, env_vars=None):
         self._task = task
         self._popen = None
         self._id = None
-
+        self._env_vars = None
 
     ###########################################################################
     @property
@@ -721,7 +729,8 @@ class TaskWorker(object):
         log_file_path = os.path.join(log_dir, log_file_name)
 
         log_file = open(log_file_path, "a")
-        self._popen = subprocess.Popen(run_task_command, stdout=log_file, stderr=subprocess.STDOUT)
+        self._popen = subprocess.Popen(run_task_command, stdout=log_file, stderr=subprocess.STDOUT,
+                                       env=self._env_vars)
         self._id = str(self._popen.pid)
 
     ###########################################################################
@@ -861,8 +870,8 @@ class TaskWorker(object):
 class TaskCleanWorker(TaskWorker):
 
     ###########################################################################
-    def __init__(self, task):
-        TaskWorker.__init__(self, task)
+    def __init__(self, task, env_vars=None):
+        TaskWorker.__init__(self, task, env_vars=env_vars)
 
     ###########################################################################
     def get_cmd(self):
