@@ -16,7 +16,7 @@ from mbs.engine import STATUS_STOPPED, STATUS_STOPPING, STATUS_RUNNING, TaskWork
 from mbs.backup_system import BACKUP_SYSTEM_STATUS_STOPPED
 from mbs.utils import (
     wait_for, document_pretty_string, resolve_path, SignalWatcher,
-    prompt_confirm
+    prompt_confirm, call_command
     )
 from mbs import mbs_config
 from mbs.mbs_logging import setup_logging, redirect_std_to_logger
@@ -589,6 +589,21 @@ def download_restore_log(parsed_args):
 def run_backup(parsed_args):
     backup = _get_backup(parsed_args.backupId)
     TaskWorker(backup).run()
+
+###############################################################################
+def tail_backup_log(parsed_args):
+    backup = _get_backup(parsed_args.backupId)
+    log_path = TaskWorker(backup).get_log_path()
+    tail_log(log_path)
+
+###############################################################################
+def tail_log(log_path):
+    if not os.path.exists(log_path):
+        raise Exception("log file not found: %s" % log_path)
+
+    tail_cmd = ["tail", "-f", "-n", "50", log_path]
+    return call_command(tail_cmd)
+
 
 ###############################################################################
 def clean_backup(parsed_args):
@@ -1285,6 +1300,21 @@ PARSER_DEF = {
             "function": run_backup
         },
 
+        {
+            "prog": "tail-backup-log",
+            "shortDescription": "Tails the backup log",
+            "description": "Runs the backup",
+            "args": [
+                {
+                    "name": "backupId",
+                    "type": "positional",
+                    "nargs": 1,
+                    "displayName": "BACKUP_ID",
+                    "help": "Backup ID"
+                }
+            ],
+            "function": tail_backup_log
+        },
         {
             "prog": "clean-backup",
             "shortDescription": "Cleans the backup workspace",

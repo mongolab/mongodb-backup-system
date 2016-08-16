@@ -723,10 +723,9 @@ class TaskWorker(object):
             cmd,
             str(self._task.id)
         ]
-        log_dir = resolve_path(os.path.join(mbs_config.MBS_LOG_PATH, self._task.type_name.lower() + "s"))
-        ensure_dir(log_dir)
-        log_file_name = "%s-%s.log" % (self._task.type_name.lower(), str(self._task.id))
-        log_file_path = os.path.join(log_dir, log_file_name)
+
+        log_file_path = self.get_log_path()
+        ensure_dir(os.path.dirname(log_file_path))
 
         log_file = open(log_file_path, "a")
         child_env_var = os.environ.copy()
@@ -735,6 +734,14 @@ class TaskWorker(object):
         self._popen = subprocess.Popen(run_task_command, stdout=log_file, stderr=subprocess.STDOUT,
                                        env=child_env_var)
         self._id = str(self._popen.pid)
+
+    ###########################################################################
+    def get_log_path(self):
+        log_dir = resolve_path(os.path.join(mbs_config.MBS_LOG_PATH, self._task.type_name.lower() + "s"))
+
+        log_file_name = "%s-%s.log" % (self._task.type_name.lower(), str(self._task.id))
+        log_file_path = os.path.join(log_dir, log_file_name)
+        return log_file_path
 
     ###########################################################################
     def join(self):
