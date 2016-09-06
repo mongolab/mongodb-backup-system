@@ -390,6 +390,11 @@ class DBClientCursorFailError(RetriableDumpError):
 class CollectionReadError(RetriableDumpError):
     pass
 
+
+###############################################################################
+class OplogOverflowError(RetriableDumpError):
+    pass
+
 ###############################################################################
 class ArchiveError(MBSError):
     """
@@ -820,6 +825,8 @@ def raise_dump_error(returncode, error_log_line, last_namespace=None):
         error_type = IndexOutOfRangeDumpError
     elif "error reading collection" in error_log_line:
         error_type = CollectionReadError
+    elif "oplog overflow" in error_log_line:
+        error_type = OplogOverflowError
 
     # Generic retriable errors
     elif is_retriable_dump_error(returncode, error_log_line):
