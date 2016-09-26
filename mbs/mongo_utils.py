@@ -33,15 +33,19 @@ logger.addHandler(logging.NullHandler())
 # db connection timeout, 20 seconds
 CONN_TIMEOUT = 20
 
+# db socket timeout, 20 minutes
+SOCKET_TIMEOUT = 20 * 60
+
 ###############################################################################
 @robustify(max_attempts=3, retry_interval=3,
            do_on_exception=raise_if_not_retriable,
            do_on_failure=raise_exception)
 def mongo_connect(uri, conn_timeout=None, **kwargs):
     conn_timeout_mills = (conn_timeout or CONN_TIMEOUT) * 1000
+
     kwargs = kwargs or {}
-    kwargs["socketTimeoutMS"] = conn_timeout_mills
     kwargs["connectTimeoutMS"] = conn_timeout_mills
+    kwargs["socketTimeoutMS"] = SOCKET_TIMEOUT * 1000
     # default connection timeout and convert to mills
 
     uri_wrapper = parse_mongo_uri(uri)
