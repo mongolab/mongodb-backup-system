@@ -1381,6 +1381,14 @@ class CompositeBlockStorageSnapshotReference(
         const_snap_infos = map(lambda s: s.info(), self.constituent_snapshots)
         return "(Composite Snapshot: [%s])" % ",".join(const_snap_infos)
 
+    ###########################################################################
+    def clone(self):
+        #TODO XXX this a workaround for some composite snapshot refs where deepcopy
+        # done by MBSObject.clone() is erroring with "cannot deepcopy this pattern object"
+        # Also, this maybe the proper solution for supe
+        import mbs
+        return mbs.get_mbs().maker.make(self.to_document())
+
 ###############################################################################
 # EbsSnapshotReference
 ###############################################################################
