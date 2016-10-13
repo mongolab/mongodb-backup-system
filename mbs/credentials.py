@@ -74,13 +74,20 @@ class BaseCredentials(Credentials):
         self._credentials[key] = raw_value
 
     ###########################################################################
+    def export_credentials(self, display_only=False):
+        creds_doc = {}
+        if self._credentials:
+            for key, val in self._credentials.items():
+                if isinstance(val, MBSObject):
+                    creds_doc[key] = val.to_document(display_only=display_only)
+                else:
+                    creds_doc[key] = val
+
+        return creds_doc
+
+    ###########################################################################
     def to_document(self, display_only=False):
-        if display_only:
-            credentials = {key: "xxxx" for (key, value) in
-                           self._credentials.items()}
-        else:
-            credentials = self._credentials
         return {"_type": "BaseCredentials",
-                "credentials": credentials}
+                "credentials": self.export_credentials(display_only=display_only)}
 
 
