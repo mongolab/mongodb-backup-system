@@ -1463,10 +1463,11 @@ class DumpStrategy(BackupStrategy):
         logger.info("Restoring using mongoctl restore")
         dump_dir = file_reference.file_name[: -4]
 
-        dest_uri = restore.destination.uri
+
 
         # connect to the destination
-        mongo_connector = restore.destination.get_connector()
+        mongo_connector = self.get_restore_mongo_connector(restore)
+        dest_uri = mongo_connector.restore_uri()
 
         dest_uri_wrapper = mongo_uri_tools.parse_mongo_uri(dest_uri)
 
@@ -1559,6 +1560,24 @@ class DumpStrategy(BackupStrategy):
         update_restore(restore, properties="restoreCollectionCounts",
                        event_name="END_RESTORE_DUMP",
                        message="Restoring dump completed!")
+
+
+    ###########################################################################
+    def get_restore_mongo_connector(self, restore):
+        logger.info("Selecting connector to run restore '%s'" % restore.id)
+        destination_connector = restore.destination.get_connector()
+
+        selected_connector = None
+        if isinstance(destination_connector, MongoCluster):
+            selected_connector = destination_connector.primary_member
+        if isinstance(destination_connector, MongoServer) and destination_connector.is_primary():
+            selected_connector = destination_connector
+
+        if selected_connector:
+            logger.info("Selected connector %s for restore '%s'" % (selected_connector.info(), restore.id))
+            return selected_connector
+        raise Exception("Cannot final a primary for restore connector %s (restore %s)" %
+                        (destination_connector, restore.id))
 
     ###########################################################################
     def _validate_restore(self, restore):

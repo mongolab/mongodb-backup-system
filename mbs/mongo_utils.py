@@ -822,6 +822,10 @@ class MongoServer(MongoConnector):
         address = self._is_master_command()["me"]
         return "mongodb://%s:%s@%s" % (self._uri_wrapper.username, self._uri_wrapper.password, address)
 
+    ###########################################################################
+    def restore_uri(self):
+        return self.dump_uri()
+
 ###############################################################################
 class ShardedClusterConnector(MongoConnector):
     ###########################################################################
