@@ -2075,6 +2075,10 @@ class CloudBlockStorageStrategy(BackupStrategy):
         name_template = self.constituent_name_scheme or backup.name
         desc_template = (self.constituent_description_scheme or
                          backup.description)
+
+        name_template = self._generate_name(backup, name_template)
+        desc_template = self._generate_name(backup, desc_template)
+
         snapshot_ref = cbs.create_snapshot(name_template, desc_template)
 
         # set sourceWasLocked field
