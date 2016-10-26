@@ -819,7 +819,8 @@ class MongoServer(MongoConnector):
 
     ###########################################################################
     def actual_address(self):
-        return self._is_master_command()["me"]
+        if self.is_online():
+            return self._is_master_command()["me"]
 
     ###########################################################################
     def dump_uri(self):
