@@ -571,8 +571,6 @@ class BackupStrategy(MBSObject):
                         "best secondary for '%s'" % (backup_node, self))
             return backup_node
 
-        master_status = mongo_cluster.primary_member.member_rs_status
-
         # find secondaries
         for member in members:
             try:
@@ -586,8 +584,7 @@ class BackupStrategy(MBSObject):
                                     "Excluding..." % member)
                         continue
                     all_secondaries.append(member)
-                    # compute lags
-                    member.compute_lag(master_status)
+
                     if member.hidden:
                         hidden_secondaries.append(member)
                     elif member.priority == 0:
@@ -613,9 +610,13 @@ class BackupStrategy(MBSObject):
 
         # merge results into one list
         merged_list = hidden_secondaries + p0_secondaries + other_secondaries
-
+        master_status = mongo_cluster.primary_member.member_rs_status
         if merged_list:
             for secondary in merged_list:
+                # compute lags
+                # TODO compute lag should only rs conf/status from primary only! this should also be applied to all
+                # other rs conf/status operations
+                secondary.compute_lag(master_status)
                 if max_lag_seconds is None:
                     return secondary
                 elif secondary.lag_in_seconds <= max_lag_seconds:
