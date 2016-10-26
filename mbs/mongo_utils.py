@@ -447,7 +447,7 @@ class MongoCluster(MongoConnector):
     ###########################################################################
     def get_member_by_address(self, address):
         for member in self.members:
-            if member.address == address:
+            if member.actual_address() == address:
                 return member
 
     ###########################################################################
@@ -816,6 +816,19 @@ class MongoServer(MongoConnector):
     ###########################################################################
     def whatsmyuri(self):
         return self.admin_db.command({"whatsmyuri": 1})
+
+    ###########################################################################
+    def actual_address(self):
+        return self._is_master_command()["me"]
+
+    ###########################################################################
+    def dump_uri(self):
+        address = self._is_master_command()["me"]
+        return "mongodb://%s:%s@%s" % (self._uri_wrapper.username, self._uri_wrapper.password, address)
+
+    ###########################################################################
+    def restore_uri(self):
+        return self.dump_uri()
 
 ###############################################################################
 class ShardedClusterConnector(MongoConnector):
