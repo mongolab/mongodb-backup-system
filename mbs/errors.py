@@ -395,6 +395,14 @@ class CollectionReadError(RetriableDumpError):
 class OplogOverflowError(RetriableDumpError):
     pass
 
+########################################################################################################################
+class OverlappingBackupError(RetriableError):
+    pass
+
+########################################################################################################################
+class OverlappingMongodumpError(OverlappingBackupError):
+    pass
+
 ###############################################################################
 class ArchiveError(MBSError):
     """
