@@ -103,7 +103,7 @@ def get_connection(api_key_id, api_secret_key, region=None, **kwargs):
         try:
             kwargs.update({'host': _S3_ENDPOINT_LOOKUP[region]})
         except KeyError:
-            raise ValueError('unkonwn region: %s' % (region))
+            raise ValueError('unknown region: %s' % (region))
     return S3Connection(api_key_id, api_secret_key, **kwargs)
 
 
