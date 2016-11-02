@@ -612,7 +612,6 @@ class EbsVolumeStorage(VolumeStorage):
     ###########################################################################
     def get_ebs_snapshot_by_id(self, snapshot_id):
         filters = {
-            "volume-id": self.volume_id,
             "snapshot-id": snapshot_id
         }
 
