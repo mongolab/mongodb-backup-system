@@ -396,7 +396,7 @@ class OplogOverflowError(RetriableDumpError):
     pass
 
 ########################################################################################################################
-class OverlappingBackupError(RetriableError):
+class OverlappingBackupError(MBSError, RetriableError):
     pass
 
 ########################################################################################################################
