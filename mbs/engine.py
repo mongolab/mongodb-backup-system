@@ -546,17 +546,14 @@ class TaskQueueProcessor(Thread):
 
         total_crashed = 0
         for task in self.task_collection.find(q):
-            msg = ("Engine crashed while %s was in progress. Failing..." % task.type_name)
+            msg = ("Engine crashed while %s was in progress. Recovering..." % task.type_name)
             # fail task
-            self.info("Recovery: Failing %s %s" % (task.type_name, task.id))
-            error = EngineWorkerCrashedError(msg="Engine crashed")
-            set_task_retry_info(task, error)
-            task.state = State.FAILED
-            task.end_date = date_now()
+            self.info("Recovery: Recovering %s %s" % (task.type_name, task.id))
+
             # update
-            self.task_collection.update_task(
-                task, properties=["state", "endDate", "nextRetryDate", "finalRetryDate"],
-                event_type=EVENT_STATE_CHANGE, message=msg)
+            self.task_collection.update_task(task, message=msg)
+
+            self._start_task(task)
 
             total_crashed += 1
 
