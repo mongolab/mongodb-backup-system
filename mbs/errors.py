@@ -404,6 +404,10 @@ class OverlappingMongodumpError(OverlappingBackupError):
     pass
 
 ###############################################################################
+class StuckMongodumpError(MBSError, RetriableError):
+    pass
+
+###############################################################################
 class ArchiveError(MBSError):
     """
         Base error for archive errors
