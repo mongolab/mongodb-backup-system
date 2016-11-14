@@ -404,8 +404,10 @@ class OverlappingMongodumpError(OverlappingBackupError):
     pass
 
 ###############################################################################
-class StuckMongodumpError(MBSError, RetriableError):
-    pass
+class StuckMongodumpError(RetriableDumpError):
+    def __init__(self, message=None, last_namespace=None):
+        DumpError.__init__(self, last_namespace=last_namespace)
+        self.message = message
 
 ###############################################################################
 class ArchiveError(MBSError):
