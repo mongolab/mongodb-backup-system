@@ -164,7 +164,10 @@ class ConnectionError(MBSError, RetriableError):
     """
     ###########################################################################
     def __init__(self, uri=None, details=None, cause=None):
-        msg = "Could not establish a database connection to '%s'" % mongo_uri_tools.mask_mongo_uri(uri)
+        if uri:
+            msg = "Could not establish a database connection to '%s'" % mongo_uri_tools.mask_mongo_uri(uri)
+        else:
+            msg = ""
         super(ConnectionError, self).__init__(msg=msg, details=details, cause=cause)
 
 ###############################################################################
@@ -172,7 +175,10 @@ class AuthenticationFailedError(MBSError):
 
     ###########################################################################
     def __init__(self, uri=None, cause=None):
-        msg = "Failed to authenticate to '%s'" % mongo_uri_tools.mask_mongo_uri(uri)
+        if uri:
+            msg = "Failed to authenticate to '%s'" % mongo_uri_tools.mask_mongo_uri(uri)
+        else:
+            msg = ""
         super(AuthenticationFailedError, self).__init__(msg=msg, cause=cause)
 
 ###############################################################################
@@ -197,7 +203,10 @@ class PrimaryNotFoundError(ReplicasetError):
 
     ###########################################################################
     def __init__(self, uri=None):
-        details = "Unable to determine primary for cluster '%s'" % mongo_uri_tools.mask_mongo_uri(uri)
+        if uri:
+            details = "Unable to determine primary for cluster '%s'" % mongo_uri_tools.mask_mongo_uri(uri)
+        else:
+            details = None
         super(PrimaryNotFoundError, self).__init__(details=details)
 
 ###############################################################################
