@@ -1,6 +1,6 @@
 __author__ = 'abdul'
 
-__version__ = '1.3.11'
+__version__ = '1.3.12'
 
 def get_mbs_version():
     return __version__
