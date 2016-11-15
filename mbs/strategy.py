@@ -311,6 +311,8 @@ class BackupStrategy(MBSObject):
 
         # set the selected source
         selected_sources = backup.source.get_selected_sources(selected_connector)
+        self._validate_selected_sources(selected_connector, backup)
+
         backup.selected_sources = selected_sources
         update_backup(backup, properties="selectedSources", event_name="SELECT_SOURCES",
                       message="Selected backup sources")
@@ -320,6 +322,15 @@ class BackupStrategy(MBSObject):
             self._compute_cluster_stats(backup, source_connector)
 
         return selected_connector
+
+    ###########################################################################
+    def _validate_selected_sources(self, selected_sources, backup):
+        # ensure that the selected sources are unique
+        selected_ids = []
+        for source in selected_sources:
+            if source.id in selected_ids:
+                raise Exception("source %s has been selected twice!!!" % source.id)
+            selected_ids.append(source.id)
 
     ###########################################################################
     def select_backup_mongo_connector(self, backup, source_connector):
