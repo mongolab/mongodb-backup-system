@@ -311,7 +311,7 @@ class BackupStrategy(MBSObject):
 
         # set the selected source
         selected_sources = backup.source.get_selected_sources(selected_connector)
-        self._validate_selected_sources(selected_connector, backup)
+        self._validate_selected_sources(selected_sources, backup)
 
         backup.selected_sources = selected_sources
         update_backup(backup, properties="selectedSources", event_name="SELECT_SOURCES",
