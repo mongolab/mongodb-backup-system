@@ -2,7 +2,7 @@ __author__ = 'abdul'
 
 import logging
 import traceback
-
+import threading
 
 
 from api_server import ApiServer
@@ -10,7 +10,7 @@ from api_utils import send_api_error, error_response, get_request_json, new_requ
 
 
 from flask.globals import request
-from mbs.utils import document_pretty_string
+from mbs.utils import document_pretty_string, get_local_host_name
 
 from mbs.netutils import crossdomain
 from functools import update_wrapper
@@ -30,6 +30,7 @@ logger.addHandler(logging.NullHandler())
 
 DEFAULT_NUM_WORKERS = 20
 
+HOST_NAME = get_local_host_name()
 ###############################################################################
 # BackupSystemApiServer
 ###############################################################################
@@ -149,6 +150,11 @@ class BackupSystemApiServer(ApiServer):
         super(BackupSystemApiServer, self).build_flask_server(flask_server)
 
         # build custom
+        @flask_server.after_request
+        def add_default_response_headers(response):
+            response.headers["request-id"] = get_current_request_id()
+            response.headers["mbs-api-server"] = HOST_NAME
+            return response
 
         # build get backup database names
         @flask_server.route('/get-backup-database-names',
@@ -197,7 +203,7 @@ class BackupSystemApiServer(ApiServer):
     ####################################################################################################################
     def mbs_endpoint(self, f):
         def wrapped_function(*args, **kwargs):
-            request_id = new_request_id()
+            request_id = bind_new_request_id()
             backup_id = get_requested_backup_id()
             backup_id_str = "(backupId=%s)" % backup_id if backup_id else ""
             start_date = date_utils.date_now()
@@ -226,3 +232,16 @@ def get_requested_backup_id():
 
     return backup_id
 
+########################################################################################################################
+def bind_new_request_id():
+    request_id = new_request_id()
+    set_current_request_id(request_id)
+
+########################################################################################################################
+def set_current_request_id(request_id):
+    threading.local().request_id = request_id
+
+########################################################################################################################
+def get_current_request_id():
+    if hasattr(threading.local(), "request_id"):
+        return threading.local().request_id
