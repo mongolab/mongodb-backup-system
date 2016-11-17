@@ -236,6 +236,7 @@ def get_requested_backup_id():
 def bind_new_request_id():
     request_id = new_request_id()
     set_current_request_id(request_id)
+    return request_id
 
 ########################################################################################################################
 def set_current_request_id(request_id):
