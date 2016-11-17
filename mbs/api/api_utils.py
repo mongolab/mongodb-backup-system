@@ -48,9 +48,10 @@ def new_request_id():
     return str(ObjectId())
 
 
-###############################################################################
+########################################################################################################################
 def get_request_value(key):
-    if request.method == "POST":
+    if request.json and request.json.get(key):
         return request.json.get(key)
-    else:
+
+    if request.args and request.args.get(key):
         return request.args.get(key)
