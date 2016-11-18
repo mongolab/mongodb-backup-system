@@ -50,8 +50,9 @@ def new_request_id():
 
 ########################################################################################################################
 def get_request_value(key):
-    if request.json and request.json.get(key):
-        return request.json.get(key)
+    if request.data:
+        if request.json.get(key):
+            return request.json.get(key)
 
     if request.args and request.args.get(key):
         return request.args.get(key)
