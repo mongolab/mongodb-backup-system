@@ -1,9 +1,7 @@
 import hashlib
 import math
-import os
 
 from tempfile import NamedTemporaryFile
-from uuid import uuid4
 
 from mock import patch, Mock
 
@@ -47,29 +45,22 @@ class TargetTest(BaseTest):
         })
         self.assertEqual(len(target.validate()), 3)
 
-        target = self.mbs.maker.make({
-            '_type': 'S3BucketTarget',
-            'bucketName': 'foo_bar',
-            'accessKey': 'xxxx',
-            'secretKey': 'xxxx',
-        })
-        self.assertEqual(len(target.validate()), 1)
+        good_names = ['foo', 'foo.bar', 'foo-bar', 'foo1',
+                      '1foo', '192.dog.0.1', '192.168.1']
+        bad_names = ['-foo', 'foo-', '.foo', '192.168.0.1', 'FOO', 'foo..bar',
+                     'foo!bar', 'foo&bar', '&foo', 'bar*', 'foo\\bar']
+        names = [(n, True) for n in good_names] + [(n, False) for n in bad_names]
 
-        target = self.mbs.maker.make({
-            '_type': 'S3BucketTarget',
-            'bucketName': 'FOO',
-            'accessKey': 'xxxx',
-            'secretKey': 'xxxx',
-        })
-        self.assertEqual(len(target.validate()), 1)
-
-        target = self.mbs.maker.make({
-            '_type': 'S3BucketTarget',
-            'bucketName': 'foo',
-            'accessKey': 'xxxx',
-            'secretKey': 'xxxx',
-        })
-        self.assertEqual(len(target.validate()), 0)
+        for name, success_expected in names:
+            target = self.mbs.maker.make({
+                '_type': 'S3BucketTarget',
+                'bucketName': name,
+                'accessKey': 'xxxx',
+                'secretKey': 'xxxx',
+            })
+            print(name, target.validate());
+            has_errors = bool(target.validate())
+            self.assertNotEqual(has_errors, success_expected)
 
     def test_s3_has_sufficient_permissions(self):
         self._check_run_int_tests_else_skip()

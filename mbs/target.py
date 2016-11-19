@@ -5,6 +5,7 @@ import os
 import sys
 import logging
 import uuid
+import re
 
 import cloudfiles
 import cloudfiles.errors
@@ -683,7 +684,7 @@ class S3BucketTarget(BackupTarget):
                 if not key.get_contents_as_string() == key_name:
                     errors.append('could not read key contents of test file '
                                   'in %s' % (self.bucket_name))
-                # set the prefix to the file name and don't risk listing the 
+                # set the prefix to the file name and don't risk listing the
                 # whole bucket
                 contents = bucket.list(key_name)
                 # there should only be one element
@@ -713,10 +714,14 @@ class S3BucketTarget(BackupTarget):
 
         if not self.bucket_name:
             errors.append("Bucket name is required")
-        elif self.bucket_name.lower() != self.bucket_name or \
-             '_' in self.bucket_name:
-            errors.append("Bucket name can not contain uppercase letters or "
-                          "underscores")
+        elif not re.match("[a-z0-9][a-z0-9-\.]{1,61}[a-z0-9]$", self.bucket_name):
+            errors.append("Bucket name must be between 3 and 63 characters "
+                          "long and only contain lowercase letters, numbers, "
+                          "hyphens and full stops.")
+        elif re.search("\.\.", self.bucket_name):
+            errors.append("Bucket name must not contain consecutive full stops")
+        elif re.match("\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}", self.bucket_name):
+            errors.append("Bucket name must not be formatted as an IP address")
 
         if not self.access_key:
             errors.append("Access key is required")
@@ -1107,7 +1112,7 @@ class AzureContainerTarget(BackupTarget):
         })
 
         return doc
-    
+
     ###########################################################################
     def has_sufficient_permissions(self):
         return \
