@@ -58,7 +58,6 @@ class TargetTest(BaseTest):
                 'accessKey': 'xxxx',
                 'secretKey': 'xxxx',
             })
-            print(name, target.validate());
             has_errors = bool(target.validate())
             self.assertNotEqual(has_errors, success_expected)
 
