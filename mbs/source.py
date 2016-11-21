@@ -44,6 +44,9 @@ logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
 
+### XXX Temporarily enable boto logging
+import boto
+boto.set_stream_logger('boto')
 ###############################################################################
 # Backup Source Classes
 ###############################################################################
