@@ -588,9 +588,11 @@ class EbsVolumeStorage(VolumeStorage):
                 raise ConfigurationError("Invalid region in block storage %s" %
                                          self)
 
+            logger.info("EC2: BEGIN Create connection to region '%s'" % self.region)
             # log elapsed time for aws call
             elapsed_time = date_utils.timedelta_total_seconds(date_utils.date_now() - start_date)
-            logger.info("EC2: Create connection to region '%s' returned in %s seconds" %  (self.region, elapsed_time))
+            logger.info("EC2: END Create connection to region '%s' returned in %s seconds" %
+                        (self.region, elapsed_time))
 
             self._ec2_connection = conn
 
