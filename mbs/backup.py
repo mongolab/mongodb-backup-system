@@ -166,6 +166,14 @@ class Backup(MBSTask):
     def backup_rate_in_mbps(self, backup_rate):
         self._backup_rate_in_mbps = backup_rate
 
+    @property
+    def backup_rate_in_mBPS(self):
+        return self._backup_rate_in_mbps
+
+    @backup_rate_in_mBPS.setter
+    def backup_rate_in_mBPS(self, backup_rate):
+        self._backup_rate_in_mbps = backup_rate
+
     ###########################################################################
     @property
     def expired(self):
@@ -255,7 +263,7 @@ class Backup(MBSTask):
             doc["sourceStats"] = self.source_stats
 
         if self.backup_rate_in_mbps:
-            doc["backupRateInMBPS"] = self.backup_rate_in_mbps
+            doc["backupRateInMbps"] = self.backup_rate_in_mbps
 
         if self.data_stats:
             doc["dataStats"] = self.data_stats
