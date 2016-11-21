@@ -89,6 +89,11 @@ class MBS(object):
         self._event_listener_collection = None
         self._event_queue = None
 
+        # allow boto debug to be configuable
+        if config.get("enableBotoDebug"):
+            import boto
+            boto.set_stream_logger('boto')
+
     ###########################################################################
     @property
     def temp_dir(self):
