@@ -600,7 +600,7 @@ class EbsVolumeStorage(VolumeStorage):
     ###########################################################################
     def _get_ebs_volume(self):
 
-        logger.info("EC2: BEGIN lookup volume '%s' returned in %s seconds" % self.volume_id)
+        logger.info("EC2: BEGIN lookup volume '%s'" % self.volume_id)
         start_time = time.time()
         volumes = self.ec2_connection.get_all_volumes([self.volume_id])
         elapsed_time = time.time() - start_time
