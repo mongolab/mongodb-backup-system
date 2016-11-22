@@ -224,6 +224,7 @@ class BackupSystemApiServer(ApiServer):
 ########################################################################################################################
 # HELPERS
 ########################################################################################################################
+__local__ = threading.local()
 
 def get_requested_backup_id():
     backup_id = get_request_value("backupId")
@@ -240,9 +241,9 @@ def bind_new_request_id():
 
 ########################################################################################################################
 def set_current_request_id(request_id):
-    threading.local().request_id = request_id
+    __local__.request_id = request_id
 
 ########################################################################################################################
 def get_current_request_id():
-    if hasattr(threading.local(), "request_id"):
-        return threading.local().request_id
+    if hasattr(__local__, "request_id"):
+        return __local__.request_id
