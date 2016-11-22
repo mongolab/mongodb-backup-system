@@ -338,7 +338,7 @@ class S3BucketTarget(BackupTarget):
 
         self._encrypted_access_key = None
         self._encrypted_secret_key = None
-        self._use_encryption = None
+        self._is_encrypted_credentials = None
 
         self._connection = None
         self._bucket = None
@@ -544,7 +544,7 @@ class S3BucketTarget(BackupTarget):
     def get_access_key(self):
         if self.credentials:
             return self.credentials.get_credential("accessKey")
-        elif not self.is_use_encryption():
+        elif not self.is_use_credential_encryption():
             return self._access_key
         elif self.encrypted_access_key:
             return mbs.get_mbs().encryptor.decrypt_string(
@@ -559,14 +559,14 @@ class S3BucketTarget(BackupTarget):
     def secret_key(self, secret_key):
         self._secret_key = str(secret_key)
 
-        if self.is_use_encryption() and secret_key:
+        if self.is_use_credential_encryption() and secret_key:
             sak = mbs.get_mbs().encryptor.encrypt_string(str(secret_key))
             self.encrypted_secret_key = sak
 
     def get_secret_key(self):
         if self.credentials:
             return self.credentials.get_credential("secretKey")
-        elif not self.is_use_encryption():
+        elif not self.is_use_credential_encryption():
             return self._secret_key
         elif self.encrypted_secret_key:
             return mbs.get_mbs().encryptor.decrypt_string(
@@ -595,15 +595,15 @@ class S3BucketTarget(BackupTarget):
 
     ###########################################################################
     @property
-    def use_encryption(self):
-        return self._use_encryption
+    def is_encrypted_credentials(self):
+        return self._is_encrypted_credentials
 
-    @use_encryption.setter
-    def use_encryption(self, val):
-        self._use_encryption = val
+    @is_encrypted_credentials.setter
+    def is_encrypted_credentials(self, val):
+        self._is_encrypted_credentials = val
 
-    def is_use_encryption(self):
-        return self.use_encryption or self.use_encryption is None
+    def is_use_credential_encryption(self):
+        return self.is_encrypted_credentials or self.is_encrypted_credentials is None
 
     ###########################################################################
     def get_temp_download_url(self, file_reference, expires_in_secs=30):
@@ -665,10 +665,10 @@ class S3BucketTarget(BackupTarget):
             "bucketName": self.bucket_name
         })
 
-        if self.use_encryption is not None:
-            doc["useEncryption"] = self.use_encryption
+        if self.is_encrypted_credentials is not None:
+            doc["isEncryptedCredentials"] = self.is_encrypted_credentials
 
-        if not self.is_use_encryption():
+        if not self.is_use_credential_encryption():
             doc.update({
                 "accessKey": "xxxxx" if display_only else self._access_key,
                 "secretKey": "xxxxx" if display_only else self._secret_key
