@@ -311,11 +311,7 @@ class BackupTarget(MBSObject):
         self._preserve = val
 
     ###########################################################################
-    def export_credentials(self, display_only=False):
-        return {}
-
-    ###########################################################################
-    def to_document(self, display_only=False, export_credentials=False):
+    def to_document(self, display_only=False):
         doc = {
 
         }
@@ -323,13 +319,8 @@ class BackupTarget(MBSObject):
         if self.preserve is not None:
             doc["preserve"] = self.preserve
 
-        if export_credentials or not self.credentials:
-            doc.update(self.export_credentials(display_only=display_only))
-
-        elif self.credentials is not None:
-            doc["credentials"] = self.credentials.to_document(
-                display_only=display_only)
-
+        if self.credentials is not None:
+            doc["credentials"] = self.credentials.to_document(display_only=display_only)
         return doc
 
 ###############################################################################
@@ -341,8 +332,14 @@ class S3BucketTarget(BackupTarget):
     def __init__(self):
         BackupTarget.__init__(self)
         self._bucket_name = None
+
+        self._access_key = None
+        self._secret_key = None
+
         self._encrypted_access_key = None
         self._encrypted_secret_key = None
+        self._use_encryption = None
+
         self._connection = None
         self._bucket = None
         self._region = None
@@ -513,7 +510,8 @@ class S3BucketTarget(BackupTarget):
     def _connect_to_bucket(self):
         if not(self._connection and self._bucket):
             try:
-                conn, bucket, region = s3_utils.get_connection_for_bucket(self.access_key, self.secret_key,
+                conn, bucket, region = s3_utils.get_connection_for_bucket(self.get_access_key(),
+                                                                          self.get_secret_key(),
                                                                           self.bucket_name)
                 self._connection = conn
                 self._bucket = bucket
@@ -537,36 +535,42 @@ class S3BucketTarget(BackupTarget):
     ###########################################################################
     @property
     def access_key(self):
+        return self._access_key
+
+    @access_key.setter
+    def access_key(self, access_key):
+        self._access_key = str(access_key)
+
+    def get_access_key(self):
         if self.credentials:
             return self.credentials.get_credential("accessKey")
+        elif not self.is_use_encryption():
+            return self._access_key
         elif self.encrypted_access_key:
             return mbs.get_mbs().encryptor.decrypt_string(
                 self.encrypted_access_key)
 
-    @access_key.setter
-    def access_key(self, access_key):
-        if self.credentials:
-            self.credentials.set_credential("accessKey", access_key)
-        elif access_key:
-            eak = mbs.get_mbs().encryptor.encrypt_string(str(access_key))
-            self.encrypted_access_key = eak
-
     ###########################################################################
     @property
     def secret_key(self):
-        if self.credentials:
-            return self.credentials.get_credential("secretKey")
-        elif self.encrypted_secret_key:
-            return mbs.get_mbs().encryptor.decrypt_string(
-                self.encrypted_secret_key)
+        return self._secret_key
 
     @secret_key.setter
     def secret_key(self, secret_key):
-        if self.credentials:
-            self.credentials.set_credential("secretKey", secret_key)
-        elif secret_key:
+        self._secret_key = str(secret_key)
+
+        if self.is_use_encryption() and secret_key:
             sak = mbs.get_mbs().encryptor.encrypt_string(str(secret_key))
             self.encrypted_secret_key = sak
+
+    def get_secret_key(self):
+        if self.credentials:
+            return self.credentials.get_credential("secretKey")
+        elif not self.is_use_encryption():
+            return self._secret_key
+        elif self.encrypted_secret_key:
+            return mbs.get_mbs().encryptor.decrypt_string(
+                self.encrypted_secret_key)
 
     ###########################################################################
     @property
@@ -588,6 +592,18 @@ class S3BucketTarget(BackupTarget):
         if val:
             self._encrypted_secret_key = val.encode('ascii', 'ignore')
 
+
+    ###########################################################################
+    @property
+    def use_encryption(self):
+        return self._use_encryption
+
+    @use_encryption.setter
+    def use_encryption(self, val):
+        self._use_encryption = val
+
+    def is_use_encryption(self):
+        return self.use_encryption or self.use_encryption is None
 
     ###########################################################################
     def get_temp_download_url(self, file_reference, expires_in_secs=30):
@@ -638,28 +654,30 @@ class S3BucketTarget(BackupTarget):
         key = self._get_file_ref_key(file_ref)
         key.restore(days=days)
 
-    ###########################################################################
-    def export_credentials(self, display_only=False):
-
-        ak = "xxxxx" if display_only else (self.encrypted_access_key or
-                                           mbs.get_mbs().encryptor.encrypt_string(str(self.access_key)))
-        sk = "xxxxx" if display_only else (self.encrypted_secret_key or
-                                           mbs.get_mbs().encryptor.encrypt_string(str(self.secret_key)))
-
-        return {
-            "encryptedAccessKey": ak,
-            "encryptedSecretKey": sk
-        }
 
     ###########################################################################
-    def to_document(self, display_only=False, export_credentials=False):
+    def to_document(self, display_only=False):
 
-        doc = BackupTarget.to_document(self, display_only=display_only,
-                                       export_credentials=export_credentials)
+        doc = BackupTarget.to_document(self, display_only=display_only)
+
         doc.update({
             "_type": "S3BucketTarget",
             "bucketName": self.bucket_name
         })
+
+        if self.use_encryption is not None:
+            doc["useEncryption"] = self.use_encryption
+
+        if not self.is_use_encryption():
+            doc.update({
+                "accessKey": "xxxxx" if display_only else self._access_key,
+                "secretKey": "xxxxx" if display_only else self._secret_key
+            })
+        else:
+            doc.update({
+                "encryptedAccessKey": "xxxxx" if display_only else self.encrypted_access_key,
+                "encryptedSecretKey": "xxxxx" if display_only else self.encrypted_secret_key
+            })
 
         return doc
 
@@ -723,10 +741,10 @@ class S3BucketTarget(BackupTarget):
         elif re.match("\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}", self.bucket_name):
             errors.append("Bucket name must not be formatted as an IP address")
 
-        if not self.access_key:
+        if not self.get_access_key():
             errors.append("Access key is required")
 
-        if not self.secret_key:
+        if not self.get_secret_key():
             errors.append("Secret key is required")
 
         return errors
@@ -961,27 +979,18 @@ class RackspaceCloudFilesTarget(BackupTarget):
             self._encrypted_api_key = value.encode('ascii', 'ignore')
 
     ###########################################################################
-    def export_credentials(self, display_only=False):
+    def to_document(self, display_only=False):
 
-        eu = "xxxxx" if display_only else (self.encrypted_username or
-                                           mbs.get_mbs().encryptor.encrypt_string(str(self.username)))
-        eak = "xxxxx" if display_only else (self.encrypted_api_key or
-                                            mbs.get_mbs().encryptor.encrypt_string(str(self.api_key)))
+        doc = BackupTarget.to_document(self, display_only=display_only)
 
-        return {
-            "encryptedUsername": eu,
-            "encryptedApiKey": eak
-        }
-
-    ###########################################################################
-    def to_document(self, display_only=False, export_credentials=False):
-
-        doc = BackupTarget.to_document(self, display_only=display_only,
-                                       export_credentials=export_credentials)
+        eu = "xxxxx" if display_only else self.encrypted_username
+        eak = "xxxxx" if display_only else self.encrypted_api_key
 
         doc.update({
             "_type": "RackspaceCloudFilesTarget",
-            "containerName": self.container_name
+            "containerName": self.container_name,
+            "encryptedUsername": eu,
+            "encryptedApiKey": eak
         })
 
         return doc
