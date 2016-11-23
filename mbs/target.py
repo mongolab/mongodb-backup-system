@@ -1796,8 +1796,3 @@ class TargetUploader(Thread):
     ###########################################################################
     def completed(self):
         return self.target_reference is not None or self.error is not None
-
-
-# deal with circular import dependency mbs.target -> mbs ->
-# mbs.backup_assistant -> mbs.target -> ...
-import mbs
