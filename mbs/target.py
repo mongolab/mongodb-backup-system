@@ -346,7 +346,7 @@ class S3BucketTarget(BackupTarget):
         self._connection = None
         self._bucket = None
         self._region = None
-        self._server_side_encryption = None
+        self._encryption_enabled = False
 
     ###########################################################################
     def do_put_file(self, file_path, destination_path, metadata=None):
@@ -390,7 +390,7 @@ class S3BucketTarget(BackupTarget):
             for name, value in metadata.items():
                 k.set_metadata(name, value)
 
-        k.set_contents_from_file(file_obj)
+        k.set_contents_from_file(file_obj, encrypt_key=self.encryption_enabled)
 
 
     ###########################################################################
@@ -404,8 +404,8 @@ class S3BucketTarget(BackupTarget):
             chunk_size = MAX_SPLIT_SIZE
 
         bucket = self._get_bucket()
-        mp = bucket.initiate_multipart_upload(destination_path,
-                                              metadata=metadata)
+        mp = bucket.initiate_multipart_upload(destination_path, metadata=metadata,
+                                              encrypt_key=self.encryption_enabled)
 
         upload = SplitFile(file_path, chunk_size)
 
@@ -480,6 +480,16 @@ class S3BucketTarget(BackupTarget):
                    " from s3 bucket %s. Cause: %s" %
                    (file_path, self.bucket_name, e))
             raise errors.TargetDeleteError(msg, cause=e)
+
+    ###########################################################################
+    @property
+    def encryption_enabled(self):
+        return self._encryption_enabled
+
+    @encryption_enabled.setter
+    def encryption_enabled(self, val):
+        if isinstance(val, bool):
+            self._encryption_enabled = val;
 
     ###########################################################################
     @property
@@ -594,7 +604,8 @@ class S3BucketTarget(BackupTarget):
     def get_temp_download_url(self, file_reference, expires_in_secs=30):
         bucket = self._get_bucket()
         key = bucket.get_key(file_reference.file_path)
-        return key.generate_url(expires_in_secs)
+        return key.generate_url(expires_in_secs,
+                                encrypt_key=self.encryption_enabled)
 
     ###########################################################################
     def is_file_in_glacier(self, file_ref):
@@ -681,7 +692,8 @@ class S3BucketTarget(BackupTarget):
             key_name = '%s-mbs-test-write' % (uuid.uuid4())
             try:
                 key = bucket.new_key(key_name)
-                key.set_contents_from_string(key_name)
+                key.set_contents_from_string(key_name,
+                                             encrypt_key=self.encryption_enabled)
                 if not key.get_contents_as_string() == key_name:
                     errors.append('could not read key contents of test file '
                                   'in %s' % (self.bucket_name))
@@ -1789,7 +1801,3 @@ class TargetUploader(Thread):
     def completed(self):
         return self.target_reference is not None or self.error is not None
 
-
-# deal with circular import dependency mbs.target -> mbs ->
-# mbs.backup_assistant -> mbs.target -> ...
-import mbs

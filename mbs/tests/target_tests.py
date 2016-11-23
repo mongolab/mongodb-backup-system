@@ -45,21 +45,22 @@ class TargetTest(BaseTest):
         })
         self.assertEqual(len(target.validate()), 3)
 
-        good_names = ['foo', 'foo.bar', 'foo-bar', 'foo1',
-                      '1foo', '192.dog.0.1', '192.168.1']
-        bad_names = ['-foo', 'foo-', '.foo', '192.168.0.1', 'FOO', 'foo..bar',
-                     'foo!bar', 'foo&bar', '&foo', 'bar*', 'foo\\bar']
-        names = [(n, True) for n in good_names] + [(n, False) for n in bad_names]
-
-        for name, success_expected in names:
+        def name_is_valid(name):
             target = self.mbs.maker.make({
                 '_type': 'S3BucketTarget',
                 'bucketName': name,
                 'accessKey': 'xxxx',
                 'secretKey': 'xxxx',
             })
-            has_errors = bool(target.validate())
-            self.assertNotEqual(has_errors, success_expected)
+            return not bool(target.validate())
+
+        good_names = ['foo', 'foo.bar', 'foo-bar', 'foo1',
+                      '1foo', '192.dog.0.1', '192.168.1']
+        bad_names = ['-foo', 'foo-', '.foo', '192.168.0.1', 'FOO', 'foo..bar',
+                     'foo!bar', 'foo&bar', '&foo', 'bar*', 'foo\\bar']
+
+        self.assertTrue(all(name_is_valid(n) for n in good_names))
+        self.assertFalse(any(name_is_valid(n) for n in bad_names))
 
     def test_s3_has_sufficient_permissions(self):
         self._check_run_int_tests_else_skip()
