@@ -462,6 +462,9 @@ class NoSpaceLeftError(MBSError):
     raised when there is no disk space left
     """
 
+###############################################################################
+class ReadonlyFileSystemError(MBSError):
+    pass
 
 ###############################################################################
 class SourceDataSizeExceedsLimits(MBSError):
