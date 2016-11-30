@@ -760,9 +760,12 @@ class MongoServer(MongoConnector):
                        document_pretty_string(result))
                 raise MongoLockError(msg)
         except Exception, e:
-            msg = "Error while executing fsynclock on '%s'. %s" % (self, e)
-            logger.error(msg)
-            raise
+            if not isinstance(e, MongoLockError):
+                msg = "Error while executing fsynclock on '%s'. %s" % (self, e)
+                logger.error(msg)
+                raise MongoLockError(msg, cause=e)
+            else:
+                raise
 
     ###########################################################################
     def is_server_locked(self):
@@ -797,9 +800,12 @@ class MongoServer(MongoConnector):
                        (self, document_pretty_string(result)))
                 raise MongoLockError(msg)
         except Exception, e:
-            msg = "Error while executing fsyncunlock on '%s'. %s" % (self, e)
-            logger.error(msg)
-            raise
+            if not isinstance(e, MongoLockError):
+                msg = "Error while executing fsyncunlock on '%s'. %s" % (self, e)
+                logger.error(msg)
+                raise MongoLockError(msg, cause=e)
+            else:
+                raise
 
     ###########################################################################
     def get_db_path(self):
