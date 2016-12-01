@@ -122,6 +122,9 @@ class BackupTarget(MBSObject):
             # validate that the file has been uploaded successfully
             self._verify_file_uploaded(destination_path, file_size)
 
+            if self.encryption_enabled:
+                self._verify_file_encrypted(destination_path)
+
             logger.info("%s: Uploading %s (%s bytes) to container %s "
                         "completed successfully!!" %
                         (self.target_type, file_path, file_size,
@@ -262,20 +265,24 @@ class BackupTarget(MBSObject):
                do_on_failure=errors.raise_exception)
     def _verify_file_uploaded(self, destination_path, file_size):
 
-        dest_exists, dest_size = self._fetch_file_info(destination_path)
+        file_info = self._fetch_file_info(destination_path)
         cname = self.container_name
 
-        if not dest_exists:
+        if not file_info:
             raise errors.UploadedFileDoesNotExistError(destination_path, cname)
-        elif file_size != dest_size:
+        elif file_size != file_info['size']:
             raise errors.UploadedFileSizeMatchError(destination_path, cname,
-                                             dest_size, file_size)
+                                             file_info['size'], file_size)
+
+    ###########################################################################
+    def _verify_file_encrypted(self, destination_path):
+        if not self._fetch_file_info(destination_path).get('encrypted', False):
+            raise errors.UploadedFileIsNotEncrypted(destination_path, self.container_name)
 
     ###########################################################################
     def _verify_file_deleted(self, file_path):
-
-        file_exists, file_size = self._fetch_file_info(file_path)
-        if file_exists:
+        file_info = self._fetch_file_info(file_path)
+        if file_info:
             msg = ("%s: Failure during delete verification: File '%s' still"
                    " exists in container '%s'" %
                    (self.target_type, file_path, self.container_name))
@@ -283,12 +290,11 @@ class BackupTarget(MBSObject):
 
     ###########################################################################
     def file_exists(self, file_path, expected_file_size=None):
-
-        file_exists, file_size = self._fetch_file_info(file_path)
+        file_info = self._fetch_file_info(file_path)
         if expected_file_size:
-            return file_exists and file_size == expected_file_size
+            return file_info and file_info['size'] == expected_file_size
         else:
-            return file_exists
+            return file_info is not None
 
     ###########################################################################
     def stream_file(self, file_reference):
@@ -298,7 +304,9 @@ class BackupTarget(MBSObject):
     ###########################################################################
     def _fetch_file_info(self, destination_path):
         """
-            Returns a tuple of (file_exists, file_size)
+            Returns a dictionary of file info or None if file does not exist
+
+            The returned dictionary must contain the size of the specified file
             Should be implemented by subclasses
         """
     ###########################################################################
@@ -343,7 +351,7 @@ class S3BucketTarget(BackupTarget):
         self._connection = None
         self._bucket = None
         self._region = None
-        self._encryption_enabled = False
+        self._encryption_enabled = True
 
     ###########################################################################
     def do_put_file(self, file_path, destination_path, metadata=None):
@@ -371,9 +379,24 @@ class S3BucketTarget(BackupTarget):
 
         for key in bucket.list(prefix=destination_path):
             if key.key == destination_path:
-                return True, key.size
+                # The 'list' method on the bucket is incorrect and returns Key
+                # objects with unset 'encrypted' variables. This is remedied by
+                # explicitly calling get_key below. The documentation is also
+                # wrong - it implies that 'encrypted' is a boolean when it is
+                # actually a string specifying the type of encryption or None
+                # if the file is not encrypted.
+                # https://github.com/boto/boto/issues/3361
+                not_buggy_key = bucket.get_key(key.name)
 
-        return False, None
+                return {
+                    'size': not_buggy_key.size,
+                    'encrypted': bool(not_buggy_key.encrypted),
+                    'md5': not_buggy_key.md5,
+                    'last_modified': not_buggy_key.last_modified,
+                    'metadata': not_buggy_key.metadata
+                }
+
+        return None
 
     ###########################################################################
     def _single_part_put(self, file_path, destination_path, metadata=None):
@@ -848,12 +871,12 @@ class RackspaceCloudFilesTarget(BackupTarget):
         try:
             container_obj = container.get_object(destination_path)
             if container_obj:
-                return True, container_obj.size
+                return {'size': container_obj.size}
 
         except cloudfiles.errors.NoSuchObject:
             pass
 
-        return False, None
+        return None
 
     ###########################################################################
     def get_file(self, file_reference, destination):
