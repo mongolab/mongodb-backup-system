@@ -41,9 +41,8 @@ def trigger_task_finished_event(task, state):
     except Exception, ex:
         logger.exception("Failed to trigger finished event for %s %s" % (task_type, task.id))
         # notify on failures to trigger task event
-        sbj = "Failed to trigger Finished Event for %s %s (%s)" % (task_type, task.id, task.description)
-        msg = "Failed to trigger Finished Event for %s %s (%s): \nError: %s" % \
-              (task_type, task.id, task.description, traceback.format_exc())
+        sbj = "Failed to trigger Finished Event"
+        msg = "Failed to trigger Finished Event: \nError: %s" % traceback.format_exc()
         priority = NotificationPriority.CRITICAL if state == State.FAILED else NotificationPriority.NORMAL
         get_mbs().notifications.send_event_notification(sbj, msg, priority=priority)
 
