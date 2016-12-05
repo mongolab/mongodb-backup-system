@@ -685,7 +685,8 @@ def is_connection_exception(exception):
     else:
         msg = utils.safe_stringify(exception)
         return ("timed out" in msg or "refused" in msg or "reset" in msg or
-                "Broken pipe" in msg or "closed" in msg or "IncompleteRead" in msg)
+                "Broken pipe" in msg or "closed" in msg or "IncompleteRead" in msg or
+                "Connection aborted" in msg)
 
 
 ###############################################################################
