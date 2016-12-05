@@ -132,15 +132,18 @@ def execute_command_wrapper(command, on_output=None, output_path=None,
 ###############################################################################
 def force_kill_process_and_children(pid):
     logger.debug("Killing process %s and child processes" % pid)
-    process = psutil.Process(pid=pid)
-    children = process.get_children()
-    if children:
-        for child in children:
-            logger.debug("Killing child process %s" % child.pid)
-            force_kill_process_and_children(child.pid)
-    else:
-        logger.debug("Process %s has no children" % pid)
-    process.kill()
+    try:
+        process = psutil.Process(pid=pid)
+        children = process.get_children()
+        if children:
+            for child in children:
+                logger.debug("Killing child process %s" % child.pid)
+                force_kill_process_and_children(child.pid)
+        else:
+            logger.debug("Process %s has no children" % pid)
+        process.kill()
+    except psutil.NoSuchProcess, npe:
+        logger.error("Process %s is dead" % npe.pid)
 
 
 ###############################################################################
