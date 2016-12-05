@@ -528,7 +528,7 @@ class TaskQueueProcessor(Thread):
 
         self.error(errmsg)
         self._cleanup_worker_resources(worker)
-        worker.worker_fail(worker, exception)
+        worker.worker_fail(exception)
 
     ###########################################################################
     def _recover(self):
@@ -843,7 +843,7 @@ class TaskWorker(object):
         else:
             log_msg = "Unexpected error. Please contact admin"
 
-        details = safe_stringify(exception)
+        details = "%s , Trace: %s" % (safe_stringify(exception), traceback.format_stack())
         task = self._task
 
         self.get_task_collection().update_task(
