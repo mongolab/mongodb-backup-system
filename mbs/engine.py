@@ -539,15 +539,15 @@ class TaskQueueProcessor(Thread):
         """
         self.info("Running recovery..")
 
-        q = {
-            "state": State.IN_PROGRESS,
-            "engineGuid": self._engine.engine_guid
-        }
 
         total_crashed = 0
-        for task in self.task_collection.find(q):
-            msg = ("Engine crashed while %s was in progress. Recovering..." % task.type_name)
-            # fail task
+
+        # recover crashed tasks in state IN PROGRESS
+        for task in self.task_collection.find({
+            "state": State.IN_PROGRESS,
+            "engineGuid": self._engine.engine_guid
+        }):
+            msg = ("Engine crashed while %s %s was in progress. Recovering..." % (task.type_name, task.id))
             self.info("Recovery: Recovering %s %s" % (task.type_name, task.id))
 
             # update
@@ -556,6 +556,24 @@ class TaskQueueProcessor(Thread):
             self._start_task(task)
 
             total_crashed += 1
+
+        # recover crashed tasks in state FAILED, those are the ones that crashed right before engine restart
+        for task in self.task_collection.find({
+            "state": State.FAILED,
+            "engineGuid": self._engine.engine_guid,
+        }):
+            last_error = task.get_last_error()
+            if isinstance(last_error, EngineWorkerCrashedError):
+                msg = ("Engine crashed while %s %s was in progress. Recovering..." % (task.type_name, task.id))
+                self.info("Recovery: Recovering %s %s" % (task.type_name, task.id))
+
+                # update
+                task.state = State.IN_PROGRESS
+                self.task_collection.update_task(task, properties="state", message=msg)
+
+                self._start_task(task)
+
+                total_crashed += 1
 
         self.info("Recovery complete! Total Crashed task: %s." %
                   total_crashed)
@@ -843,7 +861,7 @@ class TaskWorker(object):
         else:
             log_msg = "Unexpected error. Please contact admin"
 
-        details = "%s , Trace: %s" % (safe_stringify(exception), traceback.format_stack())
+        details = safe_stringify(exception)
         task = self._task
 
         self.get_task_collection().update_task(
