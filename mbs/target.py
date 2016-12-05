@@ -1488,16 +1488,19 @@ class EbsSnapshotReference(CloudBlockStorageSnapshotReference):
         if user_ids:
             user_ids = map(lambda user_id: user_id.replace("-",""), user_ids)
 
-        ebs_snap.share(user_ids=user_ids, groups=groups)
-        if user_ids:
-            self.share_users = self.share_users or list()
-            if not set(user_ids).issubset(set(self.share_users)):
-                self.share_users.extend(user_ids)
+        try:
+            ebs_snap.share(user_ids=user_ids, groups=groups)
+            if user_ids:
+                self.share_users = self.share_users or list()
+                if not set(user_ids).issubset(set(self.share_users)):
+                    self.share_users.extend(user_ids)
 
-        if groups:
-            self.share_groups = self.share_groups or list()
-            if not set(groups).issubset(set(self.share_groups)):
-                self.share_groups.extend(groups)
+            if groups:
+                self.share_groups = self.share_groups or list()
+                if not set(groups).issubset(set(self.share_groups)):
+                    self.share_groups.extend(groups)
+        except BotoServerError, bte:
+            raise Ec2Error("Failed to share snapshot: %s" % bte, cause=bte)
 
     ###########################################################################
     def get_ebs_snapshot(self):

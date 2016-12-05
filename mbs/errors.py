@@ -590,9 +590,18 @@ class SnapshotDidNotSucceedError(MBSError, RetriableError):
     """
 
 ###############################################################################
+#Ec2Error
+###############################################################################
+class Ec2Error(MBSError, RetriableError):
+    """
+        thrown when a snapshot does not exist anymore during ec2 snapshot check
+        updates
+    """
+
+###############################################################################
 #Ec2SnapshotDoesNotExistError
 ###############################################################################
-class Ec2SnapshotDoesNotExistError(MBSError, RetriableError):
+class Ec2SnapshotDoesNotExistError(Ec2Error):
     """
         thrown when a snapshot does not exist anymore during ec2 snapshot check
         updates
