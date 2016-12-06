@@ -332,6 +332,9 @@ class BackupTarget(MBSObject):
         if self.preserve is not None:
             doc["preserve"] = self.preserve
 
+        if self.encryption_enabled is not None:
+            doc["encryptionEnabled"] = self.encryption_enabled
+
         if self.credentials is not None:
             doc["credentials"] = self.credentials.to_document(display_only=display_only)
         return doc
