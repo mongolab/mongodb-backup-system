@@ -1518,8 +1518,8 @@ class EbsSnapshotReference(CloudBlockStorageSnapshotReference):
                 self.share_groups = self.share_groups or list()
                 if not set(groups).issubset(set(self.share_groups)):
                     self.share_groups.extend(groups)
-        except BotoServerError, bte:
-            raise Ec2Error("Failed to share snapshot: %s" % bte, cause=bte)
+        except errors.BotoServerError, bte:
+            raise errors.Ec2Error("Failed to share snapshot: %s" % bte, cause=bte)
 
     ###########################################################################
     def get_ebs_snapshot(self):
