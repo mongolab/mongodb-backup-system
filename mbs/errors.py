@@ -608,6 +608,14 @@ class Ec2SnapshotDoesNotExistError(Ec2Error):
     """
 
 ###############################################################################
+#Ec2ConcurrentSnapshotLimitExceededError
+###############################################################################
+class Ec2ConcurrentSnapshotLimitExceededError(Ec2Error):
+    """
+        thrown on ConcurrentSnapshotLimitExceeded errors fron ec2
+    """
+
+###############################################################################
 class SnapshotDeleteError(BlockStorageSnapshotError, RetriableError):
     """
         Raised when there was an error while deleting a snapshot

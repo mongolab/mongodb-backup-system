@@ -394,39 +394,46 @@ class EbsVolumeStorage(VolumeStorage):
 
     ###########################################################################
     def do_create_snapshot(self, name, description):
-        ebs_volume = self._get_ebs_volume()
+        try:
+            ebs_volume = self._get_ebs_volume()
 
-        logger.info("EC2: BEGIN Creating EBS snapshot (name='%s', desc='%s') for volume "
-                    "'%s' (%s)" % (name, description, self.volume_id, self.volume_name))
+            logger.info("EC2: BEGIN Creating EBS snapshot (name='%s', desc='%s') for volume "
+                        "'%s' (%s)" % (name, description, self.volume_id, self.volume_name))
 
-        start_date = date_utils.date_now()
+            start_date = date_utils.date_now()
 
-        ebs_snapshot = ebs_volume.create_snapshot(description)
+            ebs_snapshot = ebs_volume.create_snapshot(description)
 
-        # log elapsed time for aws call
-        elapsed_time = date_utils.timedelta_total_seconds(date_utils.date_now() - start_date)
-        logger.info("EC2: END create snapshot for snapshot '%s' volume '%s' returned in %s seconds" %
-                    (ebs_snapshot.id, self.volume_id , elapsed_time))
+            # log elapsed time for aws call
+            elapsed_time = date_utils.timedelta_total_seconds(date_utils.date_now() - start_date)
+            logger.info("EC2: END create snapshot for snapshot '%s' volume '%s' returned in %s seconds" %
+                        (ebs_snapshot.id, self.volume_id , elapsed_time))
 
-        if not ebs_snapshot:
-            raise BlockStorageSnapshotError("Failed to create snapshot from "
-                                            "backup source :\n%s" % self)
+            if not ebs_snapshot:
+                raise BlockStorageSnapshotError("Failed to create snapshot from "
+                                                "backup source :\n%s" % self)
 
-        logger.info("Snapshot kicked off successfully for volume '%s' (%s). "
-                    "Snapshot id '%s'." % (self.volume_id, self.volume_name,
-                                           ebs_snapshot.id))
-        # add name tag
-        logger.info("Setting snapshot '%s' name to '%s'" % (
-            ebs_snapshot.id, name))
+            logger.info("Snapshot kicked off successfully for volume '%s' (%s). "
+                        "Snapshot id '%s'." % (self.volume_id, self.volume_name,
+                                               ebs_snapshot.id))
+            # add name tag
+            logger.info("Setting snapshot '%s' name to '%s'" % (
+                ebs_snapshot.id, name))
 
-        # sleep for a couple of seconds before setting name
-        time.sleep(2)
+            # sleep for a couple of seconds before setting name
+            time.sleep(2)
 
-        self._set_ebs_snapshot_name(ebs_snapshot, name)
+            self._set_ebs_snapshot_name(ebs_snapshot, name)
 
-        ebs_ref = self._new_ebs_snapshot_reference(ebs_snapshot)
+            ebs_ref = self._new_ebs_snapshot_reference(ebs_snapshot)
 
-        return ebs_ref
+            return ebs_ref
+        except Exception, ex:
+            if "ConcurrentSnapshotLimitExceeded" in safe_stringify(ex):
+                raise Ec2ConcurrentSnapshotLimitExceededError("Maximum allowed in-progress snapshots "
+                                                              "for volume exceeded.", cause=ex)
+            else:
+                raise
 
     ###########################################################################
     @robustify(max_attempts=3, retry_interval=2,
