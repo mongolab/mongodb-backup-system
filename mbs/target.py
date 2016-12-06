@@ -56,6 +56,7 @@ class BackupTarget(MBSObject):
     def __init__(self):
         self._preserve = None
         self._credentials = None
+        self._encryption_enabled = False
 
     ###########################################################################
     @property
@@ -81,6 +82,16 @@ class BackupTarget(MBSObject):
             returns the target type which is the class name
         """
         return self.__class__.__name__
+
+    ###########################################################################
+    @property
+    def encryption_enabled(self):
+        return self._encryption_enabled
+
+    @encryption_enabled.setter
+    def encryption_enabled(self, val):
+        if isinstance(val, bool):
+            self._encryption_enabled = val;
 
     ###########################################################################
     def put_file(self, file_path, destination_path=None,
@@ -121,9 +132,6 @@ class BackupTarget(MBSObject):
 
             # validate that the file has been uploaded successfully
             self._verify_file_uploaded(destination_path, file_size)
-
-            if self.encryption_enabled:
-                self._verify_file_encrypted(destination_path)
 
             logger.info("%s: Uploading %s (%s bytes) to container %s "
                         "completed successfully!!" %
@@ -270,14 +278,11 @@ class BackupTarget(MBSObject):
 
         if not file_info:
             raise errors.UploadedFileDoesNotExistError(destination_path, cname)
+        elif self.encryption_enabled and not file_info.get('encrypted', False):
+            raise errors.UploadedFileIsNotEncrypted(destination_path, self.container_name)
         elif file_size != file_info['size']:
             raise errors.UploadedFileSizeMatchError(destination_path, cname,
                                              file_info['size'], file_size)
-
-    ###########################################################################
-    def _verify_file_encrypted(self, destination_path):
-        if not self._fetch_file_info(destination_path).get('encrypted', False):
-            raise errors.UploadedFileIsNotEncrypted(destination_path, self.container_name)
 
     ###########################################################################
     def _verify_file_deleted(self, file_path):
@@ -351,11 +356,9 @@ class S3BucketTarget(BackupTarget):
         self._connection = None
         self._bucket = None
         self._region = None
-        self._encryption_enabled = True
 
     ###########################################################################
     def do_put_file(self, file_path, destination_path, metadata=None):
-
         # determine single/multi part upload
         file_size = os.path.getsize(file_path)
 
@@ -500,16 +503,6 @@ class S3BucketTarget(BackupTarget):
                    " from s3 bucket %s. Cause: %s" %
                    (file_path, self.bucket_name, e))
             raise errors.TargetDeleteError(msg, cause=e)
-
-    ###########################################################################
-    @property
-    def encryption_enabled(self):
-        return self._encryption_enabled
-
-    @encryption_enabled.setter
-    def encryption_enabled(self, val):
-        if isinstance(val, bool):
-            self._encryption_enabled = val;
 
     ###########################################################################
     @property
@@ -660,22 +653,6 @@ class S3BucketTarget(BackupTarget):
     def is_file_restored(self, file_ref):
         key = self._get_file_ref_key(file_ref)
         return key and key.storage_class == "STANDARD"
-
-    ###########################################################################
-    def get_file_info(self, file_ref):
-        """
-            Override by s3 specifics
-
-        """
-        key = self._get_file_ref_key(file_ref)
-
-        if key:
-            return {
-                "name": key.name,
-                "storageClass": key.storage_class,
-                "ongoingRestore": key.ongoing_restore,
-                "expiryDate": key.expiry_date
-            }
 
     ###########################################################################
     def restore_file_from_glacier(self, file_ref, days=5):
