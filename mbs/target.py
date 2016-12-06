@@ -639,8 +639,7 @@ class S3BucketTarget(BackupTarget):
     def get_temp_download_url(self, file_reference, expires_in_secs=30):
         bucket = self._get_bucket()
         key = bucket.get_key(file_reference.file_path)
-        return key.generate_url(expires_in_secs,
-                                encrypt_key=self.encryption_enabled)
+        return key.generate_url(expires_in_secs)
 
     ###########################################################################
     def is_file_in_glacier(self, file_ref):
