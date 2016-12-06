@@ -761,11 +761,9 @@ class S3BucketTarget(BackupTarget):
 
         return errors
 
-
     ###########################################################################
-    def validate(self):
+    def _validate_bucket_name(self):
         errors = []
-
         if not self.bucket_name:
             errors.append("Bucket name is required")
         elif not re.match("[a-z0-9][a-z0-9-\.]{1,61}[a-z0-9]$", self.bucket_name):
@@ -776,6 +774,12 @@ class S3BucketTarget(BackupTarget):
             errors.append("Bucket name must not contain consecutive full stops")
         elif re.match("\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}", self.bucket_name):
             errors.append("Bucket name must not be formatted as an IP address")
+        return errors
+
+    ###########################################################################
+    def validate(self):
+        errors = []
+        errors += self._validate_bucket_name()
 
         if not self.get_access_key():
             errors.append("Access key is required")

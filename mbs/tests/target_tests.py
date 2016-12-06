@@ -52,7 +52,7 @@ class TargetTest(BaseTest):
                 'accessKey': 'xxxx',
                 'secretKey': 'xxxx',
             })
-            return not bool(target.validate())
+            return not bool(target._validate_bucket_name())
 
         good_names = ['foo', 'foo.bar', 'foo-bar', 'foo1',
                       '1foo', '192.dog.0.1', '192.168.1']
