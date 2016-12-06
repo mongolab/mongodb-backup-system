@@ -21,7 +21,7 @@ from boto.s3.key import Key
 from boto.exception import S3ResponseError
 from cloudfiles.errors import NoSuchContainer, AuthenticationFailed
 
-from errors import *
+import errors
 from robustify.robustify import robustify
 from splitfile import SplitFile
 from threading import Thread
@@ -56,6 +56,7 @@ class BackupTarget(MBSObject):
     def __init__(self):
         self._preserve = None
         self._credentials = None
+        self._encryption_enabled = False
 
     ###########################################################################
     @property
@@ -81,6 +82,16 @@ class BackupTarget(MBSObject):
             returns the target type which is the class name
         """
         return self.__class__.__name__
+
+    ###########################################################################
+    @property
+    def encryption_enabled(self):
+        return self._encryption_enabled
+
+    @encryption_enabled.setter
+    def encryption_enabled(self, val):
+        if isinstance(val, bool):
+            self._encryption_enabled = val;
 
     ###########################################################################
     def put_file(self, file_path, destination_path=None,
@@ -110,7 +121,7 @@ class BackupTarget(MBSObject):
                 if self.file_exists(destination_path):
                     msg = ("File '%s' already exists in container '%s'" %
                            (destination_path, self.container_name))
-                    raise UploadedFileAlreadyExistError(msg)
+                    raise errors.UploadedFileAlreadyExistError(msg)
 
             target_ref = self._robustifiled_put_file(
                 file_path,
@@ -130,12 +141,12 @@ class BackupTarget(MBSObject):
             return target_ref
         except Exception, e:
             logger.exception("BackupTarget.put_file(): Exception caught ")
-            if isinstance(e, TargetError):
+            if isinstance(e, errors.TargetError):
                 raise
-            elif is_connection_exception(e):
-                raise TargetConnectionError(self.container_name, cause=e)
+            elif errors.is_connection_exception(e):
+                raise errors.TargetConnectionError(self.container_name, cause=e)
             else:
-                raise TargetUploadError(destination_path, self.container_name,
+                raise errors.TargetUploadError(destination_path, self.container_name,
                                         cause=e)
 
     ###########################################################################
@@ -152,8 +163,8 @@ class BackupTarget(MBSObject):
     ###########################################################################
     @robustify(max_attempts=10, retry_interval=5,
                backoff=2,
-               do_on_exception=raise_if_not_retriable,
-               do_on_failure=raise_exception,)
+               do_on_exception=errors.raise_if_not_retriable,
+               do_on_failure=errors.raise_exception,)
     def _do_robustifiled_put_file(self, attempt_counter,
                                   file_path, destination_path,
                                   metadata=None):
@@ -211,8 +222,8 @@ class BackupTarget(MBSObject):
 
     ###########################################################################
     @robustify(max_attempts=3, retry_interval=5,
-               do_on_exception=raise_if_not_retriable,
-               do_on_failure=raise_exception)
+               do_on_exception=errors.raise_if_not_retriable,
+               do_on_failure=errors.raise_exception)
     def _robustified_delete_file(self, file_reference):
         file_exists = self.do_delete_file(file_reference)
         if not file_exists:
@@ -258,37 +269,37 @@ class BackupTarget(MBSObject):
 
     ###########################################################################
     @robustify(max_attempts=10, retry_interval=5,
-               do_on_exception=raise_if_not_retriable,
-               do_on_failure=raise_exception)
+               do_on_exception=errors.raise_if_not_retriable,
+               do_on_failure=errors.raise_exception)
     def _verify_file_uploaded(self, destination_path, file_size):
 
-        dest_exists, dest_size = self._fetch_file_info(destination_path)
+        file_info = self._fetch_file_info(destination_path)
         cname = self.container_name
 
-        if not dest_exists:
-            raise UploadedFileDoesNotExistError(destination_path, cname)
-        elif file_size != dest_size:
-            raise UploadedFileSizeMatchError(destination_path, cname,
-                                             dest_size, file_size)
+        if not file_info:
+            raise errors.UploadedFileDoesNotExistError(destination_path, cname)
+        elif self.encryption_enabled and not file_info.get('encrypted', False):
+            raise errors.UploadedFileIsNotEncrypted(destination_path, self.container_name)
+        elif file_size != file_info['size']:
+            raise errors.UploadedFileSizeMatchError(destination_path, cname,
+                                             file_info['size'], file_size)
 
     ###########################################################################
     def _verify_file_deleted(self, file_path):
-
-        file_exists, file_size = self._fetch_file_info(file_path)
-        if file_exists:
+        file_info = self._fetch_file_info(file_path)
+        if file_info:
             msg = ("%s: Failure during delete verification: File '%s' still"
                    " exists in container '%s'" %
                    (self.target_type, file_path, self.container_name))
-            raise TargetDeleteError(msg)
+            raise errors.TargetDeleteError(msg)
 
     ###########################################################################
     def file_exists(self, file_path, expected_file_size=None):
-
-        file_exists, file_size = self._fetch_file_info(file_path)
+        file_info = self._fetch_file_info(file_path)
         if expected_file_size:
-            return file_exists and file_size == expected_file_size
+            return file_info and file_info['size'] == expected_file_size
         else:
-            return file_exists
+            return file_info is not None
 
     ###########################################################################
     def stream_file(self, file_reference):
@@ -298,7 +309,9 @@ class BackupTarget(MBSObject):
     ###########################################################################
     def _fetch_file_info(self, destination_path):
         """
-            Returns a tuple of (file_exists, file_size)
+            Returns a dictionary of file info or None if file does not exist
+
+            The returned dictionary must contain the size of the specified file
             Should be implemented by subclasses
         """
     ###########################################################################
@@ -318,6 +331,9 @@ class BackupTarget(MBSObject):
 
         if self.preserve is not None:
             doc["preserve"] = self.preserve
+
+        if self.encryption_enabled is not None:
+            doc["encryptionEnabled"] = self.encryption_enabled
 
         if self.credentials is not None:
             doc["credentials"] = self.credentials.to_document(display_only=display_only)
@@ -346,7 +362,6 @@ class S3BucketTarget(BackupTarget):
 
     ###########################################################################
     def do_put_file(self, file_path, destination_path, metadata=None):
-
         # determine single/multi part upload
         file_size = os.path.getsize(file_path)
 
@@ -370,9 +385,24 @@ class S3BucketTarget(BackupTarget):
 
         for key in bucket.list(prefix=destination_path):
             if key.key == destination_path:
-                return True, key.size
+                # The 'list' method on the bucket is incorrect and returns Key
+                # objects with unset 'encrypted' variables. This is remedied by
+                # explicitly calling get_key below. The documentation is also
+                # wrong - it implies that 'encrypted' is a boolean when it is
+                # actually a string specifying the type of encryption or None
+                # if the file is not encrypted.
+                # https://github.com/boto/boto/issues/3361
+                not_buggy_key = bucket.get_key(key.name)
 
-        return False, None
+                return {
+                    'size': not_buggy_key.size,
+                    'encrypted': bool(not_buggy_key.encrypted),
+                    'md5': not_buggy_key.md5,
+                    'last_modified': not_buggy_key.last_modified,
+                    'metadata': not_buggy_key.metadata
+                }
+
+        return None
 
     ###########################################################################
     def _single_part_put(self, file_path, destination_path, metadata=None):
@@ -386,7 +416,7 @@ class S3BucketTarget(BackupTarget):
             for name, value in metadata.items():
                 k.set_metadata(name, value)
 
-        k.set_contents_from_file(file_obj)
+        k.set_contents_from_file(file_obj, encrypt_key=self.encryption_enabled)
 
 
     ###########################################################################
@@ -400,8 +430,8 @@ class S3BucketTarget(BackupTarget):
             chunk_size = MAX_SPLIT_SIZE
 
         bucket = self._get_bucket()
-        mp = bucket.initiate_multipart_upload(destination_path,
-                                              metadata=metadata)
+        mp = bucket.initiate_multipart_upload(destination_path, metadata=metadata,
+                                              encrypt_key=self.encryption_enabled)
 
         upload = SplitFile(file_path, chunk_size)
 
@@ -429,7 +459,7 @@ class S3BucketTarget(BackupTarget):
             key = bucket.get_key(file_path)
 
             if not key:
-                raise TargetFileNotFoundError("No such file '%s' in bucket "
+                raise errors.TargetFileNotFoundError("No such file '%s' in bucket "
                                               "'%s'" % (file_path,
                                                         self.bucket_name))
 
@@ -445,7 +475,7 @@ class S3BucketTarget(BackupTarget):
             msg = ("S3BucketTarget: Error while trying to download '%s'"
                    " from s3 bucket %s. Cause: %s" %
                    (file_path, self.bucket_name, e))
-            raise TargetError(msg, cause=e)
+            raise errors.TargetError(msg, cause=e)
 
     ###########################################################################
     def do_delete_file(self, file_reference):
@@ -466,16 +496,16 @@ class S3BucketTarget(BackupTarget):
             return True
         except S3ResponseError, re:
             if 403 == re.error_code:
-                raise TargetInaccessibleError(self.bucket_name,
+                raise errors.TargetInaccessibleError(self.bucket_name,
                                               cause=re)
         except Exception, e:
-            if isinstance(e, TargetError):
+            if isinstance(e, errors.TargetError):
                 raise
 
             msg = ("S3BucketTarget: Error while trying to delete '%s'"
                    " from s3 bucket %s. Cause: %s" %
                    (file_path, self.bucket_name, e))
-            raise TargetDeleteError(msg, cause=e)
+            raise errors.TargetDeleteError(msg, cause=e)
 
     ###########################################################################
     @property
@@ -518,9 +548,9 @@ class S3BucketTarget(BackupTarget):
                 self._region = region
             except S3ResponseError, re:
                 if "403" in safe_stringify(re):
-                    raise TargetInaccessibleError(self.bucket_name, cause=re)
+                    raise errors.TargetInaccessibleError(self.bucket_name, cause=re)
                 elif "404" in safe_stringify(re):
-                    raise NoSuchContainerError(self.bucket_name, cause=re)
+                    raise errors.NoSuchContainerError(self.bucket_name, cause=re)
                 else:
                     raise
 
@@ -627,28 +657,12 @@ class S3BucketTarget(BackupTarget):
         return key and key.storage_class == "STANDARD"
 
     ###########################################################################
-    def get_file_info(self, file_ref):
-        """
-            Override by s3 specifics
-
-        """
-        key = self._get_file_ref_key(file_ref)
-
-        if key:
-            return {
-                "name": key.name,
-                "storageClass": key.storage_class,
-                "ongoingRestore": key.ongoing_restore,
-                "expiryDate": key.expiry_date
-            }
-
-    ###########################################################################
     def restore_file_from_glacier(self, file_ref, days=5):
         if self.is_glacier_restore_ongoing(file_ref):
-            raise TargetError("Restore already ongoing for file '%s'" %
+            raise errors.TargetError("Restore already ongoing for file '%s'" %
                               file_ref.file_path)
         elif not self.is_file_in_glacier(file_ref):
-            raise TargetError("Restore already ongoing for file '%s'" %
+            raise errors.TargetError("Restore already ongoing for file '%s'" %
                               file_ref.file_path)
 
         key = self._get_file_ref_key(file_ref)
@@ -698,7 +712,8 @@ class S3BucketTarget(BackupTarget):
             key_name = '%s-mbs-test-write' % (uuid.uuid4())
             try:
                 key = bucket.new_key(key_name)
-                key.set_contents_from_string(key_name)
+                key.set_contents_from_string(key_name,
+                                             encrypt_key=self.encryption_enabled)
                 if not key.get_contents_as_string() == key_name:
                     errors.append('could not read key contents of test file '
                                   'in %s' % (self.bucket_name))
@@ -725,11 +740,9 @@ class S3BucketTarget(BackupTarget):
 
         return errors
 
-
     ###########################################################################
-    def validate(self):
+    def _validate_bucket_name(self):
         errors = []
-
         if not self.bucket_name:
             errors.append("Bucket name is required")
         elif not re.match("[a-z0-9][a-z0-9-\.]{1,61}[a-z0-9]$", self.bucket_name):
@@ -740,6 +753,12 @@ class S3BucketTarget(BackupTarget):
             errors.append("Bucket name must not contain consecutive full stops")
         elif re.match("\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}", self.bucket_name):
             errors.append("Bucket name must not be formatted as an IP address")
+        return errors
+
+    ###########################################################################
+    def validate(self):
+        errors = []
+        errors += self._validate_bucket_name()
 
         if not self.get_access_key():
             errors.append("Access key is required")
@@ -790,7 +809,7 @@ class RackspaceCloudFilesTarget(BackupTarget):
             container_obj.load_from_filename(file_path)
         except Exception, ex:
             if "unauthorized" in safe_stringify(ex).lower():
-                raise TargetConnectionError(self.container_name, ex)
+                raise errors.TargetConnectionError(self.container_name, ex)
             else:
                 raise
 
@@ -835,12 +854,12 @@ class RackspaceCloudFilesTarget(BackupTarget):
         try:
             container_obj = container.get_object(destination_path)
             if container_obj:
-                return True, container_obj.size
+                return {'size': container_obj.size}
 
         except cloudfiles.errors.NoSuchObject:
             pass
 
-        return False, None
+        return None
 
     ###########################################################################
     def get_file(self, file_reference, destination):
@@ -867,7 +886,7 @@ class RackspaceCloudFilesTarget(BackupTarget):
             msg = ("RackspaceCloudFilesTarget: Error while trying to download "
                    "'%s' from container %s. Cause: %s" %
                    (file_path, self.container_name, e))
-            raise TargetError(msg, e)
+            raise errors.TargetError(msg, e)
 
     ###########################################################################
     def do_delete_file(self, file_reference):
@@ -889,12 +908,12 @@ class RackspaceCloudFilesTarget(BackupTarget):
             if "404" in err:
                 return False
             if "403" in err:
-                raise TargetInaccessibleError(self.container_name, cause=e)
+                raise errors.TargetInaccessibleError(self.container_name, cause=e)
 
             msg = ("RackspaceCloudFilesTarget: Error while trying to delete "
                    "'%s' from container %s. Cause: %s" %
                    (file_path, self.container_name, e))
-            raise TargetDeleteError(msg, e)
+            raise errors.TargetDeleteError(msg, e)
 
 
     ###########################################################################
@@ -921,7 +940,7 @@ class RackspaceCloudFilesTarget(BackupTarget):
 
                 self._container = conn.get_container(self.container_name)
             except (AuthenticationFailed, NoSuchContainer), e:
-                raise TargetInaccessibleError(self.container_name,
+                raise errors.TargetInaccessibleError(self.container_name,
                                               cause=e)
         return self._container
 
@@ -1482,7 +1501,7 @@ class EbsSnapshotReference(CloudBlockStorageSnapshotReference):
 
         ebs_snap = self.get_ebs_snapshot()
         if not ebs_snap:
-            raise Ec2SnapshotDoesNotExistError("EBS snapshot '%s' does not exist" % self.snapshot_id)
+            raise errors.Ec2SnapshotDoesNotExistError("EBS snapshot '%s' does not exist" % self.snapshot_id)
 
         # remove dashes from user ids
         if user_ids:
@@ -1799,3 +1818,4 @@ class TargetUploader(Thread):
     ###########################################################################
     def completed(self):
         return self.target_reference is not None or self.error is not None
+
