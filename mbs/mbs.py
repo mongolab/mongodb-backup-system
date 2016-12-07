@@ -298,7 +298,11 @@ class MBS(object):
     def notifications(self):
         if not self._notifications:
             notifications_conf = self._get_config_value("notifications")
-            self._notifications = self.maker.make(notifications_conf)
+            if notifications_conf:
+                self._notifications = self.maker.make(notifications_conf)
+            else:
+                import notification.handler
+                self._notifications = notification.handler.DEFAULT_NOTIFICATIONS
 
         return self._notifications
 

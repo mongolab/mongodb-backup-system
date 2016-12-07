@@ -141,6 +141,44 @@ class NotificationHandler(object):
     def send_notification(self, subject, message, recipient=None):
         pass
 
+
+###############################################################################
+# LoggerNotificationHandler
+###############################################################################
+class LoggerNotificationHandler(NotificationHandler):
+
+    ###########################################################################
+    def __init__(self, level=logging.INFO):
+        super(LoggerNotificationHandler, self).__init__()
+        self._level = level
+
+    ###########################################################################
+    @property
+    def level(self):
+        return self._level
+
+    @level.setter
+    def level(self, level):
+        self._level = level
+
+    ###########################################################################
+    def send_notification(self, subject, message, recipient=None):
+        msg = "\n---- LoggerNotificationHandler ------ \n%s\n\n%s\n-------------" % (subject, message)
+        logger.log(self.level, msg)
+
+###########################################################################
+# Default notifications
+DEFAULT_NOTIFICATIONS = Notifications()
+DEFAULT_NOTIFICATIONS.handlers = {
+    "logError": LoggerNotificationHandler(level=logging.ERROR),
+    "logInfo": LoggerNotificationHandler(level=logging.INFO)
+}
+
+DEFAULT_NOTIFICATIONS.handler_mapping = {
+    "default": "logInfo",
+    "error": "logInfo"
+}
+
 ###############################################################################
 # EmailNotificationHandler
 ###############################################################################
