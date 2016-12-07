@@ -288,8 +288,12 @@ class MongoConnector(object):
                do_on_exception=raise_if_not_retriable,
                do_on_failure=raise_exception)
     def _is_master_command(self):
-        return (self.is_online() and
-                self.admin_db.command({"isMaster" : 1}))
+        try:
+            return (self.is_online() and
+                    self.admin_db.command({"isMaster": 1}))
+        except pymongo.errors.PyMongoError, pme:
+            logger.exception("isMaster command error for '%s'" % self.connector_id)
+            return None
 
     ###########################################################################
     def info(self):
