@@ -12,7 +12,7 @@ from target import (
     CompositeBlockStorageSnapshotReference, GcpDiskSnapshotReference
     )
 from mbs import get_mbs
-from errors import *
+import errors as mbs_errors
 
 import mongo_uri_tools
 import logging
@@ -92,7 +92,7 @@ class BackupSource(MBSObject):
         else:
             msg = ("Invalid cloudBlockStorageConfig. Must be a "
                    "CloudBlockStorage or a dict of address=>CloudBlockStorage")
-            raise ConfigurationError(msg)
+            raise mbs_errors.ConfigurationError(msg)
 
     ###########################################################################
     def to_document(self, display_only=False):
@@ -114,7 +114,7 @@ class BackupSource(MBSObject):
         else:
             msg = ("Invalid cloudBlockStorageConfig. Must be a "
                    "CloudBlockStorage or a dict of address=>CloudBlockStorage")
-            raise ConfigurationError(msg)
+            raise mbs_errors.ConfigurationError(msg)
 
     ###########################################################################
     def is_valid(self):
@@ -410,8 +410,8 @@ class EbsVolumeStorage(VolumeStorage):
                         (ebs_snapshot.id, self.volume_id , elapsed_time))
 
             if not ebs_snapshot:
-                raise BlockStorageSnapshotError("Failed to create snapshot from "
-                                                "backup source :\n%s" % self)
+                raise mbs_errors.BlockStorageSnapshotError("Failed to create snapshot from "
+                                                           "backup source :\n%s" % self)
 
             logger.info("Snapshot kicked off successfully for volume '%s' (%s). "
                         "Snapshot id '%s'." % (self.volume_id, self.volume_name,
@@ -430,15 +430,15 @@ class EbsVolumeStorage(VolumeStorage):
             return ebs_ref
         except Exception, ex:
             if "ConcurrentSnapshotLimitExceeded" in safe_stringify(ex):
-                raise Ec2ConcurrentSnapshotLimitExceededError("Maximum allowed in-progress snapshots "
-                                                              "for volume exceeded.", cause=ex)
+                raise mbs_errors.Ec2ConcurrentSnapshotLimitExceededError("Maximum allowed in-progress snapshots "
+                                                                         "for volume exceeded.", cause=ex)
             else:
                 raise
 
     ###########################################################################
     @robustify(max_attempts=3, retry_interval=2,
-               do_on_exception=raise_if_not_ec2_retriable,
-               do_on_failure=raise_exception)
+               do_on_exception=mbs_errors.raise_if_not_ec2_retriable,
+               do_on_failure=mbs_errors.raise_exception)
     def _set_ebs_snapshot_name(self, ebs_snapshot, name):
 
         logger.info("EC2: BEGIN setting snapshot name for snapshot '%s' volume '%s'" %
@@ -458,7 +458,7 @@ class EbsVolumeStorage(VolumeStorage):
             logger.info("EC2: BEGIN Deleting snapshot '%s' " % snapshot_id)
             self.ec2_connection.delete_snapshot(snapshot_id)
             if self.snapshot_exists(snapshot_id):
-                raise Ec2SnapshotDeleteError("Snapshot '%s' still exists after deleting!" % snapshot_id)
+                raise mbs_errors.Ec2SnapshotDeleteError("Snapshot '%s' still exists after deleting!" % snapshot_id)
 
             logger.info("EC2: END Snapshot '%s' deleted successfully!" % snapshot_id)
             return True
@@ -469,12 +469,12 @@ class EbsVolumeStorage(VolumeStorage):
                 return False
             else:
                 msg = "Error while deleting snapshot '%s'" % snapshot_id
-                raise BlockStorageSnapshotError(msg, cause=e)
+                raise mbs_errors.BlockStorageSnapshotError(msg, cause=e)
 
     ###########################################################################
     @robustify(max_attempts=1, retry_interval=5,
-               do_on_exception=raise_if_not_ec2_retriable,
-               do_on_failure=raise_exception,
+               do_on_exception=mbs_errors.raise_if_not_ec2_retriable,
+               do_on_failure=mbs_errors.raise_exception,
                backoff=2)
     def check_snapshot_updates(self, ebs_ref):
         """
@@ -490,10 +490,11 @@ class EbsVolumeStorage(VolumeStorage):
                 if new_ebs_ref != ebs_ref:
                     return new_ebs_ref
             else:
-                raise Ec2SnapshotDoesNotExistError("Snapshot %s does not exist!" % ebs_ref.snapshot_id)
+                raise mbs_errors.Ec2SnapshotDoesNotExistError("Snapshot %s does not exist!" % ebs_ref.snapshot_id)
         except Exception, e:
-            if not isinstance(e, Ec2SnapshotDoesNotExistError) and "InvalidSnapshot.NotFound" in safe_stringify(e):
-                raise Ec2SnapshotDoesNotExistError("Snapshot %s does not exist!" % ebs_ref.snapshot_id)
+            if (not isinstance(e, mbs_errors.Ec2SnapshotDoesNotExistError) and
+                        "InvalidSnapshot.NotFound" in safe_stringify(e)):
+                raise mbs_errors.Ec2SnapshotDoesNotExistError("Snapshot %s does not exist!" % ebs_ref.snapshot_id)
             else:
                 raise
 
@@ -588,8 +589,7 @@ class EbsVolumeStorage(VolumeStorage):
                                      aws_access_key_id=self.access_key,
                                      aws_secret_access_key=self.secret_key)
             if not conn:
-                raise ConfigurationError("Invalid region in block storage %s" %
-                                         self)
+                raise mbs_errors.ConfigurationError("Invalid region in block storage %s" % self)
 
             logger.info("EC2: BEGIN Create connection to region '%s'" % self.region)
             # log elapsed time for aws call
@@ -704,8 +704,7 @@ class BlobVolumeStorage(VolumeStorage):
             container_name, blob_name, x_ms_meta_name_values=metadata)
 
         if not response:
-            raise BlockStorageSnapshotError("Failed to create snapshot from "
-                                            "backup source :\n%s" % self)
+            raise mbs_errors.BlockStorageSnapshotError("Failed to create snapshot from backup source :\n%s" % self)
 
         logger.info("Snapshot successfully created for volume '%s' (%s). "
                     "Snapshot id '%s'." % (self.volume_id, self.volume_name,
@@ -718,7 +717,8 @@ class BlobVolumeStorage(VolumeStorage):
             container_name, prefix=blob_name, include="snapshots")
         for blob in blobs:
             if blob.snapshot == response['x-ms-snapshot']:
-                url = self.blob_service_connection.make_blob_url(container_name, blob_name) + ("?snapshot=%s" % urllib.quote(blob.snapshot))
+                url = self.blob_service_connection.make_blob_url(container_name, blob_name) + \
+                      ("?snapshot=%s" % urllib.quote(blob.snapshot))
                 blob_ref = self._new_blob_snapshot_reference(blob, url)
                 break
 
@@ -747,7 +747,7 @@ class BlobVolumeStorage(VolumeStorage):
         except Exception, e:
             msg = "Error while deleting snapshot '%s'" % snapshot_id
             logger.exception(msg)
-            raise BlockStorageSnapshotError(msg, cause=e)
+            raise mbs_errors.BlockStorageSnapshotError(msg, cause=e)
 
     ###########################################################################
     def _new_blob_snapshot_reference(self, blob_snapshot, url):
@@ -842,10 +842,10 @@ class BlobVolumeStorage(VolumeStorage):
     ###########################################################################
     def validate(self):
         if not self.storage_account:
-            raise ConfigurationError("BlobVolumeStorage: storage account is "
-                                     "not set")
+            raise mbs_errors.ConfigurationError("BlobVolumeStorage: storage account is not set")
         if not self.access_key:
-            raise ConfigurationError("BlobVolumeStorage: access key is not set")
+            raise mbs_errors.ConfigurationError("BlobVolumeStorage: access key is not set")
+
     ###########################################################################
     def to_document(self, display_only=False):
         doc = super(BlobVolumeStorage, self).to_document(
@@ -899,9 +899,8 @@ class GcpDiskVolumeStorage(VolumeStorage):
                          len(snapshot_op['warnings']) > 0) or \
                 ('error' in snapshot_op and
                          len(snapshot_op['error']['errors']) > 0):
-            raise BlockStorageSnapshotError("Failed to create snapshot from "
-                                            "backup source :\n%s\n%s" %
-                                            (self, snapshot_op))
+            raise mbs_errors.BlockStorageSnapshotError("Failed to create snapshot from backup source :\n%s\n%s" %
+                                                       (self, snapshot_op))
 
         def snapshot_exists():
             return self.snapshot_exists(m_name)
@@ -913,8 +912,7 @@ class GcpDiskVolumeStorage(VolumeStorage):
         wait_for(snapshot_exists, timeout=timeout, on_wait=on_wait_for_snapshot)
 
         if not snapshot_exists():
-            raise BlockStorageSnapshotError("Timed out waiting for snapshot "
-                                            "'%s' to exist!" % m_name)
+            raise mbs_errors.BlockStorageSnapshotError("Timed out waiting for snapshot '%s' to exist!" % m_name)
 
         snapshot = self.get_disk_snapshot_by_name(m_name)
         snapshot_op = self.get_snapshot_op(snapshot_op)
@@ -948,9 +946,8 @@ class GcpDiskVolumeStorage(VolumeStorage):
 
         if not snapshot_op_in_progress():
             # still?!
-            raise BlockStorageSnapshotError("Timed out waiting %s seconds for "
-                                            "snapshot '%s' to begin!" %
-                                            (timeout, snapshot_name))
+            raise mbs_errors.BlockStorageSnapshotError("Timed out waiting %s seconds for snapshot '%s' to begin!" %
+                                                       (timeout, snapshot_name))
 
         return self.get_snapshot_op(snapshot_op)
 
@@ -1022,7 +1019,7 @@ class GcpDiskVolumeStorage(VolumeStorage):
                 else:
                     msg = "Snapshot '%s' was not deleted! Error: %s" \
                           % (snapshot_id, op_result['error'])
-                    raise RetriableError(msg)
+                    raise mbs_errors.RetriableError(msg)
             else:
                 logger.warning("Not deleting snapshot '%s' because it doesn't "
                                "exist!" % snapshot_id)
@@ -1032,7 +1029,7 @@ class GcpDiskVolumeStorage(VolumeStorage):
         except Exception, e:
             msg = "Error while deleting snapshot '%s'" % snapshot_id
             logger.exception(msg)
-            raise BlockStorageSnapshotError(msg, cause=e)
+            raise mbs_errors.BlockStorageSnapshotError(msg, cause=e)
 
     ###########################################################################
     def check_snapshot_updates(self, snapshot_ref):
@@ -1047,9 +1044,8 @@ class GcpDiskVolumeStorage(VolumeStorage):
                          len(snapshot_op['warnings']) > 0) or \
                 ('error' in snapshot_op and
                          len(snapshot_op['error']['errors']) > 0):
-            raise BlockStorageSnapshotError("Failed to create snapshot from "
-                                            "backup source :\n%s\n%s" %
-                                            (self, snapshot_op))
+            raise mbs_errors.BlockStorageSnapshotError("Failed to create snapshot from backup source :\n%s\n%s" %
+                                                       (self, snapshot_op))
 
         if disk_snapshot and snapshot_op:
             new_snapshot_ref = self.new_disk_snapshot_reference_from_existing(snapshot_ref, disk_snapshot, snapshot_op)
@@ -1471,4 +1467,4 @@ class RobustHttpRequest(HttpRequest):
             lambda: super(RobustHttpRequest, self).execute(http=http, num_retries=num_retries),
             max_attempts=3,
             do_on_exception=do_on_exception,
-            do_on_failure=raise_exception)
+            do_on_failure=mbs_errors.raise_exception)
