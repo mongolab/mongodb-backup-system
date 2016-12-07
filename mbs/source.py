@@ -458,7 +458,7 @@ class EbsVolumeStorage(VolumeStorage):
             logger.info("EC2: BEGIN Deleting snapshot '%s' " % snapshot_id)
             self.ec2_connection.delete_snapshot(snapshot_id)
             if self.snapshot_exists(snapshot_id):
-                raise SnapshotDeleteError("Snapshot '%s' still exists after deleting!" % snapshot_id)
+                raise Ec2SnapshotDeleteError("Snapshot '%s' still exists after deleting!" % snapshot_id)
 
             logger.info("EC2: END Snapshot '%s' deleted successfully!" % snapshot_id)
             return True

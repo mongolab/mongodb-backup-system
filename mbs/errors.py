@@ -630,6 +630,12 @@ class SnapshotDeleteError(BlockStorageSnapshotError, RetriableError):
     """
 
 ###############################################################################
+class Ec2SnapshotDeleteError(Ec2Error):
+    """
+        Raised when there was an error while deleting an ec2 snapshot
+    """
+
+###############################################################################
 # MongoLockError
 ###############################################################################
 class MongoLockError(MBSError):
