@@ -469,8 +469,22 @@ def validate_event_listener():
 ###############################################################################
 def run_plan_generators(parsed_args):
     bs = _get_backup_system()
-    for pg in bs.plan_generators:
-        pg.run_generator(dry_run=parsed_args.dryRun)
+
+    if not parsed_args.generator:
+        for pg in bs.plan_generators:
+            pg.run_generator(dry_run=parsed_args.dryRun)
+    else:
+        selected_generator = None
+        for pg in bs.plan_generators:
+            if parsed_args.generator == pg.name:
+                selected_generator = pg
+                break
+
+        if selected_generator:
+            selected_generator.run_generator(dry_run=parsed_args.dryRun)
+        else:
+            raise Exception("Unknown generator %s" % parsed_args.generator)
+
 
 
 ###############################################################################
@@ -1073,6 +1087,15 @@ PARSER_DEF = {
                     "nargs": 0,
                     "help": "dry run",
                     "default": False
+                },
+
+                {
+                    "name": "generator",
+                    "type": "optional",
+                    "cmd_arg":  ["-g", "--generator"],
+                    "nargs": 1,
+                    "help": "run only for this generator",
+                    "default": None
                 }
             ]
         },
