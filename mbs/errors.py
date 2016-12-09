@@ -541,13 +541,14 @@ class UploadedFileDoesNotExistError(TargetUploadError, RetriableError):
                          "not exist in container '%s'" %
                         (destination_path, container_name))
 
+
 ###############################################################################
 class UploadedFileIsNotEncrypted(TargetUploadError):
 
     ###########################################################################
     def __init__(self, destination_path=None, container_name=None):
         TargetUploadError.__init__(self, destination_path=destination_path, container_name=container_name)
-        self._details = ('The following log file is not encrypted at rest: ' + destination_path)
+        self._details = ('The following log file is not encrypted using the requested algorithm: %s' % destination_path)
 
 ###############################################################################
 class UploadedFileSizeMatchError(TargetUploadError, RetriableError):
