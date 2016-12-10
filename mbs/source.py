@@ -391,18 +391,19 @@ class EbsVolumeStorage(VolumeStorage):
         self._encrypted_secret_key = None
         self._region = None
         self._ec2_connection = None
+        self._ebs_volume = None
 
     ###########################################################################
     def do_create_snapshot(self, name, description):
         try:
-            ebs_volume = self._get_ebs_volume()
+
 
             logger.info("EC2: BEGIN Creating EBS snapshot (name='%s', desc='%s') for volume "
                         "'%s' (%s)" % (name, description, self.volume_id, self.volume_name))
 
             start_date = date_utils.date_now()
 
-            ebs_snapshot = ebs_volume.create_snapshot(description)
+            ebs_snapshot = self.ebs_volume.create_snapshot(description)
 
             # log elapsed time for aws call
             elapsed_time = date_utils.timedelta_total_seconds(date_utils.date_now() - start_date)
@@ -603,18 +604,32 @@ class EbsVolumeStorage(VolumeStorage):
 
 
     ###########################################################################
-    def _get_ebs_volume(self):
+    @property
+    def ebs_volume(self):
+        if not self._ebs_volume:
+            logger.info("EC2: BEGIN lookup volume '%s'" % self.volume_id)
+            start_time = time.time()
+            volumes = self.ec2_connection.get_all_volumes([self.volume_id])
+            elapsed_time = time.time() - start_time
+            logger.info("EC2: END lookup volume '%s' returned in %s seconds" % (self.volume_id, elapsed_time))
 
-        logger.info("EC2: BEGIN lookup volume '%s'" % self.volume_id)
-        start_time = time.time()
-        volumes = self.ec2_connection.get_all_volumes([self.volume_id])
-        elapsed_time = time.time() - start_time
-        logger.info("EC2: END lookup volume '%s' returned in %s seconds" % (self.volume_id, elapsed_time))
+            if volumes is None or len(volumes) == 0:
+                raise Exception("Could not find volume %s" % self.volume_id)
 
-        if volumes is None or len(volumes) == 0:
-            raise Exception("Could not find volume %s" % self.volume_id)
+            self._ebs_volume = volumes[0]
 
-        return volumes[0]
+        return self._ebs_volume
+
+    @ebs_volume.setter
+    def ebs_volume(self, vol):
+        self._ebs_volume = vol
+
+    ###########################################################################
+
+
+    @region.setter
+    def region(self, region):
+        self._region = str(region)
 
     ###########################################################################
     def get_ebs_snapshots(self):
