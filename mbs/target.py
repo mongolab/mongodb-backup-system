@@ -88,6 +88,14 @@ class BackupTarget(MBSObject):
     def encryption_enabled(self):
         return self.cloud_storage_encryption is not None
 
+    @encryption_enabled.setter
+    def encryption_enabled(self, val):
+        """
+        TODO: XXX when encryptionEnabled references are removed from existing document
+        :param val:
+        :return:
+        """
+
     @property
     def cloud_storage_encryption(self):
         return self._cloud_storage_encryption
