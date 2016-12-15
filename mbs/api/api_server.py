@@ -7,11 +7,11 @@ from threading import Thread, Timer
 
 from flask import Flask
 
-from mbs.utils import document_pretty_string, object_type_name
+from mbs.utils import document_pretty_string, object_type_name, get_local_host_name
 from mbs.errors import MBSApiError
 from mbs.netutils import crossdomain
 from mbs_client.client import MBSClient
-
+from mbs.notification import NotificationPriority
 
 from waitress import serve
 from mbs.mbs import get_mbs
@@ -147,11 +147,18 @@ class ApiServer(Thread):
 
     ####################################################################################################################
     def run(self):
-        app = self.flask_server
-        logger.info("%s: Starting HTTPServer (port=%s, protocol=%s)" % (self.name, self.port, self.protocol))
+        try:
+            app = self.flask_server
+            logger.info("%s: Starting HTTPServer (port=%s, protocol=%s)" % (self.name, self.port, self.protocol))
 
-        serve(app, host='0.0.0.0', port=self.port, url_scheme=self.protocol,
-              threads=self.num_workers, _server=self.custom_waitress_create_server)
+            serve(app, host='0.0.0.0', port=self.port, url_scheme=self.protocol,
+                  threads=self.num_workers, _server=self.custom_waitress_create_server)
+        except Exception, ex:
+            logger.exception("Api Server crashed")
+            sbj = "Api Server %s on %s crashed" % (self.name, get_local_host_name())
+
+            get_mbs().notifications.send_event_notification(sbj, sbj, priority=NotificationPriority.CRITICAL)
+            self.stop_api_server()
 
     ####################################################################################################################
     def stop_api_server(self):
