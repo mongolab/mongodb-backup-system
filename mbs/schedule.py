@@ -134,9 +134,9 @@ class AbstractSchedule(object):
 # Schedule
 ###############################################################################
 class Schedule(AbstractSchedule, MBSObject):
-    def __init__(self, frequency_in_seconds=None):
+    def __init__(self, frequency_in_seconds=None, offset=None):
         self._frequency_in_seconds = frequency_in_seconds
-        self._offset = None
+        self._offset = offset or epoch_date()
 
     ###########################################################################
     @property
