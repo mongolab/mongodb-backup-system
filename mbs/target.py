@@ -411,7 +411,10 @@ class S3BucketTarget(BackupTarget):
                     'md5': not_buggy_key.md5,
                     'last_modified': not_buggy_key.last_modified,
                     'metadata': not_buggy_key.metadata,
-                    "expiryDate": not_buggy_key.expiry_date
+                    "expiryDate": not_buggy_key.expiry_date,
+                    "name": key.name,
+                    "storageClass": key.storage_class,
+                    "ongoingRestore": key.ongoing_restore
                 }
 
         return None
