@@ -21,6 +21,7 @@ requests==2.11.1
 waitress==1.0.1
 python-simple-hipchat==0.4.0
 Pygerduty==0.31.0
+repoze.lru==0.6
 
 git+https://github.com/mlab/pymo.git@0.1.0#egg=pymo-0.1.0
 git+https://github.com/objectlabs/robustify.git@0.1.0#egg=robustify-0.1.0
