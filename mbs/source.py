@@ -37,6 +37,7 @@ import time
 
 from mongo_utils import build_mongo_connector
 
+from repoze.lru import lru_cache
 ###############################################################################
 # LOGGER
 ###############################################################################
@@ -390,8 +391,6 @@ class EbsVolumeStorage(VolumeStorage):
         self._encrypted_access_key = None
         self._encrypted_secret_key = None
         self._region = None
-        self._ec2_connection = None
-        self._ebs_volume = None
 
     ###########################################################################
     def do_create_snapshot(self, name, description):
@@ -403,7 +402,7 @@ class EbsVolumeStorage(VolumeStorage):
 
             start_date = date_utils.date_now()
 
-            ebs_snapshot = self.ebs_volume.create_snapshot(description)
+            ebs_snapshot = self.ec2_connection.create_snapshot(self.volume_id, description)
 
             # log elapsed time for aws call
             elapsed_time = date_utils.timedelta_total_seconds(date_utils.date_now() - start_date)
@@ -583,46 +582,7 @@ class EbsVolumeStorage(VolumeStorage):
     ###########################################################################
     @property
     def ec2_connection(self):
-        if not self._ec2_connection:
-            start_date = date_utils.date_now()
-
-            conn = connect_to_region(self.region,
-                                     aws_access_key_id=self.access_key,
-                                     aws_secret_access_key=self.secret_key)
-            if not conn:
-                raise mbs_errors.ConfigurationError("Invalid region in block storage %s" % self)
-
-            logger.info("EC2: BEGIN Create connection to region '%s'" % self.region)
-            # log elapsed time for aws call
-            elapsed_time = date_utils.timedelta_total_seconds(date_utils.date_now() - start_date)
-            logger.info("EC2: END Create connection to region '%s' returned in %s seconds" %
-                        (self.region, elapsed_time))
-
-            self._ec2_connection = conn
-
-        return self._ec2_connection
-
-
-    ###########################################################################
-    @property
-    def ebs_volume(self):
-        if not self._ebs_volume:
-            logger.info("EC2: BEGIN lookup volume '%s'" % self.volume_id)
-            start_time = time.time()
-            volumes = self.ec2_connection.get_all_volumes([self.volume_id])
-            elapsed_time = time.time() - start_time
-            logger.info("EC2: END lookup volume '%s' returned in %s seconds" % (self.volume_id, elapsed_time))
-
-            if volumes is None or len(volumes) == 0:
-                raise Exception("Could not find volume %s" % self.volume_id)
-
-            self._ebs_volume = volumes[0]
-
-        return self._ebs_volume
-
-    @ebs_volume.setter
-    def ebs_volume(self, vol):
-        self._ebs_volume = vol
+        return cached_ec2_connect_to_region(self.region, self.access_key, self.secret_key)
 
     ###########################################################################
 
@@ -1469,7 +1429,7 @@ class LVMStorage(CompositeBlockStorage):
 
         return doc
 
-
+########################################################################################################################
 class RobustHttpRequest(HttpRequest):
 
     def execute(self, http=None, num_retries=0, do_on_exception=None):
@@ -1483,3 +1443,22 @@ class RobustHttpRequest(HttpRequest):
             max_attempts=3,
             do_on_exception=do_on_exception,
             do_on_failure=mbs_errors.raise_exception)
+
+
+########################################################################################################################
+@lru_cache(100, timeout=60*60)
+def cached_ec2_connect_to_region(region, aws_access_key_id, aws_secret_access_key):
+    logger.info("EC2: BEGIN Create connection to region '%s'" % region)
+    start_date = date_utils.date_now()
+
+    conn = connect_to_region(region, aws_access_key_id=aws_access_key_id,
+                             aws_secret_access_key=aws_secret_access_key)
+
+    # log elapsed time for aws call
+    elapsed_time = date_utils.timedelta_total_seconds(date_utils.date_now() - start_date)
+    logger.info("EC2: END Create connection to region '%s' returned in %s seconds" % (region, elapsed_time))
+
+    if not conn:
+        raise mbs_errors.ConfigurationError("Failed to create ec2 connection to region '%s'" % region)
+
+    return conn
