@@ -402,7 +402,7 @@ class EbsVolumeStorage(VolumeStorage):
 
             start_date = date_utils.date_now()
 
-            ebs_snapshot = self.ec2_connection().create_snapshot(self.volume_id, description)
+            ebs_snapshot = self.ec2_connection.create_snapshot(self.volume_id, description)
 
             # log elapsed time for aws call
             elapsed_time = date_utils.timedelta_total_seconds(date_utils.date_now() - start_date)
@@ -456,7 +456,7 @@ class EbsVolumeStorage(VolumeStorage):
         snapshot_id = snapshot_ref.snapshot_id
         try:
             logger.info("EC2: BEGIN Deleting snapshot '%s' " % snapshot_id)
-            self.ec2_connection().delete_snapshot(snapshot_id)
+            self.ec2_connection.delete_snapshot(snapshot_id)
             if self.snapshot_exists(snapshot_id):
                 raise mbs_errors.Ec2SnapshotDeleteError("Snapshot '%s' still exists after deleting!" % snapshot_id)
 
@@ -580,6 +580,7 @@ class EbsVolumeStorage(VolumeStorage):
             self._encrypted_secret_key = val.encode('ascii', 'ignore')
 
     ###########################################################################
+    @property
     def ec2_connection(self):
         return cached_ec2_connect_to_region(self.region, self.access_key, self.secret_key)
 
@@ -595,7 +596,7 @@ class EbsVolumeStorage(VolumeStorage):
         filters = {
             "volume-id": self.volume_id
         }
-        return self.ec2_connection().get_all_snapshots(filters=filters)
+        return self.ec2_connection.get_all_snapshots(filters=filters)
 
     ###########################################################################
     def get_ebs_snapshot_by_id(self, snapshot_id):
@@ -606,7 +607,7 @@ class EbsVolumeStorage(VolumeStorage):
         start_date = date_utils.date_now()
 
         logger.info("EC2: BEGIN get snapshot '%s' for  volume '%s'" % (snapshot_id, self.volume_id))
-        snapshots = self.ec2_connection().get_all_snapshots(filters=filters)
+        snapshots = self.ec2_connection.get_all_snapshots(filters=filters)
         # log elapsed time for aws call
         elapsed_time = date_utils.timedelta_total_seconds(date_utils.date_now() - start_date)
         logger.info("EC2: END get snapshot '%s' for  volume '%s' returned in %s seconds" %
