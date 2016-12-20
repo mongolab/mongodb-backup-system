@@ -391,7 +391,7 @@ class BackupStrategy(MBSObject):
                 return
             elif self.backup_mode == BackupMode.ONLINE:
                 msg = "Selected connector '%s' is offline" % connector
-                raise NoEligibleMembersFound(backup.source.uri, msg=msg)
+                raise InvalidSelectedMemberError(backup.source.uri, msg=msg)
         else:
             logger.info("Connector '%s' is online! Yay!" % connector)
 
@@ -402,17 +402,17 @@ class BackupStrategy(MBSObject):
         if self.member_preference == MemberPreference.SECONDARY_ONLY:
             if not connector.is_secondary():
                 msg = "Selected connector '%s' is not a secondary" % connector
-                raise NoEligibleMembersFound(backup.source.uri, msg=msg)
+                raise InvalidSelectedMemberError(backup.source.uri, msg=msg)
 
         if (self.member_preference == MemberPreference.PRIMARY_ONLY and
                 not connector.is_primary()):
             msg = "Selected connector '%s' is not a primary" % connector
-            raise NoEligibleMembersFound(backup.source.uri, msg=msg)
+            raise InvalidSelectedMemberError(backup.source.uri, msg=msg)
 
         if (self.member_preference == MemberPreference.NOT_PRIMARY and
                 connector.is_primary()):
             msg = "Selected connector '%s' is a Primary" % connector
-            raise NoEligibleMembersFound(backup.source.uri, msg=msg)
+            raise InvalidSelectedMemberError(backup.source.uri, msg=msg)
 
         # FAIL if best secondary was not a P0 within max_lag_seconds
         # if cluster has any P0 (excluding slave delay)

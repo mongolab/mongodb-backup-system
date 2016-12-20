@@ -253,6 +253,13 @@ class NoEligibleMembersFound(ReplicasetError):
 
         return doc
 
+
+###############################################################################
+class InvalidSelectedMemberError(NoEligibleMembersFound):
+    """
+    raised when the the selected member for backup is no longer valid. e.g. no longer secondary
+    """
+
 ###############################################################################
 class DBStatsError(MBSError):
     """
