@@ -56,7 +56,7 @@ class BackupTarget(MBSObject):
     def __init__(self):
         self._preserve = None
         self._credentials = None
-        self._cloud_storage_encryption = None
+        self._encryption_enabled = False
 
     ###########################################################################
     @property
@@ -86,7 +86,7 @@ class BackupTarget(MBSObject):
     ###########################################################################
     @property
     def encryption_enabled(self):
-        return self.cloud_storage_encryption is not None
+        return self._encryption_enabled
 
     @encryption_enabled.setter
     def encryption_enabled(self, val):
@@ -95,14 +95,7 @@ class BackupTarget(MBSObject):
         :param val:
         :return:
         """
-
-    @property
-    def cloud_storage_encryption(self):
-        return self._cloud_storage_encryption
-
-    @cloud_storage_encryption.setter
-    def cloud_storage_encryption(self, val):
-        self._cloud_storage_encryption = None if val is None else str(val)
+        self._encryption_enabled = bool(val)
 
     ###########################################################################
     def put_file(self, file_path, destination_path=None,
@@ -205,7 +198,7 @@ class BackupTarget(MBSObject):
     ###########################################################################
     def do_put_file(self, file_path, destination_path, metadata=None):
         """
-           does the actually work. should be implemented by subclasses
+           does the actual work. should be implemented by subclasses
         """
         pass
 
@@ -289,7 +282,7 @@ class BackupTarget(MBSObject):
 
         if not file_info:
             raise errors.UploadedFileDoesNotExistError(destination_path, cname)
-        elif self.cloud_storage_encryption != file_info.get('cloud_storage_encryption', None):
+        elif self.encryption_enabled and not file_info.get('cloud_storage_encryption', None):
             raise errors.UploadedFileIsNotEncrypted(destination_path, self.container_name)
         elif file_size != file_info['size']:
             raise errors.UploadedFileSizeMatchError(destination_path, cname,
@@ -340,8 +333,8 @@ class BackupTarget(MBSObject):
 
         }
 
-        if self.cloud_storage_encryption is not None:
-            doc["cloudStorageEncryption"] = self.cloud_storage_encryption
+        if self.encryption_enabled:
+            doc["encryptionEnabled"] = self.encryption_enabled
 
         if self.preserve is not None:
             doc["preserve"] = self.preserve
