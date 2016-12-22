@@ -38,6 +38,8 @@ import time
 from mongo_utils import build_mongo_connector
 
 from repoze.lru import lru_cache
+
+import boto.ec2.snapshot
 ###############################################################################
 # LOGGER
 ###############################################################################
@@ -402,7 +404,7 @@ class EbsVolumeStorage(VolumeStorage):
 
             start_date = date_utils.date_now()
 
-            ebs_snapshot = self.ec2_connection.create_snapshot(self.volume_id, description)
+            ebs_snapshot = custom_ebs_create_snapshot(self.ec2_connection, self.volume_id, description)
 
             # log elapsed time for aws call
             elapsed_time = date_utils.timedelta_total_seconds(date_utils.date_now() - start_date)
@@ -450,6 +452,7 @@ class EbsVolumeStorage(VolumeStorage):
         elapsed_time = date_utils.timedelta_total_seconds(date_utils.date_now() - start_date)
         logger.info("EC2: END set snapshot name for snapshot '%s' volume '%s' returned in %s seconds" %
                     (ebs_snapshot.id, self.volume_id , elapsed_time))
+
 
     ###########################################################################
     def delete_snapshot(self, snapshot_ref):
@@ -1462,3 +1465,19 @@ def cached_ec2_connect_to_region(region, aws_access_key_id, aws_secret_access_ke
         raise mbs_errors.ConfigurationError("Failed to create ec2 connection to region '%s'" % region)
 
     return conn
+
+
+########################################################################################################################
+def custom_ebs_create_snapshot(ec2_connection, volume_id, description=None):
+    """
+        Custom ec2 create snapshot
+    """
+    params = {'VolumeId': volume_id}
+    if description:
+        params['Description'] = description[0:255]
+
+    snapshot = ec2_connection.get_object('CreateSnapshot', params,
+                               boto.ec2.snapshot.Snapshot, verb='POST')
+
+    return snapshot
+
