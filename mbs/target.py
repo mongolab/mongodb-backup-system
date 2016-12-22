@@ -56,7 +56,7 @@ class BackupTarget(MBSObject):
     def __init__(self):
         self._preserve = None
         self._credentials = None
-        self._encryption_enabled = False
+        self._cloud_storage_encryption_enabled = False
 
     ###########################################################################
     @property
@@ -85,17 +85,17 @@ class BackupTarget(MBSObject):
 
     ###########################################################################
     @property
-    def encryption_enabled(self):
-        return self._encryption_enabled
+    def cloud_storage_encryption_enabled(self):
+        return self._cloud_storage_encryption_enabled
 
-    @encryption_enabled.setter
-    def encryption_enabled(self, val):
+    @cloud_storage_encryption_enabled.setter
+    def cloud_storage_encryption_enabled(self, val):
         """
-        TODO: XXX when encryptionEnabled references are removed from existing document
+        TODO: XXX when cloudStorageEncryptionEnabled references are removed from existing document
         :param val:
         :return:
         """
-        self._encryption_enabled = bool(val)
+        self._cloud_storage_encryption_enabled = bool(val)
 
     ###########################################################################
     def put_file(self, file_path, destination_path=None,
@@ -282,7 +282,7 @@ class BackupTarget(MBSObject):
 
         if not file_info:
             raise errors.UploadedFileDoesNotExistError(destination_path, cname)
-        elif self.encryption_enabled and not file_info.get('cloud_storage_encryption', None):
+        elif self.cloud_storage_encryption_enabled and not file_info.get('cloud_storage_encryption', None):
             raise errors.UploadedFileIsNotEncrypted(destination_path, self.container_name)
         elif file_size != file_info['size']:
             raise errors.UploadedFileSizeMatchError(destination_path, cname,
@@ -333,8 +333,8 @@ class BackupTarget(MBSObject):
 
         }
 
-        if self.encryption_enabled:
-            doc["encryptionEnabled"] = self.encryption_enabled
+        if self.cloud_storage_encryption_enabled:
+            doc["cloudStorageEncryptionEnabled"] = self.cloud_storage_encryption_enabled
 
         if self.preserve is not None:
             doc["preserve"] = self.preserve
@@ -376,8 +376,11 @@ class S3BucketTarget(BackupTarget):
             self._single_part_put(file_path, destination_path,
                                   metadata=metadata)
 
+        cloud_storage_encryption = self._fetch_file_info(destination_path)['cloud_storage_encryption']
+
         return FileReference(file_path=destination_path,
-                             file_size=file_size)
+                             file_size=file_size,
+                             cloud_storage_encryption=cloud_storage_encryption)
 
     ###########################################################################
     def _fetch_file_info(self, destination_path):
@@ -424,7 +427,7 @@ class S3BucketTarget(BackupTarget):
             for name, value in metadata.items():
                 k.set_metadata(name, value)
 
-        k.set_contents_from_file(file_obj, encrypt_key=self.encryption_enabled)
+        k.set_contents_from_file(file_obj, encrypt_key=self.cloud_storage_encryption_enabled)
 
 
     ###########################################################################
@@ -439,7 +442,7 @@ class S3BucketTarget(BackupTarget):
 
         bucket = self._get_bucket()
         mp = bucket.initiate_multipart_upload(destination_path, metadata=metadata,
-                                              encrypt_key=self.encryption_enabled)
+                                              encrypt_key=self.cloud_storage_encryption_enabled)
 
         upload = SplitFile(file_path, chunk_size)
 
@@ -721,7 +724,7 @@ class S3BucketTarget(BackupTarget):
             try:
                 key = bucket.new_key(key_name)
                 key.set_contents_from_string(key_name,
-                                             encrypt_key=self.encryption_enabled)
+                                             encrypt_key=self.cloud_storage_encryption_enabled)
                 if not key.get_contents_as_string() == key_name:
                     errors.append('could not read key contents of test file '
                                   'in %s' % (self.bucket_name))
@@ -1248,10 +1251,11 @@ class TargetReference(MBSObject):
 class FileReference(TargetReference):
 
     ###########################################################################
-    def __init__(self, file_path=None, file_size=None, preserve=None):
+    def __init__(self, file_path=None, file_size=None, preserve=None, cloud_storage_encryption=None):
         TargetReference.__init__(self, preserve=preserve)
         self._file_path = file_path
         self._file_size = file_size
+        self._cloud_storage_encryption = cloud_storage_encryption
 
     ###########################################################################
     @property
@@ -1261,6 +1265,15 @@ class FileReference(TargetReference):
     @file_path.setter
     def file_path(self, file_path):
         self._file_path = file_path
+
+    ###########################################################################
+    @property
+    def cloud_storage_encryption(self):
+        return self._cloud_storage_encryption
+
+    @cloud_storage_encryption.setter
+    def cloud_storage_encryption(self, cloud_storage_encryption):
+        self._cloud_storage_encryption = cloud_storage_encryption
 
     ###########################################################################
     @property
@@ -1282,7 +1295,8 @@ class FileReference(TargetReference):
         doc.update({
             "_type": "FileReference",
             "filePath": self.file_path,
-            "fileSize": self.file_size
+            "fileSize": self.file_size,
+            "cloudStorageEncryption": self.cloud_storage_encryption
         })
 
         return doc
