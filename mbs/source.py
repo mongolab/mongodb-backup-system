@@ -436,7 +436,7 @@ class EbsVolumeStorage(VolumeStorage):
                 raise
 
     ###########################################################################
-    @robustify(max_attempts=3, retry_interval=2,
+    @robustify(max_attempts=5, retry_interval=5,
                do_on_exception=mbs_errors.raise_if_not_ec2_retriable,
                do_on_failure=mbs_errors.raise_exception)
     def _set_ebs_snapshot_name(self, ebs_snapshot, name):
