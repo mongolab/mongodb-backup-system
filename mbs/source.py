@@ -1476,8 +1476,7 @@ def custom_ebs_create_snapshot(ec2_connection, volume_id, description=None):
     if description:
         params['Description'] = description[0:255]
 
-    snapshot = ec2_connection.get_object('CreateSnapshot', params,
-                               boto.ec2.snapshot.Snapshot, verb='POST')
+    snapshot = ec2_connection.get_object('CreateSnapshot', params, boto.ec2.snapshot.Snapshot, verb='POST')
 
     return snapshot
 
