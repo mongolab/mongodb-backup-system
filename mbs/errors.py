@@ -7,6 +7,7 @@ from base import MBSObject
 import logging
 import utils
 
+import traceback
 ###############################################################################
 ########################                       ################################
 ########################  Backup System Errors ################################
@@ -744,6 +745,7 @@ def raise_if_not_retriable(exception):
 
 ###############################################################################
 def raise_if_not_ec2_retriable(exception):
+    log_ec2_limit_error(exception)
     # retry on boto request limit and other ec2 errors
     msg = utils.safe_stringify(exception)
     if ((isinstance(exception, BotoServerError) and
@@ -751,6 +753,34 @@ def raise_if_not_ec2_retriable(exception):
         logger.warn("Caught a retriable exception: %s" % exception)
     else:
         raise_if_not_retriable(exception)
+
+
+###############################################################################
+def log_ec2_limit_error(exception):
+    """
+    Logs more details if the exception is RequestLimitExceeded. Not implemented in the best way/right place but
+    should work just fine
+    :param exception:
+    :return:
+    """
+    if isinstance(exception, BotoServerError) and "RequestLimitExceeded" in utils.safe_stringify(exception):
+        stack_str = traceback.format_exc()
+
+        if "add_tag" in stack_str:
+            op_name = "CreateTag"
+        elif "create_snapshot" in stack_str:
+            op_name = "CreateSnapshot"
+        elif "delete_snapshot" in stack_str:
+            op_name = "DeleteSnapshot"
+        elif "get_all_snapshots" in stack_str:
+            op_name = "DescribeSnapshots"
+        elif "get_all_volumes" in stack_str:
+            op_name = "DescribeVolumes"
+        else:
+            op_name = "UNKNOWN %s"
+        logger.info("EC2_THROTTLE: Got a RequestLimitExceeded on op '%s', Error body: %s, Trace: %s" %
+                    (op_name, exception.body, stack_str))
+
 
 ###############################################################################
 def raise_exception():
