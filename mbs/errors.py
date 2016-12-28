@@ -777,7 +777,7 @@ def log_ec2_limit_error(exception):
         elif "get_all_volumes" in stack_str:
             op_name = "DescribeVolumes"
         else:
-            op_name = "UNKNOWN %s"
+            op_name = "UNKNOWN"
         logger.info("EC2_THROTTLE: Got a RequestLimitExceeded on op '%s', Error body: %s, Trace: %s" %
                     (op_name, exception.body, stack_str))
 
