@@ -356,18 +356,17 @@ class BackupStrategy(MBSObject):
                 logger.warning("Backup '%s' will be extracted from the "
                                "primary!" % backup.id)
 
-                msg = "Warning! The dump will be extracted from the  primary"
+                msg = "Warning! The backup will be taken off of the primary"
                 update_backup(backup, event_type=EventType.WARNING,
                               event_name="USING_PRIMARY_WARNING",
                               message=msg)
             # log warning if secondary is too stale
             elif connector.is_secondary():
                 if connector.is_too_stale():
-                    logger.warning("Backup '%s' will be extracted from a "
+                    logger.warning("Backup '%s' will be taken off of a "
                                    "too stale member!" % backup.id)
 
-                    msg = ("Warning! The dump will be extracted from a too "
-                           "stale member")
+                    msg = "Warning! The backup will be taken off of a too stale member"
                     update_backup(backup, event_type=EventType.WARNING,
                                   event_name="USING_TOO_STALE_WARNING",
                                   message=msg)
