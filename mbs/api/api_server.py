@@ -149,7 +149,8 @@ class ApiServer(Thread):
     def run(self):
         try:
             app = self.flask_server
-            logger.info("%s: Starting HTTPServer (port=%s, protocol=%s)" % (self.name, self.port, self.protocol))
+            logger.info("%s: Starting HTTPServer (port=%s, protocol=%s, workers=%s)" %
+                        (self.name, self.port, self.protocol, self.num_workers))
 
             serve(app, host='0.0.0.0', port=self.port, url_scheme=self.protocol,
                   threads=self.num_workers, _server=self.custom_waitress_create_server)
