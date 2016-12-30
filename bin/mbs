@@ -291,78 +291,33 @@ def status_backup_system(parsed_args):
 def start_api_server(parsed_args):
     client = api_client()
 
-    handlers = {
-        signal.SIGINT:  partial(client.stop_command),
-        signal.SIGTERM: partial(client.stop_command)
-    }
-    with SignalWatcher(handlers) as watcher:
-        status = client.get_status()
-        if status["status"] == STATUS_RUNNING:
-            print "Backup System already started"
-            return
-        elif status["status"] == STATUS_STOPPING:
-            print ("Backup System is stopping now. Please wait until it is "
-                   "completely stopped then try starting again")
-            return
 
-        _do_start_api_server(fork=not parsed_args.foreground)
-
-        def api_server_started():
-            return client.get_status()["status"] == STATUS_RUNNING
-        wait_for(api_server_started, timeout=5)
-
-        if api_server_started():
-            print "Api Server started successfully!"
-        else:
-            print "Api Server did not start. Please check logs"
-
-        wait_for(lambda: watcher.signaled, log_func=lambda: True)
-
-###############################################################################
-def _do_start_api_server(fork=False):
-    if fork:
-        child_pid = os.fork()
-        if child_pid:
-            # parent process. return
-            print "Forked api server process %s" % child_pid
-            return
-        else:
-            # need to disown yourself, Son
-            os.setsid()
-            os.umask(0)
-            # redirect std out/err to logger
-            redirect_std_to_logger()
+    status = client.get_status()
+    if status["status"] == STATUS_RUNNING:
+        print "Api Server already started"
+        return
+    elif status["status"] == STATUS_STOPPING:
+        print ("Api Server is stopping now. Please wait until it is "
+               "completely stopped then try starting again")
+        return
 
     api_server = get_mbs().api_server
     # forked child process
     api_server.start()
 
-###############################################################################
-def stop_api_server(parsed_args):
-    client = api_client()
+    def api_server_started():
+        return client.get_status()["status"] == STATUS_RUNNING
+    wait_for(api_server_started, timeout=5)
 
-    status = client.get_status()
-    if status["status"] == STATUS_STOPPING:
-        print "A stop request has already been made"
-        return
-    elif status["status"] == STATUS_STOPPED:
-        print "Api Server is not running"
-        return
-
-    print "Stopping api server..."
-
-    client.stop_command()
-
-    def stopped():
-        return client.get_status()["status"] == "stopped"
-    print "Waiting for api server to stop"
-    wait_for(stopped, timeout=100)
-
-    if stopped():
-        print "Api Server stopped successfully. Bye!"
+    if api_server_started():
+        print "Api Server started successfully!"
     else:
-        print "Unable to stop api server within 100 seconds"
-        exit(1)
+        print "Api Server did not start. Please check logs"
+
+
+
+
+
 
 
 
@@ -379,80 +334,26 @@ def start_backup_event_listener(parsed_args):
     validate_event_listener()
 
     client = event_listener_client()
+    status = client.get_status()
 
-    handlers = {
-        signal.SIGINT:  partial(client.stop_command),
-        signal.SIGTERM: partial(client.stop_command)
-    }
-    with SignalWatcher(handlers) as watcher:
-        status = client.get_status()
-        if status["status"] == STATUS_RUNNING:
-            print "BackupEventListener already started"
-            return
-        elif status["status"] == STATUS_STOPPING:
-            print ("BackupEventListener is stopping now. Please wait until it is "
-                   "completely stopped then try starting again")
-            return
+    if status["status"] == STATUS_RUNNING:
+        print "BackupEventListener already started"
+        return
+    elif status["status"] == STATUS_STOPPING:
+        print ("BackupEventListener is stopping now. Please wait until it is "
+               "completely stopped then try starting again")
+        return
 
-        _do_start_backup_event_listener(fork=not parsed_args.foreground)
-
-        def event_listener_started():
-            return client.get_status()["status"] == STATUS_RUNNING
-        wait_for(event_listener_started, timeout=5)
-
-        if event_listener_started():
-            print "BackupEventListener started successfully!"
-        else:
-            print "BackupEventListener did not start. Please check logs"
-
-        wait_for(lambda: watcher.signaled, log_func=lambda: True)
-
-###############################################################################
-def _do_start_backup_event_listener(fork=False):
-    if fork:
-        child_pid = os.fork()
-        if child_pid:
-            # parent process. return
-            print "Forked BackupEventListener process %s" % child_pid
-            return
-        else:
-            # need to disown yourself, Son
-            os.setsid()
-            os.umask(0)
-            # redirect std out/err to logger
-            redirect_std_to_logger()
-
-    # forked child process
     get_mbs().backup_event_listener.start()
 
-###############################################################################
-def stop_backup_event_listener(parsed_args):
-    validate_event_listener()
+    def event_listener_started():
+        return client.get_status()["status"] == STATUS_RUNNING
+    wait_for(event_listener_started, timeout=5)
 
-    client = event_listener_client()
-
-    status = client.get_status()
-    if status["status"] == STATUS_STOPPING:
-        print "A stop request has already been made"
-        return
-    elif status["status"] == STATUS_STOPPED:
-        print "BackupEventListener is not running"
-        return
-
-    print "Stopping BackupEventListener..."
-
-    client.stop_command()
-
-    def stopped():
-        return client.get_status()["status"] == "stopped"
-    print "Waiting for BackupEventListener to stop"
-    wait_for(stopped, timeout=100)
-
-    if stopped():
-        print "BackupEventListener stopped successfully. Bye!"
+    if event_listener_started():
+        print "BackupEventListener started successfully!"
     else:
-        print "Unable to stop api server within 100 seconds"
-        exit(1)
+        print "BackupEventListener did not start. Please check logs"
 
 ###############################################################################
 def status_backup_event_listener(parsed_args):
@@ -971,47 +872,9 @@ PARSER_DEF = {
                 "prog": "start-api-server",
                 "shortDescription": "starts the api server",
                 "description": "starts the api server",
-                "function": start_api_server,
-                "args": [
-                    {
-                        "name": "fork",
-                        "type": "optional",
-                        "cmd_arg":  "--fork",
-                        "nargs": 0,
-                        "help": "fork the api server process",
-                        "action": "store_true",
-                        "default": True
-                    },
-                    {
-                        "name": "foreground",
-                        "type": "optional",
-                        "cmd_arg":  "--foreground",
-                        "nargs": 0,
-                        "help": "start server in foreground",
-                        "action": "store_true",
-                        "default": False
-                    }
-                ]
+                "function": start_api_server
             },
 
-            #### stop-api-server ####
-            {
-                "prog": "stop-api-server",
-                "shortDescription": "stops the backup system",
-                "description": "stops the backup system",
-                "function": stop_api_server,
-                "args": [
-                    {
-                        "name": "force",
-                        "type" : "optional",
-                        "cmd_arg":  ["--force", "-f"],
-                        "nargs": 0,
-                        "help": "force stop api server",
-                        "action": "store_true",
-                        "default": False
-                    }
-                ]
-            },
             #### status-api-server ####
             {
                 "prog": "status-api-server",
@@ -1025,47 +888,9 @@ PARSER_DEF = {
             "prog": "start-backup-event-listener",
             "shortDescription": "starts the event listener server",
             "description": "starts the api server",
-            "function": start_backup_event_listener,
-            "args": [
-                {
-                    "name": "fork",
-                    "type": "optional",
-                    "cmd_arg":  "--fork",
-                    "nargs": 0,
-                    "help": "fork the server process",
-                    "action": "store_true",
-                    "default": True
-                },
-                {
-                    "name": "foreground",
-                    "type": "optional",
-                    "cmd_arg":  "--foreground",
-                    "nargs": 0,
-                    "help": "start server in foreground",
-                    "action": "store_true",
-                    "default": False
-                }
-            ]
+            "function": start_backup_event_listener
         },
 
-        #### stop-api-server ####
-        {
-            "prog": "stop-backup-event-listener",
-            "shortDescription": "stops the event listener",
-            "description": "stops the event listener",
-            "function": stop_backup_event_listener,
-            "args": [
-                {
-                    "name": "force",
-                    "type": "optional",
-                    "cmd_arg":  ["--force", "-f"],
-                    "nargs": 0,
-                    "help": "force stop event listener",
-                    "action": "store_true",
-                    "default": False
-                }
-            ]
-        },
         #### status-backup-event-listener ####
         {
             "prog": "status-backup-event-listener",
