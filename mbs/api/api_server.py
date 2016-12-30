@@ -3,8 +3,6 @@ __author__ = 'abdul'
 import logging
 import traceback
 
-from threading import Thread, Timer
-
 from flask import Flask
 
 from mbs.utils import document_pretty_string, object_type_name, get_local_host_name
@@ -13,13 +11,14 @@ from mbs.netutils import crossdomain
 from mbs_client.client import MBSClient
 from mbs.notification import NotificationPriority
 
-from waitress import serve
 from mbs.mbs import get_mbs
 
 
 from flask import jsonify
 from auth_service import DefaultApiAuthService
 
+import gunicorn.app.base
+from gunicorn.six import iteritems
 
 ########################################################################################################################
 # LOGGER
@@ -32,11 +31,11 @@ DEFAULT_NUM_WORKERS = 20
 ########################################################################################################################
 # BackupSystemApiServer
 ########################################################################################################################
-class ApiServer(Thread):
+class ApiServer(object):
 
     ####################################################################################################################
     def __init__(self, port=9003):
-        Thread.__init__(self)
+
         self._port = port
         self._api_auth_service = None
         self._flask_server = None
@@ -129,14 +128,6 @@ class ApiServer(Thread):
             response.status_code = error.status_code
             return response
 
-        # build stop method
-        @flask_server.route('/stop', methods=['GET'])
-        @self.api_auth_service.auth("/stop")
-        @crossdomain(origin='*')
-        def stop_api_server_request():
-            logger.info("Received a stop command")
-            return document_pretty_string(self.stop_api_server())
-
         # build status method
         @flask_server.route('/status', methods=['GET'])
         @self.api_auth_service.auth("/status")
@@ -146,14 +137,18 @@ class ApiServer(Thread):
             return document_pretty_string(self.status())
 
     ####################################################################################################################
-    def run(self):
+    def start(self):
         try:
             app = self.flask_server
             logger.info("%s: Starting HTTPServer (port=%s, protocol=%s, workers=%s)" %
                         (self.name, self.port, self.protocol, self.num_workers))
 
-            serve(app, host='0.0.0.0', port=self.port, url_scheme=self.protocol,
-                  threads=self.num_workers, _server=self.custom_waitress_create_server)
+            options = {
+                "bind": "127.0.0.1:%s" % self.port,
+                "workers": self.num_workers
+            }
+            MbsApiGunicornApplication(app, options).run()
+
         except Exception, ex:
             logger.exception("Api Server crashed")
             sbj = "Api Server %s on %s crashed" % (self.name, get_local_host_name())
@@ -161,38 +156,34 @@ class ApiServer(Thread):
             get_mbs().notifications.send_event_notification(sbj, sbj, priority=NotificationPriority.CRITICAL)
             self.stop_api_server()
 
+
     ####################################################################################################################
     def stop_api_server(self):
-
-        Timer(2, self._do_stop).start()
-        return {
-            "ok": 1
-        }
-
-    ####################################################################################################################
-    def _do_stop(self):
         try:
             # This is how we stop waitress unfortunately, kill with sighup
             import os
-            os.kill(os.getpid(), 1)
+            os.kill(os.getpid(), 15)
 
         except Exception:
             traceback.print_exc()
 
-    ####################################################################################################################
-    # TODO Remove this once we have a better shutdown method
-    def custom_waitress_create_server(
-            self,
-            application,
-            map=None,
-            _start=True,      # test shim
-            _sock=None,       # test shim
-            _dispatcher=None, # test shim
-            **kw):
-        import waitress.server
-        self._waitress_server = waitress.server.create_server(
-            application, map=map, _start=_start, _sock=_sock,
-            _dispatcher=_dispatcher, **kw)
+########################################################################################################################
+# Custom MbsApiGunicornApplication
+########################################################################################################################
 
-        return self._waitress_server
+
+class MbsApiGunicornApplication(gunicorn.app.base.BaseApplication):
+    def __init__(self, app, options=None):
+        self.options = options or {}
+        self.application = app
+        super(MbsApiGunicornApplication, self).__init__()
+
+    def load_config(self):
+        config = dict([(key, value) for key, value in iteritems(self.options)
+                       if key in self.cfg.settings and value is not None])
+        for key, value in iteritems(config):
+            self.cfg.set(key.lower(), value)
+
+    def load(self):
+        return self.application
 
