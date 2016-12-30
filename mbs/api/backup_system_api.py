@@ -207,9 +207,9 @@ class BackupSystemApiServer(ApiServer):
             backup_id = get_requested_backup_id()
             backup_id_str = "(backupId=%s)" % backup_id if backup_id else ""
             start_date = date_utils.date_now()
-            queue_size = self._waitress_server.task_dispatcher.queue.qsize()
-            logger.info("%s: NEW REQUEST (requestId=%s) %s [%s total requests queued]" % (
-                request.path, request_id, backup_id_str, queue_size))
+
+            logger.info("%s: NEW REQUEST (requestId=%s) %s" % (
+                request.path, request_id, backup_id_str))
 
             result = f(*args, **kwargs)
             elapsed = date_utils.timedelta_total_seconds(date_utils.date_now() - start_date)

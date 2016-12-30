@@ -43,7 +43,6 @@ class ApiServer(object):
         self._protocol = "http"
         self._ssl_options = None
         self._num_workers = DEFAULT_NUM_WORKERS
-        self._waitress_server = None
         self._local_client = None
 
     ####################################################################################################################
@@ -154,18 +153,7 @@ class ApiServer(object):
             sbj = "Api Server %s on %s crashed" % (self.name, get_local_host_name())
 
             get_mbs().notifications.send_event_notification(sbj, sbj, priority=NotificationPriority.CRITICAL)
-            self.stop_api_server()
 
-
-    ####################################################################################################################
-    def stop_api_server(self):
-        try:
-            # This is how we stop waitress unfortunately, kill with sighup
-            import os
-            os.kill(os.getpid(), 15)
-
-        except Exception:
-            traceback.print_exc()
 
 ########################################################################################################################
 # Custom MbsApiGunicornApplication
