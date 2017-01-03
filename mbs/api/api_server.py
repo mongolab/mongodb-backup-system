@@ -145,7 +145,8 @@ class ApiServer(object):
             options = {
                 "bind": "127.0.0.1:%s" % self.port,
                 "workers": self.num_workers,
-                "worker_class": "gevent"
+                "worker_class": "gevent",
+                "proxy_protocol": self.protocol == "https"
             }
             MbsApiGunicornApplication(app, options).run()
 
