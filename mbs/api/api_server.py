@@ -26,7 +26,7 @@ from gunicorn.six import iteritems
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
-DEFAULT_NUM_WORKERS = 20
+DEFAULT_NUM_WORKERS = 4
 
 ########################################################################################################################
 # BackupSystemApiServer
@@ -144,7 +144,8 @@ class ApiServer(object):
 
             options = {
                 "bind": "127.0.0.1:%s" % self.port,
-                "workers": self.num_workers
+                "workers": self.num_workers,
+                "worker_class": "gevent"
             }
             MbsApiGunicornApplication(app, options).run()
 
