@@ -390,8 +390,6 @@ class EbsVolumeStorage(VolumeStorage):
     ###########################################################################
     def __init__(self):
         VolumeStorage.__init__(self)
-        self._encrypted_access_key = None
-        self._encrypted_secret_key = None
         self._region = None
 
     ###########################################################################
@@ -533,54 +531,12 @@ class EbsVolumeStorage(VolumeStorage):
     def access_key(self):
         if self.credentials:
             return self.credentials.get_credential("accessKey")
-        elif self.encrypted_access_key:
-            return get_mbs().encryptor.decrypt_string(
-                self.encrypted_access_key)
-
-    @access_key.setter
-    def access_key(self, access_key):
-        if self.credentials:
-            self.credentials.set_credential("accessKey", access_key)
-        elif access_key:
-            eak = get_mbs().encryptor.encrypt_string(str(access_key))
-            self.encrypted_access_key = eak
 
     ###########################################################################
     @property
     def secret_key(self):
         if self.credentials:
             return self.credentials.get_credential("secretKey")
-        elif self.encrypted_secret_key:
-            return get_mbs().encryptor.decrypt_string(
-                self.encrypted_secret_key)
-
-    @secret_key.setter
-    def secret_key(self, secret_key):
-        if self.credentials:
-            self.credentials.set_credential("secretKey", secret_key)
-        elif secret_key:
-            sak = get_mbs().encryptor.encrypt_string(str(secret_key))
-            self.encrypted_secret_key = sak
-
-    ###########################################################################
-    @property
-    def encrypted_access_key(self):
-        return self._encrypted_access_key
-
-    @encrypted_access_key.setter
-    def encrypted_access_key(self, val):
-        if val:
-            self._encrypted_access_key = val.encode('ascii', 'ignore')
-
-    ###########################################################################
-    @property
-    def encrypted_secret_key(self):
-        return self._encrypted_secret_key
-
-    @encrypted_secret_key.setter
-    def encrypted_secret_key(self, val):
-        if val:
-            self._encrypted_secret_key = val.encode('ascii', 'ignore')
 
     ###########################################################################
     @property
@@ -641,13 +597,9 @@ class EbsVolumeStorage(VolumeStorage):
         doc = super(EbsVolumeStorage, self).to_document(display_only=
                                                         display_only)
 
-        ak = "xxxxx" if display_only else self.encrypted_access_key
-        sk = "xxxxx" if display_only else self.encrypted_secret_key
         doc.update({
             "_type": "EbsVolumeStorage",
-            "region": self.region,
-            "encryptedAccessKey": ak,
-            "encryptedSecretKey": sk
+            "region": self.region
         })
 
         return doc
@@ -764,27 +716,11 @@ class BlobVolumeStorage(VolumeStorage):
     def access_key(self):
         if self.credentials:
             return self.credentials.get_credential("accessKey")
-        elif self.encrypted_access_key:
-            return get_mbs().encryptor.decrypt_string(
-                self.encrypted_access_key)
 
     @access_key.setter
     def access_key(self, access_key):
         if self.credentials:
             self.credentials.set_credential("accessKey", access_key)
-        elif access_key:
-            eak = get_mbs().encryptor.encrypt_string(str(access_key))
-            self.encrypted_access_key = eak
-
-    ###########################################################################
-    @property
-    def encrypted_access_key(self):
-        return self._encrypted_access_key
-
-    @encrypted_access_key.setter
-    def encrypted_access_key(self, val):
-        if val:
-            self._encrypted_access_key = val.encode('ascii', 'ignore')
 
     ###########################################################################
     @property
@@ -829,12 +765,10 @@ class BlobVolumeStorage(VolumeStorage):
         doc = super(BlobVolumeStorage, self).to_document(
             display_only=display_only)
 
-        ak = "xxxxx" if display_only else self.encrypted_access_key
 
         doc.update({
             "_type": "BlobVolumeStorage",
-            "storageAccount": self.storage_account,
-            "encryptedAccessKey": ak
+            "storageAccount": self.storage_account
         })
 
         return doc
@@ -850,8 +784,6 @@ class GcpDiskVolumeStorage(VolumeStorage):
     ###########################################################################
     def __init__(self):
         VolumeStorage.__init__(self)
-        self._encrypted_service_account_name = None
-        self._encrypted_private_key = None
         self._zone = None
 
         self._gce_svc_cached_conn = None
@@ -1114,55 +1046,23 @@ class GcpDiskVolumeStorage(VolumeStorage):
     def private_key(self):
         if self.credentials:
             return self.credentials.get_credential("privateKey")
-        elif self.encrypted_private_key:
-            return get_mbs().encryptor.decrypt_string(
-                self.encrypted_private_key)
 
     @private_key.setter
     def private_key(self, private_key):
         if self.credentials:
             self.credentials.set_credential("privateKey", private_key)
-        elif private_key:
-            epk = get_mbs().encryptor.encrypt_string(str(private_key))
-            self.encrypted_private_key = epk
 
-    ###########################################################################
-    @property
-    def encrypted_private_key(self):
-        return self._encrypted_private_key
-
-    @encrypted_private_key.setter
-    def encrypted_private_key(self, val):
-        if val:
-            self._encrypted_private_key = val.encode('ascii', 'ignore')
 
     ###########################################################################
     @property
     def service_account_name(self):
         if self.credentials:
             return self.credentials.get_credential("serviceAccountName")
-        elif self.encrypted_service_account_name:
-            return get_mbs().encryptor.decrypt_string(
-                self.encrypted_service_account_name)
 
     @service_account_name.setter
     def service_account_name(self, service_account_name):
         if self.credentials:
-            self.credentials.set_credential("serviceAccountName",
-                                            service_account_name)
-        elif service_account_name:
-            esan = get_mbs().encryptor.encrypt_string(str(service_account_name))
-            self.encrypted_service_account_name = esan
-
-    ###########################################################################
-    @property
-    def encrypted_service_account_name(self):
-        return self._encrypted_service_account_name
-
-    @encrypted_service_account_name.setter
-    def encrypted_service_account_name(self, val):
-        if val:
-            self._encrypted_service_account_name = val.encode('ascii', 'ignore')
+            self.credentials.set_credential("serviceAccountName", service_account_name)
 
     ###########################################################################
     @property
@@ -1216,15 +1116,10 @@ class GcpDiskVolumeStorage(VolumeStorage):
         doc = super(GcpDiskVolumeStorage, self).to_document(
             display_only=display_only)
 
-        pk = "xxxxx" if display_only else self.encrypted_private_key
-        serviceAccountName = "xxxxx" if display_only else \
-            self.encrypted_service_account_name
         doc.update({
             "_type": "GcpDiskVolumeStorage",
             # "projectId": self.project,
-            "zone": self.zone,
-            "serviceAccountName": serviceAccountName,
-            "encryptedPrivateKey": pk
+            "zone": self.zone
         })
 
         return doc
