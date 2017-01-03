@@ -143,7 +143,7 @@ class ApiServer(object):
                         (self.name, self.port, self.protocol, self.num_workers))
 
             options = {
-                "bind": "127.0.0.1:%s" % self.port,
+                "bind": "0.0.0.0:%s" % self.port,
                 "workers": self.num_workers,
                 "worker_class": "gevent",
                 "proxy_protocol": self.protocol == "https"
