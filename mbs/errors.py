@@ -502,7 +502,7 @@ class TargetError(MBSError):
     """
 
 ###############################################################################
-class TargetInaccessibleError(TargetError):
+class TargetInaccessibleError(TargetError, NonRetriableError):
     def __init__(self, container_name=None, cause=None):
         msg = ("Cloud storage container %s is inaccessible or "
                "unidentifiable, potentially due to out-of-date "
@@ -512,7 +512,7 @@ class TargetInaccessibleError(TargetError):
                                                       cause=cause)
 
 ###############################################################################
-class NoSuchContainerError(TargetError):
+class NoSuchContainerError(TargetError, NonRetriableError):
     """
         Raised when the container does not exist
     """
