@@ -1,7 +1,7 @@
 __author__ = 'abdul'
 
 import logging
-from .errors import is_exception_retriable, to_mbs_error_code
+from .errors import is_exception_retriable, NonRetriableError
 from .backup import Backup
 from .restore import Restore
 from .date_utils import mid_date_between, date_plus_seconds, date_now
@@ -52,6 +52,13 @@ def set_task_retry_info(task, error):
     if not isinstance(task, Backup):
         # NOOP on restores
         return
+
+    # Non retriable errors
+    if isinstance(error, NonRetriableError):
+        task.final_retry_date = task.start_date
+        task.next_retry_date = None
+        return
+
 
     # compute final retry date
     if not task.final_retry_date:
