@@ -106,6 +106,12 @@ class RetriableError(Exception):
     """
 
 ###############################################################################
+class NonRetriableError(Exception):
+    """
+        Base class for ALL NON-retriable errors. All NON-retriable errors should
+        inherit this class
+    """
+###############################################################################
 # MBSErrorWrapper
 ###############################################################################
 class MBSErrorWrapper(MBSError):
@@ -335,7 +341,7 @@ class RetriableDumpError(DumpError, RetriableError):
     pass
 
 ###############################################################################
-class BadCollectionNameError(DumpError):
+class BadCollectionNameError(DumpError, NonRetriableError):
     """
         Raised when a database contains bad collection names such as the ones
         containing "/"
