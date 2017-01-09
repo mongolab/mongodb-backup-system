@@ -383,6 +383,11 @@ class InvalidDBNameError(DumpError):
         self._message = ("Failed to mongodump because the name of your "
                          "database is invalid")
 
+
+###############################################################################
+class MongodumpSegmentationFaultError(RetriableDumpError):
+    pass
+
 ###############################################################################
 class BadTypeError(RetriableDumpError):
     pass
@@ -930,7 +935,8 @@ def raise_dump_error(returncode, error_log_line, last_namespace=None):
         error_type = CollectionReadError
     elif "oplog overflow" in error_log_line:
         error_type = OplogOverflowError
-
+    elif returncode == 245: # segmentation fault
+        error_type = MongodumpSegmentationFaultError
     # Generic retriable errors
     elif is_retriable_dump_error(returncode, error_log_line):
         error_type = RetriableDumpError
