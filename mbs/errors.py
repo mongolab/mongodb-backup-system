@@ -361,7 +361,7 @@ class InvalidBSONObjSizeError(RetriableDumpError):
     pass
 
 ###############################################################################
-class CorruptionError(RetriableDumpError):
+class CorruptionError(InvalidBSONObjSizeError):
     pass
 
 ###############################################################################
