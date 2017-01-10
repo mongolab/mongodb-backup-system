@@ -12,6 +12,7 @@ from .message import get_messages
 from ..utils import listify
 import hipchat
 import pygerduty
+from carbonio_client.client import CarbonIOClient
 
 DEFAULT_NOTIFICATION_SUBJECT = "Backup System Notification"
 
@@ -410,7 +411,7 @@ class HipchatNotificationHandler(NotificationHandler):
 
             logger.info("Hipchat sent successfully!")
         except Exception, e:
-            logger.error("Error while sending email:\n%s" %
+            logger.error("Error while sending hipchat message:\n%s" %
                          traceback.format_exc())
 
 
@@ -487,6 +488,52 @@ class PagerDutyNotificationHandler(NotificationHandler):
     ###########################################################################
     def get_pager(self):
         return pygerduty.PagerDuty(self.sub_domain, self.api_key)
+
+
+###############################################################################
+# SlackNotificationHandler
+###############################################################################
+class SlackNotificationHandler(NotificationHandler):
+
+    ###########################################################################
+    def __init__(self):
+        NotificationHandler.__init__(self)
+
+        self._webhook_url = None
+
+    ###########################################################################
+
+    @property
+    def webhook_url(self):
+        return self._webhook_url
+
+    @webhook_url.setter
+    def webhook_url(self, val):
+        self._webhook_url = val
+
+    ###########################################################################
+    def send_notification(self, subject, message, recipient=None):
+
+        try:
+
+            logger.info("Sending slack notification '%s'..." % subject)
+            sc_client = CarbonIOClient(url=self.webhook_url)
+
+            text = "*%s*: %s" % (subject, message)
+
+            result = sc_client.post({
+                "text": text,
+                "mrkdwn": True
+
+            })
+
+            if result.text == "ok":
+                logger.info("Slack message sent successfully!")
+            else:
+                logger.error("Failed to send slack message. Result: %s" % result.text)
+        except Exception, e:
+            logger.error("Error while sending slack notification:\n%s" %
+                         traceback.format_exc())
 
 ###############################################################################
 def get_class_full_name(clazz):
