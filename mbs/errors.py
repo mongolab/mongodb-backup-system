@@ -403,6 +403,12 @@ class MongoctlConnectionError(RetriableDumpError):
     """
 
 ###############################################################################
+class NoCompatibleMongodumpExeFoundError(DumpError):
+    """
+        Raised when mongoctl (used for dump) cannot find a compatible mongodump exe
+    """
+
+###############################################################################
 class CursorDoesNotExistError(RetriableDumpError):
     pass
 
@@ -935,6 +941,8 @@ def raise_dump_error(returncode, error_log_line, last_namespace=None):
         error_type = CollectionReadError
     elif "oplog overflow" in error_log_line:
         error_type = OplogOverflowError
+    elif "mongoctl error" in error_log_line and "Unable to find a compatible 'mongodump'" in error_log_line:
+        error_type = NoCompatibleMongodumpExeFoundError
     elif returncode == 245: # segmentation fault
         error_type = MongodumpSegmentationFaultError
     # Generic retriable errors
