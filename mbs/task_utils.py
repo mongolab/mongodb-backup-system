@@ -18,7 +18,9 @@ import traceback
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
+########################################################################################################################
 
+MAX_ONEOFF_ATTEMPTS = 3
 
 ########################################################################################################################
 def trigger_task_finished_event(task, state):
@@ -65,7 +67,7 @@ def set_task_retry_info(task, error):
         task.final_retry_date = _compute_final_retry_date(task)
 
     next_retry_date = _compute_next_retry_date(task, error)
-    if next_retry_date <= task.final_retry_date:
+    if not task.final_retry_date or next_retry_date <= task.final_retry_date:
         task.next_retry_date = next_retry_date
     elif task.final_retry_date > date_now():
         task.next_retry_date = task.final_retry_date
@@ -81,8 +83,8 @@ def _compute_final_retry_date(task):
     if isinstance(task, Backup):
         if task.plan_occurrence:
             return mid_date_between(task.plan_occurrence, task.plan.schedule.next_natural_occurrence())
-        else:
-            return date_plus_seconds(task.created_date, 5 * 60 * 60)
+        elif task.try_count >= MAX_ONEOFF_ATTEMPTS: # oneoff final retry date is the last attempts start date
+            return task.start_date
     else:
         # restore, NOOP
         pass

@@ -625,13 +625,16 @@ class TaskQueueProcessor(Thread):
                 {
                     "state": State.FAILED,
                     "engineGuid": self._engine.engine_guid,
+                    "nextRetryDate": None,
+                    "finalRetryDate": {"$lte": date_now()},
                     "plan.nextOccurrence": {"$lte": date_now()}
                 },
                 {
                     "state": State.FAILED,
                     "engineGuid": self._engine.engine_guid,
                     "plan": {"$exists": False},
-                    "endDate": {"$lte": min_fail_end_date}
+                    "nextRetryDate": None,
+                    "finalRetryDate": {"$lte": min_fail_end_date}
                 }
             ]
         }
