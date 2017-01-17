@@ -499,6 +499,40 @@ class EbsVolumeStorage(VolumeStorage):
             else:
                 raise
 
+
+    ###########################################################################
+    @robustify(max_attempts=1, retry_interval=5,
+               do_on_exception=mbs_errors.raise_if_not_ec2_retriable,
+               do_on_failure=mbs_errors.raise_exception,
+               backoff=2)
+    def share_snapshot(self, ebs_ref, user_ids=None, groups=None):
+        if not user_ids and not groups:
+            raise ValueError("must specify user_ids or groups")
+
+        ebs_snapshot = self.get_ebs_snapshot_by_id(ebs_ref.snapshot_id)
+        if not ebs_snapshot:
+            raise mbs_errors.Ec2SnapshotDoesNotExistError("EBS snapshot '%s' does not exist" % ebs_ref.snapshot_id)
+
+        # remove dashes from user ids
+        if user_ids:
+            user_ids = map(lambda user_id: user_id.replace("-",""), user_ids)
+
+        try:
+            ebs_snapshot.share(user_ids=user_ids, groups=groups)
+            if user_ids:
+                ebs_ref.share_users = ebs_ref.share_users or list()
+                if not set(user_ids).issubset(set(ebs_ref.share_users)):
+                    ebs_ref.share_users.extend(user_ids)
+
+            if groups:
+                ebs_ref.share_groups = ebs_ref.share_groups or list()
+                if not set(groups).issubset(set(ebs_ref.share_groups)):
+                    ebs_ref.share_groups.extend(groups)
+
+            return ebs_ref
+        except mbs_errors.BotoServerError, bte:
+            raise mbs_errors.Ec2Error("Failed to share snapshot: %s" % bte, cause=bte)
+
     ###########################################################################
     def _new_ebs_snapshot_reference(self, ebs_snapshot):
         return EbsSnapshotReference(snapshot_id=ebs_snapshot.id,
@@ -1375,3 +1409,21 @@ def custom_ebs_create_snapshot(ec2_connection, volume_id, description=None):
 
     return snapshot
 
+
+########################################################################################################################
+@robustify(max_attempts=5, retry_interval=5,
+           do_on_exception=mbs_errors.raise_if_not_retriable,
+           do_on_failure=mbs_errors.raise_exception)
+def share_snapshot(snapshot_ref, user_ids=None, groups=None):
+    if isinstance(snapshot_ref, CompositeBlockStorageSnapshotReference):
+        logger.info("Sharing All constituent snapshots for composite snapshot: %s" % snapshot_ref)
+        for cs in snapshot_ref.constituent_snapshots:
+            cs.cloud_block_storage.share_snapshot(cs, user_ids=user_ids, groups=groups)
+    elif isinstance(snapshot_ref, EbsSnapshotReference):
+        snapshot_ref.cloud_block_storage.share_snapshot(snapshot_ref, user_ids=user_ids, groups=groups)
+    else:
+        raise ValueError("Cannot share a non EBS/Composite snapshot %s" % snapshot_ref)
+
+    logger.info("Snapshot %s shared successfully!" % snapshot_ref)
+
+    return snapshot_ref

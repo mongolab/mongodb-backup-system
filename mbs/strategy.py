@@ -2494,7 +2494,7 @@ class EbsVolumeStorageStrategy(CloudBlockStorageStrategy):
             is_sharing = self.share_users or self.share_groups
 
             if is_sharing:
-                share_snapshot_backup(backup, user_ids=self.share_users,
+                share_snapshot_backup(backup, cbs, user_ids=self.share_users,
                                       groups=self.share_groups)
             else:
                 logger.info("Snapshot backup '%s' not configured to be "
@@ -2534,22 +2534,15 @@ class EbsVolumeStorageStrategy(CloudBlockStorageStrategy):
 @robustify(max_attempts=5, retry_interval=5,
            do_on_exception=raise_if_not_retriable,
            do_on_failure=raise_exception)
-def share_snapshot_backup(backup, user_ids=None, groups=None):
+def share_snapshot_backup(backup, cbs, user_ids=None, groups=None):
     msg = ("Sharing snapshot backup '%s' with users:%s, groups:%s " %
            (backup.id, user_ids, groups))
     logger.info(msg)
 
     target_ref = backup.target_reference
-    if isinstance(target_ref, CompositeBlockStorageSnapshotReference):
-        logger.info("Sharing All constituent snapshots for composite backup"
-                    " '%s'..." % backup.id)
-        for cs in target_ref.constituent_snapshots:
-            cs.share_snapshot(user_ids=user_ids, groups=groups)
-    elif isinstance(target_ref, EbsSnapshotReference):
-        target_ref.share_snapshot(user_ids=user_ids,
-                                  groups=groups)
-    else:
-        raise ValueError("Cannot share a non EBS/Composite Backup '%s'" % backup.id)
+
+    target_ref = cbs.share_snapshot(target_ref, user_ids=user_ids, groups=groups)
+    backup.target_reference = target_ref
 
     update_backup(backup, properties="targetReference",
                   event_name="SHARE_SNAPSHOT",
