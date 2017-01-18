@@ -1855,7 +1855,7 @@ class CloudBlockStorageStrategy(BackupStrategy):
             msg = ("Cannot run a block storage snapshot backup for backup '%s'"
                    ".Backup source does not have a cloudBlockStorage "
                    "configured for address '%s'" % (backup.id, address))
-            raise ConfigurationError(msg)
+            raise NoCloudBlockStorageFoundError(msg)
 
         update_backup(backup, event_name="START_BLOCK_STORAGE_SNAPSHOT",
                       message="Starting snapshot backup...")

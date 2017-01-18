@@ -618,6 +618,12 @@ class BlockStorageSnapshotError(MBSError):
     """
 
 ###############################################################################
+# NoCloudBlockStorageFoundError
+###############################################################################
+class NoCloudBlockStorageFoundError(MBSError):
+    pass
+
+###############################################################################
 class SnapshotDidNotSucceedError(MBSError, RetriableError):
     """
         Thrown when snapshot status becomes 'error'
