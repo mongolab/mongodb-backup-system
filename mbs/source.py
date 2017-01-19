@@ -321,6 +321,7 @@ class VolumeStorage(CloudBlockStorage):
         self._volume_name = None
         self._volume_size = None
         self._fs_type = None
+        self._volume_encrypted = None
 
     ###########################################################################
     @property
@@ -368,6 +369,15 @@ class VolumeStorage(CloudBlockStorage):
         self._fs_type = val
 
     ###########################################################################
+    @property
+    def volume_encrypted(self):
+        return self._volume_encrypted
+
+    @volume_encrypted.setter
+    def volume_encrypted(self, val):
+        self._volume_encrypted = val
+
+    ###########################################################################
     def to_document(self, display_only=False):
         doc = super(VolumeStorage, self).to_document(display_only=display_only)
 
@@ -376,7 +386,8 @@ class VolumeStorage(CloudBlockStorage):
             "volumeName": self.volume_name,
             "volumeSize": self.volume_size,
             "cloudId": self.cloud_id,
-            "fsType": self.fs_type
+            "fsType": self.fs_type,
+            "volumeEncrypted": self.volume_encrypted
         })
 
         return doc
