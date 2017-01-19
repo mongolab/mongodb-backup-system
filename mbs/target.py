@@ -1451,16 +1451,15 @@ class EbsSnapshotReference(CloudBlockStorageSnapshotReference):
 
     ###########################################################################
     def __init__(self, snapshot_id=None, cloud_block_storage=None, status=None,
-                 volume_size=None, progress=None, start_time=None ):
-        CloudBlockStorageSnapshotReference.__init__(self, cloud_block_storage=
-                                                           cloud_block_storage,
-                                                          status=status)
+                 volume_size=None, progress=None, start_time=None, encrypted=None):
+        CloudBlockStorageSnapshotReference.__init__(self, cloud_block_storage=cloud_block_storage, status=status)
         self._snapshot_id = snapshot_id
         self._volume_size = volume_size
         self._progress = progress
         self._start_time = start_time
         self._share_users = None
         self._share_groups = None
+        self._encrypted = encrypted
 
     ###########################################################################
     @property
@@ -1516,6 +1515,16 @@ class EbsSnapshotReference(CloudBlockStorageSnapshotReference):
     def share_groups(self, val):
         self._share_groups = val
 
+
+    ###########################################################################
+    @property
+    def encrypted(self):
+        return self._encrypted
+
+    @encrypted.setter
+    def encrypted(self, encrypted):
+        self._encrypted = encrypted
+
     ###########################################################################
     def get_ebs_snapshot(self):
         cbs = self.cloud_block_storage
@@ -1529,7 +1538,8 @@ class EbsSnapshotReference(CloudBlockStorageSnapshotReference):
             "snapshotId": self.snapshot_id,
             "volumeSize": self.volume_size,
             "progress": self.progress,
-            "startTime": self.start_time
+            "startTime": self.start_time,
+            "encrypted": self.encrypted
         })
 
         if self.share_users:

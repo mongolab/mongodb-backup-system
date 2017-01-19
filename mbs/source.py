@@ -544,7 +544,8 @@ class EbsVolumeStorage(VolumeStorage):
                                     status=ebs_snapshot.status,
                                     start_time=ebs_snapshot.start_time,
                                     volume_size=ebs_snapshot.volume_size,
-                                    progress=ebs_snapshot.progress)
+                                    progress=ebs_snapshot.progress,
+                                    encrypted=ebs_snapshot.encrypted)
 
     ###########################################################################
     def new_ebs_snapshot_reference_from_existing(self, ebs_ref, ebs_snapshot):
