@@ -518,7 +518,11 @@ class EbsVolumeStorage(VolumeStorage):
             user_ids = map(lambda user_id: user_id.replace("-",""), user_ids)
 
         try:
+            logger.info("EC2: BEGIN Sharing snapshot '%s with users %s, groups %s' " %
+                        (ebs_ref.snapshot_id, user_ids, groups))
             ebs_snapshot.share(user_ids=user_ids, groups=groups)
+            logger.info("EC2: END Snapshot '%s' shared with users %s, groups %s successfully!" %
+                        (ebs_ref.snapshot_id, user_ids, groups))
             if user_ids:
                 ebs_ref.share_users = ebs_ref.share_users or list()
                 if not set(user_ids).issubset(set(ebs_ref.share_users)):
