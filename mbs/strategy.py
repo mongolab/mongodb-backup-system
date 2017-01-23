@@ -562,6 +562,7 @@ class BackupStrategy(MBSObject):
             best = passives with least lags, if no passives then least lag
         """
         members = mongo_cluster.members
+        rs_conf = mongo_cluster.primary_member.rs_conf
 
         all_secondaries = []
         hidden_secondaries = []
@@ -590,6 +591,10 @@ class BackupStrategy(MBSObject):
                 elif member.is_secondary():
                     if member.slave_delay:
                         logger.info("Member '%s' appears to have slave delay. "
+                                    "Excluding..." % member)
+                        continue
+                    elif mongo_cluster.is_member_not_eligible_for_backups(member, rs_conf):
+                        logger.info("Member '%s' is tagged to be not eligible for backups. "
                                     "Excluding..." % member)
                         continue
                     all_secondaries.append(member)
