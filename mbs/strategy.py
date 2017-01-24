@@ -421,7 +421,7 @@ class BackupStrategy(MBSObject):
             rs_conf = source_connector.primary_member.rs_conf
             for member in source_connector.members:
                 if (member.is_online() and
-                        source_connector.is_member_not_eligible_for_backups(member, rs_conf) and
+                        not source_connector.is_member_not_eligible_for_backups(member, rs_conf) and
                         (member.priority == 0 or member.hidden) and not member.slave_delay):
                     msg = ("No eligible p0 secondary found within max lag '%s'"
                            " for cluster '%s'" % (max_lag_seconds, source_connector))
