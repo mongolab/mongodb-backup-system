@@ -417,13 +417,12 @@ class BackupStrategy(MBSObject):
         # if cluster has any P0 (excluding slave delay)
         max_lag_seconds = self._max_allowed_lag_for_backup(backup)
 
-        if (isinstance(source_connector, MongoCluster) and
-                max_lag_seconds and
-                connector.priority != 0):
+        if isinstance(source_connector, MongoCluster) and max_lag_seconds and connector.priority != 0:
+            rs_conf = source_connector.primary_member.rs_conf
             for member in source_connector.members:
                 if (member.is_online() and
-                        (member.priority == 0 or member.hidden) and
-                        not member.slave_delay):
+                        source_connector.is_member_not_eligible_for_backups(member, rs_conf) and
+                        (member.priority == 0 or member.hidden) and not member.slave_delay):
                     msg = ("No eligible p0 secondary found within max lag '%s'"
                            " for cluster '%s'" % (max_lag_seconds, source_connector))
                     self.raise_no_eligible_members_found(source_connector, msg=msg)
