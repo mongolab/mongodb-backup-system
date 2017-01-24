@@ -452,7 +452,7 @@ class MongoCluster(MongoConnector):
     def is_member_not_eligible_for_backups(self, member, rs_conf):
         for mem_conf in rs_conf["members"]:
             if member.actual_address() == mem_conf["host"]:
-                return "tags" in mem_conf and mem_conf["tags"].get("notEligibleForMBSBackups") == "true"
+                return "tags" in mem_conf and mem_conf["tags"].get("notEligibleForMBSBackups") == "yes"
 
     ###########################################################################
     def get_member_by_address(self, address):
