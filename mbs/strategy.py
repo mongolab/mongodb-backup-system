@@ -23,7 +23,7 @@ from errors import *
 from utils import (which, ensure_dir, execute_command, execute_command_wrapper, safe_stringify,
                    listify, list_dir_subdirs, document_pretty_string)
 
-from source import CompositeBlockStorage
+from source import CompositeBlockStorage, is_snapshot_volume_encrypted
 
 from target import (
     SnapshotStatus, multi_target_upload_file,
@@ -2545,15 +2545,24 @@ def share_snapshot_backup(backup, cbs, user_ids=None, groups=None):
 
     target_ref = backup.target_reference
 
-    target_ref = cbs.share_snapshot(target_ref, user_ids=user_ids, groups=groups)
-    backup.target_reference = target_ref
+    # encrypted snapshots are not sharable. Log warning...
+    if is_snapshot_volume_encrypted(target_ref):
+        msg = "Will not share snapshot backup '%s' because the volume is encrypted" % backup.id
+        logger.warning(msg)
 
-    update_backup(backup, properties="targetReference",
-                  event_name="SHARE_SNAPSHOT",
-                  message=msg)
+        update_backup(backup, event_type=EventType.WARNING,
+                      event_name="NO_ENCRYPTED_EBS_SHARING",
+                      message=msg)
+    else:
+        target_ref = cbs.share_snapshot(target_ref, user_ids=user_ids, groups=groups)
+        backup.target_reference = target_ref
 
-    logger.info("Snapshot backup '%s' shared successfully!" %
-                backup.id)
+        update_backup(backup, properties="targetReference",
+                      event_name="SHARE_SNAPSHOT",
+                      message=msg)
+
+        logger.info("Snapshot backup '%s' shared successfully!" %
+                    backup.id)
 
 
 ###############################################################################

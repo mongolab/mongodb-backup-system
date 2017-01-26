@@ -1443,3 +1443,13 @@ def share_snapshot(snapshot_ref, user_ids=None, groups=None):
     logger.info("Snapshot %s shared successfully!" % snapshot_ref)
 
     return snapshot_ref
+
+########################################################################################################################
+def is_snapshot_volume_encrypted(snapshot_ref):
+    if isinstance(snapshot_ref, EbsSnapshotReference):
+        return snapshot_ref.cloud_block_storage.volume_encrypted
+    elif isinstance(snapshot_ref, CompositeBlockStorageSnapshotReference):
+        encrypted_constituents = filter(is_snapshot_volume_encrypted, snapshot_ref.constituent_snapshots)
+        return len(encrypted_constituents) > 0
+
+    return False
