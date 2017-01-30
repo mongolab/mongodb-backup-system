@@ -540,9 +540,10 @@ class BackupStrategy(MBSObject):
                                                  self.member_preference)
 
     ####################################################################################################################
-    def raise_no_eligible_members_found(self, mongo_cluster, msg):
+    def raise_no_eligible_members_found(self, mongo_cluster, msg, error_type=None):
         rs_conf = None
         rs_status = None
+        error_type = error_type or NoEligibleMembersFound
         try:
             rs_status = mongo_cluster.primary_member.get_rs_status()
         finally:
@@ -550,7 +551,7 @@ class BackupStrategy(MBSObject):
                 rs_conf = mongo_cluster.primary_member.rs_conf
             finally:
                 pass
-        raise NoEligibleMembersFound(mongo_cluster.uri, msg, rs_status=rs_status, rs_conf=rs_conf)
+        raise error_type(mongo_cluster.uri, msg, rs_status=rs_status, rs_conf=rs_conf)
 
 
     ####################################################################################################################
@@ -634,10 +635,14 @@ class BackupStrategy(MBSObject):
                     return secondary
                 elif secondary.lag_in_seconds <= max_lag_seconds:
                     return secondary
+                else:
+                    logger.info("Excluding secondary '%s' because its lagging %s seconds which is more than maximum"
+                                " allowed lag '%s'" % (secondary, secondary.lag_in_seconds, max_lag_seconds))
 
         self.raise_no_eligible_members_found(mongo_cluster,
                                              "No secondaries found for cluster %s within max allowed lag %s" %
-                                             (mongo_cluster, max_lag_seconds))
+                                             (mongo_cluster, max_lag_seconds),
+                                             error_type=NoSecondariesWithinMaxLagError)
 
     ####################################################################################################################
     def _validate_cluster_backup_node(self, mongo_cluster, backup_node, max_lag_seconds=None):

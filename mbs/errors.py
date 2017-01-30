@@ -268,6 +268,12 @@ class InvalidSelectedMemberError(NoEligibleMembersFound):
     """
 
 ###############################################################################
+class NoSecondariesWithinMaxLagError(NoEligibleMembersFound):
+    """
+    raised when the there is no secondaries found within maximum allowed lag
+    """
+
+###############################################################################
 class DBStatsError(MBSError):
     """
         Raised on dbstats command error
