@@ -367,20 +367,26 @@ class S3BucketTarget(BackupTarget):
     ###########################################################################
     def do_put_file(self, file_path, destination_path, metadata=None):
         # determine single/multi part upload
-        file_size = os.path.getsize(file_path)
 
-        if file_size >= MULTIPART_MIN_SIZE:
-            self._multi_part_put(file_path, destination_path, file_size,
-                                 metadata=metadata)
-        else:
-            self._single_part_put(file_path, destination_path,
-                                  metadata=metadata)
+        try:
+            file_size = os.path.getsize(file_path)
 
-        cloud_storage_encryption = self._fetch_file_info(destination_path)['cloud_storage_encryption']
+            if file_size >= MULTIPART_MIN_SIZE:
+                self._multi_part_put(file_path, destination_path, file_size,
+                                     metadata=metadata)
+            else:
+                self._single_part_put(file_path, destination_path,
+                                      metadata=metadata)
 
-        return FileReference(file_path=destination_path,
-                             file_size=file_size,
-                             cloud_storage_encryption=cloud_storage_encryption)
+            cloud_storage_encryption = self._fetch_file_info(destination_path)['cloud_storage_encryption']
+
+            return FileReference(file_path=destination_path,
+                                 file_size=file_size,
+                                 cloud_storage_encryption=cloud_storage_encryption)
+
+        except S3ResponseError, sre:
+            if 403 == sre.error_code:
+                raise errors.TargetInaccessibleError(self.bucket_name,cause=sre)
 
     ###########################################################################
     def _fetch_file_info(self, destination_path):
