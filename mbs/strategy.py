@@ -921,7 +921,10 @@ class BackupStrategy(MBSObject):
         except Exception, ex:
             msg = ("Suspend IO Error for '%s'" % mongo_connector)
             logger.exception(msg)
-            raise SuspendIOError(msg, cause=ex)
+            if isinstance(ex, MBSError):
+                raise
+            else:
+                raise SuspendIOError(msg, cause=ex)
         finally:
             self._start_max_io_suspend_monitor(backup, mongo_connector,
                                                cloud_block_storage)
@@ -980,7 +983,10 @@ class BackupStrategy(MBSObject):
         except Exception, ex:
             msg = ("Resume IO Error for '%s'" % mongo_connector)
             logger.exception(msg)
-            raise ResumeIOError(msg, cause=ex)
+            if isinstance(ex, MBSError):
+                raise
+            else:
+                raise ResumeIOError(msg, cause=ex)
 
 
 
