@@ -387,6 +387,8 @@ class S3BucketTarget(BackupTarget):
         except S3ResponseError, sre:
             if 403 == sre.error_code:
                 raise errors.TargetInaccessibleError(self.bucket_name,cause=sre)
+            else:
+                raise
 
     ###########################################################################
     def _fetch_file_info(self, destination_path):
