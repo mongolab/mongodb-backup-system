@@ -21,7 +21,7 @@ import rfc3339
 import date_utils
 
 from boto.ec2 import connect_to_region
-from azure.storage.blob import BlobService
+from azure.storage.blob.baseblobservice import BaseBlobService
 from azure.common import AzureMissingResourceHttpError
 from apiclient.discovery import build
 from oauth2client.client import SignedJwtAssertionCredentials
@@ -729,8 +729,8 @@ class BlobVolumeStorage(VolumeStorage):
             self.validate()
             logger.info("Creating connection to blob service for "
                         "volume '%s'" % self.volume_id)
-            conn = BlobService(account_name=self.storage_account,
-                               account_key=self.access_key)
+            conn = BaseBlobService(account_name=self.storage_account,
+                                   account_key=self.access_key)
 
             logger.info("Connection created successfully to blob "
                         "service for volume '%s'" % self.volume_id)
