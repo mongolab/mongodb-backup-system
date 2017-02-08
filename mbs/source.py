@@ -321,6 +321,7 @@ class VolumeStorage(CloudBlockStorage):
         self._volume_name = None
         self._volume_size = None
         self._fs_type = None
+        self._volume_encrypted = None
 
     ###########################################################################
     @property
@@ -368,6 +369,15 @@ class VolumeStorage(CloudBlockStorage):
         self._fs_type = val
 
     ###########################################################################
+    @property
+    def volume_encrypted(self):
+        return self._volume_encrypted
+
+    @volume_encrypted.setter
+    def volume_encrypted(self, val):
+        self._volume_encrypted = val
+
+    ###########################################################################
     def to_document(self, display_only=False):
         doc = super(VolumeStorage, self).to_document(display_only=display_only)
 
@@ -376,7 +386,8 @@ class VolumeStorage(CloudBlockStorage):
             "volumeName": self.volume_name,
             "volumeSize": self.volume_size,
             "cloudId": self.cloud_id,
-            "fsType": self.fs_type
+            "fsType": self.fs_type,
+            "volumeEncrypted": self.volume_encrypted
         })
 
         return doc
@@ -499,6 +510,44 @@ class EbsVolumeStorage(VolumeStorage):
             else:
                 raise
 
+
+    ###########################################################################
+    @robustify(max_attempts=1, retry_interval=5,
+               do_on_exception=mbs_errors.raise_if_not_ec2_retriable,
+               do_on_failure=mbs_errors.raise_exception,
+               backoff=2)
+    def share_snapshot(self, ebs_ref, user_ids=None, groups=None):
+        if not user_ids and not groups:
+            raise ValueError("must specify user_ids or groups")
+
+        ebs_snapshot = self.get_ebs_snapshot_by_id(ebs_ref.snapshot_id)
+        if not ebs_snapshot:
+            raise mbs_errors.Ec2SnapshotDoesNotExistError("EBS snapshot '%s' does not exist" % ebs_ref.snapshot_id)
+
+        # remove dashes from user ids
+        if user_ids:
+            user_ids = map(lambda user_id: user_id.replace("-",""), user_ids)
+
+        try:
+            logger.info("EC2: BEGIN Sharing snapshot '%s with users %s, groups %s' " %
+                        (ebs_ref.snapshot_id, user_ids, groups))
+            ebs_snapshot.share(user_ids=user_ids, groups=groups)
+            logger.info("EC2: END Snapshot '%s' shared with users %s, groups %s successfully!" %
+                        (ebs_ref.snapshot_id, user_ids, groups))
+            if user_ids:
+                ebs_ref.share_users = ebs_ref.share_users or list()
+                if not set(user_ids).issubset(set(ebs_ref.share_users)):
+                    ebs_ref.share_users.extend(user_ids)
+
+            if groups:
+                ebs_ref.share_groups = ebs_ref.share_groups or list()
+                if not set(groups).issubset(set(ebs_ref.share_groups)):
+                    ebs_ref.share_groups.extend(groups)
+
+            return ebs_ref
+        except mbs_errors.BotoServerError, bte:
+            raise mbs_errors.Ec2Error("Failed to share snapshot: %s" % bte, cause=bte)
+
     ###########################################################################
     def _new_ebs_snapshot_reference(self, ebs_snapshot):
         return EbsSnapshotReference(snapshot_id=ebs_snapshot.id,
@@ -506,7 +555,8 @@ class EbsVolumeStorage(VolumeStorage):
                                     status=ebs_snapshot.status,
                                     start_time=ebs_snapshot.start_time,
                                     volume_size=ebs_snapshot.volume_size,
-                                    progress=ebs_snapshot.progress)
+                                    progress=ebs_snapshot.progress,
+                                    encrypted=ebs_snapshot.encrypted)
 
     ###########################################################################
     def new_ebs_snapshot_reference_from_existing(self, ebs_ref, ebs_snapshot):
@@ -1375,3 +1425,31 @@ def custom_ebs_create_snapshot(ec2_connection, volume_id, description=None):
 
     return snapshot
 
+
+########################################################################################################################
+@robustify(max_attempts=5, retry_interval=5,
+           do_on_exception=mbs_errors.raise_if_not_retriable,
+           do_on_failure=mbs_errors.raise_exception)
+def share_snapshot(snapshot_ref, user_ids=None, groups=None):
+    if isinstance(snapshot_ref, CompositeBlockStorageSnapshotReference):
+        logger.info("Sharing All constituent snapshots for composite snapshot: %s" % snapshot_ref)
+        for cs in snapshot_ref.constituent_snapshots:
+            cs.cloud_block_storage.share_snapshot(cs, user_ids=user_ids, groups=groups)
+    elif isinstance(snapshot_ref, EbsSnapshotReference):
+        snapshot_ref.cloud_block_storage.share_snapshot(snapshot_ref, user_ids=user_ids, groups=groups)
+    else:
+        raise ValueError("Cannot share a non EBS/Composite snapshot %s" % snapshot_ref)
+
+    logger.info("Snapshot %s shared successfully!" % snapshot_ref)
+
+    return snapshot_ref
+
+########################################################################################################################
+def is_snapshot_volume_encrypted(snapshot_ref):
+    if isinstance(snapshot_ref, EbsSnapshotReference):
+        return snapshot_ref.cloud_block_storage.volume_encrypted
+    elif isinstance(snapshot_ref, CompositeBlockStorageSnapshotReference):
+        encrypted_constituents = filter(is_snapshot_volume_encrypted, snapshot_ref.constituent_snapshots)
+        return len(encrypted_constituents) > 0
+
+    return False

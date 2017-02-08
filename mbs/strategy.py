@@ -23,7 +23,7 @@ from errors import *
 from utils import (which, ensure_dir, execute_command, execute_command_wrapper, safe_stringify,
                    listify, list_dir_subdirs, document_pretty_string)
 
-from source import CompositeBlockStorage
+from source import CompositeBlockStorage, is_snapshot_volume_encrypted
 
 from target import (
     SnapshotStatus, multi_target_upload_file,
@@ -417,13 +417,12 @@ class BackupStrategy(MBSObject):
         # if cluster has any P0 (excluding slave delay)
         max_lag_seconds = self._max_allowed_lag_for_backup(backup)
 
-        if (isinstance(source_connector, MongoCluster) and
-                max_lag_seconds and
-                connector.priority != 0):
+        if isinstance(source_connector, MongoCluster) and max_lag_seconds and connector.priority != 0:
+            rs_conf = source_connector.primary_member.rs_conf
             for member in source_connector.members:
                 if (member.is_online() and
-                        (member.priority == 0 or member.hidden) and
-                        not member.slave_delay):
+                        not source_connector.is_member_not_eligible_for_backups(member, rs_conf) and
+                        (member.priority == 0 or member.hidden) and not member.slave_delay):
                     msg = ("No eligible p0 secondary found within max lag '%s'"
                            " for cluster '%s'" % (max_lag_seconds, source_connector))
                     self.raise_no_eligible_members_found(source_connector, msg=msg)
@@ -541,9 +540,10 @@ class BackupStrategy(MBSObject):
                                                  self.member_preference)
 
     ####################################################################################################################
-    def raise_no_eligible_members_found(self, mongo_cluster, msg):
+    def raise_no_eligible_members_found(self, mongo_cluster, msg, error_type=None):
         rs_conf = None
         rs_status = None
+        error_type = error_type or NoEligibleMembersFound
         try:
             rs_status = mongo_cluster.primary_member.get_rs_status()
         finally:
@@ -551,7 +551,7 @@ class BackupStrategy(MBSObject):
                 rs_conf = mongo_cluster.primary_member.rs_conf
             finally:
                 pass
-        raise NoEligibleMembersFound(mongo_cluster.uri, msg, rs_status=rs_status, rs_conf=rs_conf)
+        raise error_type(mongo_cluster.uri, msg, rs_status=rs_status, rs_conf=rs_conf)
 
 
     ####################################################################################################################
@@ -562,6 +562,7 @@ class BackupStrategy(MBSObject):
             best = passives with least lags, if no passives then least lag
         """
         members = mongo_cluster.members
+        rs_conf = mongo_cluster.primary_member.rs_conf
 
         all_secondaries = []
         hidden_secondaries = []
@@ -590,6 +591,10 @@ class BackupStrategy(MBSObject):
                 elif member.is_secondary():
                     if member.slave_delay:
                         logger.info("Member '%s' appears to have slave delay. "
+                                    "Excluding..." % member)
+                        continue
+                    elif mongo_cluster.is_member_not_eligible_for_backups(member, rs_conf):
+                        logger.info("Member '%s' is tagged to be not eligible for backups. "
                                     "Excluding..." % member)
                         continue
                     all_secondaries.append(member)
@@ -630,10 +635,14 @@ class BackupStrategy(MBSObject):
                     return secondary
                 elif secondary.lag_in_seconds <= max_lag_seconds:
                     return secondary
+                else:
+                    logger.info("Excluding secondary '%s' because its lagging %s seconds which is more than maximum"
+                                " allowed lag '%s'" % (secondary, secondary.lag_in_seconds, max_lag_seconds))
 
         self.raise_no_eligible_members_found(mongo_cluster,
                                              "No secondaries found for cluster %s within max allowed lag %s" %
-                                             (mongo_cluster, max_lag_seconds))
+                                             (mongo_cluster, max_lag_seconds),
+                                             error_type=NoSecondariesWithinMaxLagError)
 
     ####################################################################################################################
     def _validate_cluster_backup_node(self, mongo_cluster, backup_node, max_lag_seconds=None):
@@ -912,7 +921,10 @@ class BackupStrategy(MBSObject):
         except Exception, ex:
             msg = ("Suspend IO Error for '%s'" % mongo_connector)
             logger.exception(msg)
-            raise SuspendIOError(msg, cause=ex)
+            if isinstance(ex, MBSError):
+                raise
+            else:
+                raise SuspendIOError(msg, cause=ex)
         finally:
             self._start_max_io_suspend_monitor(backup, mongo_connector,
                                                cloud_block_storage)
@@ -971,7 +983,10 @@ class BackupStrategy(MBSObject):
         except Exception, ex:
             msg = ("Resume IO Error for '%s'" % mongo_connector)
             logger.exception(msg)
-            raise ResumeIOError(msg, cause=ex)
+            if isinstance(ex, MBSError):
+                raise
+            else:
+                raise ResumeIOError(msg, cause=ex)
 
 
 
@@ -1855,7 +1870,7 @@ class CloudBlockStorageStrategy(BackupStrategy):
             msg = ("Cannot run a block storage snapshot backup for backup '%s'"
                    ".Backup source does not have a cloudBlockStorage "
                    "configured for address '%s'" % (backup.id, address))
-            raise ConfigurationError(msg)
+            raise NoCloudBlockStorageFoundError(msg)
 
         update_backup(backup, event_name="START_BLOCK_STORAGE_SNAPSHOT",
                       message="Starting snapshot backup...")
@@ -2494,7 +2509,7 @@ class EbsVolumeStorageStrategy(CloudBlockStorageStrategy):
             is_sharing = self.share_users or self.share_groups
 
             if is_sharing:
-                share_snapshot_backup(backup, user_ids=self.share_users,
+                share_snapshot_backup(backup, cbs, user_ids=self.share_users,
                                       groups=self.share_groups)
             else:
                 logger.info("Snapshot backup '%s' not configured to be "
@@ -2534,29 +2549,31 @@ class EbsVolumeStorageStrategy(CloudBlockStorageStrategy):
 @robustify(max_attempts=5, retry_interval=5,
            do_on_exception=raise_if_not_retriable,
            do_on_failure=raise_exception)
-def share_snapshot_backup(backup, user_ids=None, groups=None):
+def share_snapshot_backup(backup, cbs, user_ids=None, groups=None):
     msg = ("Sharing snapshot backup '%s' with users:%s, groups:%s " %
            (backup.id, user_ids, groups))
     logger.info(msg)
 
     target_ref = backup.target_reference
-    if isinstance(target_ref, CompositeBlockStorageSnapshotReference):
-        logger.info("Sharing All constituent snapshots for composite backup"
-                    " '%s'..." % backup.id)
-        for cs in target_ref.constituent_snapshots:
-            cs.share_snapshot(user_ids=user_ids, groups=groups)
-    elif isinstance(target_ref, EbsSnapshotReference):
-        target_ref.share_snapshot(user_ids=user_ids,
-                                  groups=groups)
+
+    # encrypted snapshots are not sharable. Log warning...
+    if is_snapshot_volume_encrypted(target_ref):
+        msg = "Will not share snapshot backup '%s' because the volume is encrypted" % backup.id
+        logger.warning(msg)
+
+        update_backup(backup, event_type=EventType.WARNING,
+                      event_name="NO_ENCRYPTED_EBS_SHARING",
+                      message=msg)
     else:
-        raise ValueError("Cannot share a non EBS/Composite Backup '%s'" % backup.id)
+        target_ref = cbs.share_snapshot(target_ref, user_ids=user_ids, groups=groups)
+        backup.target_reference = target_ref
 
-    update_backup(backup, properties="targetReference",
-                  event_name="SHARE_SNAPSHOT",
-                  message=msg)
+        update_backup(backup, properties="targetReference",
+                      event_name="SHARE_SNAPSHOT",
+                      message=msg)
 
-    logger.info("Snapshot backup '%s' shared successfully!" %
-                backup.id)
+        logger.info("Snapshot backup '%s' shared successfully!" %
+                    backup.id)
 
 
 ###############################################################################

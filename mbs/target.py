@@ -367,20 +367,28 @@ class S3BucketTarget(BackupTarget):
     ###########################################################################
     def do_put_file(self, file_path, destination_path, metadata=None):
         # determine single/multi part upload
-        file_size = os.path.getsize(file_path)
 
-        if file_size >= MULTIPART_MIN_SIZE:
-            self._multi_part_put(file_path, destination_path, file_size,
-                                 metadata=metadata)
-        else:
-            self._single_part_put(file_path, destination_path,
-                                  metadata=metadata)
+        try:
+            file_size = os.path.getsize(file_path)
 
-        cloud_storage_encryption = self._fetch_file_info(destination_path)['cloud_storage_encryption']
+            if file_size >= MULTIPART_MIN_SIZE:
+                self._multi_part_put(file_path, destination_path, file_size,
+                                     metadata=metadata)
+            else:
+                self._single_part_put(file_path, destination_path,
+                                      metadata=metadata)
 
-        return FileReference(file_path=destination_path,
-                             file_size=file_size,
-                             cloud_storage_encryption=cloud_storage_encryption)
+            cloud_storage_encryption = self._fetch_file_info(destination_path)['cloud_storage_encryption']
+
+            return FileReference(file_path=destination_path,
+                                 file_size=file_size,
+                                 cloud_storage_encryption=cloud_storage_encryption)
+
+        except S3ResponseError, sre:
+            if 403 == sre.status:
+                raise errors.TargetInaccessibleError(self.bucket_name,cause=sre)
+            else:
+                raise
 
     ###########################################################################
     def _fetch_file_info(self, destination_path):
@@ -506,7 +514,7 @@ class S3BucketTarget(BackupTarget):
                         " bucket '%s'" % (file_path, self.bucket_name))
             return True
         except S3ResponseError, re:
-            if 403 == re.error_code:
+            if 403 == re.status:
                 raise errors.TargetInaccessibleError(self.bucket_name,
                                               cause=re)
         except Exception, e:
@@ -1451,16 +1459,15 @@ class EbsSnapshotReference(CloudBlockStorageSnapshotReference):
 
     ###########################################################################
     def __init__(self, snapshot_id=None, cloud_block_storage=None, status=None,
-                 volume_size=None, progress=None, start_time=None ):
-        CloudBlockStorageSnapshotReference.__init__(self, cloud_block_storage=
-                                                           cloud_block_storage,
-                                                          status=status)
+                 volume_size=None, progress=None, start_time=None, encrypted=None):
+        CloudBlockStorageSnapshotReference.__init__(self, cloud_block_storage=cloud_block_storage, status=status)
         self._snapshot_id = snapshot_id
         self._volume_size = volume_size
         self._progress = progress
         self._start_time = start_time
         self._share_users = None
         self._share_groups = None
+        self._encrypted = encrypted
 
     ###########################################################################
     @property
@@ -1516,32 +1523,15 @@ class EbsSnapshotReference(CloudBlockStorageSnapshotReference):
     def share_groups(self, val):
         self._share_groups = val
 
+
     ###########################################################################
-    def share_snapshot(self, user_ids=None, groups=None):
-        if not user_ids and not groups:
-            raise ValueError("must specify user_ids or groups")
+    @property
+    def encrypted(self):
+        return self._encrypted
 
-        ebs_snap = self.get_ebs_snapshot()
-        if not ebs_snap:
-            raise errors.Ec2SnapshotDoesNotExistError("EBS snapshot '%s' does not exist" % self.snapshot_id)
-
-        # remove dashes from user ids
-        if user_ids:
-            user_ids = map(lambda user_id: user_id.replace("-",""), user_ids)
-
-        try:
-            ebs_snap.share(user_ids=user_ids, groups=groups)
-            if user_ids:
-                self.share_users = self.share_users or list()
-                if not set(user_ids).issubset(set(self.share_users)):
-                    self.share_users.extend(user_ids)
-
-            if groups:
-                self.share_groups = self.share_groups or list()
-                if not set(groups).issubset(set(self.share_groups)):
-                    self.share_groups.extend(groups)
-        except errors.BotoServerError, bte:
-            raise errors.Ec2Error("Failed to share snapshot: %s" % bte, cause=bte)
+    @encrypted.setter
+    def encrypted(self, encrypted):
+        self._encrypted = encrypted
 
     ###########################################################################
     def get_ebs_snapshot(self):
@@ -1556,7 +1546,8 @@ class EbsSnapshotReference(CloudBlockStorageSnapshotReference):
             "snapshotId": self.snapshot_id,
             "volumeSize": self.volume_size,
             "progress": self.progress,
-            "startTime": self.start_time
+            "startTime": self.start_time,
+            "encrypted": self.encrypted
         })
 
         if self.share_users:
