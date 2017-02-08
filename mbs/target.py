@@ -385,7 +385,7 @@ class S3BucketTarget(BackupTarget):
                                  cloud_storage_encryption=cloud_storage_encryption)
 
         except S3ResponseError, sre:
-            if 403 == sre.error_code:
+            if 403 == sre.status:
                 raise errors.TargetInaccessibleError(self.bucket_name,cause=sre)
             else:
                 raise
@@ -514,7 +514,7 @@ class S3BucketTarget(BackupTarget):
                         " bucket '%s'" % (file_path, self.bucket_name))
             return True
         except S3ResponseError, re:
-            if 403 == re.error_code:
+            if 403 == re.status:
                 raise errors.TargetInaccessibleError(self.bucket_name,
                                               cause=re)
         except Exception, e:
