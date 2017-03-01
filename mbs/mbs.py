@@ -64,6 +64,7 @@ class MBS(object):
         self._deleted_plan_collection = None
         self._audit_collection = None
         self._restore_collection = None
+        self._target_collection = None
 
         # load backup system/engines lazily
         self._backup_system = None
@@ -216,6 +217,18 @@ class MBS(object):
             self._audit_collection = ac
 
         return self._audit_collection
+
+
+    ###########################################################################
+    @property
+    def target_collection(self):
+        if not self._target_collection:
+            import target
+            tc = MBSObjectCollection(self.database["targets"], clazz=target.BackupTarget,
+                                     type_bindings=self._type_bindings)
+            self._target_collection = tc
+
+        return self._target_collection
 
     ###########################################################################
     @property

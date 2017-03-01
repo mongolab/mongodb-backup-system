@@ -54,9 +54,11 @@ class BackupTarget(MBSObject):
 
     ###########################################################################
     def __init__(self):
+        MBSObject.__init__(self)
         self._preserve = None
         self._credentials = None
         self._cloud_storage_encryption_enabled = False
+        self._tags = None
 
     ###########################################################################
     @property
@@ -96,6 +98,15 @@ class BackupTarget(MBSObject):
         :return:
         """
         self._cloud_storage_encryption_enabled = bool(val)
+
+    ###########################################################################
+    @property
+    def tags(self):
+        return self._tags
+
+    @tags.setter
+    def tags(self, tags):
+        self._tags = tags
 
     ###########################################################################
     def put_file(self, file_path, destination_path=None,
@@ -329,9 +340,7 @@ class BackupTarget(MBSObject):
 
     ###########################################################################
     def to_document(self, display_only=False):
-        doc = {
-
-        }
+        doc = super(BackupTarget, self).to_document(display_only=display_only)
 
         if self.cloud_storage_encryption_enabled:
             doc["cloudStorageEncryptionEnabled"] = self.cloud_storage_encryption_enabled
@@ -341,6 +350,10 @@ class BackupTarget(MBSObject):
 
         if self.credentials is not None:
             doc["credentials"] = self.credentials.to_document(display_only=display_only)
+
+        if self.tags:
+            doc["tags"] = self.tags
+
         return doc
 
 ###############################################################################

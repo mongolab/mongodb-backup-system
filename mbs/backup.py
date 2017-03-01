@@ -1,6 +1,7 @@
 __author__ = 'abdul'
 
 from task import *
+from bson.dbref import DBRef
 
 ###############################################################################
 # Backup
@@ -221,13 +222,21 @@ class Backup(MBSTask):
         self._data_stats = val
 
     ###########################################################################
+    def _export_target(self, display_only=False):
+        if self.target:
+            if self.target.id:
+                return DBRef("targets", self.target.id)
+            else:
+                return self.target.to_document(display_only=display_only)
+
+    ###########################################################################
     def to_document(self, display_only=False):
 
         doc = MBSTask.to_document(self, display_only=display_only)
         doc.update({
             "_type": "Backup",
             "source": self.source and self.source.to_document(display_only=display_only),
-            "target": self.target and self.target.to_document(display_only=display_only),
+            "target": self._export_target(display_only=display_only),
             "planOccurrence": self.plan_occurrence,
             "expiredDate": self.expired_date,
             "dontExpire": self.dont_expire,
