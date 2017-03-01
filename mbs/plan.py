@@ -3,6 +3,7 @@ __author__ = 'abdul'
 from base import MBSObject
 
 from globals import Priority
+from bson.dbref import DBRef
 
 ###############################################################################
 # BackupPlan
@@ -151,6 +152,15 @@ class BackupPlan(MBSObject):
 
             return exported_tags
 
+
+    ###########################################################################
+    def _export_target(self, display_only=False):
+        if self.target:
+            if self.target.id:
+                return DBRef("targets", self.target.id)
+            else:
+                return self.target.to_document(display_only=display_only)
+
     ###########################################################################
     @property
     def priority(self):
@@ -169,7 +179,7 @@ class BackupPlan(MBSObject):
             "deletedDate": self.deleted_date,
             "description": self.description,
             "source": self.source.to_document(display_only=display_only),
-            "target": self.target.to_document(display_only=display_only),
+            "target": self._export_target(display_only=display_only),
             "schedule": self.schedule.to_document(display_only=display_only),
             "nextOccurrence": self.next_occurrence,
             "strategy": self.strategy.to_document(display_only=display_only),
