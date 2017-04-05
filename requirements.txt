@@ -24,6 +24,11 @@ python-simple-hipchat==0.4.0
 Pygerduty==0.31.0
 repoze.lru==0.6
 
+# specific azure dependencies (top level azure library is not as up to date as individual service libraries)
+azure-mgmt-compute==0.33.0
+azure-mgmt-network==0.30.1
+azure-mgmt-storage==0.31.0
+
 git+https://github.com/mlab/pymo.git@0.1.0#egg=pymo-0.1.0
 git+https://github.com/objectlabs/robustify.git@0.1.0#egg=robustify-0.1.0
 git+https://github.com/objectlabs/maker-py.git@0.3.4#egg=makerpy-0.3.4
