@@ -2,8 +2,6 @@ __author__ = 'abdul'
 
 from pymongo import ASCENDING, DESCENDING
 
-SIX_MONTH_SECONDS = 60 * 60 * 24 * 30 * 6
-
 MBS_INDEXES = {
     "backups": [
         {
@@ -15,14 +13,7 @@ MBS_INDEXES = {
         {
             "index": [('state', ASCENDING), ('engineGuid', ASCENDING), ('plan.nextOccurrence', ASCENDING)]
         },
-        {
-            "index": [
-                ('deletedDate', DESCENDING)
-            ],
-            "args": {
-                "expireAfterSeconds": SIX_MONTH_SECONDS
-            }
-        },
+
         {
             "index": [
                 ('state', ASCENDING),
