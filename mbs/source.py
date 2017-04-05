@@ -9,7 +9,8 @@ from robustify.robustify import (
 
 from target import (
     EbsSnapshotReference, LVMSnapshotReference, BlobSnapshotReference,
-    CompositeBlockStorageSnapshotReference, GcpDiskSnapshotReference
+    CompositeBlockStorageSnapshotReference, GcpDiskSnapshotReference,
+    ManagedDiskSnapshotReference
     )
 from mbs import get_mbs
 import errors as mbs_errors
@@ -894,7 +895,7 @@ class ManagedDiskVolumeStorage(VolumeStorage):
     ###########################################################################
     def _new_managed_disk_snapshot_reference(self, snapshot):
 
-        return BlobSnapshotReference(
+        return ManagedDiskSnapshotReference(
             snapshot_id=snapshot.id,
             cloud_block_storage=self,
             status="completed",
