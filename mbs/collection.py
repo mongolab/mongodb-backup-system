@@ -4,7 +4,7 @@ from globals import EventType
 from utils import listify
 from makerpy.object_collection import ObjectCollection
 from mongo_utils import objectiditify
-
+import traceback
 
 ###############################################################################
 # MBSObjectCollection class
@@ -72,8 +72,9 @@ class MBSTaskCollection(MBSObjectCollection):
         if not u or ("$set" not in u and "$push" not in u):
             import mbs
             import notification.handler
-            mbs.get_mbs().notifications.send_event_notification("BAD UPDATE", "BAD UPDATE",
-                                                                priority=notification.handler.NotificationPriority.CRITICAL)
+            mbs.get_mbs().notifications.send_event_notification(
+                "BAD UPDATE", "BAD UPDATE for task %s: %s , %s" % (task.id, u, traceback.format_exc()),
+                priority=notification.handler.NotificationPriority.CRITICAL)
             raise Exception("BAD UPDATE!!!!!")
 
         self.update(spec=q, document=u, **update_kwargs)
