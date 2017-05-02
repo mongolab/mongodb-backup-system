@@ -494,6 +494,7 @@ class S3BucketTarget(BackupTarget):
             msg = ("S3BucketTarget: Error while trying to download '%s'"
                    " from s3 bucket %s. Cause: %s" %
                    (file_path, self.bucket_name, e))
+            logger.exception(msg)
             raise errors.TargetError(msg, cause=e)
 
     ###########################################################################
