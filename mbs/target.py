@@ -743,8 +743,6 @@ class RackspaceCloudFilesTarget(BackupTarget):
         BackupTarget.__init__(self)
         self._container_name = None
         self._container = None
-        self._encrypted_username = None
-        self._encrypted_api_key = None
 
     ###########################################################################
     def do_put_file(self, file_path, destination_path, metadata=None):
@@ -915,66 +913,33 @@ class RackspaceCloudFilesTarget(BackupTarget):
         if self.credentials:
             return self.credentials.get_credential("username")
 
-        if self.encrypted_username:
-            return mbs.get_mbs().encryptor.decrypt_string(self.encrypted_username)
 
     @username.setter
     def username(self, username):
         if self.credentials:
             self.credentials.set_credential("username", username)
-        elif username:
-            eu = mbs.get_mbs().encryptor.encrypt_string(str(username))
-            self.encrypted_username = eu
 
     ###########################################################################
     @property
     def api_key(self):
         if self.credentials:
             return self.credentials.get_credential("apiKey")
-        if self.encrypted_api_key:
-            return mbs.get_mbs().encryptor.decrypt_string(self.encrypted_api_key)
 
     @api_key.setter
     def api_key(self, api_key):
         if self.credentials:
             self.credentials.set_credential("apiKey", api_key)
-        elif api_key:
-            eak = mbs.get_mbs().encryptor.encrypt_string(str(api_key))
-            self.encrypted_api_key = eak
-
-    ###########################################################################
-    @property
-    def encrypted_username(self):
-        return self._encrypted_username
-
-    @encrypted_username.setter
-    def encrypted_username(self, value):
-        if value:
-            self._encrypted_username = value.encode('ascii', 'ignore')
-
-    ###########################################################################
-    @property
-    def encrypted_api_key(self):
-        return self._encrypted_api_key
-
-    @encrypted_api_key.setter
-    def encrypted_api_key(self, value):
-        if value:
-            self._encrypted_api_key = value.encode('ascii', 'ignore')
 
     ###########################################################################
     def to_document(self, display_only=False):
 
         doc = BackupTarget.to_document(self, display_only=display_only)
 
-        eu = "xxxxx" if display_only else self.encrypted_username
-        eak = "xxxxx" if display_only else self.encrypted_api_key
+
 
         doc.update({
             "_type": "RackspaceCloudFilesTarget",
-            "containerName": self.container_name,
-            "encryptedUsername": eu,
-            "encryptedApiKey": eak
+            "containerName": self.container_name
         })
 
         return doc
