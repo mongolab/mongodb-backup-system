@@ -100,20 +100,26 @@ class Notifications(object):
             'Task Reschedule Failed',
             get_messages()['TaskRescheduleFailed'].get_message({
                 'task': task}))
+
     ###########################################################################
     def get_handlers_for(self, notification_type, priority=NotificationPriority.NORMAL):
+        handler_names = self.get_handler_names_for(notification_type, priority=priority)
+
+        return map(self.get_handler_by_name, handler_names)
+
+    ###########################################################################
+    def get_handler_names_for(self, notification_type, priority=NotificationPriority.NORMAL):
         handlers_conf = self.handler_mapping.get(notification_type)
-        handler_names = None
 
         if not handlers_conf:
-            handler_names = NotificationType.DEFAULT
+            handle_names = NotificationType.DEFAULT
         else:
             if isinstance(handlers_conf, dict):
-                handler_names = handlers_conf.get(priority)
+                handle_names = handlers_conf.get(priority)
             else:
-                handler_names = str(handlers_conf)
+                handle_names = listify(str(handlers_conf))
 
-        return map(self.get_handler_by_name, listify(handler_names))
+        return listify(handle_names)
 
     ###########################################################################
     def get_default_handler(self):
