@@ -281,6 +281,14 @@ class MBSTask(MBSObject):
             return errors[-1].error_code
 
     ###########################################################################
+    def get_last_scheduled_date(self):
+        scheduled_events = filter(lambda entry: (entry.name == EVENT_STATE_CHANGE and
+                                                 entry.state == State.SCHEDULED),
+                                  self.logs)
+        if scheduled_events:
+            return scheduled_events[-1].date
+
+    ###########################################################################
     def _get_logs_by_event_type(self, event_type):
         return filter(lambda entry: entry.event_type == event_type, self.logs)
 
