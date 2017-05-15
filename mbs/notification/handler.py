@@ -13,6 +13,8 @@ from ..utils import listify
 import hipchat
 import pygerduty
 from carbonio_client.client import CarbonIOClient
+from robustify.robustify import robustify
+from ..errors import raise_exception, raise_if_not_retriable
 
 DEFAULT_NOTIFICATION_SUBJECT = "Backup System Notification"
 
@@ -420,6 +422,12 @@ class HipchatNotificationHandler(NotificationHandler):
             logger.error("Error while sending hipchat message:\n%s" %
                          traceback.format_exc())
 
+###############################################################################
+def raise_if_not_pd_retriable(e):
+    if "Forbidden" in str(e):
+        logger.warn("Caught a retriable PD exception: %s" % e)
+    else:
+        raise_if_not_retriable(e)
 
 ###############################################################################
 # PagerDutyNotificationHandler
@@ -487,6 +495,9 @@ class PagerDutyNotificationHandler(NotificationHandler):
                          traceback.format_exc())
 
     ###########################################################################
+    @robustify(max_attempts=5, retry_interval=5,
+               do_on_exception=raise_if_not_pd_retriable,
+               do_on_failure=raise_exception)
     def resolve_incident(self, incident_key):
         logger.info("PagerDutyNotificationHandler: Resolving incident '%s'" % incident_key)
         return self.get_pager().resolve_incident(self.service_key, incident_key)
