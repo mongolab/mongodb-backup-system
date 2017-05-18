@@ -545,8 +545,10 @@ class BackupSystem(Thread):
             get_mbs().deleted_plan_collection.save_document(plan.to_document())
             logger.info("Removing plan '%s' from plans" % plan_id)
             get_mbs().plan_collection.remove_by_id(plan_id)
+            return True
         else:
             logger.info("No such plan '%s'" % plan_id)
+            return False
 
     ###########################################################################
     def _request_plan_retention(self, plan):
