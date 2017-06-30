@@ -86,8 +86,10 @@ class BackupSystemApiServer(ApiServer):
     ###########################################################################
     def delete_backup_plan(self, plan_id):
         try:
-            result = self.backup_system.remove_plan(plan_id)
-            return document_pretty_string(result)
+            deleted = self.backup_system.remove_plan(plan_id)
+            return document_pretty_string({
+                "deleted": deleted
+            })
         except Exception, e:
             msg = ("Error while trying to delete backup plan %s: %s" %
                    (plan_id, e))

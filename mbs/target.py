@@ -356,10 +356,6 @@ class S3BucketTarget(BackupTarget):
         self._access_key = None
         self._secret_key = None
 
-        self._encrypted_access_key = None
-        self._encrypted_secret_key = None
-        self._is_encrypted_credentials = None
-
         self._connection = None
         self._bucket = None
         self._region = None
@@ -494,6 +490,7 @@ class S3BucketTarget(BackupTarget):
             msg = ("S3BucketTarget: Error while trying to download '%s'"
                    " from s3 bucket %s. Cause: %s" %
                    (file_path, self.bucket_name, e))
+            logger.exception(msg)
             raise errors.TargetError(msg, cause=e)
 
     ###########################################################################
@@ -593,11 +590,8 @@ class S3BucketTarget(BackupTarget):
     def get_access_key(self):
         if self.credentials:
             return self.credentials.get_credential("accessKey")
-        elif not self.is_use_credential_encryption():
+        elif self._access_key:
             return self._access_key
-        elif self.encrypted_access_key:
-            return mbs.get_mbs().encryptor.decrypt_string(
-                self.encrypted_access_key)
 
     ###########################################################################
     @property
@@ -608,51 +602,11 @@ class S3BucketTarget(BackupTarget):
     def secret_key(self, secret_key):
         self._secret_key = str(secret_key)
 
-        if self.is_use_credential_encryption() and secret_key:
-            sak = mbs.get_mbs().encryptor.encrypt_string(str(secret_key))
-            self.encrypted_secret_key = sak
-
     def get_secret_key(self):
         if self.credentials:
             return self.credentials.get_credential("secretKey")
-        elif not self.is_use_credential_encryption():
+        elif self._secret_key:
             return self._secret_key
-        elif self.encrypted_secret_key:
-            return mbs.get_mbs().encryptor.decrypt_string(
-                self.encrypted_secret_key)
-
-    ###########################################################################
-    @property
-    def encrypted_access_key(self):
-        return self._encrypted_access_key
-
-    @encrypted_access_key.setter
-    def encrypted_access_key(self, val):
-        if val:
-            self._encrypted_access_key = val.encode('ascii', 'ignore')
-
-    ###########################################################################
-    @property
-    def encrypted_secret_key(self):
-        return self._encrypted_secret_key
-
-    @encrypted_secret_key.setter
-    def encrypted_secret_key(self, val):
-        if val:
-            self._encrypted_secret_key = val.encode('ascii', 'ignore')
-
-
-    ###########################################################################
-    @property
-    def is_encrypted_credentials(self):
-        return self._is_encrypted_credentials
-
-    @is_encrypted_credentials.setter
-    def is_encrypted_credentials(self, val):
-        self._is_encrypted_credentials = val
-
-    def is_use_credential_encryption(self):
-        return self.is_encrypted_credentials or self.is_encrypted_credentials is None
 
     ###########################################################################
     def get_temp_download_url(self, file_reference, expires_in_secs=30):
@@ -698,18 +652,10 @@ class S3BucketTarget(BackupTarget):
             "bucketName": self.bucket_name
         })
 
-        if self.is_encrypted_credentials is not None:
-            doc["isEncryptedCredentials"] = self.is_encrypted_credentials
-
-        if not self.is_use_credential_encryption():
+        if self._access_key:
             doc.update({
                 "accessKey": "xxxxx" if display_only else self._access_key,
                 "secretKey": "xxxxx" if display_only else self._secret_key
-            })
-        else:
-            doc.update({
-                "encryptedAccessKey": "xxxxx" if display_only else self.encrypted_access_key,
-                "encryptedSecretKey": "xxxxx" if display_only else self.encrypted_secret_key
             })
 
         return doc
@@ -797,8 +743,6 @@ class RackspaceCloudFilesTarget(BackupTarget):
         BackupTarget.__init__(self)
         self._container_name = None
         self._container = None
-        self._encrypted_username = None
-        self._encrypted_api_key = None
 
     ###########################################################################
     def do_put_file(self, file_path, destination_path, metadata=None):
@@ -969,66 +913,33 @@ class RackspaceCloudFilesTarget(BackupTarget):
         if self.credentials:
             return self.credentials.get_credential("username")
 
-        if self.encrypted_username:
-            return mbs.get_mbs().encryptor.decrypt_string(self.encrypted_username)
 
     @username.setter
     def username(self, username):
         if self.credentials:
             self.credentials.set_credential("username", username)
-        elif username:
-            eu = mbs.get_mbs().encryptor.encrypt_string(str(username))
-            self.encrypted_username = eu
 
     ###########################################################################
     @property
     def api_key(self):
         if self.credentials:
             return self.credentials.get_credential("apiKey")
-        if self.encrypted_api_key:
-            return mbs.get_mbs().encryptor.decrypt_string(self.encrypted_api_key)
 
     @api_key.setter
     def api_key(self, api_key):
         if self.credentials:
             self.credentials.set_credential("apiKey", api_key)
-        elif api_key:
-            eak = mbs.get_mbs().encryptor.encrypt_string(str(api_key))
-            self.encrypted_api_key = eak
-
-    ###########################################################################
-    @property
-    def encrypted_username(self):
-        return self._encrypted_username
-
-    @encrypted_username.setter
-    def encrypted_username(self, value):
-        if value:
-            self._encrypted_username = value.encode('ascii', 'ignore')
-
-    ###########################################################################
-    @property
-    def encrypted_api_key(self):
-        return self._encrypted_api_key
-
-    @encrypted_api_key.setter
-    def encrypted_api_key(self, value):
-        if value:
-            self._encrypted_api_key = value.encode('ascii', 'ignore')
 
     ###########################################################################
     def to_document(self, display_only=False):
 
         doc = BackupTarget.to_document(self, display_only=display_only)
 
-        eu = "xxxxx" if display_only else self.encrypted_username
-        eak = "xxxxx" if display_only else self.encrypted_api_key
+
 
         doc.update({
             "_type": "RackspaceCloudFilesTarget",
-            "containerName": self.container_name,
-            "encryptedUsername": eu,
-            "encryptedApiKey": eak
+            "containerName": self.container_name
         })
 
         return doc
