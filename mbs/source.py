@@ -23,7 +23,7 @@ import date_utils
 
 from boto.ec2 import connect_to_region
 from azure.storage.blob.baseblobservice import BaseBlobService
-from azure.mgmt.compute.compute_management_client import ComputeManagementClient
+from azure.mgmt.compute import ComputeManagementClient
 from azure.common import AzureMissingResourceHttpError
 from azure.common.credentials import ServicePrincipalCredentials
 from azure.mgmt.compute.models import DiskCreateOption
