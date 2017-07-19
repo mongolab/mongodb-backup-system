@@ -887,21 +887,32 @@ class ShardedClusterConnector(MongoConnector):
 
     ###########################################################################
     @property
-    def config_server(self):
-        if not self._config_server:
-            for conf_server in self._config_servers:
-                if conf_server.is_online():
-                    self._config_server = conf_server
+    def config_servers(self):
+        return self._config_servers
 
-        if self._config_server is None:
-            raise Exception("No online config servers found for '%s'" % self)
-        else:
-            return self._config_server
+    ###########################################################################
+    @property
+    def routers(self):
+        return self._routers
+
+    ###########################################################################
+    @property
+    def config_server(self):
+        return self._config_server
+
+    @config_server.setter
+    def config_server(self, val):
+        self._config_server = val
 
     ###########################################################################
     @property
     def selected_shard_secondaries(self):
         return self._selected_shard_secondaries
+
+    ###########################################################################
+    @selected_shard_secondaries.setter
+    def selected_shard_secondaries(self, val):
+        self._selected_shard_secondaries = val
 
     ###########################################################################
     @property
@@ -1011,9 +1022,11 @@ class ShardedClusterConnector(MongoConnector):
     ###########################################################################
     def info(self):
         i = {
-            "router": self.router.info(),
-            "configServer": self.config_server.info()
+            "router": self.router.info()
         }
+
+        if self.config_server:
+            i["configServer"] = self.config_server.info()
 
         if self.selected_shard_secondaries:
             shard_infos = map(lambda s: s.info(),

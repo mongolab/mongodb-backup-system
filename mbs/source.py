@@ -89,7 +89,8 @@ class BackupSource(MBSObject):
         self._cloud_block_storage = val
 
     ###########################################################################
-    def get_block_storage_by_address(self, address):
+    def get_block_storage_by_connector(self, connector):
+        address = connector.address
         block_storage = self.cloud_block_storage
         if block_storage is None:
             return None

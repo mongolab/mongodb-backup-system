@@ -450,6 +450,7 @@ class BackupStrategy(MBSObject):
 
     ###########################################################################
     def _select_backup_sharded_cluster_members(self, backup, sharded_cluster):
+        self.select_shard_config_server(sharded_cluster)
         # MAX LAG HAS TO BE 5 for sharded backups!
         # select best secondaries within shards
         self.select_shard_best_secondaries(sharded_cluster, max_lag_seconds=5)
@@ -467,9 +468,22 @@ class BackupStrategy(MBSObject):
                                                             "for shard '%s'" % shard.connector_id)
             best_secondaries.append(shard_best)
 
-        sharded_cluster._selected_shard_secondaries = best_secondaries
+        sharded_cluster.selected_shard_secondaries = best_secondaries
 
         return best_secondaries
+
+    ###########################################################################
+    def select_shard_config_server(self, sharded_cluster):
+        for conf_server in sharded_cluster.config_servers:
+            if isinstance(conf_server, MongoCluster):
+                sharded_cluster.config_server = self.get_cluster_best_secondary(conf_server, max_lag_seconds=0)
+                break
+            elif isinstance(conf_server, MongoServer) and conf_server.is_online():
+                sharded_cluster.config_server = conf_server
+                break
+
+        if sharded_cluster.config_server is None:
+            raise Exception("No online config servers found for '%s'" % sharded_cluster)
 
     ###########################################################################
     def _needs_new_member_selection(self, backup):
@@ -2182,8 +2196,7 @@ class CloudBlockStorageStrategy(BackupStrategy):
 
     ###########################################################################
     def get_backup_source_cbs(self, source, mongo_connector):
-        address = mongo_connector.address
-        return source.get_block_storage_by_address(address)
+        return source.get_block_storage_by_connector(mongo_connector)
 
     ###########################################################################
     def _do_run_restore(self, restore):
