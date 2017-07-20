@@ -474,13 +474,13 @@ class BackupStrategy(MBSObject):
 
     ###########################################################################
     def select_shard_config_server(self, sharded_cluster):
-        for conf_server in sharded_cluster.config_servers:
-            if isinstance(conf_server, MongoCluster):
-                sharded_cluster.config_server = self.get_cluster_best_secondary(conf_server, max_lag_seconds=0)
-                break
-            elif isinstance(conf_server, MongoServer) and conf_server.is_online():
-                sharded_cluster.config_server = conf_server
-                break
+        if isinstance(sharded_cluster.config_servers, MongoCluster):
+            sharded_cluster.config_server = self.get_cluster_best_secondary(sharded_cluster.config_servers, max_lag_seconds=0)
+        elif isinstance(sharded_cluster.config_servers, list):
+            for conf_server in sharded_cluster.config_servers:
+                if isinstance(conf_server, MongoServer) and conf_server.is_online():
+                    sharded_cluster.config_server = conf_server
+                    break
 
         if sharded_cluster.config_server is None:
             raise Exception("No online config servers found for '%s'" % sharded_cluster)
