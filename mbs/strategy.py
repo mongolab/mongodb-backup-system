@@ -660,7 +660,7 @@ class BackupStrategy(MBSObject):
                        " than max lag allowed %s" %
                        (backup_node, backup_node.lag_in_seconds,
                         max_lag_seconds))
-                self.raise_no_eligible_members_found(mongo_cluster, msg)
+                self.raise_no_eligible_members_found(mongo_cluster, msg, error_type=NoSecondariesWithinMaxLagError)
 
     ####################################################################################################################
     def _compute_cluster_stats(self, backup, mongo_cluster):
