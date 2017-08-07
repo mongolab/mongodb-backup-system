@@ -44,6 +44,7 @@ class ApiServer(object):
         self._ssl_options = None
         self._num_workers = DEFAULT_NUM_WORKERS
         self._local_client = None
+        self._debug_mode = False
 
     ####################################################################################################################
     @property
@@ -106,6 +107,15 @@ class ApiServer(object):
 
     ####################################################################################################################
     @property
+    def debug_mode(self):
+        return self._debug_mode
+
+    @debug_mode.setter
+    def debug_mode(self, val):
+        self._debug_mode = val
+
+    ####################################################################################################################
+    @property
     def local_client(self):
         if self._local_client is None:
             self._local_client = MBSClient(api_url="http://0.0.0.0:%s" % self.port)
@@ -145,7 +155,7 @@ class ApiServer(object):
             options = {
                 "bind": "0.0.0.0:%s" % self.port,
                 "workers": self.num_workers,
-                "worker_class": "gevent",
+                "worker_class": "gevent" if not self.debug_mode else "sync",
                 "proxy_protocol": self.protocol == "https"
             }
             MbsApiGunicornApplication(app, options).run()
