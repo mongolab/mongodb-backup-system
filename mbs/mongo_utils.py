@@ -975,7 +975,7 @@ class ShardedClusterConnector(MongoConnector):
 
     ###########################################################################
     def stop_balancer(self):
-        if self.version_greater_than_3_4():
+        if self.router.version_greater_than_3_4():
             logger.info("Issuing a balancerStop command on router %s" % self.router)
             result = self.admin_db.command({"balancerStop": 1})
             logger.info("balancerStop command result: %s" % result)
@@ -984,7 +984,7 @@ class ShardedClusterConnector(MongoConnector):
 
     ###########################################################################
     def resume_balancer(self):
-        if self.version_greater_than_3_4():
+        if self.router.version_greater_than_3_4():
             logger.info("Issuing a balancerStart command on router %s" % self.router)
             result = self.admin_db.command({"balancerStart": 1})
             logger.info("balancerStart command result: %s" % result)
