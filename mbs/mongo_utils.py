@@ -963,9 +963,13 @@ class ShardedClusterConnector(MongoConnector):
 
     ###########################################################################
     def _is_balancer_running(self):
-        balancer_lock = self._get_balancer_lock()
-        state = balancer_lock and balancer_lock.get("state")
-        return state and state > 0
+        if self.router.version_greater_than_3_4():
+            result = self.admin_db.command({"balancerStatus": 1})
+            return result and result.get("ok") and result.get("inBalancerRound")
+        else:
+            balancer_lock = self._get_balancer_lock()
+            state = balancer_lock and balancer_lock.get("state")
+            return state and state > 0
 
     ###########################################################################
     def _get_balancer_state(self):
