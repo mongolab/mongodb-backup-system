@@ -178,6 +178,11 @@ class MongoConnector(object):
     def version_greater_than_3_2(self):
         return self.get_mongo_version() >= MongoNormalizedVersion("3.2.0")
 
+    ###########################################################################
+    def version_greater_than_3_4(self):
+        return self.get_mongo_version() >= MongoNormalizedVersion("3.4.0")
+
+    ###########################################################################
     def version_greater_than_3_0(self):
         return self.get_mongo_version() >= MongoNormalizedVersion("3.0.0")
 
@@ -948,6 +953,11 @@ class ShardedClusterConnector(MongoConnector):
         return self.router.get_db("config")
 
     ###########################################################################
+    @property
+    def admin_db(self):
+        return self.router.get_db("admin")
+
+    ###########################################################################
     def is_balancer_active(self):
         return self._is_balancer_running() or self._get_balancer_state()
 
@@ -965,17 +975,29 @@ class ShardedClusterConnector(MongoConnector):
 
     ###########################################################################
     def stop_balancer(self):
-        self._set_balancer_state(False)
+        if self.version_greater_than_3_4():
+            logger.info("Issuing a balancerStop command on router %s" % self.router)
+            result = self.admin_db.command({"balancerStop": 1})
+            logger.info("balancerStop command result: %s" % result)
+        else:
+            self._set_balancer_state(False)
 
     ###########################################################################
     def resume_balancer(self):
-        self._set_balancer_state(True)
+        if self.version_greater_than_3_4():
+            logger.info("Issuing a balancerStart command on router %s" % self.router)
+            result = self.admin_db.command({"balancerStart": 1})
+            logger.info("balancerStart command result: %s" % result)
+        else:
+            self._set_balancer_state(True)
 
     ###########################################################################
     def _set_balancer_state(self, val):
+        stopped_state = not val
+        logger.info("Setting balancer stopped state to: " % (stopped_state))
         self.config_db().settings.update(
             {"_id": "balancer"},
-            {"$set": {"stopped": not val}},
+            {"$set": {"stopped": not stopped_state}},
             upsert=True
         )
 
