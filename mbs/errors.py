@@ -435,11 +435,31 @@ class CollectionReadError(RetriableDumpError):
 class OplogOverflowError(RetriableDumpError):
     pass
 
-########################################################################################################################
+###############################################################################
 class OverlappingBackupError(MBSError, RetriableError):
-    pass
 
-########################################################################################################################
+    ###########################################################################
+    def __init__(self, msg=None, cause=None, details=None, overlapping_backup_id=None):
+        MBSError.__init__(self, msg=msg, cause=cause, details=details)
+        self._overlapping_backup_id = None
+
+    ###########################################################################
+
+    @property
+    def overlapping_backup_id(self):
+        return self._overlapping_backup_id
+
+    @overlapping_backup_id.setter
+    def overlapping_backup_id(self, val):
+        self._overlapping_backup_id = val
+
+    ###########################################################################
+    def to_document(self, display_only=False):
+        doc = super(OverlappingBackupError, self).to_document(display_only=display_only)
+        doc["overlappingBackupId"] = self.overlapping_backup_id
+        return doc
+
+###############################################################################
 class OverlappingMongodumpError(OverlappingBackupError):
     pass
 
