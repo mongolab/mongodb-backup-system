@@ -879,6 +879,7 @@ class ShardedClusterConnector(MongoConnector):
         self._balancer_active_during_monitor = None
 
         self._stop_balancer_monitor_request = True
+        self._current_balaner_run_date_str = None
 
 
     ###########################################################################
@@ -962,6 +963,11 @@ class ShardedClusterConnector(MongoConnector):
         return self._is_balancer_running() or self._get_balancer_state()
 
     ###########################################################################
+    def get_balaner_latest_run_date_str(self):
+        lock = self._get_balancer_lock()
+        return lock and lock.get("when")
+
+    ###########################################################################
     def _is_balancer_running(self):
         if self.router.version_greater_than_3_4():
             result = self.admin_db.command({"balancerStatus": 1})
@@ -1030,12 +1036,22 @@ class ShardedClusterConnector(MongoConnector):
 
     ###########################################################################
     def balancer_active_during_monitor(self):
+        last_run_date_str = self.get_balaner_latest_run_date_str()
+        if self._current_balaner_run_date_str and self._current_balaner_run_date_str != last_run_date_str:
+            logger.info("Detected balancer activity! pre-run 'when' %s, current %s " %
+                        (self._current_balaner_run_date_str, last_run_date_str))
+            return False
+
         return self._balancer_active_during_monitor
 
     ###########################################################################
     def _do_monitor_activity(self):
         self._balancer_active_during_monitor = None
         self._stop_balancer_monitor_request = None
+
+        # TODO remove old monitoring technique if the new one is good enough
+        # new technique ! may be good enough
+        self._current_balaner_run_date_str = self.get_balaner_latest_run_date_str()
 
         while not (self._stop_balancer_monitor_request or
                        self._balancer_active_during_monitor):
