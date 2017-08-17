@@ -441,7 +441,7 @@ class OverlappingBackupError(MBSError, RetriableError):
     ###########################################################################
     def __init__(self, msg=None, cause=None, details=None, overlapping_backup_id=None):
         MBSError.__init__(self, msg=msg, cause=cause, details=details)
-        self._overlapping_backup_id = None
+        self._overlapping_backup_id = overlapping_backup_id
 
     ###########################################################################
 
