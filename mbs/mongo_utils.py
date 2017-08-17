@@ -1001,7 +1001,7 @@ class ShardedClusterConnector(MongoConnector):
         logger.info("Setting balancer stopped state to: %s" % stopped_state)
         self.config_db().settings.update(
             {"_id": "balancer"},
-            {"$set": {"stopped": not stopped_state}},
+            {"$set": {"stopped": stopped_state}},
             upsert=True
         )
 
