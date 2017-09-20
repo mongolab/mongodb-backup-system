@@ -925,7 +925,8 @@ class MBSApiError(Exception):
     def to_dict(self):
         return {
             "ok": 0,
-            "error": self.message
+            "error": self.message,
+            "message": self.message
         }
 
 ########################################################################################################################
