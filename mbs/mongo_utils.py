@@ -1147,6 +1147,9 @@ def _calculate_client_databases_stats(mongo_client):
     database_names = mongo_client.database_names()
 
     for dbname in database_names:
+        if dbname.startswith("$"):
+            continue
+
         db = mongo_client[dbname]
         db_stats = _calculate_database_stats(db)
         # capture local database stats
