@@ -790,7 +790,7 @@ class BackupStrategy(MBSObject):
             if rate:
                 backup.backup_rate_in_mbps = rate
                 # save changes
-                update_backup(backup, properties="backupRateInMBPS")
+                update_backup(backup, properties="backupRateInMbps")
 
 
     ###########################################################################
