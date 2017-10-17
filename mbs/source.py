@@ -978,9 +978,7 @@ class ManagedDiskVolumeStorage(VolumeStorage):
 
         doc.update({
             "_type": "ManagedDiskVolumeStorage",
-            "location": self.location,
-            "tenantId": self.tenant_id,
-            "subscriptionId": self.subscription_id
+            "location": self.location
         })
 
         return doc
