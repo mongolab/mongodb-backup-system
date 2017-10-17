@@ -166,13 +166,6 @@ class Backup(MBSTask):
     def backup_rate_in_mbps(self, backup_rate):
         self._backup_rate_in_mbps = backup_rate
 
-    @property
-    def backup_rate_in_mBPS(self):
-        return self._backup_rate_in_mbps
-
-    @backup_rate_in_mBPS.setter
-    def backup_rate_in_mBPS(self, backup_rate):
-        self._backup_rate_in_mbps = backup_rate
 
     ###########################################################################
     @property
