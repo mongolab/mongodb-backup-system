@@ -412,6 +412,7 @@ class TaskQueueProcessor(Thread):
 
         # monitor workers
         self._monitor_workers()
+        self._check_if_cancelled()
         # Cancel a failed task every 40 ticks and there are available
         # workers
         if self._tick_count % 40 == 0 and self._has_available_workers():
@@ -456,6 +457,15 @@ class TaskQueueProcessor(Thread):
                               "finished successfully. Cleaning up resources..."
                               % (worker.id, worker.pid, worker.task.id))
                     self._cleanup_worker_resources(worker)
+
+    ###########################################################################
+    def _check_if_cancelled(self):
+        time.sleep(30)
+        for worker in self._workers.values():
+            task = worker.task
+            latest_task = self.task_collection.find_one(task.id)
+            if latest_task.cancelled_at:
+                self.cancel_task(latest_task)
 
     ###########################################################################
     def _cleanup_worker_resources(self, worker):

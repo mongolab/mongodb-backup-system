@@ -25,8 +25,10 @@ class Backup(MBSTask):
         self._deleted_date = None
         self._data_stats = {}
         self._cluster_stats = None
+        self._cancelled_at = None
 
-    ###########################################################################
+
+###########################################################################
     def execute(self):
         """
             Override
@@ -214,6 +216,17 @@ class Backup(MBSTask):
         self._data_stats = val
 
     ###########################################################################
+    @property
+    def cancelled_at(self):
+        return self._cancelled_at
+
+    @cancelled_at.setter
+    def cancelled_at(self, cancelled_at):
+        self._cancelled_at = cancelled_at
+
+
+
+    ###########################################################################
     def to_document(self, display_only=False):
 
         doc = MBSTask.to_document(self, display_only=display_only)
@@ -260,5 +273,9 @@ class Backup(MBSTask):
 
         if self.data_stats:
             doc["dataStats"] = self.data_stats
+
+        if self.cancelled_at:
+            doc["cancelled_at"] = self.cancelled_at
+
 
         return doc
