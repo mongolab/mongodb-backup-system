@@ -25,7 +25,7 @@ class Backup(MBSTask):
         self._deleted_date = None
         self._data_stats = {}
         self._cluster_stats = None
-        self._cancelled_at = None
+        self._cancel_requested_at = None
 
 
 ###########################################################################
@@ -217,12 +217,12 @@ class Backup(MBSTask):
 
     ###########################################################################
     @property
-    def cancelled_at(self):
-        return self._cancelled_at
+    def cancel_requested_at(self):
+        return self._cancel_requested_at
 
-    @cancelled_at.setter
-    def cancelled_at(self, cancelled_at):
-        self._cancelled_at = cancelled_at
+    @cancel_requested_at.setter
+    def cancel_requested_at(self, cancel_requested_at):
+        self._cancel_requested_at = cancel_requested_at
 
 
 
@@ -274,8 +274,8 @@ class Backup(MBSTask):
         if self.data_stats:
             doc["dataStats"] = self.data_stats
 
-        if self.cancelled_at:
-            doc["cancelled_at"] = self.cancelled_at
+        if self.cancel_requested_at:
+            doc["cancelRequestedAt"] = self.cancel_requested_at
 
 
         return doc
