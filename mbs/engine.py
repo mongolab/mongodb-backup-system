@@ -463,7 +463,7 @@ class TaskQueueProcessor(Thread):
         for worker in self._workers.values():
             task = worker.task
             latest_task = self.task_collection.find_one(task.id)
-            if latest_task.cancel_requested_at:
+            if latest_task.state == State.CANCELED:
                 self.cancel_task(latest_task)
 
     ###########################################################################
