@@ -412,7 +412,9 @@ class TaskQueueProcessor(Thread):
 
         # monitor workers
         self._monitor_workers()
-        self._monitor_cancel_requests()
+        if self._tick_count % (60 / self._sleep_time) == 0:
+            self._monitor_cancel_requests()
+
         # Cancel a failed task every 40 ticks and there are available
         # workers
         if self._tick_count % 40 == 0 and self._has_available_workers():
@@ -460,11 +462,19 @@ class TaskQueueProcessor(Thread):
 
     ###########################################################################
     def _monitor_cancel_requests(self):
-        for worker in self._workers.values():
-            task = worker.task
-            latest_task = self.task_collection.find_one(task.id)
-            if latest_task.state == State.CANCELED:
-                self.cancel_task(latest_task)
+        logger.info("Entering monitor_cancel_requests")
+        all_task_ids = map(lambda worker: worker.task.id, self._workers.values())
+        for task_to_cancel in self.task_collection.find_iter({
+            "_id": {
+                "$in": all_task_ids
+            },
+            "state": State.CANCELED
+        }):
+            worker = self._get_task_worker(task_to_cancel)
+            if not isinstance(worker, TaskCleanWorker):
+                logger.info("Found a cancel request for backup: %s" % task_to_cancel.id)
+                logger.info("Cancelling task: %s" % task_to_cancel.id)
+                self.cancel_task(task_to_cancel)
 
     ###########################################################################
     def _cleanup_worker_resources(self, worker):
