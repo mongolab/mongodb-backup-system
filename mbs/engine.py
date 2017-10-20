@@ -412,6 +412,8 @@ class TaskQueueProcessor(Thread):
 
         # monitor workers
         self._monitor_workers()
+
+        # Check for canceled tasks every minute
         if self._tick_count % (60 / self._sleep_time) == 0:
             self._monitor_cancel_requests()
 
@@ -462,7 +464,6 @@ class TaskQueueProcessor(Thread):
 
     ###########################################################################
     def _monitor_cancel_requests(self):
-        logger.info("Entering monitor_cancel_requests")
         all_task_ids = map(lambda worker: worker.task.id, self._workers.values())
         for task_to_cancel in self.task_collection.find_iter({
             "_id": {
