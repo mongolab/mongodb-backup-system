@@ -5,6 +5,7 @@ import traceback
 import os
 
 import time
+import datetime
 import mbs_config
 import logging
 
@@ -595,6 +596,20 @@ class TaskQueueProcessor(Thread):
 
                 total_crashed += 1
 
+        # recover crashed tasks in state CANCELED, those are the ones that crashed right before engine restart
+        for task in self.task_collection.find({
+            "state": State.CANCELED,
+            "engineGuid": self._engine.engine_guid,
+            "cleanedUp": None
+        }):
+            msg = ("Engine crashed while %s %s was in progress. Recovering..." % (task.type_name, task.id))
+            self.info("Recovery: Recovering %s %s" % (task.type_name, task.id))
+
+            # update
+            self._clean_task(task)
+
+            total_crashed += 1
+
         self.info("Recovery complete! Total Crashed task: %s." %
                   total_crashed)
 
@@ -872,7 +887,7 @@ class TaskWorker(object):
         self._task.end_date = date_now()
         self._task.state = state
         self.get_task_collection().update_task(
-            self._task, properties=["state", "endDate", "nextRetryDate", "finalRetryDate"],
+            self._task, properties=["state", "endDate", "nextRetryDate", "finalRetryDate", "cleanedUp"],
             event_name=EVENT_STATE_CHANGE, message=message)
 
         trigger_task_finished_event(self._task, state)
@@ -929,6 +944,7 @@ class TaskCleanWorker(TaskWorker):
     def run(self):
         try:
             self._task.cleanup()
+            self.task.cleaned_up = datetime.datetime.utcnow().isoformat()
         finally:
             self.cleaner_finished()
 

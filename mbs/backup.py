@@ -25,6 +25,7 @@ class Backup(MBSTask):
         self._deleted_date = None
         self._data_stats = {}
         self._cluster_stats = None
+        self._cleaned_up = None
 
 
 ###########################################################################
@@ -215,6 +216,15 @@ class Backup(MBSTask):
         self._data_stats = val
 
     ###########################################################################
+    @property
+    def cleaned_up(self):
+        return self._cleaned_up
+
+    @cleaned_up.setter
+    def cleaned_up(self, val):
+        self._cleaned_up = val
+
+    ###########################################################################
     def to_document(self, display_only=False):
 
         doc = MBSTask.to_document(self, display_only=display_only)
@@ -226,7 +236,8 @@ class Backup(MBSTask):
             "expiredDate": self.expired_date,
             "dontExpire": self.dont_expire,
             "deletedDate": self.deleted_date,
-            "clusterStats": self.cluster_stats
+            "clusterStats": self.cluster_stats,
+            "cleanedUp": self.cleaned_up
         })
 
         if self.name:
