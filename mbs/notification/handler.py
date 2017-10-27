@@ -12,6 +12,7 @@ from .message import get_messages
 from ..utils import listify
 import hipchat
 import pygerduty
+import pypd
 from carbonio_client.client import CarbonIOClient
 from robustify.robustify import robustify
 from ..errors import raise_exception, raise_if_not_retriable
@@ -460,6 +461,7 @@ class PagerDutyNotificationHandler(NotificationHandler):
     @service_key.setter
     def service_key(self, val):
         self._service_key = val
+        pypd.api_key = val
 
     ###########################################################################
     @property
@@ -483,28 +485,43 @@ class PagerDutyNotificationHandler(NotificationHandler):
     def send_notification(self, subject, message, recipient=None):
 
         try:
-            pager = self.get_pager()
             kwargs = {}
             if self.client_name:
                 kwargs["client"] = self.client_name
 
             logger.info("PagerDuty: Sending notification: %s..." % subject)
-            return pager.create_event(self.service_key, subject, "trigger", message, subject, **kwargs)
+            # return pypd.Event().create(data={
+            #     'service_key': self.service_key,
+            #     'event_type': "trigger",
+            #     'description': subject,
+            #     'details': {'msg': message},
+            #     'incident_key': subject,
+            # })
+
+
+            return pypd.EventV2.create(data={
+                'routing_key': self.service_key,
+                'event_action': 'trigger',
+                'dedup_key': subject,
+                'payload': {
+                    'summary': subject,
+                    'severity': 'error',
+                    'source': 'test',
+                    'custom_details': message,
+                }
+            })
         except Exception, e:
             logger.error("Error while creating pager duty event:\n%s" %
                          traceback.format_exc())
 
     ###########################################################################
-    @robustify(max_attempts=5, retry_interval=5,
-               do_on_exception=raise_if_not_pd_retriable,
-               do_on_failure=raise_exception)
+    # @robustify(max_attempts=5, retry_interval=5,
+    #            do_on_exception=raise_if_not_pd_retriable,
+    #            do_on_failure=raise_exception)
     def resolve_incident(self, incident_key):
         logger.info("PagerDutyNotificationHandler: Resolving incident '%s'" % incident_key)
-        return self.get_pager().resolve_incident(self.service_key, incident_key)
-
-    ###########################################################################
-    def get_pager(self):
-        return pygerduty.PagerDuty(self.sub_domain, self.api_key)
+        incident = pypd.Incident.find(api_key=self.api_key, incident_key=incident_key)[-1]
+        return incident.resolve("alek@objectlabs.com")
 
 
 ###############################################################################
