@@ -238,6 +238,7 @@ class Backup(MBSTask):
             "dontExpire": self.dont_expire,
             "deletedDate": self.deleted_date,
             "clusterStats": self.cluster_stats,
+            "cancelRequestedAt": self.cancel_requested_at,
         })
 
         if self.name:
@@ -272,8 +273,5 @@ class Backup(MBSTask):
 
         if self.data_stats:
             doc["dataStats"] = self.data_stats
-
-        if self.cancel_requested_at:
-            doc["cancelRequestedAt"] = self.cancel_requested_at
 
         return doc
