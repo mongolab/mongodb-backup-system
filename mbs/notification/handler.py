@@ -490,14 +490,6 @@ class PagerDutyNotificationHandler(NotificationHandler):
                 kwargs["client"] = self.client_name
 
             logger.info("PagerDuty: Sending notification: %s..." % subject)
-            # return pypd.Event().create(data={
-            #     'service_key': self.service_key,
-            #     'event_type': "trigger",
-            #     'description': subject,
-            #     'details': {'msg': message},
-            #     'incident_key': subject,
-            # })
-
 
             return pypd.EventV2.create(data={
                 'routing_key': self.service_key,
@@ -507,7 +499,7 @@ class PagerDutyNotificationHandler(NotificationHandler):
                     'summary': subject,
                     'severity': 'error',
                     'source': 'test',
-                    'custom_details': message,
+                    'custom_details': {'details': message},
                 }
             })
         except Exception, e:
@@ -515,9 +507,9 @@ class PagerDutyNotificationHandler(NotificationHandler):
                          traceback.format_exc())
 
     ###########################################################################
-    # @robustify(max_attempts=5, retry_interval=5,
-    #            do_on_exception=raise_if_not_pd_retriable,
-    #            do_on_failure=raise_exception)
+    @robustify(max_attempts=5, retry_interval=5,
+               do_on_exception=raise_if_not_pd_retriable,
+               do_on_failure=raise_exception)
     def resolve_incident(self, incident_key):
         logger.info("PagerDutyNotificationHandler: Resolving incident '%s'" % incident_key)
         incident = pypd.Incident.find(api_key=self.api_key, incident_key=incident_key)[-1]
