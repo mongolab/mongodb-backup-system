@@ -5,6 +5,7 @@ import traceback
 import os
 
 import time
+import datetime
 import mbs_config
 import logging
 
@@ -412,7 +413,10 @@ class TaskQueueProcessor(Thread):
 
         # monitor workers
         self._monitor_workers()
+
+        # Check for canceled tasks every minute
         self._monitor_cancel_requests()
+
         # Cancel a failed task every 40 ticks and there are available
         # workers
         if self._tick_count % 40 == 0 and self._has_available_workers():
@@ -460,11 +464,15 @@ class TaskQueueProcessor(Thread):
 
     ###########################################################################
     def _monitor_cancel_requests(self):
-        for worker in self._workers.values():
-            task = worker.task
-            latest_task = self.task_collection.find_one(task.id)
-            if latest_task.state == State.CANCELED:
-                self.cancel_task(latest_task)
+        for task_to_cancel in self.task_collection.find_iter({
+            "state": {'$in': [State.IN_PROGRESS, State.FAILED]},
+            "cancelRequestedAt": {'$ne': None}
+        }):
+            worker = self._get_task_worker(task_to_cancel)
+            if not isinstance(worker, TaskCleanWorker):
+                logger.info("Found a cancel request for backup: %s" % task_to_cancel.id)
+                logger.info("Cancelling task: %s" % task_to_cancel.id)
+                self.cancel_task(task_to_cancel)
 
     ###########################################################################
     def _cleanup_worker_resources(self, worker):
@@ -583,6 +591,20 @@ class TaskQueueProcessor(Thread):
                 self._start_task(task)
 
                 total_crashed += 1
+
+        # recover crashed tasks in state CANCELED, those are the ones that crashed right before engine restart
+        for task in self.task_collection.find({
+            "state": State.CANCELED,
+            "engineGuid": self._engine.engine_guid,
+            "cleanedUp": None
+        }):
+            msg = ("Engine crashed while %s %s was in progress. Recovering..." % (task.type_name, task.id))
+            self.info("Recovery: Recovering %s %s" % (task.type_name, task.id))
+
+            # update
+            self._clean_task(task)
+
+            total_crashed += 1
 
         self.info("Recovery complete! Total Crashed task: %s." %
                   total_crashed)
@@ -861,7 +883,7 @@ class TaskWorker(object):
         self._task.end_date = date_now()
         self._task.state = state
         self.get_task_collection().update_task(
-            self._task, properties=["state", "endDate", "nextRetryDate", "finalRetryDate"],
+            self._task, properties=["state", "endDate", "nextRetryDate", "finalRetryDate", "cleanedUp"],
             event_name=EVENT_STATE_CHANGE, message=message)
 
         trigger_task_finished_event(self._task, state)
@@ -918,6 +940,7 @@ class TaskCleanWorker(TaskWorker):
     def run(self):
         try:
             self._task.cleanup()
+            self.task.cleaned_up = datetime.datetime.utcnow().isoformat()
         finally:
             self.cleaner_finished()
 

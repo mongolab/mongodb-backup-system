@@ -23,6 +23,7 @@ gevent==1.1.2
 gunicorn==19.6.0
 python-simple-hipchat==0.4.0
 Pygerduty==0.31.0
+pypd==1.0.0
 repoze.lru==0.6
 
 git+https://github.com/mlab/pymo.git@0.1.0#egg=pymo-0.1.0
