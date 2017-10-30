@@ -466,7 +466,8 @@ class TaskQueueProcessor(Thread):
     def _monitor_cancel_requests(self):
         for task_to_cancel in self.task_collection.find_iter({
             "state": {'$in': [State.IN_PROGRESS, State.FAILED]},
-            "cancelRequestedAt": {'$ne': None}
+            "cancelRequestedAt": {'$ne': None},
+            "engineGuid": self._engine.engine_guid
         }):
             worker = self._get_task_worker(task_to_cancel)
             if not isinstance(worker, TaskCleanWorker):
