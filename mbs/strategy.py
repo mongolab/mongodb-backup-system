@@ -2276,7 +2276,10 @@ class HybridStrategy(BackupStrategy):
         # to re-determine that again
 
         selected_strategy = self.select_strategy(backup, mongo_connector)
+        self._run_backup_for_selected_strategy(backup, mongo_connector, selected_strategy)
 
+    ###########################################################################
+    def _run_backup_for_selected_strategy(self, backup, mongo_connector, selected_strategy):
         selected_strategy.backup_mongo_connector(backup, mongo_connector)
 
     ###########################################################################
