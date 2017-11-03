@@ -1578,6 +1578,7 @@ class DumpStrategy(BackupStrategy):
         # stop on errors for 3.0 restores
         if dest_mongo_version >= VERSION_3_0:
             restore_options.append("--stopOnError")
+            restore_options.extend(["--numParallelCollections", "1"])
 
         # additional restore options
         if self.no_index_restore:
