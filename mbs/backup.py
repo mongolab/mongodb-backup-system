@@ -25,7 +25,6 @@ class Backup(MBSTask):
         self._deleted_date = None
         self._data_stats = {}
         self._cluster_stats = None
-        self._cancel_requested_at = None
 
 
 ###########################################################################
@@ -216,16 +215,6 @@ class Backup(MBSTask):
         self._data_stats = val
 
     ###########################################################################
-    @property
-    def cancel_requested_at(self):
-        return self._cancel_requested_at
-
-    @cancel_requested_at.setter
-    def cancel_requested_at(self, cancel_requested_at):
-        self._cancel_requested_at = cancel_requested_at
-
-
-    ###########################################################################
     def to_document(self, display_only=False):
 
         doc = MBSTask.to_document(self, display_only=display_only)
@@ -238,7 +227,6 @@ class Backup(MBSTask):
             "dontExpire": self.dont_expire,
             "deletedDate": self.deleted_date,
             "clusterStats": self.cluster_stats,
-            "cancelRequestedAt": self.cancel_requested_at,
         })
 
         if self.name:
