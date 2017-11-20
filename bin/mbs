@@ -24,7 +24,6 @@ from mbs.mbs_logging import setup_logging, redirect_std_to_logger
 from mbs.persistence import get_backup, get_backup_plan, get_restore
 
 import code
-import datetime
 
 ###############################################################################
 # MAIN
@@ -539,7 +538,7 @@ def clean_restore(parsed_args):
 ###############################################################################
 def cancel_backup(parsed_args):
     backup = _get_backup(parsed_args.backupId)
-    backup.cancel_requested_at = datetime.datetime.utcnow().isoformat()
+    backup.cancel_requested_at = mbs.date_utils.date_now()
     engine = _get_engine()
 
     if backup.state == State.CANCELED:
