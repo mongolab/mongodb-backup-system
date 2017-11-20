@@ -537,6 +537,12 @@ def clean_restore(parsed_args):
 
 ###############################################################################
 def cancel_backup(parsed_args):
+    def is_backup_canceled():
+        return backup.state == State.CANCELED
+
+    def backup_cancelation_logger():
+        print "waiting for backup state to be CANCELED"
+
     backup = _get_backup(parsed_args.backupId)
     backup.cancel_requested_at = mbs.date_utils.date_now()
     engine = _get_engine()
@@ -544,27 +550,14 @@ def cancel_backup(parsed_args):
     if backup.state == State.CANCELED:
         print "Backup is already canceled"
         return
-
-    if parsed_args.force or prompt_confirm("Cancel backup '%s'?" % backup.id):
-        result = engine.client.cancel_backup(backup.id)
-        wait_for(lambda: is_backup_canceled(backup.id), log_func=is_backup_canceled_log)
-        print document_pretty_string(result)
-
-###############################################################################
-def is_backup_canceled(backup_id):
-    backup = _get_backup(backup_id)
-    if backup.state == State.CANCELED:
-        return True
     elif backup.state == State.SUCCEEDED:
         print "Backup succeeded, so can't be canceled"
         exit(1)
-    else:
-        return False
 
-###############################################################################
-def is_backup_canceled_log():
-    print "waiting for backup state to be CANCELED"
-
+    if parsed_args.force or prompt_confirm("Cancel backup '%s'?" % backup.id):
+        result = engine.client.cancel_backup(backup.id)
+        wait_for(lambda: is_backup_canceled, log_func=backup_cancelation_logger)
+        print document_pretty_string(result)
 
 ###############################################################################
 def cancel_restore(parsed_args):
