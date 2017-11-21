@@ -538,11 +538,18 @@ def clean_restore(parsed_args):
 ###############################################################################
 def cancel_backup(parsed_args):
     def is_backup_canceled():
-        fresh_backup_doc = _get_backup(parsed_args.backupId)
-        return fresh_backup_doc.state == State.CANCELED
+        latest_backup_copy = _get_backup(parsed_args.backupId)
+        return latest_backup_copy.state == State.CANCELED
 
     def backup_cancelation_logger():
-        print "waiting for backup state to be CANCELED"
+        print "Waiting for backup state to be CANCELED"
+
+    def wait_for_cancelation():
+        wait_for(lambda: is_backup_canceled(), log_func=backup_cancelation_logger)
+        if is_backup_canceled():
+            print "Backup %s canceled successfully" % backup.id
+        else:
+            raise Exception("Backup %s could not be canceled" % backup.id)
 
     backup = _get_backup(parsed_args.backupId)
 
@@ -550,13 +557,17 @@ def cancel_backup(parsed_args):
         print "Backup is already canceled"
         return
     elif backup.state == State.SUCCEEDED:
-        print "Backup succeeded, so can't be canceled"
+        print "Backup succeeded, so cannot be canceled"
         exit(1)
+    elif backup.cancel_requested_at and backup.state != State.CANCELED:
+        print "Request to cancel backup %s already issued" % backup.id
+        wait_for_cancelation()
 
     if parsed_args.force or prompt_confirm("Cancel backup '%s'?" % backup.id):
+        print "Requesting cancelation for backup %s" % backup.id
         backup.cancel_requested_at = mbs.date_utils.date_now()
         update_backup(backup, properties="cancelRequestedAt", message="Backup canceled through cli")
-        wait_for(lambda: is_backup_canceled(), log_func=backup_cancelation_logger)
+        wait_for_cancelation()
 
 ###############################################################################
 def cancel_restore(parsed_args):
