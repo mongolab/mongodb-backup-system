@@ -20,6 +20,7 @@ from mbs.utils import (
     )
 from mbs import mbs_config
 from mbs.mbs_logging import setup_logging, redirect_std_to_logger
+from mbs import date_utils
 
 from mbs.persistence import get_backup, get_backup_plan, get_restore, update_backup
 
@@ -565,7 +566,7 @@ def cancel_backup(parsed_args):
 
     if parsed_args.force or prompt_confirm("Cancel backup '%s'?" % backup.id):
         print "Requesting cancelation for backup %s" % backup.id
-        backup.cancel_requested_at = mbs.date_utils.date_now()
+        backup.cancel_requested_at = date_utils.date_now()
         update_backup(backup, properties="cancelRequestedAt", message="Backup canceled through cli")
         wait_for_cancelation()
 
