@@ -36,6 +36,14 @@ MBS_INDEXES = {
                 ('deletedDate', DESCENDING),
                 ('expiredDate', DESCENDING)
             ]
+        },
+
+        {
+            "index": [
+                ('engineGuid', ASCENDING),
+                ('state', ASCENDING),
+                ('cancelRequestedAt', ASCENDING)
+            ]
         }
     ],
 

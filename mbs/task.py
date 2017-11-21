@@ -34,6 +34,7 @@ class MBSTask(MBSObject):
         self._next_retry_date = None
         self._final_retry_date = None
         self._worker_info = None
+        self._cancel_requested_at = None
 
     ###########################################################################
     def execute(self):
@@ -216,6 +217,15 @@ class MBSTask(MBSObject):
         self._worker_info = val
 
     ###########################################################################
+    @property
+    def cancel_requested_at(self):
+        return self._cancel_requested_at
+
+    @cancel_requested_at.setter
+    def cancel_requested_at(self, cancel_requested_at):
+        self._cancel_requested_at = cancel_requested_at
+
+    ###########################################################################
     def log_event(self, event_type=EventType.INFO, name=None, message=None,
                   details=None, error_code=None):
         logs = self.logs
@@ -345,7 +355,8 @@ class MBSTask(MBSObject):
             "logs": self.export_logs(),
             "tryCount": self.try_count,
             "nextRetryDate": self.next_retry_date,
-            "finalRetryDate": self.final_retry_date
+            "finalRetryDate": self.final_retry_date,
+            "cancelRequestedAt": self.cancel_requested_at,
         })
 
         if self.description:
