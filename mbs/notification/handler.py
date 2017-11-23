@@ -11,7 +11,7 @@ from sendgrid import Sendgrid, Message
 from .message import get_messages
 from ..utils import listify
 import hipchat
-import pygerduty
+
 import pypd
 from carbonio_client.client import CarbonIOClient
 from robustify.robustify import robustify
