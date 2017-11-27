@@ -515,15 +515,10 @@ class PagerDutyNotificationHandler(NotificationHandler):
         try:
             logger.info("PagerDutyNotificationHandler: Resolving incident '%s'" % incident_key)
 
-            response = pypd.EventV2.create(data={
+            response = pypd.EventV2.request(method='POST', data={
                 'routing_key': self.service_key,
                 'event_action': 'resolve',
-                'dedup_key': incident_key,
-                'payload': {
-                    'summary': "gsdgs",
-                    'severity': 'error',
-                    'source': 'test',
-                }
+                'dedup_key': incident_key
             })
             return response["dedup_key"]
         except Exception, e:
