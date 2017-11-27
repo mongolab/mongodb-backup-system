@@ -491,10 +491,9 @@ class PagerDutyNotificationHandler(NotificationHandler):
 
             logger.info("PagerDuty: Sending notification: %s..." % subject)
 
-            return pypd.EventV2.create(data={
+            response = pypd.EventV2.create(data={
                 'routing_key': self.service_key,
                 'event_action': 'trigger',
-                'dedup_key': subject,
                 'payload': {
                     'summary': subject,
                     'severity': 'error',
@@ -502,6 +501,7 @@ class PagerDutyNotificationHandler(NotificationHandler):
                     'custom_details': {'details': message},
                 }
             })
+            return response["dedup_key"]
         except Exception, e:
             logger.error("Error while creating pager duty event:\n%s" %
                          traceback.format_exc())
