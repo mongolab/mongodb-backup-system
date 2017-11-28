@@ -496,6 +496,7 @@ class PagerDutyNotificationHandler(NotificationHandler):
                 'event_action': 'trigger',
                 'payload': {
                     'summary': subject,
+                    'dedup_key': subject,
                     'severity': 'error',
                     'source': 'test',
                     'custom_details': {'details': message},
@@ -528,6 +529,11 @@ class PagerDutyNotificationHandler(NotificationHandler):
         except Exception, e:
             logger.error("Error while trying to resolve PagerDuty event:\n%s" %
                          traceback.format_exc())
+
+    ###########################################################################
+    def list_incidents(self, **kwargs):
+        all_incidents = pypd.Incident.find(api_key=self.api_key, fetch_all=True, **kwargs)
+        return all_incidents
 
 ###############################################################################
 # SlackNotificationHandler
