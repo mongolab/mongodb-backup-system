@@ -491,19 +491,20 @@ class PagerDutyNotificationHandler(NotificationHandler):
 
             logger.info("PagerDuty: Sending notification: %s..." % subject)
 
-            return pypd.EventV2.create(data={
+            response = pypd.EventV2.create(data={
                 'routing_key': self.service_key,
                 'event_action': 'trigger',
-                'dedup_key': subject,
                 'payload': {
                     'summary': subject,
+                    'dedup_key': subject,
                     'severity': 'error',
                     'source': 'test',
                     'custom_details': {'details': message},
                 }
             })
+            return response["dedup_key"]
         except Exception, e:
-            logger.error("Error while creating pager duty event:\n%s" %
+            logger.error("Error while creating PagerDuty event:\n%s" %
                          traceback.format_exc())
 
     ###########################################################################
@@ -511,10 +512,28 @@ class PagerDutyNotificationHandler(NotificationHandler):
                do_on_exception=raise_if_not_pd_retriable,
                do_on_failure=raise_exception)
     def resolve_incident(self, incident_key):
-        logger.info("PagerDutyNotificationHandler: Resolving incident '%s'" % incident_key)
-        incident = pypd.Incident.find(api_key=self.api_key, incident_key=incident_key)[-1]
-        return incident.resolve("alek@objectlabs.com")
+        try:
+            logger.info("PagerDutyNotificationHandler: Resolving incident '%s'" % incident_key)
 
+            response = pypd.EventV2.create(data={
+                'routing_key': self.service_key,
+                'event_action': 'resolve',
+                'dedup_key': incident_key,
+                'payload': {
+                    'summary': 'Resolving incident %s' % incident_key,
+                    'severity': 'error',
+                    'source': self.client_name,
+                }
+            })
+            return response["dedup_key"]
+        except Exception, e:
+            logger.error("Error while trying to resolve PagerDuty event:\n%s" %
+                         traceback.format_exc())
+
+    ###########################################################################
+    def list_incidents(self, **kwargs):
+        all_incidents = pypd.Incident.find(api_key=self.api_key, fetch_all=True, **kwargs)
+        return all_incidents
 
 ###############################################################################
 # SlackNotificationHandler
