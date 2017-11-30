@@ -494,9 +494,9 @@ class PagerDutyNotificationHandler(NotificationHandler):
             response = pypd.EventV2.create(data={
                 'routing_key': self.service_key,
                 'event_action': 'trigger',
+                'dedup_key': subject,
                 'payload': {
                     'summary': subject,
-                    'dedup_key': subject,
                     'severity': 'error',
                     'source': 'test',
                     'custom_details': {'details': message},
