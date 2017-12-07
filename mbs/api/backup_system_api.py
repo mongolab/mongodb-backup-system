@@ -213,13 +213,17 @@ class BackupSystemApiServer(ApiServer):
             logger.info("%s: NEW REQUEST (requestId=%s) %s" % (
                 request.path, request_id, backup_id_str))
 
-            result = f(*args, **kwargs)
-            elapsed = date_utils.timedelta_total_seconds(date_utils.date_now() - start_date)
+            try:
+                result = f(*args, **kwargs)
+                elapsed = date_utils.timedelta_total_seconds(date_utils.date_now() - start_date)
 
-            logger.info("%s: FINISHED (requestId=%s) %s in %s seconds" % (request.path,
-                                                                          request_id, backup_id_str, elapsed))
+                logger.info("%s: FINISHED (requestId=%s) %s in %s seconds" % (request.path,
+                                                                              request_id, backup_id_str, elapsed))
 
-            return result
+                return result
+            except Exception, ex:
+                logger.info("%s: FINISHED WITH ERROR (requestId=%s) %s in %s seconds. "
+                            "Error: %s" % (request.path, request_id, backup_id_str, elapsed, ex))
 
         return update_wrapper(wrapped_function, f)
 
