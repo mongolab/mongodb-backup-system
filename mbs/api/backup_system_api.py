@@ -222,8 +222,10 @@ class BackupSystemApiServer(ApiServer):
 
                 return result
             except Exception, ex:
+                elapsed = date_utils.timedelta_total_seconds(date_utils.date_now() - start_date)
                 logger.info("%s: FINISHED WITH ERROR (requestId=%s) %s in %s seconds. "
                             "Error: %s" % (request.path, request_id, backup_id_str, elapsed, ex))
+                raise
 
         return update_wrapper(wrapped_function, f)
 
