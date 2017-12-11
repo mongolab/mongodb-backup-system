@@ -57,6 +57,7 @@ class BackupTarget(MBSObject):
         self._preserve = None
         self._credentials = None
         self._cloud_storage_encryption_enabled = False
+        self._region = None
 
     ###########################################################################
     @property
@@ -74,6 +75,16 @@ class BackupTarget(MBSObject):
     @credentials.setter
     def credentials(self, val):
         self._credentials = val
+
+    ###########################################################################
+    @property
+    def region(self):
+        return self._region
+
+    ###########################################################################
+    @region.setter
+    def region(self, val):
+        self._region = val
 
     ###########################################################################
     @property
@@ -327,6 +338,12 @@ class BackupTarget(MBSObject):
     def preserve(self, val):
         self._preserve = val
 
+    def load_region(self):
+        """
+        Mutates the BackupTarget object by assigning the region field.
+        Should be implemented by subclasses
+        """
+
     ###########################################################################
     def to_document(self, display_only=False):
         doc = {
@@ -341,6 +358,10 @@ class BackupTarget(MBSObject):
 
         if self.credentials is not None:
             doc["credentials"] = self.credentials.to_document(display_only=display_only)
+
+        if self.region is not None:
+            doc["region"] = self.region
+
         return doc
 
 ###############################################################################
@@ -358,7 +379,6 @@ class S3BucketTarget(BackupTarget):
 
         self._connection = None
         self._bucket = None
-        self._region = None
 
     ###########################################################################
     def do_put_file(self, file_path, destination_path, metadata=None):
@@ -538,14 +558,6 @@ class S3BucketTarget(BackupTarget):
         self._bucket_name = str(bucket_name)
 
     ###########################################################################
-    @property
-    def region(self):
-        if not self._region:
-            self._connect_to_bucket()
-
-        return self._region
-
-    ###########################################################################
     def _get_bucket(self):
         if not self._bucket:
             self._connect_to_bucket()
@@ -570,6 +582,8 @@ class S3BucketTarget(BackupTarget):
                 else:
                     raise
 
+    def load_region(self):
+        self._connect_to_bucket()
 
     ###########################################################################
     def _get_file_ref_key(self, file_reference):
