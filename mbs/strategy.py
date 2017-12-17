@@ -805,7 +805,6 @@ class BackupStrategy(MBSObject):
 
     ###########################################################################
     def run_restore(self, restore):
-        self.backup_assistant.create_task_workspace(restore)
         self._do_run_restore(restore)
         self._compute_restore_destination_stats(restore)
 
@@ -1449,7 +1448,7 @@ class DumpStrategy(BackupStrategy):
     def _do_run_restore(self, restore):
 
         logger.info("Running dump restore '%s'" % restore.id)
-
+        self.backup_assistant.create_task_workspace(restore)
         # download source backup tar
         if not restore.is_event_logged("END_DOWNLOAD_BACKUP"):
             self._download_source_backup(restore)
