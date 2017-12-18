@@ -12,7 +12,7 @@ python-dateutil==1.5
 pystache==0.5.4
 verlib==0.1
 httplib2>=0.9
-psutil==1.2.1
+psutil==5.4.2
 google-api-python-client==1.2
 sendgrid==0.1.3
 
