@@ -58,7 +58,6 @@ class BackupTarget(MBSObject):
         self._credentials = None
         self._cloud_storage_encryption_enabled = False
         self._region = None
-        self._provider = None
 
     ###########################################################################
     @property
@@ -349,11 +348,7 @@ class BackupTarget(MBSObject):
     ###########################################################################
     @property
     def provider(self):
-        return self._provider
-
-    @provider.setter
-    def provider(self, val):
-        self.provider = val
+        return None
 
     ###########################################################################
     def to_document(self, display_only=False):
@@ -390,7 +385,6 @@ class S3BucketTarget(BackupTarget):
 
         self._connection = None
         self._bucket = None
-        self._provider = 'AWS'
 
     ###########################################################################
     def do_put_file(self, file_path, destination_path, metadata=None):
@@ -666,6 +660,11 @@ class S3BucketTarget(BackupTarget):
 
         key = self._get_file_ref_key(file_ref)
         key.restore(days=days)
+
+    ###########################################################################
+    @property
+    def provider(self):
+        return 'AWS'
 
 
     ###########################################################################
