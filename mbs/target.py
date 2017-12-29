@@ -58,6 +58,7 @@ class BackupTarget(MBSObject):
         self._credentials = None
         self._cloud_storage_encryption_enabled = False
         self._region = None
+        self._provider = None
 
     ###########################################################################
     @property
@@ -338,11 +339,21 @@ class BackupTarget(MBSObject):
     def preserve(self, val):
         self._preserve = val
 
+    ###########################################################################
     def load_region(self):
         """
         Mutates the BackupTarget object by assigning the region field.
         Should be implemented by subclasses
         """
+
+    ###########################################################################
+    @property
+    def provider(self):
+        return self._provider
+
+    @provider.setter
+    def provider(self, val):
+        self.provider = val
 
     ###########################################################################
     def to_document(self, display_only=False):
@@ -379,6 +390,7 @@ class S3BucketTarget(BackupTarget):
 
         self._connection = None
         self._bucket = None
+        self._provider = 'AWS'
 
     ###########################################################################
     def do_put_file(self, file_path, destination_path, metadata=None):
