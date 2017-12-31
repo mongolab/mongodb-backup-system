@@ -739,12 +739,6 @@ class S3BucketTarget(BackupTarget):
         errors = []
         errors += self._validate_bucket_name()
 
-        if not self.get_access_key():
-            errors.append("Access key is required")
-
-        if not self.get_secret_key():
-            errors.append("Secret key is required")
-
         return errors
 
 ###############################################################################
