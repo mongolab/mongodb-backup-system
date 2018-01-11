@@ -64,3 +64,6 @@ def raise_404(msg):
 ########################################################################################################################
 def raise_400(msg):
     raise MBSApiError(msg, status_code=400)
+
+def get_path_param_value(key):
+    return request.view_args[key]
