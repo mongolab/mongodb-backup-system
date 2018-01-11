@@ -56,3 +56,11 @@ def get_request_value(key):
 
     if request.args and request.args.get(key):
         return request.args.get(key)
+
+########################################################################################################################
+def raise_404(msg):
+    raise MBSApiError(msg, status_code=404)
+
+########################################################################################################################
+def raise_400(msg):
+    raise MBSApiError(msg, status_code=400)
