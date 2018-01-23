@@ -835,8 +835,6 @@ class ManagedDiskVolumeStorage(VolumeStorage):
         self._encrypted_access_key = None
         self._location = None
         self._compute_client = None
-        self._tenant_id = None
-        self._subscription_id = None
 
     ###########################################################################
     def do_create_snapshot(self, name, description):
@@ -917,24 +915,6 @@ class ManagedDiskVolumeStorage(VolumeStorage):
 
     ###########################################################################
     @property
-    def tenant_id(self):
-        return self._tenant_id
-
-    @tenant_id.setter
-    def tenant_id(self, val):
-        self._tenant_id = val
-
-    ###########################################################################
-    @property
-    def subscription_id(self):
-        return self._subscription_id
-
-    @subscription_id.setter
-    def subscription_id(self, val):
-        self._subscription_id = val
-
-    ###########################################################################
-    @property
     def compute_client(self):
         if not self._compute_client:
             self.validate()
@@ -943,8 +923,8 @@ class ManagedDiskVolumeStorage(VolumeStorage):
 
             sp_creds = ServicePrincipalCredentials(self.credentials.get_credential('clientId'),
                                                    self.credentials.get_credential('clientSecret'),
-                                                   tenant=self.tenant_id)
-            compute_client = ComputeManagementClient(sp_creds, str(self.subscription_id))
+                                                   tenant=self.credentials.get_credential('tenantId'))
+            compute_client = ComputeManagementClient(sp_creds, str(self.credentials.get_credential('subscriptionId')))
 
             logger.info("Client created successfully to Azure (ARM) Compute API "
                         "service for volume '%s'" % self.volume_id)
