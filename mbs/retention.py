@@ -275,7 +275,7 @@ class BackupExpirationManager(ScheduleRunner):
 
         logger.info("BackupExpirationManager: Finding all recurring backups"
                     " due for expiration")
-        q = _check_to_expire_query()
+        q = self._check_to_expire_query()
 
         q["plan._id"] = {
             "$exists": True
@@ -326,7 +326,7 @@ class BackupExpirationManager(ScheduleRunner):
         try:
             expirable_backups, non_expirable_backups = self.find_plan_expirable_backups(plan, plan_backups)
             if non_expirable_backups:
-                mark_plan_backups_not_expirable(plan, non_expirable_backups)
+                self.mark_plan_backups_not_expirable(plan, non_expirable_backups)
                 total_dont_expire += len(non_expirable_backups)
 
             total_expired += self.expire_plan_dues(plan, expirable_backups)
@@ -350,7 +350,7 @@ class BackupExpirationManager(ScheduleRunner):
         total_processed = 0
         total_expired = 0
         total_dont_expire = 0
-        q = _check_to_expire_query()
+        q = self._check_to_expire_query()
 
         q["plan._id"] = {
             "$exists": False
@@ -366,7 +366,7 @@ class BackupExpirationManager(ScheduleRunner):
 
             total_processed += 1
             if self.is_onetime_backup_not_expirable(onetime_backup):
-                mark_backup_never_expire(onetime_backup)
+                self.mark_backup_never_expire(onetime_backup)
                 total_dont_expire += 1
             elif self.is_onetime_backup_due_for_expiration(onetime_backup):
                 self.expire_backup(onetime_backup)
@@ -383,7 +383,7 @@ class BackupExpirationManager(ScheduleRunner):
         logger.info("BackupExpirationManager: Finding all canceled backups "
                     "due for expiration")
 
-        q = _check_to_expire_query()
+        q = self._check_to_expire_query()
 
         q["state"] = State.CANCELED
         q["createdDate"] = {
@@ -439,7 +439,7 @@ class BackupExpirationManager(ScheduleRunner):
 
     ###########################################################################
     def process_plan_retention(self, plan):
-        q = _check_to_expire_query()
+        q = self._check_to_expire_query()
         q["plan._id"] = plan.id
 
         plan_backups = get_mbs().backup_collection.find(q)
@@ -534,6 +534,36 @@ class BackupExpirationManager(ScheduleRunner):
         """
         super(BackupExpirationManager, self).stop(blocking=blocking)
         self._retention_request_worker.stop(blocking=blocking)
+
+    ###############################################################################
+    # QUERY HELPER
+    ###############################################################################
+    def _check_to_expire_query(self):
+        q = {
+            "state": State.SUCCEEDED,
+            "expiredDate": None,
+            "dontExpire": False
+        }
+
+        return q
+
+    ###############################################################################
+    def mark_plan_backups_not_expirable(self, plan, backups):
+        logger.info("Marking following backups for plan '%s' as dontExpire (total of %s)"
+                    % (plan.id, len(backups)))
+
+        for backup in backups:
+            self.mark_backup_never_expire(backup)
+
+    ###############################################################################
+    def mark_backup_never_expire(self, backup):
+        logger.info("Mark backup '%s' as not expirable...." % backup.id)
+
+        backup.dont_expire = True
+        persistence.update_backup(backup, properties=["dontExpire"],
+                                  event_name="MARK_UNEXPIRABLE",
+                                  message="Marking as dontExpire")
+
 
 ###############################################################################
 RETENTION_WORKER_SCHEDULE = Schedule(frequency_in_seconds=30)
@@ -720,7 +750,7 @@ class BackupSweeper(ScheduleRunner):
         self.validate_backup_target_delete(backup)
         try:
             if not self.test_mode:
-                robustified_delete_backup(backup)
+                self.robustified_delete_backup(backup)
                 return True
             else:
                 logger.info("NOOP. Running in test mode. Not deleting "
@@ -754,6 +784,95 @@ class BackupSweeper(ScheduleRunner):
     ###########################################################################
     def max_expire_date_to_delete(self):
         return date_minus_seconds(date_now(), self.delete_delay_in_seconds)
+
+    ###############################################################################
+    # EXPIRE/DELETE BACKUP HELPERS
+    ###############################################################################
+    @robustify(max_attempts=3, retry_interval=5,
+               do_on_exception=raise_if_not_retriable,
+               do_on_failure=raise_exception)
+    def robustified_delete_backup(self, backup):
+        """
+            deletes the backup targets
+        """
+        # do some validation,
+        target_ref = backup.target_reference
+
+        if backup.state == State.SUCCEEDED and not target_ref:
+            raise BackupSweepError("Cannot delete backup '%s'. "
+                                   "Backup never uploaded" % backup.id)
+
+        logger.info("Deleting target references for backup '%s'." % backup.id)
+
+
+
+        logger.info("Deleting primary target reference for backup '%s'." %
+                    backup.id)
+        # target ref can be None for CANCELED backups
+        if target_ref:
+            self.do_delete_target_ref(backup, backup.target, target_ref)
+
+        # delete log file
+        if backup.log_target_reference:
+            logger.info("Deleting log target reference for backup '%s'." %
+                        backup.id)
+            self.do_delete_target_ref(backup, backup.target, backup.log_target_reference)
+
+        if backup.secondary_target_references:
+            logger.info("Deleting secondary target references for backup '%s'." %
+                        backup.id)
+            sec_targets = backup.secondary_targets
+            sec_target_refs = backup.secondary_target_references
+            for (sec_target, sec_tgt_ref) in zip(sec_targets, sec_target_refs):
+                logger.info("Deleting secondary target reference %s for backup "
+                            "'%s'." % (sec_tgt_ref, backup.id))
+                self.do_delete_target_ref(backup, sec_target, sec_tgt_ref)
+
+        # set deleted date
+        backup.deleted_date = date_now()
+        update_props = ["deletedDate", "targetReference",
+                        "secondaryTargetReferences"]
+        persistence.update_backup(backup, properties=update_props,
+                                  event_name="DELETING",
+                                  message="Deleting target references")
+
+        logger.info("Backup %s target references deleted successfully!" %
+                    backup.id)
+
+    ###############################################################################
+    def do_delete_target_ref(self, backup, target, target_ref):
+
+        if target_ref.preserve:
+            logger.info("Skipping deletion for target ref %s (backup '%s') because"
+                        " it is preserved" % (target_ref, backup.id))
+            return
+        try:
+            target_ref.deleted_date = date_now()
+            # if the target reference is a cloud storage one then make the cloud
+            # storage object take care of it
+            if isinstance(target_ref, CloudBlockStorageSnapshotReference):
+                logger.info("Deleting backup '%s' snapshot " % backup.id)
+                return target_ref.cloud_block_storage.delete_snapshot(target_ref)
+            else:
+                logger.info("Deleting backup '%s file" % backup.id)
+                return target.delete_file(target_ref)
+        except Exception as e:
+            if self.is_whitelisted_target_delete_error(backup, target, target_ref, e):
+                msg = ("Caught a whitelisted error while attempting to delete backup %s."
+                       " Marking backup as deleted. Error: %s" % (backup.id, e))
+                logger.warn(msg)
+                persistence.update_backup(backup,
+                                          event_name="WHITELIST_DELETE_ERROR",
+                                          message=msg,
+                                          event_type=EventType.WARNING)
+                return False
+            else:
+                # raise error
+                raise
+
+    ###############################################################################
+    def is_whitelisted_target_delete_error(self, backup, target, target_ref, e):
+        return isinstance(e, TargetInaccessibleError)
 
 ###############################################################################
 
@@ -826,132 +945,5 @@ class SweepWorker(multiprocessing.Process):
                 self._sweep_queue.task_done()
 
 
-###############################################################################
-# QUERY HELPER
-###############################################################################
-def _check_to_expire_query():
-    q = {
-        "state": State.SUCCEEDED,
-        "expiredDate": None,
-        "dontExpire": False
-    }
-
-    return q
-
-###############################################################################
-# EXPIRE/DELETE BACKUP HELPERS
-###############################################################################
-@robustify(max_attempts=3, retry_interval=5,
-           do_on_exception=raise_if_not_retriable,
-           do_on_failure=raise_exception)
-def robustified_delete_backup(backup):
-    """
-        deletes the backup targets
-    """
-    # do some validation,
-    target_ref = backup.target_reference
-
-    if backup.state == State.SUCCEEDED and not target_ref:
-        raise BackupSweepError("Cannot delete backup '%s'. "
-                               "Backup never uploaded" % backup.id)
-
-    logger.info("Deleting target references for backup '%s'." % backup.id)
-
-
-
-    logger.info("Deleting primary target reference for backup '%s'." %
-                backup.id)
-    # target ref can be None for CANCELED backups
-    if target_ref:
-        do_delete_target_ref(backup, backup.target, target_ref)
-
-    # delete log file
-    if backup.log_target_reference:
-        logger.info("Deleting log target reference for backup '%s'." %
-                    backup.id)
-        do_delete_target_ref(backup, backup.target,
-                             backup.log_target_reference)
-
-    if backup.secondary_target_references:
-        logger.info("Deleting secondary target references for backup '%s'." %
-                    backup.id)
-        sec_targets = backup.secondary_targets
-        sec_target_refs = backup.secondary_target_references
-        for (sec_target, sec_tgt_ref) in zip(sec_targets, sec_target_refs):
-            logger.info("Deleting secondary target reference %s for backup "
-                        "'%s'." % (sec_tgt_ref, backup.id))
-            do_delete_target_ref(backup, sec_target, sec_tgt_ref)
-
-    # set deleted date
-    backup.deleted_date = date_now()
-    update_props = ["deletedDate", "targetReference",
-                    "secondaryTargetReferences"]
-    persistence.update_backup(backup, properties=update_props,
-                              event_name="DELETING",
-                              message="Deleting target references")
-
-    logger.info("Backup %s target references deleted successfully!" %
-                backup.id)
-
-###############################################################################
-def mark_plan_backups_not_expirable(plan, backups):
-    logger.info("Marking following backups for plan '%s' as dontExpire (total of %s)"
-                % (plan.id, len(backups)))
-
-    for backup in backups:
-        mark_backup_never_expire(backup)
-
-###############################################################################
-def mark_backup_never_expire(backup):
-    logger.info("Mark backup '%s' as not expirable...." % backup.id)
-
-    backup.dont_expire = True
-    persistence.update_backup(backup, properties=["dontExpire"],
-                              event_name="MARK_UNEXPIRABLE",
-                              message="Marking as dontExpire")
-
-###############################################################################
-def do_delete_target_ref(backup, target, target_ref):
-
-    if target_ref.preserve:
-        logger.info("Skipping deletion for target ref %s (backup '%s') because"
-                    " it is preserved" % (target_ref, backup.id))
-        return
-    try:
-        target_ref.deleted_date = date_now()
-        # if the target reference is a cloud storage one then make the cloud
-        # storage object take care of it
-        if isinstance(target_ref, CloudBlockStorageSnapshotReference):
-            logger.info("Deleting backup '%s' snapshot " % backup.id)
-            return target_ref.cloud_block_storage.delete_snapshot(target_ref)
-        else:
-            logger.info("Deleting backup '%s file" % backup.id)
-            return target.delete_file(target_ref)
-    except Exception as e:
-        if is_whitelisted_target_delete_error(e):
-            msg = ("Caught a whitelisted error while attempting to delete backup %s."
-                   " Marking backup as deleted. Error: %s" % (backup.id, e))
-            logger.warn(msg)
-            persistence.update_backup(backup,
-                                      event_name="WHITELIST_DELETE_ERROR",
-                                      message=msg,
-                                      event_type=EventType.WARNING)
-            return False
-        else:
-            # raise error
-            raise
-
-###############################################################################
-def get_expiration_manager():
-    return get_mbs().backup_system.backup_expiration_manager
-
-###############################################################################
-WHITELIST_DELETE_ERRORS = (
-    TargetInaccessibleError
-)
-
-###############################################################################
-def is_whitelisted_target_delete_error(e):
-    return isinstance(e, WHITELIST_DELETE_ERRORS)
 
 
