@@ -5,6 +5,7 @@ import persistence
 import operator
 import traceback
 import Queue
+import multiprocessing
 from mbs import get_mbs
 
 from base import MBSObject
@@ -25,8 +26,9 @@ from errors import (
 
 from utils import document_pretty_string
 
-from threading import Thread
-import time
+from notification.handler import NotificationPriority, NotificationType
+
+
 
 ###############################################################################
 # Contains Backup Retention Policies
@@ -331,7 +333,8 @@ class BackupExpirationManager(ScheduleRunner):
             message = ("BackupExpirationManager Error while processing"
                        " plan '%s'\n\nStack Trace:\n%s" %
                        (plan.id, traceback.format_exc()))
-            get_mbs().notifications.send_error_notification(subject, message)
+            get_mbs().notifications.send_notification(subject, message, notification_type=NotificationType.EVENT,
+                                                      priority=NotificationPriority.CRITICAL)
 
         return total_expired, total_dont_expire
 
@@ -557,7 +560,6 @@ class BackupRetentionRequestWorker(ScheduleRunner):
 
 DEFAULT_SWEEP_SCHEDULE = Schedule(frequency_in_seconds=12 * 60 * 60)
 DEFAULT_DELETE_DELAY_IN_SECONDS = 5 * 24 * 60 * 60  # 5 days
-SWEEP_WORKER_COUNT = 10
 
 class BackupSweeper(ScheduleRunner):
     """
@@ -570,8 +572,9 @@ class BackupSweeper(ScheduleRunner):
         ScheduleRunner.__init__(self, schedule=schedule)
         self._test_mode = False
         self._delete_delay_in_seconds = DEFAULT_DELETE_DELAY_IN_SECONDS
+        self._worker_count = 0
         self._sweep_workers = None
-        self._sweep_queue = Queue.Queue()
+        self._sweep_queue = multiprocessing.JoinableQueue()
 
         # cycle stats
 
@@ -606,7 +609,8 @@ class BackupSweeper(ScheduleRunner):
             subject = "BackupSweeper Error"
             message = ("BackupSweeper Error!.\n\nStack Trace:\n%s" %
                        traceback.format_exc())
-            get_mbs().notifications.send_error_notification(subject, message)
+            get_mbs().notifications.send_notification(subject, message, notification_type=NotificationType.EVENT,
+                                                      priority=NotificationPriority.CRITICAL)
 
     ###########################################################################
     def _delete_backups_targets_due(self):
@@ -617,6 +621,8 @@ class BackupSweeper(ScheduleRunner):
         self._cycle_total_processed = 0
         self._cycle_total_errored = 0
         self._cycle_total_deleted = 0
+        # compute # of workers based on cpu count
+        self._worker_count = multiprocessing.cpu_count() * 2 + 1
         self._sweep_workers = []
 
         self._start_workers()
@@ -643,10 +649,10 @@ class BackupSweeper(ScheduleRunner):
             self._sweep_queue.put(backup)
             backups_iterated += 1
             # PERFORMANCE OPTIMIZATION
-            # process 10 at max at a time
+            # process 10 * worker at max
             # This is needed because making backup objects (from within the backups_iter) takes up a lot of CPU/Memory
             # This is needed to give it a breath
-            if backups_iterated % 10 == 0:
+            if backups_iterated % (self._worker_count * 10) == 0:
                 self._wait_for_queue_to_be_empty()
 
         self._finish_cycle()
@@ -661,7 +667,7 @@ class BackupSweeper(ScheduleRunner):
 
     ###########################################################################
     def _start_workers(self):
-        for i in range(0, SWEEP_WORKER_COUNT):
+        for i in xrange(self._worker_count):
             sweep_worker = SweepWorker(self, self._sweep_queue)
             self._sweep_workers.append(sweep_worker)
             sweep_worker.start()
@@ -678,8 +684,9 @@ class BackupSweeper(ScheduleRunner):
     ###########################################################################
     def _stop_and_wait_for_all_workers_to_finish(self):
         # request stop
-        for worker in self._sweep_workers:
-            worker.stop()
+        for i in xrange(self._worker_count):
+            # put a None for each worker to stop
+            self._sweep_queue.put(None)
 
         # join and gather stats
         for worker in self._sweep_workers:
@@ -759,55 +766,70 @@ class BackupSweeper(ScheduleRunner):
 
 ###############################################################################
 
-SWEEP_WORKER_SCHEDULE = Schedule(frequency_in_seconds=5)
 
-class SweepWorker(ScheduleRunner):
+class SweepWorker(multiprocessing.Process):
     """
         A Thread that periodically expire backups that are due for expiration
     """
     ###########################################################################
     def __init__(self, backup_sweeper, sweep_queue):
-        ScheduleRunner.__init__(self, schedule=SWEEP_WORKER_SCHEDULE)
+        multiprocessing.Process.__init__(self)
+        self._stats = multiprocessing.Manager().dict()
         self._backup_sweeper = backup_sweeper
         self._sweep_queue = sweep_queue
-        self._total_processed = 0
-        self._total_deleted = 0
-        self._total_errored = 0
 
+        self.total_processed = 0
+        self.total_deleted = 0
+        self.total_errored = 0
 
     ###########################################################################
     @property
     def total_processed(self):
-        return self._total_processed
+        return self._stats["total_processed"]
+
+    @total_processed.setter
+    def total_processed(self, val):
+        self._stats["total_processed"] = val
 
     ###########################################################################
     @property
     def total_deleted(self):
-        return self._total_deleted
+        return self._stats["total_deleted"]
+
+    @total_deleted.setter
+    def total_deleted(self, val):
+        self._stats["total_deleted"] = val
 
     ###########################################################################
     @property
     def total_errored(self):
-        return self._total_errored
+        return self._stats["total_errored"]
+
+    @total_errored.setter
+    def total_errored(self, val):
+        self._stats["total_errored"] = val
 
     ###########################################################################
-    def tick(self):
+    def run(self):
         while True:
 
-            try:
-                backup = self._sweep_queue.get_nowait()
-            except Queue.Empty:
+            backup = self._sweep_queue.get()
+            if backup is None: # None in Queue means STOP!!!
+                logger.info("%s Exiting..." % self.name)
+                self._sweep_queue.task_done()
                 # breaking
                 break
-            self._total_processed += 1
+
+            logger.info("%s Processing backup %s" % (self.name, backup.id))
+            self.total_processed += 1
             try:
                 deleted = self._backup_sweeper.delete_backup_targets(backup)
                 if deleted:
-                    self._total_deleted += 1
+                    self.total_deleted += 1
             except Exception, ex:
-                self._total_errored += 1
-                msg = ("BackupSweeper: Error while attempting to "
-                       "delete backup targets for backup '%s'" % backup.id)
+                self.total_errored += 1
+                msg = ("%s: Error while attempting to "
+                       "delete backup targets for backup '%s'" % (self.name, backup.id))
                 logger.exception(msg)
             finally:
                 self._sweep_queue.task_done()
