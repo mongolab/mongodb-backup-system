@@ -927,6 +927,7 @@ class ShardedClusterConnector(MongoConnector):
             for router in self._routers:
                 if router.is_online():
                     self._router = router
+                    break
 
         if self._router is None:
             raise Exception("No online routers found for '%s'" % self)
