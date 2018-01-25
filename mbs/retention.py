@@ -872,7 +872,7 @@ class BackupSweeper(ScheduleRunner):
 
     ###############################################################################
     def is_whitelisted_target_delete_error(self, backup, target, target_ref, e):
-        return isinstance(e, TargetInaccessibleError)
+        return False
 
 ###############################################################################
 
