@@ -225,7 +225,8 @@ class BackupExpirationManager(ScheduleRunner):
             subject = "BackupExpirationManager Error"
             message = ("BackupExpirationManager Error!.\n\nStack Trace:\n%s" %
                        traceback.format_exc())
-            get_mbs().notifications.send_error_notification(subject, message)
+            get_mbs().notifications.send_notification(subject, message, notification_type=NotificationType.EVENT,
+                                                      priority=NotificationPriority.CRITICAL)
 
     ###########################################################################
     def _expire_backups_due(self):
@@ -239,7 +240,8 @@ class BackupExpirationManager(ScheduleRunner):
             subject = "BackupExpirationManager Error"
             message = ("BackupExpirationManager Error!.\n\nStack Trace:\n%s" %
                        traceback.format_exc())
-            get_mbs().notifications.send_error_notification(subject, message)
+            get_mbs().notifications.send_notification(subject, message, notification_type=NotificationType.EVENT,
+                                                      priority=NotificationPriority.CRITICAL)
 
 
         try:
@@ -249,7 +251,8 @@ class BackupExpirationManager(ScheduleRunner):
             subject = "BackupExpirationManager Error"
             message = ("BackupExpirationManager Error!.\n\nStack Trace:\n%s" %
                        traceback.format_exc())
-            get_mbs().notifications.send_error_notification(subject, message)
+            get_mbs().notifications.send_notification(subject, message, notification_type=NotificationType.EVENT,
+                                                      priority=NotificationPriority.CRITICAL)
 
         try:
             self._expire_due_canceled_backups()
@@ -258,7 +261,8 @@ class BackupExpirationManager(ScheduleRunner):
             subject = "BackupExpirationManager Error"
             message = ("BackupExpirationManager Error!.\n\nStack Trace:\n%s" %
                        traceback.format_exc())
-            get_mbs().notifications.send_error_notification(subject, message)
+            get_mbs().notifications.send_notification(subject, message, notification_type=NotificationType.EVENT,
+                                                      priority=NotificationPriority.CRITICAL)
 
         logger.info("BackupExpirationManager: END EXPIRATION CHECK CYCLE")
 
@@ -333,8 +337,7 @@ class BackupExpirationManager(ScheduleRunner):
             message = ("BackupExpirationManager Error while processing"
                        " plan '%s'\n\nStack Trace:\n%s" %
                        (plan.id, traceback.format_exc()))
-            get_mbs().notifications.send_notification(subject, message, notification_type=NotificationType.EVENT,
-                                                      priority=NotificationPriority.CRITICAL)
+            get_mbs().notifications.send_error_notification(subject, message)
 
         return total_expired, total_dont_expire
 
@@ -725,19 +728,7 @@ class BackupSweeper(ScheduleRunner):
         except Exception, e:
             msg = "Error while attempting to expire backup '%s': " % e
             logger.exception(msg)
-            # if the backup expiration has errored out for 5 times (including this time) then mark as deleted
-            if backup.event_logged_count("DELETE_ERROR") > 5:
-                msg = ("Giving up on delete backup '%s'. Failed at least 5 times. Marking backup as deleted" %
-                       backup.id)
-                logger.warning(msg)
-                # set deleted date
-                backup.deleted_date = date_now()
-
-            persistence.update_backup(backup,
-                                      event_name="DELETE_ERROR",
-                                      message=msg,
-                                      properties=["deletedDate"],
-                                      event_type=EventType.ERROR)
+            get_mbs().notifications.send_error_notification("Backup delete error", msg)
 
 
     ###########################################################################
@@ -936,18 +927,31 @@ def do_delete_target_ref(backup, target, target_ref):
         else:
             logger.info("Deleting backup '%s file" % backup.id)
             return target.delete_file(target_ref)
-    except TargetInaccessibleError as e:
-        msg = "Target %s for backup %s is no longer accessible.\n%s" % (
-            target, backup.id, e.message
-        )
-        logger.warn(msg)
-        persistence.update_backup(backup,
-                                  event_name="DELETE_ERROR",
-                                  message=msg,
-                                  event_type=EventType.WARNING)
-        return False
+    except Exception as e:
+        if is_whitelisted_target_delete_error(e):
+            msg = ("Caught a whitelisted error while attempting to delete backup %s."
+                   " Marking backup as deleted. Error: %s" % (backup.id, e))
+            logger.warn(msg)
+            persistence.update_backup(backup,
+                                      event_name="WHITELIST_DELETE_ERROR",
+                                      message=msg,
+                                      event_type=EventType.WARNING)
+            return False
+        else:
+            # raise error
+            raise
 
 ###############################################################################
 def get_expiration_manager():
     return get_mbs().backup_system.backup_expiration_manager
+
+###############################################################################
+WHITELIST_DELETE_ERRORS = (
+    TargetInaccessibleError
+)
+
+###############################################################################
+def is_whitelisted_target_delete_error(e):
+    return isinstance(e, WHITELIST_DELETE_ERRORS)
+
 
