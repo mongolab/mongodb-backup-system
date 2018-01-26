@@ -756,7 +756,7 @@ class BackupSweeper(ScheduleRunner):
                 logger.info("NOOP. Running in test mode. Not deleting "
                             "targets for backup '%s'" % backup.id)
         except Exception, e:
-            msg = "Error while attempting to delete backup '%s': " % e
+            msg = "Error while attempting to delete backup '%s': %s" % (backup.id, e)
             logger.exception(msg)
             get_mbs().notifications.send_notification("Backup Delete Error",
                                                       msg, notification_type=NotificationType.EVENT,
