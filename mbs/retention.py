@@ -5,6 +5,7 @@ import persistence
 import operator
 import traceback
 import Queue
+import multiprocessing
 from mbs import get_mbs
 
 from base import MBSObject
@@ -25,8 +26,9 @@ from errors import (
 
 from utils import document_pretty_string
 
-from threading import Thread
-import time
+from notification.handler import NotificationPriority, NotificationType
+
+
 
 ###############################################################################
 # Contains Backup Retention Policies
@@ -223,7 +225,8 @@ class BackupExpirationManager(ScheduleRunner):
             subject = "BackupExpirationManager Error"
             message = ("BackupExpirationManager Error!.\n\nStack Trace:\n%s" %
                        traceback.format_exc())
-            get_mbs().notifications.send_error_notification(subject, message)
+            get_mbs().notifications.send_notification(subject, message, notification_type=NotificationType.EVENT,
+                                                      priority=NotificationPriority.CRITICAL)
 
     ###########################################################################
     def _expire_backups_due(self):
@@ -237,7 +240,8 @@ class BackupExpirationManager(ScheduleRunner):
             subject = "BackupExpirationManager Error"
             message = ("BackupExpirationManager Error!.\n\nStack Trace:\n%s" %
                        traceback.format_exc())
-            get_mbs().notifications.send_error_notification(subject, message)
+            get_mbs().notifications.send_notification(subject, message, notification_type=NotificationType.EVENT,
+                                                      priority=NotificationPriority.CRITICAL)
 
 
         try:
@@ -247,7 +251,8 @@ class BackupExpirationManager(ScheduleRunner):
             subject = "BackupExpirationManager Error"
             message = ("BackupExpirationManager Error!.\n\nStack Trace:\n%s" %
                        traceback.format_exc())
-            get_mbs().notifications.send_error_notification(subject, message)
+            get_mbs().notifications.send_notification(subject, message, notification_type=NotificationType.EVENT,
+                                                      priority=NotificationPriority.CRITICAL)
 
         try:
             self._expire_due_canceled_backups()
@@ -256,7 +261,8 @@ class BackupExpirationManager(ScheduleRunner):
             subject = "BackupExpirationManager Error"
             message = ("BackupExpirationManager Error!.\n\nStack Trace:\n%s" %
                        traceback.format_exc())
-            get_mbs().notifications.send_error_notification(subject, message)
+            get_mbs().notifications.send_notification(subject, message, notification_type=NotificationType.EVENT,
+                                                      priority=NotificationPriority.CRITICAL)
 
         logger.info("BackupExpirationManager: END EXPIRATION CHECK CYCLE")
 
@@ -269,7 +275,7 @@ class BackupExpirationManager(ScheduleRunner):
 
         logger.info("BackupExpirationManager: Finding all recurring backups"
                     " due for expiration")
-        q = _check_to_expire_query()
+        q = self._check_to_expire_query()
 
         q["plan._id"] = {
             "$exists": True
@@ -320,7 +326,7 @@ class BackupExpirationManager(ScheduleRunner):
         try:
             expirable_backups, non_expirable_backups = self.find_plan_expirable_backups(plan, plan_backups)
             if non_expirable_backups:
-                mark_plan_backups_not_expirable(plan, non_expirable_backups)
+                self.mark_plan_backups_not_expirable(plan, non_expirable_backups)
                 total_dont_expire += len(non_expirable_backups)
 
             total_expired += self.expire_plan_dues(plan, expirable_backups)
@@ -344,7 +350,7 @@ class BackupExpirationManager(ScheduleRunner):
         total_processed = 0
         total_expired = 0
         total_dont_expire = 0
-        q = _check_to_expire_query()
+        q = self._check_to_expire_query()
 
         q["plan._id"] = {
             "$exists": False
@@ -360,7 +366,7 @@ class BackupExpirationManager(ScheduleRunner):
 
             total_processed += 1
             if self.is_onetime_backup_not_expirable(onetime_backup):
-                mark_backup_never_expire(onetime_backup)
+                self.mark_backup_never_expire(onetime_backup)
                 total_dont_expire += 1
             elif self.is_onetime_backup_due_for_expiration(onetime_backup):
                 self.expire_backup(onetime_backup)
@@ -377,7 +383,7 @@ class BackupExpirationManager(ScheduleRunner):
         logger.info("BackupExpirationManager: Finding all canceled backups "
                     "due for expiration")
 
-        q = _check_to_expire_query()
+        q = self._check_to_expire_query()
 
         q["state"] = State.CANCELED
         q["createdDate"] = {
@@ -433,7 +439,7 @@ class BackupExpirationManager(ScheduleRunner):
 
     ###########################################################################
     def process_plan_retention(self, plan):
-        q = _check_to_expire_query()
+        q = self._check_to_expire_query()
         q["plan._id"] = plan.id
 
         plan_backups = get_mbs().backup_collection.find(q)
@@ -529,6 +535,36 @@ class BackupExpirationManager(ScheduleRunner):
         super(BackupExpirationManager, self).stop(blocking=blocking)
         self._retention_request_worker.stop(blocking=blocking)
 
+    ###############################################################################
+    # QUERY HELPER
+    ###############################################################################
+    def _check_to_expire_query(self):
+        q = {
+            "state": State.SUCCEEDED,
+            "expiredDate": None,
+            "dontExpire": False
+        }
+
+        return q
+
+    ###############################################################################
+    def mark_plan_backups_not_expirable(self, plan, backups):
+        logger.info("Marking following backups for plan '%s' as dontExpire (total of %s)"
+                    % (plan.id, len(backups)))
+
+        for backup in backups:
+            self.mark_backup_never_expire(backup)
+
+    ###############################################################################
+    def mark_backup_never_expire(self, backup):
+        logger.info("Mark backup '%s' as not expirable...." % backup.id)
+
+        backup.dont_expire = True
+        persistence.update_backup(backup, properties=["dontExpire"],
+                                  event_name="MARK_UNEXPIRABLE",
+                                  message="Marking as dontExpire")
+
+
 ###############################################################################
 RETENTION_WORKER_SCHEDULE = Schedule(frequency_in_seconds=30)
 
@@ -557,7 +593,6 @@ class BackupRetentionRequestWorker(ScheduleRunner):
 
 DEFAULT_SWEEP_SCHEDULE = Schedule(frequency_in_seconds=12 * 60 * 60)
 DEFAULT_DELETE_DELAY_IN_SECONDS = 5 * 24 * 60 * 60  # 5 days
-SWEEP_WORKER_COUNT = 10
 
 class BackupSweeper(ScheduleRunner):
     """
@@ -570,8 +605,9 @@ class BackupSweeper(ScheduleRunner):
         ScheduleRunner.__init__(self, schedule=schedule)
         self._test_mode = False
         self._delete_delay_in_seconds = DEFAULT_DELETE_DELAY_IN_SECONDS
+        self._worker_count = 0
         self._sweep_workers = None
-        self._sweep_queue = Queue.Queue()
+        self._sweep_queue = multiprocessing.JoinableQueue()
 
         # cycle stats
 
@@ -606,7 +642,8 @@ class BackupSweeper(ScheduleRunner):
             subject = "BackupSweeper Error"
             message = ("BackupSweeper Error!.\n\nStack Trace:\n%s" %
                        traceback.format_exc())
-            get_mbs().notifications.send_error_notification(subject, message)
+            get_mbs().notifications.send_notification(subject, message, notification_type=NotificationType.EVENT,
+                                                      priority=NotificationPriority.CRITICAL)
 
     ###########################################################################
     def _delete_backups_targets_due(self):
@@ -617,6 +654,8 @@ class BackupSweeper(ScheduleRunner):
         self._cycle_total_processed = 0
         self._cycle_total_errored = 0
         self._cycle_total_deleted = 0
+        # compute # of workers based on cpu count
+        self._worker_count = multiprocessing.cpu_count() * 2 + 1
         self._sweep_workers = []
 
         self._start_workers()
@@ -643,10 +682,10 @@ class BackupSweeper(ScheduleRunner):
             self._sweep_queue.put(backup)
             backups_iterated += 1
             # PERFORMANCE OPTIMIZATION
-            # process 10 at max at a time
+            # process 10 * worker at max
             # This is needed because making backup objects (from within the backups_iter) takes up a lot of CPU/Memory
             # This is needed to give it a breath
-            if backups_iterated % 10 == 0:
+            if backups_iterated % (self._worker_count * 10) == 0:
                 self._wait_for_queue_to_be_empty()
 
         self._finish_cycle()
@@ -661,7 +700,7 @@ class BackupSweeper(ScheduleRunner):
 
     ###########################################################################
     def _start_workers(self):
-        for i in range(0, SWEEP_WORKER_COUNT):
+        for i in xrange(self._worker_count):
             sweep_worker = SweepWorker(self, self._sweep_queue)
             self._sweep_workers.append(sweep_worker)
             sweep_worker.start()
@@ -678,8 +717,9 @@ class BackupSweeper(ScheduleRunner):
     ###########################################################################
     def _stop_and_wait_for_all_workers_to_finish(self):
         # request stop
-        for worker in self._sweep_workers:
-            worker.stop()
+        for i in xrange(self._worker_count):
+            # put a None for each worker to stop
+            self._sweep_queue.put(None)
 
         # join and gather stats
         for worker in self._sweep_workers:
@@ -710,27 +750,17 @@ class BackupSweeper(ScheduleRunner):
         self.validate_backup_target_delete(backup)
         try:
             if not self.test_mode:
-                robustified_delete_backup(backup)
+                self.robustified_delete_backup(backup)
                 return True
             else:
                 logger.info("NOOP. Running in test mode. Not deleting "
                             "targets for backup '%s'" % backup.id)
         except Exception, e:
-            msg = "Error while attempting to expire backup '%s': " % e
+            msg = "Error while attempting to delete backup '%s': " % e
             logger.exception(msg)
-            # if the backup expiration has errored out for 5 times (including this time) then mark as deleted
-            if backup.event_logged_count("DELETE_ERROR") > 5:
-                msg = ("Giving up on delete backup '%s'. Failed at least 5 times. Marking backup as deleted" %
-                       backup.id)
-                logger.warning(msg)
-                # set deleted date
-                backup.deleted_date = date_now()
-
-            persistence.update_backup(backup,
-                                      event_name="DELETE_ERROR",
-                                      message=msg,
-                                      properties=["deletedDate"],
-                                      event_type=EventType.ERROR)
+            get_mbs().notifications.send_notification("Backup Delete Error",
+                                                      msg, notification_type=NotificationType.EVENT,
+                                                      priority=NotificationPriority.CRITICAL)
 
 
     ###########################################################################
@@ -757,175 +787,165 @@ class BackupSweeper(ScheduleRunner):
     def max_expire_date_to_delete(self):
         return date_minus_seconds(date_now(), self.delete_delay_in_seconds)
 
+    ###############################################################################
+    # EXPIRE/DELETE BACKUP HELPERS
+    ###############################################################################
+    @robustify(max_attempts=3, retry_interval=5,
+               do_on_exception=raise_if_not_retriable,
+               do_on_failure=raise_exception)
+    def robustified_delete_backup(self, backup):
+        """
+            deletes the backup targets
+        """
+        # do some validation,
+        target_ref = backup.target_reference
+
+        if backup.state == State.SUCCEEDED and not target_ref:
+            raise BackupSweepError("Cannot delete backup '%s'. "
+                                   "Backup never uploaded" % backup.id)
+
+        logger.info("Deleting target references for backup '%s'." % backup.id)
+
+
+
+        logger.info("Deleting primary target reference for backup '%s'." %
+                    backup.id)
+        # target ref can be None for CANCELED backups
+        if target_ref:
+            self.do_delete_target_ref(backup, backup.target, target_ref)
+
+        # delete log file
+        if backup.log_target_reference:
+            logger.info("Deleting log target reference for backup '%s'." %
+                        backup.id)
+            self.do_delete_target_ref(backup, backup.target, backup.log_target_reference)
+
+        if backup.secondary_target_references:
+            logger.info("Deleting secondary target references for backup '%s'." %
+                        backup.id)
+            sec_targets = backup.secondary_targets
+            sec_target_refs = backup.secondary_target_references
+            for (sec_target, sec_tgt_ref) in zip(sec_targets, sec_target_refs):
+                logger.info("Deleting secondary target reference %s for backup "
+                            "'%s'." % (sec_tgt_ref, backup.id))
+                self.do_delete_target_ref(backup, sec_target, sec_tgt_ref)
+
+        # set deleted date
+        backup.deleted_date = date_now()
+        update_props = ["deletedDate", "targetReference",
+                        "secondaryTargetReferences"]
+        persistence.update_backup(backup, properties=update_props,
+                                  event_name="DELETING",
+                                  message="Deleting target references")
+
+        logger.info("Backup %s target references deleted successfully!" %
+                    backup.id)
+
+    ###############################################################################
+    def do_delete_target_ref(self, backup, target, target_ref):
+
+        if target_ref.preserve:
+            logger.info("Skipping deletion for target ref %s (backup '%s') because"
+                        " it is preserved" % (target_ref, backup.id))
+            return
+        try:
+            target_ref.deleted_date = date_now()
+            # if the target reference is a cloud storage one then make the cloud
+            # storage object take care of it
+            if isinstance(target_ref, CloudBlockStorageSnapshotReference):
+                logger.info("Deleting backup '%s' snapshot " % backup.id)
+                return target_ref.cloud_block_storage.delete_snapshot(target_ref)
+            else:
+                logger.info("Deleting backup '%s file" % backup.id)
+                return target.delete_file(target_ref)
+        except Exception as e:
+            if self.is_whitelisted_target_delete_error(backup, target, target_ref, e):
+                msg = ("Caught a whitelisted error while attempting to delete backup %s."
+                       " Marking backup as deleted. Error: %s" % (backup.id, e))
+                logger.warn(msg)
+                persistence.update_backup(backup,
+                                          event_name="WHITELIST_DELETE_ERROR",
+                                          message=msg,
+                                          event_type=EventType.WARNING)
+                return False
+            else:
+                # raise error
+                raise
+
+    ###############################################################################
+    def is_whitelisted_target_delete_error(self, backup, target, target_ref, e):
+        return False
+
 ###############################################################################
 
-SWEEP_WORKER_SCHEDULE = Schedule(frequency_in_seconds=5)
 
-class SweepWorker(ScheduleRunner):
+class SweepWorker(multiprocessing.Process):
     """
         A Thread that periodically expire backups that are due for expiration
     """
     ###########################################################################
     def __init__(self, backup_sweeper, sweep_queue):
-        ScheduleRunner.__init__(self, schedule=SWEEP_WORKER_SCHEDULE)
+        multiprocessing.Process.__init__(self)
+        self._stats = multiprocessing.Manager().dict()
         self._backup_sweeper = backup_sweeper
         self._sweep_queue = sweep_queue
-        self._total_processed = 0
-        self._total_deleted = 0
-        self._total_errored = 0
 
+        self.total_processed = 0
+        self.total_deleted = 0
+        self.total_errored = 0
 
     ###########################################################################
     @property
     def total_processed(self):
-        return self._total_processed
+        return self._stats["total_processed"]
+
+    @total_processed.setter
+    def total_processed(self, val):
+        self._stats["total_processed"] = val
 
     ###########################################################################
     @property
     def total_deleted(self):
-        return self._total_deleted
+        return self._stats["total_deleted"]
+
+    @total_deleted.setter
+    def total_deleted(self, val):
+        self._stats["total_deleted"] = val
 
     ###########################################################################
     @property
     def total_errored(self):
-        return self._total_errored
+        return self._stats["total_errored"]
+
+    @total_errored.setter
+    def total_errored(self, val):
+        self._stats["total_errored"] = val
 
     ###########################################################################
-    def tick(self):
+    def run(self):
         while True:
 
-            try:
-                backup = self._sweep_queue.get_nowait()
-            except Queue.Empty:
+            backup = self._sweep_queue.get()
+            if backup is None: # None in Queue means STOP!!!
+                logger.info("%s Exiting..." % self.name)
+                self._sweep_queue.task_done()
                 # breaking
                 break
-            self._total_processed += 1
+
+            logger.info("%s Processing backup %s" % (self.name, backup.id))
+            self.total_processed += 1
             try:
                 deleted = self._backup_sweeper.delete_backup_targets(backup)
                 if deleted:
-                    self._total_deleted += 1
+                    self.total_deleted += 1
             except Exception, ex:
-                self._total_errored += 1
-                msg = ("BackupSweeper: Error while attempting to "
-                       "delete backup targets for backup '%s'" % backup.id)
+                self.total_errored += 1
+                msg = ("%s: Error while attempting to "
+                       "delete backup targets for backup '%s'" % (self.name, backup.id))
                 logger.exception(msg)
             finally:
                 self._sweep_queue.task_done()
 
 
-###############################################################################
-# QUERY HELPER
-###############################################################################
-def _check_to_expire_query():
-    q = {
-        "state": State.SUCCEEDED,
-        "expiredDate": None,
-        "dontExpire": False
-    }
 
-    return q
-
-###############################################################################
-# EXPIRE/DELETE BACKUP HELPERS
-###############################################################################
-@robustify(max_attempts=3, retry_interval=5,
-           do_on_exception=raise_if_not_retriable,
-           do_on_failure=raise_exception)
-def robustified_delete_backup(backup):
-    """
-        deletes the backup targets
-    """
-    # do some validation,
-    target_ref = backup.target_reference
-
-    if backup.state == State.SUCCEEDED and not target_ref:
-        raise BackupSweepError("Cannot delete backup '%s'. "
-                               "Backup never uploaded" % backup.id)
-
-    logger.info("Deleting target references for backup '%s'." % backup.id)
-
-
-
-    logger.info("Deleting primary target reference for backup '%s'." %
-                backup.id)
-    # target ref can be None for CANCELED backups
-    if target_ref:
-        do_delete_target_ref(backup, backup.target, target_ref)
-
-    # delete log file
-    if backup.log_target_reference:
-        logger.info("Deleting log target reference for backup '%s'." %
-                    backup.id)
-        do_delete_target_ref(backup, backup.target,
-                             backup.log_target_reference)
-
-    if backup.secondary_target_references:
-        logger.info("Deleting secondary target references for backup '%s'." %
-                    backup.id)
-        sec_targets = backup.secondary_targets
-        sec_target_refs = backup.secondary_target_references
-        for (sec_target, sec_tgt_ref) in zip(sec_targets, sec_target_refs):
-            logger.info("Deleting secondary target reference %s for backup "
-                        "'%s'." % (sec_tgt_ref, backup.id))
-            do_delete_target_ref(backup, sec_target, sec_tgt_ref)
-
-    # set deleted date
-    backup.deleted_date = date_now()
-    update_props = ["deletedDate", "targetReference",
-                    "secondaryTargetReferences"]
-    persistence.update_backup(backup, properties=update_props,
-                              event_name="DELETING",
-                              message="Deleting target references")
-
-    logger.info("Backup %s target references deleted successfully!" %
-                backup.id)
-
-###############################################################################
-def mark_plan_backups_not_expirable(plan, backups):
-    logger.info("Marking following backups for plan '%s' as dontExpire (total of %s)"
-                % (plan.id, len(backups)))
-
-    for backup in backups:
-        mark_backup_never_expire(backup)
-
-###############################################################################
-def mark_backup_never_expire(backup):
-    logger.info("Mark backup '%s' as not expirable...." % backup.id)
-
-    backup.dont_expire = True
-    persistence.update_backup(backup, properties=["dontExpire"],
-                              event_name="MARK_UNEXPIRABLE",
-                              message="Marking as dontExpire")
-
-###############################################################################
-def do_delete_target_ref(backup, target, target_ref):
-
-    if target_ref.preserve:
-        logger.info("Skipping deletion for target ref %s (backup '%s') because"
-                    " it is preserved" % (target_ref, backup.id))
-        return
-    try:
-        target_ref.deleted_date = date_now()
-        # if the target reference is a cloud storage one then make the cloud
-        # storage object take care of it
-        if isinstance(target_ref, CloudBlockStorageSnapshotReference):
-            logger.info("Deleting backup '%s' snapshot " % backup.id)
-            return target_ref.cloud_block_storage.delete_snapshot(target_ref)
-        else:
-            logger.info("Deleting backup '%s file" % backup.id)
-            return target.delete_file(target_ref)
-    except TargetInaccessibleError as e:
-        msg = "Target %s for backup %s is no longer accessible.\n%s" % (
-            target, backup.id, e.message
-        )
-        logger.warn(msg)
-        persistence.update_backup(backup,
-                                  event_name="DELETE_ERROR",
-                                  message=msg,
-                                  event_type=EventType.WARNING)
-        return False
-
-###############################################################################
-def get_expiration_manager():
-    return get_mbs().backup_system.backup_expiration_manager
 
