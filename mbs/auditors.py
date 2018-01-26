@@ -7,14 +7,13 @@ from audit import *
 from globals import State
 import logging
 from date_utils import yesterday_date, datetime_to_string, date_plus_seconds
-
+import mbs_logging
 from notification import NotificationPriority
 
 ###############################################################################
 # LOGGER
 ###############################################################################
-logger = logging.getLogger(__name__)
-logger.addHandler(logging.NullHandler())
+logger = mbs_logging.simple_file_logger("Auditor", "auditor.log")
 
 ###############################################################################
 ##############################                 ################################
@@ -133,6 +132,7 @@ class PlanScheduleAuditor(BackupAuditor):
         all_warned_audits = []
         total_warnings = 0
         for plan in get_mbs().plan_collection.find_iter(no_cursor_timeout=True):
+            logger.info("PlanScheduleAuditor: Processing plan %s" % plan.id)
             plan_report = self._create_plan_audit_report(plan, audit_date)
 
             if plan_report.has_failures():
