@@ -474,10 +474,20 @@ class EbsVolumeStorage(VolumeStorage):
         snapshot_id = snapshot_ref.snapshot_id
         try:
             logger.info("EC2: BEGIN Deleting snapshot '%s' " % snapshot_id)
-            self.ec2_connection.delete_snapshot(snapshot_id)
-            if self.snapshot_exists(snapshot_id):
-                raise mbs_errors.Ec2SnapshotDeleteError("Snapshot '%s' still exists after deleting!" % snapshot_id)
 
+            snapshot_deleted = False
+            for i in xrange(10):
+                self.ec2_connection.delete_snapshot(snapshot_id)
+                snapshot_deleted = not self.snapshot_exists(snapshot_id)
+                if snapshot_deleted:
+                    break
+                else:
+                    # sleep for one second
+                    time.sleep(1)
+
+            if not snapshot_deleted:
+                raise mbs_errors.Ec2SnapshotDeleteError("Snapshot '%s' still exists after 10 attempts of delete!" %
+                                                        snapshot_id)
             logger.info("EC2: END Snapshot '%s' deleted successfully!" % snapshot_id)
             return True
         except Exception, e:
