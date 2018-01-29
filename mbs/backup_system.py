@@ -29,7 +29,7 @@ from tags import DynamicTag
 
 from plan import BackupPlan
 from schedule import AbstractSchedule, Schedule
-from retention import RetentionPolicy
+from retention.policy import RetentionPolicy
 from strategy import BackupStrategy
 from target import BackupTarget
 from source import BackupSource

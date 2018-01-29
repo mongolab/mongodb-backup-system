@@ -94,6 +94,11 @@ class MBS(object):
             import boto
             boto.set_stream_logger('boto')
 
+        # read log path
+        if config.get("logPath"):
+            import mbs_config
+            mbs_config.MBS_LOG_PATH = config.get("logPath")
+
     ###########################################################################
     @property
     def temp_dir(self):
