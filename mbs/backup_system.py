@@ -46,6 +46,9 @@ from task_utils import set_task_retry_info, trigger_task_finished_event
 from notification.handler import NotificationPriority, NotificationType
 from schedule_runner import ScheduleRunner
 
+import date_utils
+
+
 ###############################################################################
 ########################                                #######################
 ########################           Backup System        #######################
@@ -421,6 +424,15 @@ class BackupSystem(Thread):
             logger.error(traceback.format_exc())
             raise BackupSchedulingError(msg=msg, cause=e)
 
+    ###########################################################################
+    def force_expire_backup(self, backup):
+        self.backup_expiration_manager.expire_backup(backup, force=True)
+
+    ###########################################################################
+    def cancel_backup(self, backup):
+        backup.cancel_requested_at = date_utils.date_now()
+        persistence.update_backup(backup, properties="cancelRequestedAt",
+                                  message="Backup canceled through API")
 
     ###########################################################################
     def create_backup_plan(self, **kwargs):
