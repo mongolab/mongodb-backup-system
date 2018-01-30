@@ -2156,7 +2156,7 @@ class CloudBlockStorageStrategy(BackupStrategy):
         snapshot_ref = backup.target_reference
         wait_status = listify(wait_status)
         while snapshot_ref.status not in wait_status:
-            logger.debug("Checking updates for backup '%s' snapshot" %
+            logger.info("Checking updates for backup '%s' snapshot" %
                          backup.id)
             new_snapshot_ref = cbs.check_snapshot_updates(snapshot_ref)
             if new_snapshot_ref:
