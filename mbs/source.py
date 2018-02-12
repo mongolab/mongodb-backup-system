@@ -497,6 +497,7 @@ class EbsVolumeStorage(VolumeStorage):
                 return False
             else:
                 msg = "Error while deleting snapshot '%s'" % snapshot_id
+                logger.exception(msg)
                 raise mbs_errors.BlockStorageSnapshotError(msg, cause=e)
 
     ###########################################################################
