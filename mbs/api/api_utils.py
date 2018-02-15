@@ -58,6 +58,10 @@ def get_request_value(key):
         return request.args.get(key)
 
 ########################################################################################################################
+def get_request_query_param_list(key):
+    return request.args.getlist(key)
+
+########################################################################################################################
 def raise_404(msg):
     raise MBSApiError(msg, status_code=404)
 
