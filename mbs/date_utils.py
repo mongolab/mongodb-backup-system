@@ -113,3 +113,8 @@ def time_string(time_seconds):
     result.append("%d second(s)" % seconds)
 
     return " ".join(result)
+
+def days_ago_to_dt(days_from_now):
+    current_dt = date_now()
+    result = current_dt - timedelta(days=days_from_now)
+    return result
