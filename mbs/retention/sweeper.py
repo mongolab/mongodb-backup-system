@@ -2,18 +2,16 @@ __author__ = 'abdul'
 
 import traceback
 import multiprocessing
+import logging
+import time
+
 from mbs import mbs_logging
 from mbs import persistence
-
-
-
 
 from mbs.mbs import get_mbs
 
 from mbs.date_utils import date_now, date_minus_seconds
 
-
-from mbs.schedule_runner import ScheduleRunner
 from mbs.schedule import Schedule
 from mbs.globals import State, EventType
 
@@ -33,7 +31,8 @@ from mbs.notification.handler import NotificationPriority, NotificationType
 # LOGGER
 ###############################################################################
 
-logger = mbs_logging.simple_file_logger("BackupSweeper", "sweeper.log")
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
 
 ###############################################################################
 # BackupSweeper
@@ -42,26 +41,53 @@ logger = mbs_logging.simple_file_logger("BackupSweeper", "sweeper.log")
 DEFAULT_SWEEP_SCHEDULE = Schedule(frequency_in_seconds=12 * 60 * 60)
 DEFAULT_DELETE_DELAY_IN_SECONDS = 5 * 24 * 60 * 60  # 5 days
 
-class BackupSweeper(ScheduleRunner):
+
+class BackupSweeper(multiprocessing.Process):
     """
         A Thread that periodically deletes backups targets that
         are due for deletion
     """
     ###########################################################################
-    def __init__(self, schedule=None):
-        schedule = schedule or DEFAULT_SWEEP_SCHEDULE
-        ScheduleRunner.__init__(self, schedule=schedule)
+    def __init__(self):
+        multiprocessing.Process.__init__(self)
         self._test_mode = False
         self._delete_delay_in_seconds = DEFAULT_DELETE_DELAY_IN_SECONDS
+        self._schedule = DEFAULT_SWEEP_SCHEDULE
+
         self._worker_count = 0
         self._sweep_workers = None
-        self._sweep_queue = multiprocessing.JoinableQueue()
-
-        # cycle stats
-
         self._cycle_total_processed = 0
         self._cycle_total_deleted = 0
         self._cycle_total_errored = 0
+
+
+    ###########################################################################
+    @property
+    def schedule(self):
+        return self._schedule
+
+    @schedule.setter
+    def schedule(self, val):
+        self._schedule = val
+
+    ###########################################################################
+    def run(self):
+        self._setup_logging()
+        self._sweep_queue = multiprocessing.JoinableQueue()
+        # create an inlined schedule runner
+
+        while True:
+            next_occurrence = self.schedule.next_natural_occurrence()
+            while date_now() < next_occurrence:
+                time.sleep(1)
+
+            self.tick()
+
+    ###########################################################################
+    def _setup_logging(self):
+        logging.getLogger().handlers = []
+        mbs_logging.setup_logging(False, "sweeper.log")
+        mbs_logging.redirect_std_to_logger()
 
     ###########################################################################
     @property
@@ -124,8 +150,6 @@ class BackupSweeper(ScheduleRunner):
         backups_iterated = 0
         # process all plan backups
         for backup in backups_iter:
-            if self.stop_requested:
-                break
 
             self._sweep_queue.put(backup)
             backups_iterated += 1
