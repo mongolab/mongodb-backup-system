@@ -843,7 +843,7 @@ class BackupSystem(Thread):
             self.info("Backup Expiration Manager stopped!")
         if self.backup_sweeper:
             self.info("Stopping Backup Sweeper")
-            self.backup_sweeper.stop()
+            self.backup_sweeper.terminate()
             self.info("Backup Sweeper stopped!")
 
     ###########################################################################
