@@ -59,7 +59,12 @@ def get_request_value(key):
 
 ########################################################################################################################
 def get_request_query_param_list(key):
-    return request.args.getlist(key)
+    args = request.args.getlist(key)
+    if args:
+        args = filter(lambda x: x != '', args)
+
+    return args
+
 
 ########################################################################################################################
 def raise_404(msg):
