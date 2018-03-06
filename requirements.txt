@@ -31,7 +31,7 @@ git+https://github.com/objectlabs/robustify.git@0.1.0#egg=robustify-0.1.0
 git+https://github.com/objectlabs/maker-py.git@0.3.4#egg=makerpy-0.3.4
 
 git+https://github.com/objectlabs/splitfile.git#egg=splitfile-0.1.1
-git+https://github.com/mongolab/mongodb-backup-system-client.git@0.3.4#egg=mbs_client-0.3.4
+git+https://github.com/mongolab/mongodb-backup-system-client.git@0.3.5#egg=mbs_client-0.3.5
 git+https://github.com/carbon-io/carbon-client-py.git@0.2.2#egg=carbonio_client-0.2.2
 
 # test
