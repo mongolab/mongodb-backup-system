@@ -6,7 +6,7 @@ boto==2.48.0
 # https://github.com/abdulito/croniter/archive/master.zip#egg=abdulito_croniter-0.3.2
 croniter
 dargparse
-pymongo==3.2.2
+pymongo==3.6.1
 python-cloudfiles==1.7.10
 python-dateutil==1.5
 pystache==0.5.4
