@@ -29,7 +29,7 @@ from tags import DynamicTag
 
 from plan import BackupPlan
 from schedule import AbstractSchedule, Schedule
-from retention import RetentionPolicy
+from retention.policy import RetentionPolicy
 from strategy import BackupStrategy
 from target import BackupTarget
 from source import BackupSource
@@ -855,7 +855,7 @@ class BackupSystem(Thread):
             self.info("Backup Expiration Manager stopped!")
         if self.backup_sweeper:
             self.info("Stopping Backup Sweeper")
-            self.backup_sweeper.stop()
+            self.backup_sweeper.terminate()
             self.info("Backup Sweeper stopped!")
 
     ###########################################################################

@@ -927,6 +927,7 @@ class ShardedClusterConnector(MongoConnector):
             for router in self._routers:
                 if router.is_online():
                     self._router = router
+                    break
 
         if self._router is None:
             raise Exception("No online routers found for '%s'" % self)
@@ -985,15 +986,21 @@ class ShardedClusterConnector(MongoConnector):
 
     ###########################################################################
     def stop_balancer(self):
+        self._set_balancer_state(False)
+        # TODO re-enable
+        """
         if self.router.version_greater_than_3_4():
             logger.info("Issuing a balancerStop command on router %s" % self.router)
             result = self.admin_db.command({"balancerStop": 1})
             logger.info("balancerStop command result: %s" % result)
         else:
             self._set_balancer_state(False)
-
+        """
     ###########################################################################
     def resume_balancer(self):
+        self._set_balancer_state(True)
+        # TODO re-enable
+        """
         if self.router.version_greater_than_3_4():
             logger.info("Issuing a balancerStart command on router %s" % self.router)
             result = self.admin_db.command({"balancerStart": 1})
@@ -1001,6 +1008,7 @@ class ShardedClusterConnector(MongoConnector):
         else:
             self._set_balancer_state(True)
 
+        """
     ###########################################################################
     def _set_balancer_state(self, val):
         stopped_state = not val

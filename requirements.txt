@@ -1,12 +1,12 @@
 # core
 
 Flask==0.8
-boto==2.45.0
+boto==2.48.0
 # This is temp until croniter fixes issue #22 https://github.com/taichino/croniter/pull/22
 # https://github.com/abdulito/croniter/archive/master.zip#egg=abdulito_croniter-0.3.2
 croniter
 dargparse
-pymongo==3.2.2
+pymongo==3.6.1
 python-cloudfiles==1.7.10
 python-dateutil==1.5
 pystache==0.5.4
@@ -31,7 +31,7 @@ git+https://github.com/objectlabs/robustify.git@0.1.0#egg=robustify-0.1.0
 git+https://github.com/objectlabs/maker-py.git@0.3.4#egg=makerpy-0.3.4
 
 git+https://github.com/objectlabs/splitfile.git#egg=splitfile-0.1.1
-git+https://github.com/mongolab/mongodb-backup-system-client.git@0.3.4#egg=mbs_client-0.3.4
+git+https://github.com/mongolab/mongodb-backup-system-client.git@0.3.5#egg=mbs_client-0.3.5
 git+https://github.com/carbon-io/carbon-client-py.git@0.2.2#egg=carbonio_client-0.2.2
 
 # test

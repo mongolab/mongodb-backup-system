@@ -430,18 +430,20 @@ class S3BucketTarget(BackupTarget):
                 # if the file is not encrypted.
                 # https://github.com/boto/boto/issues/3361
                 not_buggy_key = bucket.get_key(key.name)
-
-                return {
-                    'size': not_buggy_key.size,
-                    'cloud_storage_encryption': not_buggy_key.encrypted,
-                    'md5': not_buggy_key.md5,
-                    'last_modified': not_buggy_key.last_modified,
-                    'metadata': not_buggy_key.metadata,
-                    "expiryDate": not_buggy_key.expiry_date,
-                    "name": key.name,
-                    "storageClass": key.storage_class,
-                    "ongoingRestore": key.ongoing_restore
-                }
+                # Need to check if the file still exist because it could have been deleted
+                # between the bucket.list and now!
+                if not_buggy_key:
+                    return {
+                        'size': not_buggy_key.size,
+                        'cloud_storage_encryption': not_buggy_key.encrypted,
+                        'md5': not_buggy_key.md5,
+                        'last_modified': not_buggy_key.last_modified,
+                        'metadata': not_buggy_key.metadata,
+                        "expiryDate": not_buggy_key.expiry_date,
+                        "name": key.name,
+                        "storageClass": key.storage_class,
+                        "ongoingRestore": key.ongoing_restore
+                    }
 
         return None
 
@@ -749,12 +751,6 @@ class S3BucketTarget(BackupTarget):
     def validate(self):
         errors = []
         errors += self._validate_bucket_name()
-
-        if not self.get_access_key():
-            errors.append("Access key is required")
-
-        if not self.get_secret_key():
-            errors.append("Secret key is required")
 
         return errors
 
