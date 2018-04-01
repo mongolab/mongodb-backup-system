@@ -213,7 +213,14 @@ class BackupScheduler(ScheduleRunner):
         }
 
         for backup in get_mbs().backup_collection.find(q):
-            self._process_failed_backup(backup)
+            try:
+                self._process_failed_backup(backup)
+            except Exception, ex:
+                subject = "Plan Scheduler Error"
+                message = ("Error while rescheduling backup '%s'. Cause: %s.\n\nStack Trace:\n%s" %
+                           (backup.id, ex, traceback.format_exc()))
+                logger.exception(message)
+                get_mbs().notifications.send_error_notification(subject, message)
 
 
     ####################################################################################################################
