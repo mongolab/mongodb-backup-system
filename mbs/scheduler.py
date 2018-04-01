@@ -212,7 +212,7 @@ class BackupScheduler(ScheduleRunner):
             }
         }
 
-        for backup in get_mbs().backup_collection.find(q):
+        for backup in get_mbs().backup_collection.find_iter(q):
             try:
                 self._process_failed_backup(backup)
             except Exception, ex:
