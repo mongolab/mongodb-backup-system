@@ -897,6 +897,14 @@ class ShardedClusterConnector(MongoConnector):
         return self._config_servers
 
     ###########################################################################
+    def is_standalone_config_servers(self):
+        return not self.is_config_servers_replicaset()
+
+    ###########################################################################
+    def is_config_servers_replicaset(self):
+        return isinstance(self.config_servers, MongoCluster)
+
+    ###########################################################################
     @property
     def routers(self):
         return self._routers

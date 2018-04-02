@@ -10,7 +10,7 @@ import os
 from boto.exception import S3ResponseError
 from boto.s3.connection import S3Connection
 from boto.regioninfo import load_regions
-
+import boto
 
 _S3_ENDPOINT_LOOKUP = load_regions()['s3']
 
@@ -103,7 +103,8 @@ def get_connection(api_key_id, api_secret_key, region=None, **kwargs):
         try:
             kwargs.update({'host': _S3_ENDPOINT_LOOKUP[region]})
         except KeyError:
-            raise ValueError('unknown region: %s' % (region))
-    return S3Connection(api_key_id, api_secret_key, **kwargs)
+            os.environ["BOTO_USE_ENDPOINT_HEURISTICS"] = "true"
+
+    return boto.s3.connect_to_region(region, aws_access_key_id=api_key_id, aws_secret_access_key=api_secret_key)
 
 
