@@ -650,6 +650,20 @@ class NoCloudBlockStorageFoundError(MBSError):
     pass
 
 ###############################################################################
+class EbsVolumeNotFoundError(ConfigurationError):
+    """
+        Thrown when no EBS volumes can be found on the target host
+    """
+    pass
+
+###############################################################################
+class MultipleEbsVolumesFoundError(ConfigurationError):
+    """
+        Thrown when multiple EBS volumes are found on the target host
+    """
+    pass
+
+###############################################################################
 class SnapshotDidNotSucceedError(MBSError, RetriableError):
     """
         Thrown when snapshot status becomes 'error'
