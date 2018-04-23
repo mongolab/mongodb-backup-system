@@ -31,6 +31,10 @@ repoze.lru==0.6
 # (needed for GCP cloud code)
 pyopenssl==17.1.0
 
+# This is needed to pin since some dependencies doesnt specify an exact one which makes it install v3
+#which is not compatible with python 2.7
+secretstorage<3
+
 git+https://github.com/mlab/pymo.git@0.1.0#egg=pymo-0.1.0
 git+https://github.com/objectlabs/robustify.git@0.1.0#egg=robustify-0.1.0
 git+https://github.com/objectlabs/maker-py.git@0.3.4#egg=makerpy-0.3.4
