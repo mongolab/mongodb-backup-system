@@ -102,6 +102,7 @@ def time_str_to_datetime_today(str):
     today = today_date()
     return today.replace(hour=time.hour, minute=time.minute)
 
+###############################################################################
 def time_string(time_seconds):
     days, remainder = divmod(time_seconds, 3600 * 24)
     hours, remainder = divmod(remainder, 3600)
@@ -118,7 +119,16 @@ def time_string(time_seconds):
 
     return " ".join(result)
 
+###############################################################################
 def days_ago_to_dt(days_from_now):
     current_dt = date_now()
     result = current_dt - timedelta(days=days_from_now)
     return result
+
+###############################################################################
+def datetime_to_time_str(dt):
+    return dt.time().strftime('%H:%M')
+
+###############################################################################
+def time_str_to_datetime(time_str):
+    return datetime.strptime(time_str, '%H:%M')
