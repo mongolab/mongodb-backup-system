@@ -683,6 +683,7 @@ class BlobVolumeStorage(VolumeStorage):
         self._encrypted_access_key = None
         self._storage_account = None
         self._blob_service_connection = None
+        self.volume_encrypted = False
 
     ###########################################################################
     def do_create_snapshot(self, name, description):
@@ -846,6 +847,7 @@ class ManagedDiskVolumeStorage(VolumeStorage):
         self._encrypted_access_key = None
         self._location = None
         self._compute_client = None
+        self.volume_encrypted = True
 
     ###########################################################################
     def do_create_snapshot(self, name, description):
@@ -986,7 +988,7 @@ class GcpDiskVolumeStorage(VolumeStorage):
     def __init__(self):
         VolumeStorage.__init__(self)
         self._zone = None
-
+        self._volume_encrypted = True
         self._gce_svc_cached_conn = None
         self._gce_svc_conn_expires_at = None
 
