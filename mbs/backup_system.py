@@ -405,6 +405,8 @@ class BackupSystem(Thread):
             except Exception, ex:
                 self._task_failed_to_schedule(backup, bc, ex)
 
+            self.set_custom_backup_props(backup)
+
             backup_doc = backup.to_document()
             get_mbs().backup_collection.save_document(backup_doc)
             # set the backup id from the saved doc
@@ -423,6 +425,10 @@ class BackupSystem(Thread):
             logger.error(msg)
             logger.error(traceback.format_exc())
             raise BackupSchedulingError(msg=msg, cause=e)
+
+    ###########################################################################
+    def set_custom_backup_props(self, backup):
+        pass
 
     ###########################################################################
     def force_expire_backup(self, backup):
