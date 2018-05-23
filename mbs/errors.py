@@ -514,6 +514,14 @@ class NoSpaceLeftError(MBSError):
     """
 
 ###############################################################################
+class EbsVolumeNotFoundError(ConfigurationError):
+    pass
+
+###############################################################################
+class MultipleEbsVolumesFoundError(ConfigurationError):
+    pass
+
+###############################################################################
 class ReadonlyFileSystemError(MBSError):
     pass
 
