@@ -1574,10 +1574,14 @@ class DumpStrategy(BackupStrategy):
                     dest_mongo_version >= VERSION_2_6 and source_database_name is not None):
             restore_options.append("--restoreDbUsersAndRoles")
 
-        # stop on errors for 3.0 restores
+        # Options for 3.0+
         if dest_mongo_version >= VERSION_3_0:
+            # stop on errors for 3.0 restores
             restore_options.append("--stopOnError")
+            # numParallelCollections
             restore_options.extend(["--numParallelCollections", "1"])
+            # default write concern to majority
+            restore_options.extend(["--writeConcern", "majority"])
 
         # additional restore options
         if self.no_index_restore:

@@ -1555,6 +1555,13 @@ def cached_ec2_connect_to_region(region, aws_access_key_id, aws_secret_access_ke
     conn = connect_to_region(region, aws_access_key_id=aws_access_key_id,
                              aws_secret_access_key=aws_secret_access_key)
 
+    # if conn is none then its possible that the reigion is not registered
+    if conn is None:
+        import os
+        os.environ["BOTO_USE_ENDPOINT_HEURISTICS"] = "true"
+        conn = connect_to_region(region, aws_access_key_id=aws_access_key_id,
+                                 aws_secret_access_key=aws_secret_access_key)
+
     # log elapsed time for aws call
     elapsed_time = date_utils.timedelta_total_seconds(date_utils.date_now() - start_date)
     logger.info("EC2: END Create connection to region '%s' returned in %s seconds" % (region, elapsed_time))
