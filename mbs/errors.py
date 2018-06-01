@@ -514,6 +514,14 @@ class NoSpaceLeftError(MBSError):
     """
 
 ###############################################################################
+class EbsVolumeNotFoundError(ConfigurationError):
+    pass
+
+###############################################################################
+class MultipleEbsVolumesFoundError(ConfigurationError):
+    pass
+
+###############################################################################
 class ReadonlyFileSystemError(MBSError):
     pass
 
@@ -647,6 +655,20 @@ class BlockStorageSnapshotError(MBSError):
 # NoCloudBlockStorageFoundError
 ###############################################################################
 class NoCloudBlockStorageFoundError(MBSError):
+    pass
+
+###############################################################################
+class EbsVolumeNotFoundError(ConfigurationError):
+    """
+        Thrown when no EBS volumes can be found on the target host
+    """
+    pass
+
+###############################################################################
+class MultipleEbsVolumesFoundError(ConfigurationError):
+    """
+        Thrown when multiple EBS volumes are found on the target host
+    """
     pass
 
 ###############################################################################

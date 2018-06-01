@@ -56,3 +56,23 @@ def get_request_value(key):
 
     if request.args and request.args.get(key):
         return request.args.get(key)
+
+########################################################################################################################
+def get_request_query_param_list(key):
+    args = request.args.getlist(key)
+    if args:
+        args = filter(lambda x: x != '', args)
+
+    return args
+
+
+########################################################################################################################
+def raise_404(msg):
+    raise MBSApiError(msg, status_code=404)
+
+########################################################################################################################
+def raise_400(msg):
+    raise MBSApiError(msg, status_code=400)
+
+def get_path_param_value(key):
+    return request.view_args[key]

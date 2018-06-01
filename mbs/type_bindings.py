@@ -69,6 +69,7 @@ TYPE_BINDINGS = {
     "HipchatNotificationHandler": "mbs.notification.handler.HipchatNotificationHandler",
     "PagerDutyNotificationHandler": "mbs.notification.handler.PagerDutyNotificationHandler",
     "SlackNotificationHandler": "mbs.notification.handler.SlackNotificationHandler",
+    "ZendeskNotificationHandler": "mbs.notification.handler.ZendeskNotificationHandler",
     "Notifications": "mbs.notification.handler.Notifications"
 
 }

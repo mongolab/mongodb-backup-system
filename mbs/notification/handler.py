@@ -16,6 +16,7 @@ import pypd
 from carbonio_client.client import CarbonIOClient
 from robustify.robustify import robustify
 from ..errors import raise_exception, raise_if_not_retriable
+from zdesk import Zendesk
 
 DEFAULT_NOTIFICATION_SUBJECT = "Backup System Notification"
 
@@ -579,6 +580,93 @@ class SlackNotificationHandler(NotificationHandler):
         except Exception, e:
             logger.error("Error while sending slack notification:\n%s" %
                          traceback.format_exc())
+
+
+class ZendeskNotificationHandler(NotificationHandler):
+    ###########################################################################
+    def __init__(self):
+        NotificationHandler.__init__(self)
+
+        self._auth_token = None
+        self._auth_email = None
+        self._auth_org_url = None
+        self._requester_name = None
+        self._requester_email = None
+        self._assignee_id = None
+
+    @property
+    def auth_token(self):
+        return self._auth_token
+
+    @auth_token.setter
+    def auth_token(self, val):
+        self._auth_token = val
+
+    @property
+    def auth_email(self):
+        return self._auth_email
+
+    @auth_email.setter
+    def auth_email(self, val):
+        self._auth_email = val
+
+    @property
+    def auth_org_url(self):
+        return self._auth_org_url
+
+    @auth_org_url.setter
+    def auth_org_url(self, val):
+        self._auth_org_url = val
+
+    @property
+    def requester_name(self):
+        return self._requester_name
+
+    @requester_name.setter
+    def requester_name(self, val):
+        self._requester_name = val
+
+    @property
+    def requester_email(self):
+        return self._requester_email
+
+    @requester_email.setter
+    def requester_email(self, val):
+        self._requester_email = val
+
+    @property
+    def assignee_id(self):
+        return self._assignee_id
+
+    @assignee_id.setter
+    def assignee_id(self, val):
+        self._assignee_id = val
+
+        ###########################################################################
+    def send_notification(self, subject, message, recipient=None):
+
+        try:
+            logger.info("Sending zendesk notification '%s'..." % subject)
+            zendesk = Zendesk(self.auth_org_url, self.auth_email, self.auth_token, True)
+
+            new_ticket = {
+                'ticket': {
+                    'requester': {
+                        'name': self.requester_name,
+                        'email': self.requester_email,
+                    },
+                    'subject': subject,
+                    'description': message,
+                    'assignee_id': self.assignee_id
+                }
+            }
+
+            zendesk.ticket_create(data=new_ticket)
+
+        except Exception, e:
+            logger.error("Error while sending zendesk notification:\n%s" %
+                         traceback.format_exc())
+
 
 ###############################################################################
 def get_class_full_name(clazz):

@@ -338,11 +338,17 @@ class BackupTarget(MBSObject):
     def preserve(self, val):
         self._preserve = val
 
+    ###########################################################################
     def load_region(self):
         """
         Mutates the BackupTarget object by assigning the region field.
         Should be implemented by subclasses
         """
+
+    ###########################################################################
+    @property
+    def provider(self):
+        return None
 
     ###########################################################################
     def to_document(self, display_only=False):
@@ -656,6 +662,11 @@ class S3BucketTarget(BackupTarget):
 
         key = self._get_file_ref_key(file_ref)
         key.restore(days=days)
+
+    ###########################################################################
+    @property
+    def provider(self):
+        return 'AWS'
 
 
     ###########################################################################
