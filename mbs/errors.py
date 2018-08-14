@@ -367,7 +367,7 @@ class InvalidBSONObjSizeError(RetriableDumpError):
     pass
 
 ###############################################################################
-class MongodumpFailedAfterDowngrade(DumpError):
+class UnauthorizedToDumpCollectionError(DumpError):
     pass
 
 ###############################################################################
@@ -1007,7 +1007,7 @@ def raise_dump_error(returncode, error_log_line, last_namespace=None):
     elif "mongoctl error" in error_log_line and "Unable to find a compatible 'mongodump'" in error_log_line:
         error_type = NoCompatibleMongodumpExeFoundError
     elif "config.system.sessions: not authorized on config to execute command" in error_log_line:
-        error_type = MongodumpFailedAfterDowngrade
+        error_type = UnauthorizedToDumpCollectionError
     elif returncode == 245: # segmentation fault
         error_type = MongodumpSegmentationFaultError
     # Generic retriable errors
