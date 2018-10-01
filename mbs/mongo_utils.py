@@ -14,7 +14,7 @@ from bson.son import SON
 from errors import *
 from date_utils import timedelta_total_seconds
 from utils import is_host_local, document_pretty_string, safe_stringify
-from verlib import NormalizedVersion, suggest_normalized_version
+from distutils2.version import NormalizedVersion, suggest_normalized_version
 from bson.objectid import ObjectId
 import logging
 from robustify.robustify import robustify
