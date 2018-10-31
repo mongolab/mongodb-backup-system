@@ -972,6 +972,8 @@ def raise_dump_error(returncode, error_log_line, last_namespace=None):
         error_type = CorruptionError
     elif "assertion src/mongo/db/storage/mmap_v1/btree/key.cpp:443" in error_log_line:
         error_type = CorruptionError
+    elif "error reading collection: bad offset" in error_log_line:
+        error_type = CorruptionError
     elif "13338" in error_log_line:
         error_type = CappedCursorOverrunError
     elif "13280" in error_log_line:
