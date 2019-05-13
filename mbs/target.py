@@ -18,6 +18,7 @@ from base import MBSObject
 from utils import which, execute_command, export_mbs_object_list, safe_stringify
 from azure.storage.blob.baseblobservice import BaseBlobService
 from boto.s3.key import Key
+from boto.s3.connection import OrdinaryCallingFormat
 from boto.exception import S3ResponseError
 from cloudfiles.errors import NoSuchContainer, AuthenticationFailed
 
@@ -576,9 +577,13 @@ class S3BucketTarget(BackupTarget):
     def _connect_to_bucket(self):
         if not(self._connection and self._bucket):
             try:
-                conn, bucket, region = s3_utils.get_connection_for_bucket(self.get_access_key(),
-                                                                          self.get_secret_key(),
-                                                                          self.bucket_name)
+                conn_kwargs = {}
+                # deal with buckets that contains "." in their names https://github.com/boto/boto/issues/2836
+                if "." in self.bucket_name:
+                    conn_kwargs["calling_format"] = OrdinaryCallingFormat()
+                conn, bucket, region = s3_utils.get_connection_for_bucket(
+                    self.get_access_key(), self.get_secret_key(),self.bucket_name, **conn_kwargs)
+
                 self._connection = conn
                 self._bucket = bucket
                 self._region = region
