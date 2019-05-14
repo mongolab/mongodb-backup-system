@@ -105,6 +105,6 @@ def get_connection(api_key_id, api_secret_key, region=None, **kwargs):
         except KeyError:
             os.environ["BOTO_USE_ENDPOINT_HEURISTICS"] = "true"
 
-    return boto.s3.connect_to_region(region, aws_access_key_id=api_key_id, aws_secret_access_key=api_secret_key)
+    return boto.s3.connect_to_region(region, aws_access_key_id=api_key_id, aws_secret_access_key=api_secret_key, **kwargs)
 
 
