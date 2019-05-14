@@ -63,7 +63,7 @@ def get_connection_for_bucket(api_key_id, api_secret_key, bucket_name,
     try:
         bucket = con.get_bucket(bucket_name)
     except S3ResponseError, e:
-        if e.status != 400:
+        if e.status not in [400, 301]:
             raise
 
     if (bucket is not None):
@@ -75,7 +75,7 @@ def get_connection_for_bucket(api_key_id, api_secret_key, bucket_name,
         return con, bucket, region
 
     region = con.request_hook.region
-    con = get_connection(api_key_id, api_secret_key, region)
+    con = get_connection(api_key_id, api_secret_key, region, **kwargs)
 
     return con, con.get_bucket(bucket_name), region
 
@@ -105,6 +105,6 @@ def get_connection(api_key_id, api_secret_key, region=None, **kwargs):
         except KeyError:
             os.environ["BOTO_USE_ENDPOINT_HEURISTICS"] = "true"
 
-    return boto.s3.connect_to_region(region, aws_access_key_id=api_key_id, aws_secret_access_key=api_secret_key)
+    return boto.s3.connect_to_region(region, aws_access_key_id=api_key_id, aws_secret_access_key=api_secret_key, **kwargs)
 
 
