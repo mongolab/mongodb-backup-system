@@ -36,6 +36,7 @@ pyopenssl==17.1.0
 # This is needed to pin since some dependencies doesnt specify an exact one which makes it install v3
 #which is not compatible with python 2.7
 secretstorage<3
+keyring==12.0.2
 
 git+https://github.com/mlab/pymo.git@0.1.0#egg=pymo-0.1.0
 git+https://github.com/objectlabs/robustify.git@0.1.0#egg=robustify-0.1.0
