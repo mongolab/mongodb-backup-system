@@ -19,7 +19,7 @@ sendgrid==0.1.3
 
 azure-mgmt-compute==1.0.0
 azure-storage==0.34.3
-requests==2.11.1
+requests==2.20.0
 gevent==1.2.2
 gunicorn==19.6.0
 python-simple-hipchat==0.4.0
