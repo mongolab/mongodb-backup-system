@@ -1,6 +1,6 @@
 # core
 
-Flask==0.8
+Flask==0.10.1
 boto==2.48.0
 # This is temp until croniter fixes issue #22 https://github.com/taichino/croniter/pull/22
 # https://github.com/abdulito/croniter/archive/master.zip#egg=abdulito_croniter-0.3.2
