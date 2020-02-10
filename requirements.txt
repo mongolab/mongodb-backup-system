@@ -31,7 +31,7 @@ zdesk==2.4.0
 # PyOpenSSL (or PyCrypto, which is less-maintained) required for
 # google-api-python-client's oauth2client.client.SignedJwtAssertionCredentials
 # (needed for GCP cloud code)
-pyopenssl==17.1.0
+pyopenssl==17.5.0
 
 # This is needed to pin since some dependencies doesnt specify an exact one which makes it install v3
 #which is not compatible with python 2.7
