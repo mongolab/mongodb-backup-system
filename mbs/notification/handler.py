@@ -6,7 +6,7 @@ import traceback
 
 from email.mime.text import MIMEText
 
-from sendgrid import Sendgrid, Message
+#from sendgrid import Sendgrid, Message
 
 from .message import get_messages
 from ..utils import listify
@@ -224,6 +224,7 @@ class EmailNotificationHandler(NotificationHandler):
 ###############################################################################
 # SendgridNotificationHandler
 ###############################################################################
+"""
 class SendgridNotificationHandler(EmailNotificationHandler):
 
     ###########################################################################
@@ -282,7 +283,7 @@ class SendgridNotificationHandler(EmailNotificationHandler):
             logger.error("Error while sending email:\n%s" %
                          traceback.format_exc())
 
-
+"""
 ###############################################################################
 # SmtpNotificationHandler
 ###############################################################################

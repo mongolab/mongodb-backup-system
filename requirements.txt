@@ -15,7 +15,6 @@ distutils2==1.0a4
 httplib2>=0.9
 psutil==1.2.1
 google-api-python-client==1.2
-sendgrid==0.1.3
 
 azure-mgmt-compute==1.0.0
 azure-storage==0.34.3
